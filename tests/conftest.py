@@ -1,6 +1,8 @@
+import asyncio
 import io
 import logging
 import re
+from asyncio import Protocol
 from collections.abc import Callable, Generator
 from queue import Queue
 from typing import Any
@@ -11,8 +13,9 @@ from aioresponses import aioresponses
 
 from roborock import HomeData, UserData
 from roborock.containers import DeviceData
+from roborock.version_1_apis.roborock_local_client_v1 import RoborockLocalClientV1
 from roborock.version_1_apis.roborock_mqtt_client_v1 import RoborockMqttClientV1
-from tests.mock_data import HOME_DATA_RAW, USER_DATA
+from tests.mock_data import HOME_DATA_RAW, TEST_LOCAL_API_HOST, USER_DATA
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -191,3 +194,43 @@ def mock_rest() -> aioresponses:
             payload={"api": None, "code": 200, "result": HOME_DATA_RAW, "status": "ok", "success": True},
         )
         yield mocked
+
+
+@pytest.fixture(name="mock_create_local_connection")
+def create_local_connection_fixture(request_handler: RequestHandler) -> Generator[None, None, None]:
+    """Fixture that overrides the transport creation to wire it up to the mock socket."""
+
+    async def create_connection(protocol_factory: Callable[[], Protocol], *args) -> tuple[Any, Any]:
+        protocol = protocol_factory()
+
+        def handle_write(data: bytes) -> None:
+            _LOGGER.debug("Received: %s", data)
+            response = request_handler(data)
+            if response is not None:
+                _LOGGER.debug("Replying with %s", response)
+                loop = asyncio.get_running_loop()
+                loop.call_soon(protocol.data_received, response)
+
+        closed = asyncio.Event()
+
+        mock_transport = Mock()
+        mock_transport.write = handle_write
+        mock_transport.close = closed.set
+        mock_transport.is_reading = lambda: not closed.is_set()
+
+        return (mock_transport, "proto")
+
+    with patch("roborock.api.get_running_loop_or_create_one") as mock_loop:
+        mock_loop.return_value.create_connection.side_effect = create_connection
+        yield
+
+
+@pytest.fixture(name="local_client")
+def local_client_fixture(mock_create_local_connection: None) -> Generator[RoborockLocalClientV1, None, None]:
+    home_data = HomeData.from_dict(HOME_DATA_RAW)
+    device_info = DeviceData(
+        device=home_data.devices[0],
+        model=home_data.products[0].model,
+        host=TEST_LOCAL_API_HOST,
+    )
+    yield RoborockLocalClientV1(device_info)

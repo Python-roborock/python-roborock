@@ -4,6 +4,8 @@ import asyncio
 import logging
 from abc import ABC
 from asyncio import Lock, TimerHandle, Transport
+from collections.abc import Callable
+from dataclasses import dataclass
 
 import async_timeout
 
@@ -16,7 +18,15 @@ from .roborock_message import RoborockMessage, RoborockMessageProtocol
 _LOGGER = logging.getLogger(__name__)
 
 
-class RoborockLocalClient(RoborockClient, asyncio.Protocol, ABC):
+@dataclass
+class _LocalProtocol(asyncio.Protocol):
+    """Callbacks for the Roborock local client transport."""
+
+    messages_cb: Callable[[bytes], None]
+    connection_lost_cb: Callable[[Exception | None], None]
+
+
+class RoborockLocalClient(RoborockClient, ABC):
     """Roborock local client base class."""
 
     def __init__(self, device_data: DeviceData, queue_timeout: int = 4):
@@ -31,15 +41,18 @@ class RoborockLocalClient(RoborockClient, asyncio.Protocol, ABC):
         self._mutex = Lock()
         self.keep_alive_task: TimerHandle | None = None
         RoborockClient.__init__(self, device_data, queue_timeout)
+        self._local_protocol = _LocalProtocol(self._data_received, self._connection_lost)
 
-    def data_received(self, message):
+    def _data_received(self, message):
+        """Called when data is received from the transport."""
         if self.remaining:
             message = self.remaining + message
             self.remaining = b""
         parser_msg, self.remaining = MessageParser.parse(message, local_key=self.device_info.device.local_key)
         self.on_message_received(parser_msg)
 
-    def connection_lost(self, exc: Exception | None):
+    def _connection_lost(self, exc: Exception | None):
+        """Called when the transport connection is lost."""
         self.sync_disconnect()
         self.on_connection_lost(exc)
 
@@ -62,7 +75,7 @@ class RoborockLocalClient(RoborockClient, asyncio.Protocol, ABC):
                     async with async_timeout.timeout(self.queue_timeout):
                         self._logger.debug(f"Connecting to {self.host}")
                         self.transport, _ = await self.event_loop.create_connection(  # type: ignore
-                            lambda: self, self.host, 58867
+                            lambda: self._local_protocol, self.host, 58867
                         )
                         self._logger.info(f"Connected to {self.host}")
                         should_ping = True
