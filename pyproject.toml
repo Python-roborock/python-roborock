@@ -46,6 +46,7 @@ ruff = "*"
 codespell = "*"
 pyshark = "^0.6"
 aioresponses = "^0.7.7"
+pytest-codecov = "^0.6.1"
 
 [tool.semantic_release]
 branch = "main"

@@ -52,8 +52,15 @@ jobs:
         run: poetry install
         shell: bash
       - name: Test with Pytest
-        run: poetry run pytest
+        run: poetry run pytest --cov=roborock --cov-branch --cov-report=xml
         shell: bash
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5.1.2
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          env_vars: OS,PYTHON
+          fail_ci_if_error: true
+          verbose: true
   release:
     runs-on: ubuntu-latest
     needs:
