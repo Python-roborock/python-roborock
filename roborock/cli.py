@@ -11,9 +11,10 @@ from pyshark.capture.live_capture import LiveCapture, UnknownInterfaceException 
 from pyshark.packet.packet import Packet  # type: ignore
 
 from roborock import RoborockException
-from roborock.containers import DeviceData, LoginData
+from roborock.containers import DeviceData, HomeDataProduct, LoginData
 from roborock.protocol import MessageParser
 from roborock.util import run_sync
+from roborock.version_1_apis.roborock_local_client_v1 import RoborockLocalClientV1
 from roborock.version_1_apis.roborock_mqtt_client_v1 import RoborockMqttClientV1
 from roborock.web_api import RoborockApiClient
 
@@ -147,6 +148,29 @@ async def execute_scene(ctx, scene_id):
 
 @click.command()
 @click.option("--device_id", required=True)
+@click.pass_context
+@run_sync()
+async def status(ctx, device_id):
+    context: RoborockContext = ctx.obj
+    login_data = context.login_data()
+    if not login_data.home_data:
+        await _discover(ctx)
+        login_data = context.login_data()
+    home_data = login_data.home_data
+    devices = home_data.devices + home_data.received_devices
+    device = next(device for device in devices if device.duid == device_id)
+    product_info: dict[str, HomeDataProduct] = {product.id: product for product in home_data.products}
+    device_data = DeviceData(device, product_info[device.product_id].model)
+    mqtt_client = RoborockMqttClientV1(login_data.user_data, device_data)
+    networking = await mqtt_client.get_networking()
+    local_device_data = DeviceData(device, product_info[device.product_id].model, networking.ip)
+    local_client = RoborockLocalClientV1(local_device_data)
+    status = await local_client.get_status()
+    click.echo(json.dumps(status.as_dict(), indent=4))
+
+
+@click.command()
+@click.option("--device_id", required=True)
 @click.option("--cmd", required=True)
 @click.option("--params", required=False)
 @click.pass_context
@@ -226,6 +250,7 @@ cli.add_command(discover)
 cli.add_command(list_devices)
 cli.add_command(list_scenes)
 cli.add_command(execute_scene)
+cli.add_command(status)
 cli.add_command(command)
 cli.add_command(parser)
 
