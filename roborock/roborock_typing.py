@@ -464,7 +464,11 @@ class DeviceProp(RoborockBase):
     dust_collection_mode_name: str | None = None
 
     def __post_init__(self) -> None:
-        if self.dock_summary and self.dock_summary.dust_collection_mode and self.dock_summary.dust_collection_mode.mode:
+        if (
+            self.dock_summary
+            and self.dock_summary.dust_collection_mode is not None
+            and self.dock_summary.dust_collection_mode.mode is not None
+        ):
             self.dust_collection_mode_name = self.dock_summary.dust_collection_mode.mode.name
 
     def update(self, device_prop: DeviceProp) -> None:
