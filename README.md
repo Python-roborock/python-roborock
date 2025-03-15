@@ -18,7 +18,7 @@ Install this via pip (or your favourite package manager):
 
 ## Functionality
 
-You can see all of the commands supported [here]("https://python-roborock.readthedocs.io/en/latest/api_commands.html")
+You can see all of the commands supported [here](https://python-roborock.readthedocs.io/en/latest/api_commands.html)
 
 ## Sending Commands
 
@@ -67,7 +67,7 @@ asyncio.run(main())
 ## Supported devices
 
 You can find what devices are supported
-[here]("https://python-roborock.readthedocs.io/en/latest/supported_devices.html").
+[here](https://python-roborock.readthedocs.io/en/latest/supported_devices.html).
 Please note this may not immediately contain the latest devices.
 
 
