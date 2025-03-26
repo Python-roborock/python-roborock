@@ -11,6 +11,7 @@ from roborock.cloud_api import RoborockMqttClient
 from ..containers import DeviceData, UserData
 from ..exceptions import CommandVacuumError, RoborockException, VacuumError
 from ..protocol import MessageParser, Utils
+from ..roborock_future import RequestKey
 from ..roborock_message import (
     RoborockMessage,
     RoborockMessageProtocol,
@@ -47,11 +48,11 @@ class RoborockMqttClientV1(RoborockMqttClient, RoborockClientV1):
         response_protocol = (
             RoborockMessageProtocol.MAP_RESPONSE if method in COMMANDS_SECURED else RoborockMessageProtocol.RPC_RESPONSE
         )
-
+        request_key = RequestKey(request_id, response_protocol)
         local_key = self.device_info.device.local_key
         msg = MessageParser.build(roborock_message, local_key, False)
-        self._logger.debug(f"id={request_id} Requesting method {method} with {params}")
-        async_response = self._async_response(request_id, response_protocol)
+        self._logger.debug(f"id={request_key} Requesting method {method} with {params}")
+        async_response = self._async_response(request_key)
         self._send_msg_raw(msg)
         diagnostic_key = method if method is not None else "unknown"
         try:
@@ -67,9 +68,9 @@ class RoborockMqttClientV1(RoborockMqttClient, RoborockClientV1):
             "response": response,
         }
         if response_protocol == RoborockMessageProtocol.MAP_RESPONSE:
-            self._logger.debug(f"id={request_id} Response from {method}: {len(response)} bytes")
+            self._logger.debug(f"id={request_key} Response from {method}: {len(response)} bytes")
         else:
-            self._logger.debug(f"id={request_id} Response from {method}: {response}")
+            self._logger.debug(f"id={request_key} Response from {method}: {response}")
         return response
 
     async def _send_command(

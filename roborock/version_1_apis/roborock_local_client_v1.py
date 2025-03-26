@@ -5,6 +5,7 @@ from roborock.local_api import RoborockLocalClient
 from .. import CommandVacuumError, DeviceData, RoborockCommand, RoborockException
 from ..exceptions import VacuumError
 from ..protocol import MessageParser
+from ..roborock_future import RequestKey
 from ..roborock_message import MessageRetry, RoborockMessage, RoborockMessageProtocol
 from ..util import RoborockLoggerAdapter
 from .roborock_client_v1 import COMMANDS_SECURED, RoborockClientV1
@@ -54,15 +55,19 @@ class RoborockLocalClientV1(RoborockLocalClient, RoborockClientV1):
             response_protocol = request_id + 1
         else:
             request_id = roborock_message.get_request_id()
+            _LOGGER.debug("Getting next request id: %s", request_id)
             response_protocol = RoborockMessageProtocol.GENERAL_REQUEST
         if request_id is None:
             raise RoborockException(f"Failed build message {roborock_message}")
         local_key = self.device_info.device.local_key
         msg = MessageParser.build(roborock_message, local_key=local_key)
+        request_key = RequestKey(request_id, response_protocol)
         if method:
-            self._logger.debug(f"id={request_id} Requesting method {method} with {params}")
+            self._logger.debug(f"id={request_key} Requesting method {method} with {params}")
+        else:
+            self._logger.debug(f"id={request_key} Requesting with {params}")
         # Send the command to the Roborock device
-        async_response = self._async_response(request_id, response_protocol)
+        async_response = self._async_response(request_key)
         self._send_msg_raw(msg)
         diagnostic_key = method if method is not None else "unknown"
         try:

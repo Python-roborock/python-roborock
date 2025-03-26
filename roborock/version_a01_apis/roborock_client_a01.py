@@ -33,6 +33,7 @@ from roborock.code_mappings import (
     ZeoTemperature,
 )
 from roborock.containers import DyadProductInfo, DyadSndState, RoborockCategory
+from roborock.roborock_future import RequestKey
 from roborock.roborock_message import (
     RoborockDyadDataProtocol,
     RoborockMessage,
@@ -142,9 +143,9 @@ class RoborockClientA01(RoborockClient, ABC):
                     if data_point_protocol in entries:
                         # Auto convert into data struct we want.
                         converted_response = entries[data_point_protocol].post_process_fn(data_point)
-                        queue = self._waiting_queue.get(int(data_point_number))
-                        if queue and queue.protocol == protocol:
-                            queue.set_result(converted_response)
+                        request_key = RequestKey(int(data_point_number), protocol)
+                        if future := self._waiting_queue.safe_pop(request_key, "a01"):
+                            future.set_result(converted_response)
 
     @abstractmethod
     async def update_values(

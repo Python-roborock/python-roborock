@@ -10,6 +10,7 @@ from roborock.cloud_api import RoborockMqttClient
 from roborock.containers import DeviceData, RoborockCategory, UserData
 from roborock.exceptions import RoborockException
 from roborock.protocol import MessageParser
+from roborock.roborock_future import RequestKey
 from roborock.roborock_message import (
     RoborockDyadDataProtocol,
     RoborockMessage,
@@ -50,7 +51,7 @@ class RoborockMqttClientA01(RoborockMqttClient, RoborockClientA01):
         futures = []
         if "10000" in payload["dps"]:
             for dps in json.loads(payload["dps"]["10000"]):
-                futures.append(self._async_response(dps, response_protocol))
+                futures.append(self._async_response(RequestKey(dps, response_protocol)))
         self._send_msg_raw(m)
         responses = await asyncio.gather(*futures, return_exceptions=True)
         dps_responses: dict[int, typing.Any] = {}
