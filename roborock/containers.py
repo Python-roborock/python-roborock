@@ -73,6 +73,7 @@ from .const import (
     SENSOR_DIRTY_REPLACE_TIME,
     SIDE_BRUSH_REPLACE_TIME,
     STRAINER_REPLACE_TIME,
+    ROBOROCK_G20S_Ultra,
 )
 from .exceptions import RoborockException
 
@@ -665,6 +666,7 @@ ModelStatus: dict[str, type[Status]] = {
     ROBOROCK_S8: S8Status,
     ROBOROCK_S8_PRO_ULTRA: S8ProUltraStatus,
     ROBOROCK_G10S_PRO: S7MaxVStatus,
+    ROBOROCK_G20S_Ultra: QRevoMasterStatus,
     ROBOROCK_P10: P10Status,
     # These likely are not correct,
     # but i am currently unable to do my typical reverse engineering/ get any data from users on this,

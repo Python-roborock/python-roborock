@@ -78,6 +78,8 @@ class RoborockStateCode(RoborockEnum):
     mapping = 29
     egg_attack = 30
     patrol = 32
+    attaching_the_mop = 33  # on g20s ultra
+    detaching_the_mop = 34  # on g20s ultra
     charging_complete = 100
     device_offline = 101
     locked = 103
