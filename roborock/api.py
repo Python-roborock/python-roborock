@@ -17,7 +17,7 @@ from .exceptions import (
     RoborockTimeout,
     UnknownMethodError,
 )
-from .roborock_future import RoborockFuture
+from .roborock_future import RequestKey, RoborockFuture, WaitingQueue
 from .roborock_message import (
     RoborockMessage,
     RoborockMessageProtocol,
@@ -38,7 +38,7 @@ class RoborockClient(ABC):
         """Initialize RoborockClient."""
         self.device_info = device_info
         self._nonce = secrets.token_bytes(16)
-        self._waiting_queue: dict[int, RoborockFuture] = {}
+        self._waiting_queue = WaitingQueue()
         self._last_device_msg_in = time.monotonic()
         self._last_disconnection = time.monotonic()
         self.keep_alive = KEEPALIVE
@@ -89,33 +89,22 @@ class RoborockClient(ABC):
             await self.async_disconnect()
         await self.async_connect()
 
-    async def _wait_response(self, request_id: int, queue: RoborockFuture) -> Any:
+    async def _wait_response(self, request_key: RequestKey, future: RoborockFuture) -> Any:
         try:
-            response = await queue.async_get(self.queue_timeout)
+            response = await future.async_get(self.queue_timeout)
             if response == "unknown_method":
                 raise UnknownMethodError("Unknown method")
             return response
         except (asyncio.TimeoutError, asyncio.CancelledError):
-            raise RoborockTimeout(f"id={request_id} Timeout after {self.queue_timeout} seconds") from None
+            raise RoborockTimeout(f"id={request_key} Timeout after {self.queue_timeout} seconds") from None
         finally:
-            self._waiting_queue.pop(request_id, None)
+            self._waiting_queue.safe_pop(request_key)
 
-    def _async_response(self, request_id: int, protocol_id: int = 0) -> Any:
-        queue = RoborockFuture(protocol_id)
-        if request_id in self._waiting_queue and not (
-            request_id == 2 and protocol_id == RoborockMessageProtocol.PING_REQUEST
-        ):
-            new_id = get_next_int(10000, 32767)
-            self._logger.warning(
-                "Attempting to create a future with an existing id %s (%s)... New id is %s. "
-                "Code may not function properly.",
-                request_id,
-                protocol_id,
-                new_id,
-            )
-            request_id = new_id
-        self._waiting_queue[request_id] = queue
-        return asyncio.ensure_future(self._wait_response(request_id, queue))
+
+    def _async_response(self, request_key: RequestKey) -> Any:
+        future = RoborockFuture()
+        self._waiting_queue.put(request_key, future)
+        return asyncio.ensure_future(self._wait_response(request_key, future))
 
     @abstractmethod
     async def send_message(self, roborock_message: RoborockMessage):

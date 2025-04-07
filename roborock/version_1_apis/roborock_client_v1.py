@@ -47,6 +47,7 @@ from roborock.containers import (
     WashTowelMode,
 )
 from roborock.protocol import Utils
+from roborock.roborock_future import RequestKey
 from roborock.roborock_message import (
     ROBOROCK_DATA_CONSUMABLE_PROTOCOL,
     ROBOROCK_DATA_STATUS_PROTOCOL,
@@ -391,8 +392,8 @@ class RoborockClientV1(RoborockClient, ABC):
                         if data_point_number == "102":
                             data_point_response = json.loads(data_point)
                             request_id = data_point_response.get("id")
-                            queue = self._waiting_queue.get(request_id)
-                            if queue and queue.protocol == protocol:
+                            request_key = RequestKey(request_id, protocol)
+                            if queue := self._waiting_queue.safe_pop(request_key, "v1_rpc"):
                                 error = data_point_response.get("error")
                                 if error:
                                     queue.set_exception(
@@ -406,8 +407,6 @@ class RoborockClientV1(RoborockClient, ABC):
                                     if isinstance(result, list) and len(result) == 1:
                                         result = result[0]
                                     queue.set_result(result)
-                            else:
-                                self._logger.debug("Received response for unknown request id %s", request_id)
                         else:
                             try:
                                 data_protocol = RoborockDataProtocol(int(data_point_number))
@@ -467,19 +466,15 @@ class RoborockClientV1(RoborockClient, ABC):
                         except ValueError as err:
                             raise RoborockException(f"Failed to decode {data.payload!r} for {data.protocol}") from err
                         decompressed = Utils.decompress(decrypted)
-                        queue = self._waiting_queue.get(request_id)
-                        if queue:
+                        request_key = RequestKey(request_id, protocol)
+                        if queue := self._waiting_queue.safe_pop(request_key, "v1_map"):
                             if isinstance(decompressed, list):
                                 decompressed = decompressed[0]
                             queue.set_result(decompressed)
-                        else:
-                            self._logger.debug("Received response for unknown request id %s", request_id)
                 else:
-                    queue = self._waiting_queue.get(data.seq)
-                    if queue:
+                    request_key = RequestKey(data.seq, protocol)
+                    if queue := self._waiting_queue.safe_pop(request_key, "v1_other"):
                         queue.set_result(data.payload)
-                    else:
-                        self._logger.debug("Received response for unknown request id %s", data.seq)
         except Exception as ex:
             self._logger.exception(ex)
 
