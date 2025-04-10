@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from enum import Enum, IntEnum
+from enum import Enum, IntEnum, StrEnum
 
 _LOGGER = logging.getLogger(__name__)
 completed_warnings = set()
@@ -48,6 +48,144 @@ class RoborockEnum(IntEnum):
     @classmethod
     def items(cls: type[RoborockEnum]):
         return cls.as_dict().items()
+
+
+class RoborockProductNickname(StrEnum):
+    """Enumeration of product nicknames."""
+
+    CORAL = "Coral"
+    CORALPRO = "CoralPro"
+    PEARL = "Pearl"
+    PEARLC = "PearlC"
+    PEARLE = "PearlE"
+    PEARLELITE = "PearlELite"
+    PEARLPLUS = "PearlPlus"
+    PEARLPLUSS = "PearlPlusS"
+    PEARLS = "PearlS"
+    PEARLSLITE = "PearlSLite"
+    RUBYPLUS = "RubyPlus"
+    RUBYSC = "RubySC"
+    RUBYSE = "RubySE"
+    RUBYSLITE = "RubySLite"
+    TANOS = "Tanos"
+    TANOSE = "TanosE"
+    TANOSS = "TanosS"
+    TANOSSC = "TanosSC"
+    TANOSSE = "TanosSE"
+    TANOSSMAX = "TanosSMax"
+    TANOSSLITE = "TanosSLite"
+    TANOSSPLUS = "TanosSPlus"
+    TANOSV = "TanosV"
+    TOPAZS = "TopazS"
+    TOPAZSC = "TopazSC"
+    TOPAZSPLUS = "TopazSPlus"
+    TOPAZSPOWER = "TopazSPower"
+    TOPAZSV = "TopazSV"
+    ULTRON = "Ultron"
+    ULTRONE = "UltronE"
+    ULTRONLITE = "UltronLite"
+    ULTRONSC = "UltronSC"
+    ULTRONSE = "UltronSE"
+    ULTRONSPLUS = "UltronSPlus"
+    ULTRONSV = "UltronSV"
+    VERDELITE = "Verdelite"
+    VIVIAN = "Vivian"
+    VIVIANC = "VivianC"
+
+
+short_model_to_enum = {
+    # Pearl Series
+    "a103": RoborockProductNickname.PEARLC,
+    "a104": RoborockProductNickname.PEARLC,
+    "a116": RoborockProductNickname.PEARLPLUSS,
+    "a117": RoborockProductNickname.PEARLPLUSS,
+    "a136": RoborockProductNickname.PEARLPLUSS,
+    "a122": RoborockProductNickname.PEARLSLITE,
+    "a123": RoborockProductNickname.PEARLSLITE,
+    "a167": RoborockProductNickname.PEARLE,
+    "a168": RoborockProductNickname.PEARLE,
+    "a169": RoborockProductNickname.PEARLELITE,
+    "a170": RoborockProductNickname.PEARLELITE,
+    "a74": RoborockProductNickname.PEARL,
+    "a75": RoborockProductNickname.PEARL,
+    "a100": RoborockProductNickname.PEARLS,
+    "a101": RoborockProductNickname.PEARLS,
+    "a86": RoborockProductNickname.PEARLPLUS,
+    "a87": RoborockProductNickname.PEARLPLUS,
+    # Vivian Series
+    "a158": RoborockProductNickname.VIVIANC,
+    "a159": RoborockProductNickname.VIVIANC,
+    "a134": RoborockProductNickname.VIVIAN,
+    "a135": RoborockProductNickname.VIVIAN,
+    "a155": RoborockProductNickname.VIVIAN,
+    "a156": RoborockProductNickname.VIVIAN,
+    # Coral Series
+    "a143": RoborockProductNickname.CORALPRO,
+    "a144": RoborockProductNickname.CORALPRO,
+    "a20": RoborockProductNickname.CORAL,
+    "a21": RoborockProductNickname.CORAL,
+    # Ultron Series
+    "a73": RoborockProductNickname.ULTRONLITE,
+    "a85": RoborockProductNickname.ULTRONLITE,
+    "a94": RoborockProductNickname.ULTRONSC,
+    "a95": RoborockProductNickname.ULTRONSC,
+    "a124": RoborockProductNickname.ULTRONSE,
+    "a125": RoborockProductNickname.ULTRONSE,
+    "a139": RoborockProductNickname.ULTRONSE,
+    "a140": RoborockProductNickname.ULTRONSE,
+    "a68": RoborockProductNickname.ULTRONSPLUS,
+    "a69": RoborockProductNickname.ULTRONSPLUS,
+    "a70": RoborockProductNickname.ULTRONSPLUS,
+    "a50": RoborockProductNickname.ULTRON,
+    "a51": RoborockProductNickname.ULTRON,
+    "a72": RoborockProductNickname.ULTRONE,
+    "a84": RoborockProductNickname.ULTRONE,
+    "a96": RoborockProductNickname.ULTRONSV,
+    "a97": RoborockProductNickname.ULTRONSV,
+    # Verdelite Series
+    "a146": RoborockProductNickname.VERDELITE,
+    "a147": RoborockProductNickname.VERDELITE,
+    # Topaz Series
+    "a29": RoborockProductNickname.TOPAZS,
+    "a30": RoborockProductNickname.TOPAZS,
+    "a76": RoborockProductNickname.TOPAZS,
+    "a46": RoborockProductNickname.TOPAZSPLUS,
+    "a47": RoborockProductNickname.TOPAZSPLUS,
+    "a66": RoborockProductNickname.TOPAZSPLUS,
+    "a64": RoborockProductNickname.TOPAZSC,
+    "a65": RoborockProductNickname.TOPAZSC,
+    "a26": RoborockProductNickname.TOPAZSV,
+    "a27": RoborockProductNickname.TOPAZSV,
+    "a62": RoborockProductNickname.TOPAZSPOWER,
+    # Tanos Series
+    "a23": RoborockProductNickname.TANOSSPLUS,
+    "a24": RoborockProductNickname.TANOSSPLUS,
+    "a37": RoborockProductNickname.TANOSSLITE,
+    "a38": RoborockProductNickname.TANOSSLITE,
+    "a39": RoborockProductNickname.TANOSSC,
+    "a40": RoborockProductNickname.TANOSSC,
+    "a33": RoborockProductNickname.TANOSSE,
+    "a34": RoborockProductNickname.TANOSSE,
+    "a52": RoborockProductNickname.TANOSSMAX,
+    "t6": RoborockProductNickname.TANOS,
+    "s6": RoborockProductNickname.TANOS,
+    "t7": RoborockProductNickname.TANOSE,
+    "a11": RoborockProductNickname.TANOSE,
+    "t7p": RoborockProductNickname.TANOSV,
+    "a09": RoborockProductNickname.TANOSV,
+    "a10": RoborockProductNickname.TANOSV,
+    "a14": RoborockProductNickname.TANOSS,
+    "a15": RoborockProductNickname.TANOSS,
+    # Ruby Series
+    "t4": RoborockProductNickname.RUBYPLUS,
+    "s4": RoborockProductNickname.RUBYPLUS,
+    "p5": RoborockProductNickname.RUBYSC,
+    "a08": RoborockProductNickname.RUBYSC,
+    "a19": RoborockProductNickname.RUBYSE,
+    "p6": RoborockProductNickname.RUBYSLITE,
+    "s5e": RoborockProductNickname.RUBYSLITE,
+    "a05": RoborockProductNickname.RUBYSLITE,
+}
 
 
 class RoborockStateCode(RoborockEnum):
