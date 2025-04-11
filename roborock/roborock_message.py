@@ -161,11 +161,16 @@ class RoborockMessage:
     random: int = field(default_factory=lambda: get_next_int(10000, 99999))
     timestamp: int = field(default_factory=lambda: math.floor(time.time()))
     message_retry: MessageRetry | None = None
+    _parsed_payload: dict | None = None
+
+    def get_payload(self) -> dict | None:
+        if self.payload and not self._parsed_payload:
+            self._parsed_payload = json.loads(self.payload.decode())
+        return self._parsed_payload
 
     def get_request_id(self) -> int | None:
-        if self.payload:
-            payload = json.loads(self.payload.decode())
-            for data_point_number, data_point in payload.get("dps").items():
+        if self._parsed_payload:
+            for data_point_number, data_point in self._parsed_payload.get("dps").items():
                 if data_point_number in ["101", "102"]:
                     data_point_response = json.loads(data_point)
                     return data_point_response.get("id")
@@ -180,9 +185,8 @@ class RoborockMessage:
         if self.message_retry:
             return self.message_retry.method
         protocol = self.protocol
-        if self.payload and protocol in [4, 5, 101, 102]:
-            payload = json.loads(self.payload.decode())
-            for data_point_number, data_point in payload.get("dps").items():
+        if self._parsed_payload and protocol in [4, 5, 101, 102]:
+            for data_point_number, data_point in self._parsed_payload.get("dps").items():
                 if data_point_number in ["101", "102"]:
                     data_point_response = json.loads(data_point)
                     return data_point_response.get("method")
@@ -190,9 +194,8 @@ class RoborockMessage:
 
     def get_params(self) -> list | dict | None:
         protocol = self.protocol
-        if self.payload and protocol in [4, 101, 102]:
-            payload = json.loads(self.payload.decode())
-            for data_point_number, data_point in payload.get("dps").items():
+        if self._parsed_payload and protocol in [4, 101, 102]:
+            for data_point_number, data_point in self._parsed_payload.get("dps").items():
                 if data_point_number in ["101", "102"]:
                     data_point_response = json.loads(data_point)
                     return data_point_response.get("params")
