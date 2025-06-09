@@ -267,6 +267,17 @@ class RoborockFanSpeedQRevoCurv(RoborockFanPowerCode):
     smart_mode = 110
 
 
+class RoborockFanSpeedQRevoMaxV(RoborockFanPowerCode):
+    off = 105
+    quiet = 101
+    balanced = 102
+    turbo = 103
+    max = 104
+    custom = 106
+    max_plus = 108
+    smart_mode = 110
+
+
 class RoborockFanSpeedP10(RoborockFanPowerCode):
     off = 105
     quiet = 101
@@ -275,6 +286,7 @@ class RoborockFanSpeedP10(RoborockFanPowerCode):
     max = 104
     custom = 106
     max_plus = 108
+    smart_mode = 110
 
 
 class RoborockFanSpeedS8MaxVUltra(RoborockFanPowerCode):
@@ -316,6 +328,7 @@ class RoborockMopModeS8ProUltra(RoborockMopModeCode):
     deep_plus = 303
     fast = 304
     custom = 302
+    smart_mode = 306
 
 
 class RoborockMopModeS8MaxVUltra(RoborockMopModeCode):
@@ -329,6 +342,15 @@ class RoborockMopModeS8MaxVUltra(RoborockMopModeCode):
 
 
 class RoborockMopModeQRevoMaster(RoborockMopModeCode):
+    standard = 300
+    deep = 301
+    custom = 302
+    deep_plus = 303
+    fast = 304
+    smart_mode = 306
+
+
+class RoborockMopModeQRevoMaxV(RoborockMopModeCode):
     standard = 300
     deep = 301
     custom = 302
@@ -383,6 +405,16 @@ class RoborockMopIntensityQRevoCurv(RoborockMopIntensityCode):
     smart_mode = 209
 
 
+class RoborockMopIntensityQRevoMaxV(RoborockMopIntensityCode):
+    off = 200
+    low = 201
+    medium = 202
+    high = 203
+    custom = 204
+    custom_water_flow = 207
+    smart_mode = 209
+
+
 class RoborockMopIntensityP10(RoborockMopIntensityCode):
     """Describes the mop intensity of the vacuum cleaner."""
 
@@ -392,6 +424,7 @@ class RoborockMopIntensityP10(RoborockMopIntensityCode):
     high = 203
     custom = 204
     custom_water_flow = 207
+    smart_mode = 209
 
 
 class RoborockMopIntensityS8MaxVUltra(RoborockMopIntensityCode):
