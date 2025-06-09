@@ -111,7 +111,7 @@ def gen_publish(
     properties = prop_finalise(properties)
     rl += len(properties)
     # This will break if len(properties) > 127
-    pack_format = pack_format + "%ds" % (len(properties))
+    pack_format = f"{pack_format}{len(properties)}s"
 
     if payload is not None:
         # payload = payload.encode("utf-8")
