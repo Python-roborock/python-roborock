@@ -21,7 +21,7 @@ def test_start_date_lower_than_now_lower_than_end_date():
 
 
 # start_date > now > end_date
-def test_start_date_greater_than_now_greater_tat_end_date():
+def test_start_date_greater_than_now_greater_than_end_date():
     start, end = parse_time_to_datetime(
         (datetime.datetime.now() + datetime.timedelta(hours=1)).time(),
         (datetime.datetime.now() + datetime.timedelta(hours=2)).time(),
