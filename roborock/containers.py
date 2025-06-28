@@ -6,7 +6,7 @@ import logging
 import re
 from dataclasses import asdict, dataclass, field
 from datetime import timezone
-from enum import Enum
+from enum import Enum, IntEnum
 from typing import Any, NamedTuple, get_args, get_origin
 
 from .code_mappings import (
@@ -43,8 +43,10 @@ from .code_mappings import (
     RoborockMopModeS7,
     RoborockMopModeS8MaxVUltra,
     RoborockMopModeS8ProUltra,
+    RoborockProductNickname,
     RoborockStartType,
     RoborockStateCode,
+    short_model_to_enum,
 )
 from .const import (
     CLEANING_BRUSH_REPLACE_TIME,
@@ -294,144 +296,339 @@ class HomeDataDevice(RoborockBase):
     silent_ota_switch: bool | None = None
     setting: Any | None = None
     f: bool | None = None
-    device_features: DeviceFeatures | None = None
 
-    # seemingly not just str like I thought - example: '0000000000002000' and '0000000000002F63'
 
-    # def __post_init__(self):
-    #     if self.feature_set is not None and self.new_feature_set is not None and self.new_feature_set != "":
-    #         self.device_features = build_device_features(self.feature_set, self.new_feature_set)
+class NewFeatureStrBit(IntEnum):
+    TWO_KEY_REAL_TIME_VIDEO = 32
+    TWO_KEY_RTV_IN_CHARGING = 33
+    DIRTY_REPLENISH_CLEAN = 34
+    AUTO_DELIVERY_FIELD_IN_GLOBAL_STATUS = 35
+    AVOID_COLLISION_MODE = 36
+    VOICE_CONTROL = 37
+    NEW_ENDPOINT = 38
+    PUMPING_WATER = 39
+    CORNER_MOP_STRECH = 40
+    HOT_WASH_TOWEL = 41
+    FLOOR_DIR_CLEAN_ANY_TIME = 42
+    PET_SUPPLIES_DEEP_CLEAN = 43
+    MOP_SHAKE_WATER_MAX = 45
+    EXACT_CUSTOM_MODE = 47
+    CARPET_CUSTOM_CLEAN = 49
+    PET_SNAPSHOT = 50
+    CUSTOM_CLEAN_MODE_COUNT = 51
+    NEW_AI_RECOGNITION = 52
+    AUTO_COLLECTION_2 = 53
+    RIGHT_BRUSH_STRETCH = 54
+    SMART_CLEAN_MODE_SET = 55
+    DIRTY_OBJECT_DETECT = 56
+    NO_NEED_CARPET_PRESS_SET = 57
+    VOICE_CONTROL_LED = 58
+    WATER_LEAK_CHECK = 60
+    MIN_BATTERY_15_TO_CLEAN_TASK = 62
+    GAP_DEEP_CLEAN = 63
+    OBJECT_DETECT_CHECK = 64
+    IDENTIFY_ROOM = 66
+    MATTER = 67
+    WORKDAY_HOLIDAY = 69
+    CLEAN_DIRECT_STATUS = 70
+    MAP_ERASER = 71
+    OPTIMIZE_BATTERY = 72
+    ACTIVATE_VIDEO_CHARGING_AND_STANDBY = 73
+    CARPET_LONG_HAIRED = 75
+    CLEAN_HISTORY_TIME_LINE = 76
+    MAX_ZONE_OPENED = 77
+    EXHIBITION_FUNCTION = 78
+    LDS_LIFTING = 79
+    AUTO_TEAR_DOWN_MOP = 80
+    SAMLL_SIDE_MOP = 81
+    SUPPORT_SIDE_BRUSH_UP_DOWN = 82
+    DRY_INTERVAL_TIMER = 83
+    UVC_STERILIZE = 84
+    MIDWAY_BACK_TO_DOCK = 85
+    SUPPORT_MAIN_BRUSH_UP_DOWN = 86
+    EGG_DANCE_MODE = 87
 
 
 @dataclass
 class DeviceFeatures(RoborockBase):
-    map_carpet_add_supported: bool
-    show_clean_finish_reason_supported: bool
-    resegment_supported: bool
-    video_monitor_supported: bool
-    any_state_transit_goto_supported: bool
-    fw_filter_obstacle_supported: bool
-    video_setting_supported: bool
-    ignore_unknown_map_object_supported: bool
-    set_child_supported: bool
-    carpet_supported: bool
-    mop_path_supported: bool
-    multi_map_segment_timer_supported: bool
-    custom_water_box_distance_supported: bool
-    wash_then_charge_cmd_supported: bool
-    room_name_supported: bool
-    current_map_restore_enabled: bool
-    photo_upload_supported: bool
-    shake_mop_set_supported: bool
-    map_beautify_internal_debug_supported: bool
-    new_data_for_clean_history: bool
-    new_data_for_clean_history_detail: bool
-    flow_led_setting_supported: bool
-    dust_collection_setting_supported: bool
-    rpc_retry_supported: bool
-    avoid_collision_supported: bool
-    support_set_switch_map_mode: bool
-    support_smart_scene: bool
-    support_floor_edit: bool
-    support_furniture: bool
-    support_room_tag: bool
-    support_quick_map_builder: bool
-    support_smart_global_clean_with_custom_mode: bool
-    record_allowed: bool
-    careful_slow_map_supported: bool
-    egg_mode_supported: bool
-    unsave_map_reason_supported: bool
-    carpet_show_on_map: bool
-    supported_valley_electricity: bool
-    drying_supported: bool
-    download_test_voice_supported: bool
-    support_backup_map: bool
-    support_custom_mode_in_cleaning: bool
-    support_remote_control_in_call: bool
-    support_set_volume_in_call: bool
-    support_clean_estimate: bool
-    support_custom_dnd: bool
-    carpet_deep_clean_supported: bool
-    stuck_zone_supported: bool
-    custom_door_sill_supported: bool
-    clean_route_fast_mode_supported: bool
-    cliff_zone_supported: bool
-    smart_door_sill_supported: bool
-    support_floor_direction: bool
-    wifi_manage_supported: bool
-    back_charge_auto_wash_supported: bool
-    support_incremental_map: bool
-    offline_map_supported: bool
+    """Represents the features supported by a Roborock device."""
 
+    # Features derived from robot_new_features
+    is_map_carpet_add_support: bool
+    is_show_clean_finish_reason_supported: bool
+    is_resegment_supported: bool
+    is_video_monitor_supported: bool
+    is_any_state_transit_goto_supported: bool
+    is_fw_filter_obstacle_supported: bool
+    is_video_settings_supported: bool
+    is_ignore_unknown_map_object_supported: bool
+    is_set_child_supported: bool
+    is_carpet_supported: bool
+    is_mop_path_supported: bool
+    is_multi_map_segment_timer_supported: bool
+    is_custom_water_box_distance_supported: bool
+    is_wash_then_charge_cmd_supported: bool
+    is_room_name_supported: bool
+    is_current_map_restore_enabled: bool
+    is_photo_upload_supported: bool
+    is_shake_mop_set_supported: bool
+    is_map_beautify_internal_debug_supported: bool
+    is_new_data_for_clean_history_supported: bool
+    is_new_data_for_clean_history_detail_supported: bool
+    is_flow_led_setting_supported: bool
+    is_dust_collection_setting_supported: bool
+    is_rpc_retry_supported: bool
+    is_avoid_collision_supported: bool
+    is_support_set_switch_map_mode_supported: bool
+    is_support_smart_scene_supported: bool
+    is_support_floor_edit_supported: bool
+    is_support_furniture_supported: bool
+    is_support_room_tag_supported: bool
+    is_support_quick_map_builder_supported: bool
+    is_support_smart_global_clean_with_custom_mode_supported: bool
+    is_record_allowed: bool
+    is_careful_slow_mop_supported: bool
+    is_egg_mode_supported: bool
+    is_carpet_show_on_map_supported: bool
+    is_supported_valley_electricity_supported: bool
+    is_unsave_map_reason_supported: bool
+    is_supported_drying_supported: bool
+    is_supported_download_test_voice_supported: bool
+    is_support_backup_map_supported: bool
+    is_support_custom_mode_in_cleaning_supported: bool
+    is_support_remote_control_in_call_supported: bool
 
-def build_device_features(feature_set: str, new_feature_set: str) -> DeviceFeatures:
-    new_feature_set_int = int(new_feature_set)
-    feature_set_int = int(feature_set)
-    new_feature_set_divided = int(new_feature_set_int / (2**32))
-    # Convert last 8 digits of new feature set into hexadecimal number
-    converted_new_feature_set = int("0x" + new_feature_set[-8:], 16)
-    new_feature_set_mod_8: bool = len(new_feature_set) % 8 == 0
-    return DeviceFeatures(
-        map_carpet_add_supported=bool(1073741824 & new_feature_set_int),
-        show_clean_finish_reason_supported=bool(1 & new_feature_set_int),
-        resegment_supported=bool(4 & new_feature_set_int),
-        video_monitor_supported=bool(8 & new_feature_set_int),
-        any_state_transit_goto_supported=bool(16 & new_feature_set_int),
-        fw_filter_obstacle_supported=bool(32 & new_feature_set_int),
-        video_setting_supported=bool(64 & new_feature_set_int),
-        ignore_unknown_map_object_supported=bool(128 & new_feature_set_int),
-        set_child_supported=bool(256 & new_feature_set_int),
-        carpet_supported=bool(512 & new_feature_set_int),
-        mop_path_supported=bool(2048 & new_feature_set_int),
-        multi_map_segment_timer_supported=bool(feature_set_int and 4096 & new_feature_set_int),
-        custom_water_box_distance_supported=bool(new_feature_set_int and 2147483648 & new_feature_set_int),
-        wash_then_charge_cmd_supported=bool((new_feature_set_divided >> 5) & 1),
-        room_name_supported=bool(16384 & new_feature_set_int),
-        current_map_restore_enabled=bool(8192 & new_feature_set_int),
-        photo_upload_supported=bool(65536 & new_feature_set_int),
-        shake_mop_set_supported=bool(262144 & new_feature_set_int),
-        map_beautify_internal_debug_supported=bool(2097152 & new_feature_set_int),
-        new_data_for_clean_history=bool(4194304 & new_feature_set_int),
-        new_data_for_clean_history_detail=bool(8388608 & new_feature_set_int),
-        flow_led_setting_supported=bool(16777216 & new_feature_set_int),
-        dust_collection_setting_supported=bool(33554432 & new_feature_set_int),
-        rpc_retry_supported=bool(67108864 & new_feature_set_int),
-        avoid_collision_supported=bool(134217728 & new_feature_set_int),
-        support_set_switch_map_mode=bool(268435456 & new_feature_set_int),
-        support_smart_scene=bool(new_feature_set_divided & 2),
-        support_floor_edit=bool(new_feature_set_divided & 8),
-        support_furniture=bool((new_feature_set_divided >> 4) & 1),
-        support_room_tag=bool((new_feature_set_divided >> 6) & 1),
-        support_quick_map_builder=bool((new_feature_set_divided >> 7) & 1),
-        support_smart_global_clean_with_custom_mode=bool((new_feature_set_divided >> 8) & 1),
-        record_allowed=bool(1024 & new_feature_set_int),
-        careful_slow_map_supported=bool((new_feature_set_divided >> 9) & 1),
-        egg_mode_supported=bool((new_feature_set_divided >> 10) & 1),
-        unsave_map_reason_supported=bool((new_feature_set_divided >> 14) & 1),
-        carpet_show_on_map=bool((new_feature_set_divided >> 12) & 1),
-        supported_valley_electricity=bool((new_feature_set_divided >> 13) & 1),
-        # This one could actually be incorrect
-        # ((t.robotNewFeatures / 2 ** 32) >> 15) & 1 && (module422.DMM.isTopazSV_CE || 'cn' == t.deviceLocation));
-        drying_supported=bool((new_feature_set_divided >> 15) & 1),
-        download_test_voice_supported=bool((new_feature_set_divided >> 16) & 1),
-        support_backup_map=bool((new_feature_set_divided >> 17) & 1),
-        support_custom_mode_in_cleaning=bool((new_feature_set_divided >> 18) & 1),
-        support_remote_control_in_call=bool((new_feature_set_divided >> 19) & 1),
-        support_set_volume_in_call=new_feature_set_mod_8 and bool(1 & converted_new_feature_set),
-        support_clean_estimate=new_feature_set_mod_8 and bool(2 & converted_new_feature_set),
-        support_custom_dnd=new_feature_set_mod_8 and bool(4 & converted_new_feature_set),
-        carpet_deep_clean_supported=bool(8 & converted_new_feature_set),
-        stuck_zone_supported=new_feature_set_mod_8 and bool(16 & converted_new_feature_set),
-        custom_door_sill_supported=new_feature_set_mod_8 and bool(32 & converted_new_feature_set),
-        clean_route_fast_mode_supported=bool(256 & converted_new_feature_set),
-        cliff_zone_supported=new_feature_set_mod_8 and bool(512 & converted_new_feature_set),
-        smart_door_sill_supported=new_feature_set_mod_8 and bool(1024 & converted_new_feature_set),
-        support_floor_direction=new_feature_set_mod_8 and bool(2048 & converted_new_feature_set),
-        wifi_manage_supported=bool(128 & converted_new_feature_set),
-        back_charge_auto_wash_supported=bool(4096 & converted_new_feature_set),
-        support_incremental_map=bool(8192 & converted_new_feature_set),
-        offline_map_supported=bool(16384 & converted_new_feature_set),
-    )
+    # Features derived from unhexed_feature_info
+    is_support_set_volume_in_call: bool
+    is_support_clean_estimate: bool
+    is_support_custom_dnd: bool
+    is_carpet_deep_clean_supported: bool
+    is_support_stuck_zone: bool
+    is_support_custom_door_sill: bool
+    is_wifi_manage_supported: bool
+    is_clean_route_fast_mode_supported: bool
+    is_support_cliff_zone: bool
+    is_support_smart_door_sill: bool
+    is_support_floor_direction: bool
+    is_back_charge_auto_wash_supported: bool
+    is_super_deep_wash_supported: bool
+    is_ces2022_supported: bool
+    is_dss_believable_supported: bool
+    is_main_brush_up_down_supported: bool
+    is_goto_pure_clean_path_supported: bool
+    is_water_up_down_drain_supported: bool
+    is_setting_carpet_first_supported: bool
+    is_clean_route_deep_slow_plus_supported: bool
+    is_left_water_drain_supported: bool
+    is_clean_count_setting_supported: bool
+    is_corner_clean_mode_supported: bool
+
+    # --- Features from new_feature_info_str ---
+    is_two_key_real_time_video_supported: bool
+    is_two_key_rtv_in_charging_supported: bool
+    is_dirty_replenish_clean_supported: bool
+    is_avoid_collision_mode_str_supported: bool
+    is_voice_control_str_supported: bool
+    is_new_endpoint_supported: bool
+    is_corner_mop_strech_supported: bool
+    is_hot_wash_towel_supported: bool
+    is_floor_dir_clean_any_time_supported: bool
+    is_pet_supplies_deep_clean_supported: bool
+    is_mop_shake_water_max_supported: bool
+    is_custom_clean_mode_count_supported: bool
+    is_exact_custom_mode_supported: bool
+    is_carpet_custom_clean_supported: bool
+    is_pet_snapshot_supported: bool
+    is_new_ai_recognition_supported: bool
+    is_auto_collection_2_supported: bool
+    is_right_brush_stretch_supported: bool
+    is_smart_clean_mode_set_supported: bool
+    is_dirty_object_detect_supported: bool
+    is_no_need_carpet_press_set_supported: bool
+    is_voice_control_led_supported: bool
+    is_water_leak_check_supported: bool
+    is_min_battery_15_to_clean_task_supported: bool
+    is_gap_deep_clean_supported: bool
+    is_object_detect_check_supported: bool
+    is_identify_room_supported: bool
+    is_matter_supported: bool
+
+    @classmethod
+    def _is_new_feature_str_support(cls, o: int, new_feature_info_str: str) -> bool:
+        """
+        Checks feature 'o' in hex string 'new_feature_info_str'.
+        """
+        try:
+            l = o % 4
+            target_index = -((o // 4) + 1)
+
+            p = new_feature_info_str[target_index]
+
+            hex_char_value = int(p, 16)
+
+            is_set = (hex_char_value >> l) & 1
+
+            return bool(is_set)
+        except Exception:
+            return False
+
+    @classmethod
+    def from_feature_flags(
+        cls, robot_new_features: int, new_feature_set: str, product_nickname: RoborockProductNickname
+    ) -> DeviceFeatures:
+        """Creates a DeviceFeatures instance from raw feature flags."""
+        unhexed_feature_info = int(new_feature_set[-8:], 16)
+
+        upper_32_bits = robot_new_features // (2**32)
+
+        return cls(
+            is_map_carpet_add_support=bool(1073741824 & robot_new_features),
+            is_show_clean_finish_reason_supported=bool(1 & robot_new_features),
+            is_resegment_supported=bool(4 & robot_new_features),
+            is_video_monitor_supported=bool(8 & robot_new_features),
+            is_any_state_transit_goto_supported=bool(16 & robot_new_features),
+            is_fw_filter_obstacle_supported=bool(32 & robot_new_features),
+            is_video_settings_supported=bool(64 & robot_new_features),
+            is_ignore_unknown_map_object_supported=bool(128 & robot_new_features),
+            is_set_child_supported=bool(256 & robot_new_features),
+            is_carpet_supported=bool(512 & robot_new_features),
+            is_mop_path_supported=bool(2048 & robot_new_features),
+            is_multi_map_segment_timer_supported=False,  # TODO
+            is_custom_water_box_distance_supported=bool(2147483648 & robot_new_features),
+            is_wash_then_charge_cmd_supported=bool(robot_new_features and ((upper_32_bits >> 5) & 1)),
+            is_room_name_supported=bool(16384 & robot_new_features),
+            is_current_map_restore_enabled=bool(8192 & robot_new_features),
+            is_photo_upload_supported=bool(65536 & robot_new_features),
+            is_shake_mop_set_supported=bool(262144 & robot_new_features),
+            is_map_beautify_internal_debug_supported=bool(2097152 & robot_new_features),
+            is_new_data_for_clean_history_supported=bool(4194304 & robot_new_features),
+            is_new_data_for_clean_history_detail_supported=bool(8388608 & robot_new_features),
+            is_flow_led_setting_supported=bool(16777216 & robot_new_features),
+            is_dust_collection_setting_supported=bool(33554432 & robot_new_features),
+            is_rpc_retry_supported=bool(67108864 & robot_new_features),
+            is_avoid_collision_supported=bool(134217728 & robot_new_features),
+            is_support_set_switch_map_mode_supported=bool(268435456 & robot_new_features),
+            is_support_smart_scene_supported=bool(robot_new_features and (upper_32_bits & 2)),
+            is_support_floor_edit_supported=bool(robot_new_features and (upper_32_bits & 8)),
+            is_support_furniture_supported=bool(robot_new_features and ((upper_32_bits >> 4) & 1)),
+            is_support_room_tag_supported=bool(robot_new_features and ((upper_32_bits >> 6) & 1)),
+            is_support_quick_map_builder_supported=bool(robot_new_features and ((upper_32_bits >> 7) & 1)),
+            is_support_smart_global_clean_with_custom_mode_supported=bool(
+                robot_new_features and ((upper_32_bits >> 8) & 1)
+            ),
+            is_record_allowed=bool(1024 & robot_new_features),
+            is_careful_slow_mop_supported=bool(robot_new_features and ((upper_32_bits >> 9) & 1)),
+            is_egg_mode_supported=bool(robot_new_features and ((upper_32_bits >> 10) & 1)),
+            is_carpet_show_on_map_supported=bool(robot_new_features and ((upper_32_bits >> 12) & 1)),
+            is_supported_valley_electricity_supported=bool(robot_new_features and ((upper_32_bits >> 13) & 1)),
+            is_unsave_map_reason_supported=bool(robot_new_features and ((upper_32_bits >> 14) & 1)),
+            is_supported_drying_supported=False,  # TODO
+            is_supported_download_test_voice_supported=bool(robot_new_features and ((upper_32_bits >> 16) & 1)),
+            is_support_backup_map_supported=bool(robot_new_features and ((upper_32_bits >> 17) & 1)),
+            is_support_custom_mode_in_cleaning_supported=bool(robot_new_features and ((upper_32_bits >> 18) & 1)),
+            is_support_remote_control_in_call_supported=bool(robot_new_features and ((upper_32_bits >> 19) & 1)),
+            # Features from unhexed_feature_info
+            is_support_set_volume_in_call=bool(1 & unhexed_feature_info),
+            is_support_clean_estimate=bool(2 & unhexed_feature_info),
+            is_support_custom_dnd=bool(4 & unhexed_feature_info),
+            is_carpet_deep_clean_supported=bool(8 & unhexed_feature_info),
+            is_support_stuck_zone=bool(16 & unhexed_feature_info),
+            is_support_custom_door_sill=bool(32 & unhexed_feature_info),
+            is_wifi_manage_supported=bool(128 & unhexed_feature_info),
+            is_clean_route_fast_mode_supported=bool(256 & unhexed_feature_info),
+            is_support_cliff_zone=bool(512 & unhexed_feature_info),
+            is_support_smart_door_sill=bool(1024 & unhexed_feature_info),
+            is_support_floor_direction=bool(2048 & unhexed_feature_info),
+            is_back_charge_auto_wash_supported=bool(4096 & unhexed_feature_info),
+            is_super_deep_wash_supported=bool(32768 & unhexed_feature_info),
+            is_ces2022_supported=bool(65536 & unhexed_feature_info),
+            is_dss_believable_supported=bool(131072 & unhexed_feature_info),
+            is_main_brush_up_down_supported=bool(262144 & unhexed_feature_info),
+            is_goto_pure_clean_path_supported=bool(524288 & unhexed_feature_info),
+            is_water_up_down_drain_supported=bool(1048576 & unhexed_feature_info),
+            is_setting_carpet_first_supported=bool(8388608 & unhexed_feature_info),
+            is_clean_route_deep_slow_plus_supported=bool(16777216 & unhexed_feature_info),
+            is_left_water_drain_supported=bool(134217728 & unhexed_feature_info),
+            is_clean_count_setting_supported=bool(1073741824 & unhexed_feature_info),
+            is_corner_clean_mode_supported=bool(2147483648 & unhexed_feature_info),
+            # Features from is_new_feature_str_support
+            is_two_key_real_time_video_supported=cls._is_new_feature_str_support(
+                NewFeatureStrBit.TWO_KEY_REAL_TIME_VIDEO, new_feature_set
+            ),
+            is_two_key_rtv_in_charging_supported=cls._is_new_feature_str_support(
+                NewFeatureStrBit.TWO_KEY_RTV_IN_CHARGING, new_feature_set
+            ),
+            is_dirty_replenish_clean_supported=cls._is_new_feature_str_support(
+                NewFeatureStrBit.DIRTY_REPLENISH_CLEAN, new_feature_set
+            ),
+            is_avoid_collision_mode_str_supported=cls._is_new_feature_str_support(
+                NewFeatureStrBit.AVOID_COLLISION_MODE, new_feature_set
+            ),
+            is_voice_control_str_supported=cls._is_new_feature_str_support(
+                NewFeatureStrBit.VOICE_CONTROL, new_feature_set
+            ),
+            is_new_endpoint_supported=cls._is_new_feature_str_support(NewFeatureStrBit.NEW_ENDPOINT, new_feature_set),
+            is_corner_mop_strech_supported=cls._is_new_feature_str_support(
+                NewFeatureStrBit.CORNER_MOP_STRECH, new_feature_set
+            ),
+            is_hot_wash_towel_supported=cls._is_new_feature_str_support(
+                NewFeatureStrBit.HOT_WASH_TOWEL, new_feature_set
+            ),
+            is_floor_dir_clean_any_time_supported=cls._is_new_feature_str_support(
+                NewFeatureStrBit.FLOOR_DIR_CLEAN_ANY_TIME, new_feature_set
+            ),
+            is_pet_supplies_deep_clean_supported=cls._is_new_feature_str_support(
+                NewFeatureStrBit.PET_SUPPLIES_DEEP_CLEAN, new_feature_set
+            ),
+            is_mop_shake_water_max_supported=cls._is_new_feature_str_support(
+                NewFeatureStrBit.MOP_SHAKE_WATER_MAX, new_feature_set
+            ),
+            is_custom_clean_mode_count_supported=cls._is_new_feature_str_support(
+                NewFeatureStrBit.CUSTOM_CLEAN_MODE_COUNT, new_feature_set
+            ),
+            is_exact_custom_mode_supported=cls._is_new_feature_str_support(
+                NewFeatureStrBit.EXACT_CUSTOM_MODE, new_feature_set
+            ),
+            is_carpet_custom_clean_supported=cls._is_new_feature_str_support(
+                NewFeatureStrBit.CARPET_CUSTOM_CLEAN, new_feature_set
+            ),
+            is_pet_snapshot_supported=cls._is_new_feature_str_support(NewFeatureStrBit.PET_SNAPSHOT, new_feature_set),
+            is_new_ai_recognition_supported=cls._is_new_feature_str_support(
+                NewFeatureStrBit.NEW_AI_RECOGNITION, new_feature_set
+            ),
+            is_auto_collection_2_supported=cls._is_new_feature_str_support(
+                NewFeatureStrBit.AUTO_COLLECTION_2, new_feature_set
+            ),
+            is_right_brush_stretch_supported=cls._is_new_feature_str_support(
+                NewFeatureStrBit.RIGHT_BRUSH_STRETCH, new_feature_set
+            ),
+            is_smart_clean_mode_set_supported=cls._is_new_feature_str_support(
+                NewFeatureStrBit.SMART_CLEAN_MODE_SET, new_feature_set
+            ),
+            is_dirty_object_detect_supported=cls._is_new_feature_str_support(
+                NewFeatureStrBit.DIRTY_OBJECT_DETECT, new_feature_set
+            ),
+            is_no_need_carpet_press_set_supported=cls._is_new_feature_str_support(
+                NewFeatureStrBit.NO_NEED_CARPET_PRESS_SET, new_feature_set
+            ),
+            is_voice_control_led_supported=cls._is_new_feature_str_support(
+                NewFeatureStrBit.VOICE_CONTROL_LED, new_feature_set
+            ),
+            is_water_leak_check_supported=cls._is_new_feature_str_support(
+                NewFeatureStrBit.WATER_LEAK_CHECK, new_feature_set
+            ),
+            is_min_battery_15_to_clean_task_supported=cls._is_new_feature_str_support(
+                NewFeatureStrBit.MIN_BATTERY_15_TO_CLEAN_TASK, new_feature_set
+            ),
+            is_gap_deep_clean_supported=cls._is_new_feature_str_support(
+                NewFeatureStrBit.GAP_DEEP_CLEAN, new_feature_set
+            ),
+            is_object_detect_check_supported=cls._is_new_feature_str_support(
+                NewFeatureStrBit.OBJECT_DETECT_CHECK, new_feature_set
+            ),
+            is_identify_room_supported=cls._is_new_feature_str_support(NewFeatureStrBit.IDENTIFY_ROOM, new_feature_set),
+            is_matter_supported=cls._is_new_feature_str_support(NewFeatureStrBit.MATTER, new_feature_set),
+        )
 
 
 @dataclass
@@ -840,6 +1037,17 @@ class DeviceData(RoborockBase):
     device: HomeDataDevice
     model: str
     host: str | None = None
+    product_nickname: RoborockProductNickname | None = None
+    device_features: DeviceFeatures | None = None
+
+    def __post_init__(self):
+        self.product_nickname = short_model_to_enum.get(self.model.split(".")[-1], RoborockProductNickname.PEARLPLUS)
+        robot_new_features = int(self.device.feature_set) if self.device.feature_set else 0
+        self.device_features = DeviceFeatures.from_feature_flags(
+            robot_new_features,
+            self.device.new_feature_set if self.device.new_feature_set is not None else "00000000",
+            self.product_nickname,
+        )
 
 
 @dataclass
