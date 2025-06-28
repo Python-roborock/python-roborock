@@ -4,6 +4,7 @@ import json
 import math
 import time
 from dataclasses import dataclass, field
+from functools import cache
 
 from roborock import RoborockEnum
 from roborock.util import get_next_int
@@ -161,10 +162,14 @@ class RoborockMessage:
     random: int = field(default_factory=lambda: get_next_int(10000, 99999))
     timestamp: int = field(default_factory=lambda: math.floor(time.time()))
     message_retry: MessageRetry | None = None
+    _parsed_payload: dict | None = None
+
+    @cache
+    def get_payload(self) -> dict | None:
+        return json.loads(self.payload.decode())
 
     def get_request_id(self) -> int | None:
-        if self.payload:
-            payload = json.loads(self.payload.decode())
+        if payload := self.get_payload():
             for data_point_number, data_point in payload.get("dps").items():
                 if data_point_number in ["101", "102"]:
                     data_point_response = json.loads(data_point)
@@ -180,8 +185,7 @@ class RoborockMessage:
         if self.message_retry:
             return self.message_retry.method
         protocol = self.protocol
-        if self.payload and protocol in [4, 5, 101, 102]:
-            payload = json.loads(self.payload.decode())
+        if payload := self.get_payload() and protocol in [4, 5, 101, 102]:
             for data_point_number, data_point in payload.get("dps").items():
                 if data_point_number in ["101", "102"]:
                     data_point_response = json.loads(data_point)
@@ -190,8 +194,7 @@ class RoborockMessage:
 
     def get_params(self) -> list | dict | None:
         protocol = self.protocol
-        if self.payload and protocol in [4, 101, 102]:
-            payload = json.loads(self.payload.decode())
+        if payload := self.get_payload() and protocol in [4, 101, 102]:
             for data_point_number, data_point in payload.get("dps").items():
                 if data_point_number in ["101", "102"]:
                     data_point_response = json.loads(data_point)
