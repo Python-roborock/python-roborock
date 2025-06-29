@@ -10,7 +10,7 @@ from roborock.cloud_api import RoborockMqttClient
 
 from ..containers import DeviceData, UserData
 from ..exceptions import CommandVacuumError, RoborockException, VacuumError
-from ..protocol import MessageParser, Utils
+from ..protocol import Utils
 from ..roborock_message import (
     RoborockMessage,
     RoborockMessageProtocol,
@@ -47,9 +47,7 @@ class RoborockMqttClientV1(RoborockMqttClient, RoborockClientV1):
         response_protocol = (
             RoborockMessageProtocol.MAP_RESPONSE if method in COMMANDS_SECURED else RoborockMessageProtocol.RPC_RESPONSE
         )
-
-        local_key = self.device_info.device.local_key
-        msg = MessageParser.build(roborock_message, local_key, False)
+        msg = self._encoder(roborock_message)
         self._logger.debug(f"id={request_id} Requesting method {method} with {params}")
         async_response = self._async_response(request_id, response_protocol)
         self._send_msg_raw(msg)

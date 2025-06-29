@@ -9,7 +9,6 @@ from Crypto.Util.Padding import pad, unpad
 from roborock.cloud_api import RoborockMqttClient
 from roborock.containers import DeviceData, RoborockCategory, UserData
 from roborock.exceptions import RoborockException
-from roborock.protocol import MessageParser
 from roborock.roborock_message import (
     RoborockDyadDataProtocol,
     RoborockMessage,
@@ -43,8 +42,7 @@ class RoborockMqttClientA01(RoborockMqttClient, RoborockClientA01):
         await self.validate_connection()
         response_protocol = RoborockMessageProtocol.RPC_RESPONSE
 
-        local_key = self.device_info.device.local_key
-        m = MessageParser.build(roborock_message, local_key, prefixed=False)
+        m = self._encoder(roborock_message)
         # self._logger.debug(f"id={request_id} Requesting method {method} with {params}")
         payload = json.loads(unpad(roborock_message.payload, AES.block_size))
         futures = []

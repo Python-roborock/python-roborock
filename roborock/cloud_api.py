@@ -13,7 +13,7 @@ import paho.mqtt.client as mqtt
 from .api import KEEPALIVE, RoborockClient
 from .containers import DeviceData, UserData
 from .exceptions import RoborockException, VacuumError
-from .protocol import MessageParser, md5hex
+from .protocol import Decoder, Encoder, create_mqtt_decoder, create_mqtt_encoder, md5hex
 from .roborock_future import RoborockFuture
 
 _LOGGER = logging.getLogger(__name__)
@@ -74,6 +74,8 @@ class RoborockMqttClient(RoborockClient, ABC):
         self._mqtt_client.username_pw_set(self._hashed_user, self._hashed_password)
         self._waiting_queue: dict[int, RoborockFuture] = {}
         self._mutex = Lock()
+        self._decoder: Decoder = create_mqtt_decoder(device_info.device.local_key)
+        self._encoder: Encoder = create_mqtt_encoder(device_info.device.local_key)
 
     def _mqtt_on_connect(self, *args, **kwargs):
         _, __, ___, rc, ____ = args
@@ -102,7 +104,7 @@ class RoborockMqttClient(RoborockClient, ABC):
     def _mqtt_on_message(self, *args, **kwargs):
         client, __, msg = args
         try:
-            messages, _ = MessageParser.parse(msg.payload, local_key=self.device_info.device.local_key)
+            messages = self._decoder(msg.payload)
             super().on_message_received(messages)
         except Exception as ex:
             self._logger.exception(ex)

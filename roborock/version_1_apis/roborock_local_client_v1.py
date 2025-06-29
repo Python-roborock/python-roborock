@@ -4,7 +4,6 @@ from roborock.local_api import RoborockLocalClient
 
 from .. import CommandVacuumError, DeviceData, RoborockCommand, RoborockException
 from ..exceptions import VacuumError
-from ..protocol import MessageParser
 from ..roborock_message import MessageRetry, RoborockMessage, RoborockMessageProtocol
 from ..util import RoborockLoggerAdapter
 from .roborock_client_v1 import COMMANDS_SECURED, RoborockClientV1
@@ -57,8 +56,7 @@ class RoborockLocalClientV1(RoborockLocalClient, RoborockClientV1):
             response_protocol = RoborockMessageProtocol.GENERAL_REQUEST
         if request_id is None:
             raise RoborockException(f"Failed build message {roborock_message}")
-        local_key = self.device_info.device.local_key
-        msg = MessageParser.build(roborock_message, local_key=local_key)
+        msg = self._encoder(roborock_message)
         if method:
             self._logger.debug(f"id={request_id} Requesting method {method} with {params}")
         # Send the command to the Roborock device

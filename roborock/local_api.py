@@ -12,7 +12,7 @@ import async_timeout
 from . import DeviceData
 from .api import RoborockClient
 from .exceptions import RoborockConnectionException, RoborockException
-from .protocol import MessageParser
+from .protocol import Decoder, Encoder, create_local_decoder, create_local_encoder
 from .roborock_message import RoborockMessage, RoborockMessageProtocol
 
 _LOGGER = logging.getLogger(__name__)
@@ -44,20 +44,18 @@ class RoborockLocalClient(RoborockClient, ABC):
         self.host = device_data.host
         self._batch_structs: list[RoborockMessage] = []
         self._executing = False
-        self.remaining = b""
         self.transport: Transport | None = None
         self._mutex = Lock()
         self.keep_alive_task: TimerHandle | None = None
         RoborockClient.__init__(self, device_data)
         self._local_protocol = _LocalProtocol(self._data_received, self._connection_lost)
+        self._encoder: Encoder = create_local_encoder(device_data.device.local_key)
+        self._decoder: Decoder = create_local_decoder(device_data.device.local_key)
 
     def _data_received(self, message):
         """Called when data is received from the transport."""
-        if self.remaining:
-            message = self.remaining + message
-            self.remaining = b""
-        parser_msg, self.remaining = MessageParser.parse(message, local_key=self.device_info.device.local_key)
-        self.on_message_received(parser_msg)
+        parsed_msg = self._decoder(message)
+        self.on_message_received(parsed_msg)
 
     def _connection_lost(self, exc: Exception | None):
         """Called when the transport connection is lost."""
