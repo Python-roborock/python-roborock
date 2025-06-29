@@ -62,7 +62,11 @@ def cli(ctx, debug: int):
 
 @click.command()
 @click.option("--email", required=True)
-@click.option("--password", required=True)
+@click.option(
+    "--password",
+    required=False,
+    help="Password for the Roborock account. If not provided, an email code will be requested.",
+)
 @click.pass_context
 @run_sync()
 async def login(ctx, email, password):
@@ -75,7 +79,14 @@ async def login(ctx, email, password):
     except RoborockException:
         pass
     client = RoborockApiClient(email)
-    user_data = await client.pass_login(password)
+    if password is not None:
+        user_data = await client.pass_login(password)
+    else:
+        print(f"Requesting code for {email}")
+        await client.request_code()
+        code = click.prompt("A code has been sent to your email, please enter the code", type=str)
+        user_data = await client.code_login(code)
+        print("Login successful")
     context.update(LoginData(user_data=user_data, email=email))
 
 
