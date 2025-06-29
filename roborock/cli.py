@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from pathlib import Path
@@ -12,7 +13,8 @@ from pyshark.packet.packet import Packet  # type: ignore
 
 from roborock import RoborockException
 from roborock.containers import DeviceData, HomeDataProduct, LoginData
-from roborock.protocol import MessageParser
+from roborock.mqtt.roborock_session import create_mqtt_session
+from roborock.protocol import MessageParser, create_mqtt_params
 from roborock.util import run_sync
 from roborock.version_1_apis.roborock_local_client_v1 import RoborockLocalClientV1
 from roborock.version_1_apis.roborock_mqtt_client_v1 import RoborockMqttClientV1
@@ -45,7 +47,8 @@ class RoborockContext:
         if self._login_data is None:
             raise RoborockException("You must login first")
 
-    def login_data(self):
+    def login_data(self) -> LoginData:
+        """Get the login data."""
         self.validate()
         return self._login_data
 
@@ -77,6 +80,54 @@ async def login(ctx, email, password):
     client = RoborockApiClient(email)
     user_data = await client.pass_login(password)
     context.update(LoginData(user_data=user_data, email=email))
+
+
+@click.command()
+@click.pass_context
+@click.option("--duration", default=10, help="Duration to run the MQTT session in seconds")
+@run_sync()
+async def session(ctx, duration: int):
+    context: RoborockContext = ctx.obj
+    login_data = context.login_data()
+
+    # Discovery devices if not already available
+    if not login_data.home_data:
+        await _discover(ctx)
+        login_data = context.login_data()
+    if not login_data.home_data or not login_data.home_data.devices:
+        raise RoborockException("Unable to discover devices")
+
+    all_devices = login_data.home_data.devices + login_data.home_data.received_devices
+    click.echo(f"Discovered devices: {', '.join([device.name for device in all_devices])}")
+
+    rriot = login_data.user_data.rriot
+    params = create_mqtt_params(rriot)
+
+    mqtt_session = await create_mqtt_session(params)
+    click.echo("Starting MQTT session...")
+    if not mqtt_session.connected:
+        raise RoborockException("Failed to connect to MQTT broker")
+
+    def on_message(bytes: bytes):
+        """Callback function to handle incoming MQTT messages."""
+        # Decode the first 20 bytes of the message for display
+        bytes = bytes[:20]
+
+        click.echo(f"Received message: {bytes}...")
+
+    unsubs = []
+    for device in all_devices:
+        device_topic = f"rr/m/o/{rriot.u}/{params.username}/{device.duid}"
+        unsub = await mqtt_session.subscribe(device_topic, on_message)
+        unsubs.append(unsub)
+
+    click.echo("MQTT session started. Listening for messages...")
+    await asyncio.sleep(duration)
+
+    click.echo("Stopping MQTT session...")
+    for unsub in unsubs:
+        unsub()
+    await mqtt_session.close()
 
 
 async def _discover(ctx):
@@ -253,6 +304,7 @@ cli.add_command(execute_scene)
 cli.add_command(status)
 cli.add_command(command)
 cli.add_command(parser)
+cli.add_command(session)
 
 
 def main():

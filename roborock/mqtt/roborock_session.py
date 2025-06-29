@@ -116,9 +116,9 @@ class RoborockMqttSession(MqttSession):
                 _LOGGER.info("MQTT error: %s", err)
             except asyncio.CancelledError as err:
                 if start_future:
-                    _LOGGER.debug("MQTT loop was cancelled")
+                    _LOGGER.debug("MQTT loop was cancelled while starting")
                     start_future.set_exception(err)
-                _LOGGER.debug("MQTT loop was cancelled whiel starting")
+                _LOGGER.debug("MQTT loop was cancelled")
                 return
             # Catch exceptions to avoid crashing the loop
             # and to allow the loop to retry.
@@ -171,8 +171,7 @@ class RoborockMqttSession(MqttSession):
                 self._client = None
 
     async def _process_message_loop(self, client: aiomqtt.Client) -> None:
-        _LOGGER.debug("client=%s", client)
-        _LOGGER.debug("Processing MQTT messages: %s", client.messages)
+        _LOGGER.debug("Processing MQTT messages")
         async for message in client.messages:
             _LOGGER.debug("Received message: %s", message)
             for listener in self._listeners.get(message.topic.value, []):
