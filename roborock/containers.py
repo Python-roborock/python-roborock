@@ -7,6 +7,7 @@ import re
 from dataclasses import asdict, dataclass, field
 from datetime import timezone
 from enum import Enum
+from functools import cached_property
 from typing import Any, NamedTuple, get_args, get_origin
 
 from .code_mappings import (
@@ -465,6 +466,21 @@ class HomeData(RoborockBase):
         if self.received_devices is not None:
             devices += self.received_devices
         return devices
+
+    @cached_property
+    def product_map(self) -> dict[str, HomeDataProduct]:
+        """Returns a dictionary of product IDs to HomeDataProduct objects."""
+        return {product.id: product for product in self.products}
+
+    @cached_property
+    def device_products(self) -> dict[str, tuple[HomeDataDevice, HomeDataProduct]]:
+        """Returns a dictionary of device DUIDs to HomeDataDeviceProduct objects."""
+        product_map = self.product_map
+        return {
+            device.duid: (device, product)
+            for device in self.get_all_devices()
+            if (product := product_map.get(device.product_id)) is not None
+        }
 
 
 @dataclass

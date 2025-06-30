@@ -293,7 +293,7 @@ HOME_DATA_RAW = {
             "runtimeEnv": None,
             "timeZoneId": "America/Los_Angeles",
             "iconUrl": "no_url",
-            "productId": "product123",
+            "productId": PRODUCT_ID,
             "lon": None,
             "lat": None,
             "share": False,
