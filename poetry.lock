@@ -1396,14 +1396,14 @@ files = [
 
 [[package]]
 name = "vacuum-map-parser-base"
-version = "0.1.3"
+version = "0.1.5"
 description = "Common code for vacuum map parsers"
 optional = false
 python-versions = "<4.0,>=3.11"
 groups = ["main"]
 files = [
-    {file = "vacuum_map_parser_base-0.1.3-py3-none-any.whl", hash = "sha256:986b51f0b6492cdff4df6a01816a1d14508273015a8a146dbb8cfc814b3abf4e"},
-    {file = "vacuum_map_parser_base-0.1.3.tar.gz", hash = "sha256:e7271d426dc7f6c29f039965d6d2b8167537bee327a131d28be3c5da89b3d24f"},
+    {file = "vacuum_map_parser_base-0.1.5-py3-none-any.whl", hash = "sha256:cdbbe1905ab7b3e5929a1aefaa80b6972f796d46d53ccccdfde13d4afb510b59"},
+    {file = "vacuum_map_parser_base-0.1.5.tar.gz", hash = "sha256:efbf889ae7a7a8fe6478354a1711e857ee781c2d7f3a09e5b30e714b60036c4a"},
 ]
 
 [package.dependencies]
@@ -1411,19 +1411,19 @@ Pillow = "*"
 
 [[package]]
 name = "vacuum-map-parser-roborock"
-version = "0.1.2"
+version = "0.1.4"
 description = "Functionalities for Roborock vacuum map parsing"
 optional = false
 python-versions = "<4.0,>=3.11"
 groups = ["main"]
 files = [
-    {file = "vacuum_map_parser_roborock-0.1.2-py3-none-any.whl", hash = "sha256:7b66bc3af556db46f8c126793d24307d0e9117307ee1b952da1c86148c79c369"},
-    {file = "vacuum_map_parser_roborock-0.1.2.tar.gz", hash = "sha256:e910b8a0349be8224fe25ca27b9ea088b66f971c30715621b3e187868bd028d0"},
+    {file = "vacuum_map_parser_roborock-0.1.4-py3-none-any.whl", hash = "sha256:8b5a00484a88c5d103a99ed7580677939c0801430f04752d9ae6265dfcec5969"},
+    {file = "vacuum_map_parser_roborock-0.1.4.tar.gz", hash = "sha256:07ab7cd8aaf0e94da62d2a228013b2f6b8acb0e6d2215b697b6441ffdfd70e89"},
 ]
 
 [package.dependencies]
 Pillow = "*"
-vacuum-map-parser-base = "0.1.3"
+vacuum-map-parser-base = "0.1.5"
 
 [[package]]
 name = "virtualenv"
