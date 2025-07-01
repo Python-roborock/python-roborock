@@ -473,7 +473,7 @@ class RoborockMopIntensityQ7Max(RoborockMopIntensityCode):
 class RoborockDockErrorCode(RoborockEnum):
     """Describes the error code of the dock."""
 
-    ok = 0
+    none = 0
     duct_blockage = 34
     water_empty = 38
     waste_water_tank_full = 39
