@@ -73,3 +73,16 @@ class RoborockMqttClientA01(RoborockMqttClient, RoborockClientA01):
                 payload=pad(json.dumps(payload).encode("utf-8"), AES.block_size),
             )
         )
+
+    async def set_value(
+        self, protocol: RoborockDyadDataProtocol | RoborockZeoProtocol, value: typing.Any
+    ) -> dict[int, typing.Any]:
+        """Set a value for a specific protocol on the A01 device."""
+        payload = {"dps": {int(protocol): value}}
+        return await self.send_message(
+            RoborockMessage(
+                protocol=RoborockMessageProtocol.RPC_REQUEST,
+                version=b"A01",
+                payload=pad(json.dumps(payload).encode("utf-8"), AES.block_size),
+            )
+        )
