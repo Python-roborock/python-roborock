@@ -86,7 +86,7 @@ async def test_get_room_mapping(
     )
     response_queue.put(message)
 
-    with patch("roborock.version_1_apis.roborock_client_v1.get_next_int", return_value=test_request_id):
+    with patch("roborock.protocols.v1_protocol.get_next_int", return_value=test_request_id):
         room_mapping = await connected_local_client.get_room_mapping()
 
     assert room_mapping == [
