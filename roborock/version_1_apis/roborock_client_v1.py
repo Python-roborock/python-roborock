@@ -54,10 +54,13 @@ from roborock.roborock_message import (
     RoborockMessageProtocol,
 )
 from roborock.util import RepeatableTask, unpack_list
-from roborock.protocols.v1_protocol import COMMANDS_SECURED
-
 
 CUSTOM_COMMANDS = {RoborockCommand.GET_MAP_CALIBRATION}
+
+COMMANDS_SECURED = {
+    RoborockCommand.GET_MAP_V1,
+    RoborockCommand.GET_MULTI_MAP,
+}
 
 CLOUD_REQUIRED = COMMANDS_SECURED.union(CUSTOM_COMMANDS)
 

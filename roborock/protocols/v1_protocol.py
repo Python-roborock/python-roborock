@@ -13,12 +13,6 @@ from roborock.roborock_message import MessageRetry, RoborockMessage, RoborockMes
 from roborock.roborock_typing import RoborockCommand
 from roborock.util import get_next_int
 
-# All mqtt commands are sent securely. Only local commands in this list are secured.
-COMMANDS_SECURED = {
-    RoborockCommand.GET_MAP_V1,
-    RoborockCommand.GET_MULTI_MAP,
-}
-
 CommandType = RoborockCommand | str
 ParamsType = list | dict | int | None
 
@@ -79,24 +73,19 @@ def create_mqtt_payload_encoder(security_data: SecurityData) -> Callable[[Comman
     return _get_payload
 
 
-def create_local_payload_encoder(security_data: SecurityData) -> Callable[[CommandType, ParamsType], RoborockMessage]:
-    """Create a payload encoder for V1 commands over local connection."""
+def encode_local_payload(method: CommandType, params: ParamsType) -> RoborockMessage:
+    """Encode payload for V1 commands over local connection."""
 
-    def _get_payload(method: CommandType, params: ParamsType) -> RoborockMessage:
-        """Build the payload for a V1 command."""
-        request = RequestMessage(method=method, params=params)
-        is_secured = request.method in COMMANDS_SECURED
-        payload = request.as_payload(security_data if is_secured else None)
+    request = RequestMessage(method=method, params=params)
+    payload = request.as_payload(security_data=None)
 
-        message_retry: MessageRetry | None = None
-        if method == RoborockCommand.RETRY_REQUEST and isinstance(params, dict):
-            message_retry = MessageRetry(method=method, retry_id=params["retry_id"])
+    message_retry: MessageRetry | None = None
+    if method == RoborockCommand.RETRY_REQUEST and isinstance(params, dict):
+        message_retry = MessageRetry(method=method, retry_id=params["retry_id"])
 
-        return RoborockMessage(
-            timestamp=request.timestamp,
-            protocol=RoborockMessageProtocol.GENERAL_REQUEST,
-            payload=payload,
-            message_retry=message_retry,
-        )
-
-    return _get_payload
+    return RoborockMessage(
+        timestamp=request.timestamp,
+        protocol=RoborockMessageProtocol.GENERAL_REQUEST,
+        payload=payload,
+        message_retry=message_retry,
+    )

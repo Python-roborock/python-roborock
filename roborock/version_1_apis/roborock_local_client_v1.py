@@ -4,10 +4,10 @@ from roborock.local_api import RoborockLocalClient
 
 from .. import CommandVacuumError, DeviceData, RoborockCommand, RoborockException
 from ..exceptions import VacuumError
-from ..protocols.v1_protocol import SecurityData, create_local_payload_encoder
+from ..protocols.v1_protocol import encode_local_payload
 from ..roborock_message import RoborockMessage, RoborockMessageProtocol
 from ..util import RoborockLoggerAdapter
-from .roborock_client_v1 import RoborockClientV1
+from .roborock_client_v1 import CLOUD_REQUIRED, RoborockClientV1
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -21,16 +21,16 @@ class RoborockLocalClientV1(RoborockLocalClient, RoborockClientV1):
         RoborockClientV1.__init__(self, device_data, "abc")
         self.queue_timeout = queue_timeout
         self._logger = RoborockLoggerAdapter(device_data.device.name, _LOGGER)
-        self._payload_encoder = create_local_payload_encoder(
-            SecurityData(endpoint=self._endpoint, nonce=self._nonce),
-        )
 
     async def _send_command(
         self,
         method: RoborockCommand | str,
         params: list | dict | int | None = None,
     ):
-        roborock_message = self._payload_encoder(method, params)
+        if method in CLOUD_REQUIRED:
+            raise RoborockException(f"Method {method} is not supported over local connection")
+
+        roborock_message = encode_local_payload(method, params)
         self._logger.debug("Building message id %s for method %s", roborock_message.get_request_id(), method)
         return await self.send_message(roborock_message)
 
