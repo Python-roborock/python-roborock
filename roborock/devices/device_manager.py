@@ -97,7 +97,7 @@ def create_home_data_api(email: str, user_data: UserData) -> HomeDataApi:
     client = RoborockApiClient(email)
 
     async def home_data_api() -> HomeData:
-        return await client.get_home_data(user_data)
+        return await client.get_home_data_v3(user_data)
 
     return home_data_api
 

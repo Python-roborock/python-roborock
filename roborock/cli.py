@@ -128,7 +128,7 @@ async def _discover(ctx):
     if not login_data:
         raise Exception("You need to login first")
     client = RoborockApiClient(login_data.email)
-    home_data = await client.get_home_data(login_data.user_data)
+    home_data = await client.get_home_data_v3(login_data.user_data)
     login_data.home_data = home_data
     context.update(login_data)
     click.echo(f"Discovered devices {', '.join([device.name for device in home_data.get_all_devices()])}")
