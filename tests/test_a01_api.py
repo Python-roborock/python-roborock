@@ -14,6 +14,7 @@ from roborock import (
     HomeData,
     UserData,
 )
+from roborock.code_mappings import ZeoState, ZeoTemperature
 from roborock.containers import DeviceData, RoborockCategory
 from roborock.exceptions import RoborockException
 from roborock.protocol import MessageParser
@@ -188,12 +189,34 @@ async def test_update_values(
     message = build_rpc_response(
         {
             203: 6,  # spinning
+            207: 3,  # medium
         }
     )
     response_queue.put(mqtt_packet.gen_publish(MQTT_PUBLISH_TOPIC, payload=message))
 
-    data = await connected_a01_mqtt_client.update_values([RoborockZeoProtocol.STATE])
-    assert data.get(RoborockZeoProtocol.STATE) == "spinning"
+    data = await connected_a01_mqtt_client.update_values([RoborockZeoProtocol.STATE, RoborockZeoProtocol.TEMP])
+    assert data.get(RoborockZeoProtocol.STATE) == ZeoState.spinning.name
+    assert data.get(RoborockZeoProtocol.TEMP) == ZeoTemperature.medium.name
+
+
+async def test_set_value(
+    received_requests: Queue,
+    response_queue: Queue,
+    connected_a01_mqtt_client: RoborockMqttClientA01,
+) -> None:
+    """Test sending an arbitrary MQTT message and parsing the response."""
+    # Clear existing messages received during setup
+    assert received_requests.qsize() == 2
+    assert received_requests.get(block=True)
+    assert received_requests.get(block=True)
+    assert received_requests.empty()
+
+    # Prepare the response message
+    message = build_rpc_response({})
+    response_queue.put(mqtt_packet.gen_publish(MQTT_PUBLISH_TOPIC, payload=message))
+
+    await connected_a01_mqtt_client.set_value(RoborockZeoProtocol.STATE, "spinning")
+    assert received_requests.get(block=True)
 
 
 async def test_publish_failure(
