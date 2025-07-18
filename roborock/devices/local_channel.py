@@ -64,7 +64,7 @@ class LocalChannel:
         except OSError as e:
             raise RoborockConnectionException(f"Failed to connect to {self._host}:{_PORT}") from e
 
-    async def close(self) -> None:
+    def close(self) -> None:
         """Disconnect from the device."""
         if self._transport:
             self._transport.close()
@@ -144,3 +144,25 @@ class LocalChannel:
             async with self._queue_lock:
                 self._waiting_queue.pop(request_id, None)
             raise
+
+
+# This module provides a factory function to create LocalChannel instances.
+#
+# TODO: Make a separate LocalSession and use it to manage retries with the host,
+# similar to how MqttSession works. For now this is a simple factory function
+# for creating channels.
+LocalSession = Callable[[str], LocalChannel]
+
+
+def create_local_session(local_key: str) -> LocalSession:
+    """Creates a local session which can create local channels.
+
+    This plays a role similar to the MqttSession but is really just a factory
+    for creating LocalChannel instances with the same local key.
+    """
+
+    def create_local_channel(host: str) -> LocalChannel:
+        """Create a LocalChannel instance for the given host."""
+        return LocalChannel(host, local_key)
+
+    return create_local_channel

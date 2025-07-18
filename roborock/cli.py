@@ -115,7 +115,16 @@ async def session(ctx, duration: int):
     devices = await device_manager.get_devices()
     click.echo(f"Discovered devices: {', '.join([device.name for device in devices])}")
 
-    click.echo("MQTT session started. Listening for messages...")
+    click.echo("MQTT session started. Querying devices...")
+    for device in devices:
+        try:
+            status = await device.get_status()
+        except RoborockException as e:
+            click.echo(f"Failed to get status for {device.name}: {e}")
+        else:
+            click.echo(f"Device {device.name} status: {status.as_dict()}")
+
+    click.echo("Listening for messages.")
     await asyncio.sleep(duration)
 
     # Close the device manager (this will close all devices and MQTT session)
