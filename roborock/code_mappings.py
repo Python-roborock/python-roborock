@@ -300,6 +300,17 @@ class RoborockFanSpeedS8MaxVUltra(RoborockFanPowerCode):
     smart_mode = 110
 
 
+class RoborockFanSpeedSaros10R(RoborockFanPowerCode):
+    off = 105
+    quiet = 101
+    balanced = 102
+    turbo = 103
+    max = 104
+    custom = 106
+    max_plus = 108
+    smart_mode = 110
+
+
 class RoborockMopModeCode(RoborockEnum):
     """Describes the mop mode of the vacuum cleaner."""
 
@@ -338,6 +349,15 @@ class RoborockMopModeS8MaxVUltra(RoborockMopModeCode):
     deep_plus = 303
     fast = 304
     deep_plus_pearl = 305
+    smart_mode = 306
+
+
+class RoborockMopModeSaros10R(RoborockMopModeCode):
+    standard = 300
+    deep = 301
+    custom = 302
+    deep_plus = 303
+    fast = 304
     smart_mode = 306
 
 
@@ -436,6 +456,17 @@ class RoborockMopIntensityS8MaxVUltra(RoborockMopIntensityCode):
     max = 208
     smart_mode = 209
     custom_water_flow = 207
+
+
+class RoborockMopIntensitySaros10R(RoborockMopIntensityCode):
+    off = 200
+    low = 201
+    medium = 202
+    high = 203
+    custom = 204
+    extreme = 250
+    vac_followed_by_mop = 235
+    smart_mode = 209
 
 
 class RoborockMopIntensityS5Max(RoborockMopIntensityCode):
