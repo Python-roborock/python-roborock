@@ -9,10 +9,18 @@ import logging
 from collections.abc import Callable
 from functools import cached_property
 
-from roborock.containers import HomeDataDevice, HomeDataProduct, UserData
+from roborock.containers import (
+    HomeDataDevice,
+    HomeDataProduct,
+    ModelStatus,
+    S7MaxVStatus,
+    Status,
+    UserData,
+)
 from roborock.roborock_message import RoborockMessage
+from roborock.roborock_typing import RoborockCommand
 
-from .mqtt_channel import MqttChannel
+from .v1_channel import V1Channel
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,19 +46,18 @@ class RoborockDevice:
         user_data: UserData,
         device_info: HomeDataDevice,
         product_info: HomeDataProduct,
-        mqtt_channel: MqttChannel,
+        v1_channel: V1Channel,
     ) -> None:
         """Initialize the RoborockDevice.
 
-        The device takes ownership of the MQTT channel for communication with the device.
-        Use `connect()` to establish the connection, which will set up the MQTT channel
-        for receiving messages from the device. Use `close()` to unsubscribe from the MQTT
-        channel.
+        The device takes ownership of the V1 channel for communication with the device.
+        Use `connect()` to establish the connection, which will set up the appropriate
+        protocol channel. Use `close()` to clean up all connections.
         """
         self._user_data = user_data
         self._device_info = device_info
         self._product_info = product_info
-        self._mqtt_channel = mqtt_channel
+        self._v1_channel = v1_channel
         self._unsub: Callable[[], None] | None = None
 
     @property
@@ -82,27 +89,32 @@ class RoborockDevice:
         )
         return DeviceVersion.UNKNOWN
 
-    async def connect(self) -> None:
-        """Connect to the device using MQTT.
+    @property
+    def is_connected(self) -> bool:
+        """Return whether the device is connected."""
+        return self._v1_channel.is_mqtt_connected or self._v1_channel.is_local_connected
 
-        This method will set up the MQTT channel for communication with the device.
-        """
+    async def connect(self) -> None:
+        """Connect to the device using the appropriate protocol channel."""
         if self._unsub:
             raise ValueError("Already connected to the device")
-        self._unsub = await self._mqtt_channel.subscribe(self._on_mqtt_message)
+        self._unsub = await self._v1_channel.subscribe(self._on_message)
+        _LOGGER.info("Connected to V1 device %s", self.name)
 
     async def close(self) -> None:
-        """Close the MQTT connection to the device.
-
-        This method will unsubscribe from the MQTT channel and clean up resources.
-        """
+        """Close all connections to the device."""
         if self._unsub:
             self._unsub()
             self._unsub = None
 
-    def _on_mqtt_message(self, message: RoborockMessage) -> None:
-        """Handle incoming MQTT messages from the device.
+    def _on_message(self, message: RoborockMessage) -> None:
+        """Handle incoming messages from the device."""
+        _LOGGER.debug("Received message from device: %s", message)
 
-        This method should be overridden in subclasses to handle specific device messages.
+    async def get_status(self) -> Status:
+        """Get the current status of the device.
+
+        This is a placeholder command and will likely be changed/moved in the future.
         """
-        _LOGGER.debug("Received message from device %s: %s", self.duid, message)
+        status_type: type[Status] = ModelStatus.get(self._product_info.model, S7MaxVStatus)
+        return await self._v1_channel.send_decoded_command(RoborockCommand.GET_STATUS, response_type=status_type)

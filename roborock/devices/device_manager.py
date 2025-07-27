@@ -10,13 +10,13 @@ from roborock.containers import (
     HomeDataProduct,
     UserData,
 )
-from roborock.devices.device import RoborockDevice
+from roborock.devices.device import DeviceVersion, RoborockDevice
 from roborock.mqtt.roborock_session import create_mqtt_session
 from roborock.mqtt.session import MqttSession
 from roborock.protocol import create_mqtt_params
 from roborock.web_api import RoborockApiClient
 
-from .mqtt_channel import MqttChannel
+from .v1_channel import create_v1_channel
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -114,8 +114,16 @@ async def create_device_manager(user_data: UserData, home_data_api: HomeDataApi)
     mqtt_session = await create_mqtt_session(mqtt_params)
 
     def device_creator(device: HomeDataDevice, product: HomeDataProduct) -> RoborockDevice:
-        mqtt_channel = MqttChannel(mqtt_session, device.duid, device.local_key, user_data.rriot, mqtt_params)
-        return RoborockDevice(user_data, device, product, mqtt_channel)
+        # Check device version and only support V1 for now
+        if device.pv != DeviceVersion.V1.value:
+            raise NotImplementedError(
+                f"Device {device.name} has version {device.pv}, but only V1 devices "
+                f"are supported through the unified interface. Use the legacy "
+                f"RoborockMqttClientV1 or RoborockLocalClientV1 for this device."
+            )
+        # Create V1 channel that handles both MQTT and local connections
+        v1_channel = create_v1_channel(user_data, mqtt_params, mqtt_session, device)
+        return RoborockDevice(user_data, device, product, v1_channel)
 
     manager = DeviceManager(home_data_api, device_creator, mqtt_session=mqtt_session)
     await manager.discover_devices()

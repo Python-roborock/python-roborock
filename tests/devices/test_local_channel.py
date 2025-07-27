@@ -104,7 +104,7 @@ async def test_already_connected_warning(
 async def test_close_connection(local_channel: LocalChannel, mock_loop: Mock, mock_transport: Mock) -> None:
     """Test closing the connection."""
     await local_channel.connect()
-    await local_channel.close()
+    local_channel.close()
 
     mock_transport.close.assert_called_once()
     assert local_channel._is_connected is False
@@ -112,7 +112,7 @@ async def test_close_connection(local_channel: LocalChannel, mock_loop: Mock, mo
 
 async def test_close_without_connection(local_channel: LocalChannel) -> None:
     """Test closing when not connected."""
-    await local_channel.close()  # Should not raise an exception
+    local_channel.close()
     assert local_channel._is_connected is False
 
 
