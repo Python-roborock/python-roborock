@@ -300,6 +300,17 @@ class RoborockFanSpeedS8MaxVUltra(RoborockFanPowerCode):
     smart_mode = 110
 
 
+class RoborockFanSpeedSaros10(RoborockFanPowerCode):
+    off = 105
+    quiet = 101
+    balanced = 102
+    turbo = 103
+    max = 104
+    custom = 106
+    max_plus = 108
+    smart_mode = 110
+
+
 class RoborockFanSpeedSaros10R(RoborockFanPowerCode):
     off = 105
     quiet = 101
@@ -371,6 +382,15 @@ class RoborockMopModeQRevoMaster(RoborockMopModeCode):
 
 
 class RoborockMopModeQRevoMaxV(RoborockMopModeCode):
+    standard = 300
+    deep = 301
+    custom = 302
+    deep_plus = 303
+    fast = 304
+    smart_mode = 306
+
+
+class RoborockMopModeSaros10(RoborockMopModeCode):
     standard = 300
     deep = 301
     custom = 302
@@ -456,6 +476,16 @@ class RoborockMopIntensityS8MaxVUltra(RoborockMopIntensityCode):
     max = 208
     smart_mode = 209
     custom_water_flow = 207
+
+
+class RoborockMopIntensitySaros10(RoborockMopIntensityCode):
+    off = 200
+    mild = 201
+    standard = 202
+    intense = 203
+    extreme = 208
+    custom = 204
+    smart_mode = 209
 
 
 class RoborockMopIntensitySaros10R(RoborockMopIntensityCode):

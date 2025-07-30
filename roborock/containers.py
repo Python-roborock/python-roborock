@@ -28,6 +28,7 @@ from .code_mappings import (
     RoborockFanSpeedS7,
     RoborockFanSpeedS7MaxV,
     RoborockFanSpeedS8MaxVUltra,
+    RoborockFanSpeedSaros10,
     RoborockFanSpeedSaros10R,
     RoborockFinishReason,
     RoborockInCleaning,
@@ -41,6 +42,7 @@ from .code_mappings import (
     RoborockMopIntensityS6MaxV,
     RoborockMopIntensityS7,
     RoborockMopIntensityS8MaxVUltra,
+    RoborockMopIntensitySaros10,
     RoborockMopIntensitySaros10R,
     RoborockMopModeCode,
     RoborockMopModeQRevoCurv,
@@ -49,6 +51,7 @@ from .code_mappings import (
     RoborockMopModeS7,
     RoborockMopModeS8MaxVUltra,
     RoborockMopModeS8ProUltra,
+    RoborockMopModeSaros10,
     RoborockMopModeSaros10R,
     RoborockStartType,
     RoborockStateCode,
@@ -77,6 +80,7 @@ from .const import (
     ROBOROCK_S8,
     ROBOROCK_S8_MAXV_ULTRA,
     ROBOROCK_S8_PRO_ULTRA,
+    ROBOROCK_SAROS_10,
     ROBOROCK_SAROS_10R,
     SENSOR_DIRTY_REPLACE_TIME,
     SIDE_BRUSH_REPLACE_TIME,
@@ -689,6 +693,13 @@ class Saros10RStatus(Status):
     mop_mode: RoborockMopModeSaros10R | None = None
 
 
+@dataclass
+class Saros10Status(Status):
+    fan_power: RoborockFanSpeedSaros10 | None = None
+    water_box_mode: RoborockMopIntensitySaros10 | None = None
+    mop_mode: RoborockMopModeSaros10 | None = None
+
+
 ModelStatus: dict[str, type[Status]] = {
     ROBOROCK_S4_MAX: S4MaxStatus,
     ROBOROCK_S5_MAX: S5MaxStatus,
@@ -713,6 +724,7 @@ ModelStatus: dict[str, type[Status]] = {
     ROBOROCK_QREVO_PRO: P10Status,
     ROBOROCK_S8_MAXV_ULTRA: S8MaxvUltraStatus,
     ROBOROCK_SAROS_10R: Saros10RStatus,
+    ROBOROCK_SAROS_10: Saros10Status,
 }
 
 
