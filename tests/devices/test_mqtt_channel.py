@@ -119,7 +119,9 @@ async def test_mqtt_channel(mqtt_session: Mock, mqtt_channel: MqttChannel) -> No
     assert mqtt_session.subscribe.called
     assert mqtt_session.subscribe.call_args[0][0] == "rr/m/o/user123/username/abc123"
 
-    assert result == unsub
+    unsub.assert_not_called()
+    result()
+    unsub.assert_called_once()
 
 
 async def test_send_message_success(

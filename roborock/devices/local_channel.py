@@ -10,6 +10,8 @@ from roborock.exceptions import RoborockConnectionException, RoborockException
 from roborock.protocol import Decoder, Encoder, create_local_decoder, create_local_encoder
 from roborock.roborock_message import RoborockMessage
 
+from .channel import Channel
+
 _LOGGER = logging.getLogger(__name__)
 _PORT = 58867
 
@@ -30,7 +32,7 @@ class _LocalProtocol(asyncio.Protocol):
         self.connection_lost_cb(exc)
 
 
-class LocalChannel:
+class LocalChannel(Channel):
     """Simple RPC-style channel for communicating with a device over a local network.
 
     Handles request/response correlation and timeouts, but leaves message

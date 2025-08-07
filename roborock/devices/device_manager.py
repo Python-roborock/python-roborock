@@ -1,21 +1,29 @@
 """Module for discovering Roborock devices."""
 
 import asyncio
+import enum
 import logging
 from collections.abc import Awaitable, Callable
 
+from roborock.code_mappings import RoborockCategory
 from roborock.containers import (
     HomeData,
     HomeDataDevice,
     HomeDataProduct,
     UserData,
 )
-from roborock.devices.device import DeviceVersion, RoborockDevice
+from roborock.devices.device import RoborockDevice
 from roborock.mqtt.roborock_session import create_mqtt_session
 from roborock.mqtt.session import MqttSession
 from roborock.protocol import create_mqtt_params
 from roborock.web_api import RoborockApiClient
 
+from .channel import Channel
+from .mqtt_channel import create_mqtt_channel
+from .traits.dyad import DyadApi
+from .traits.status import StatusTrait
+from .traits.trait import Trait
+from .traits.zeo import ZeoApi
 from .v1_channel import create_v1_channel
 
 _LOGGER = logging.getLogger(__name__)
@@ -31,6 +39,14 @@ __all__ = [
 
 HomeDataApi = Callable[[], Awaitable[HomeData]]
 DeviceCreator = Callable[[HomeDataDevice, HomeDataProduct], RoborockDevice]
+
+
+class DeviceVersion(enum.StrEnum):
+    """Enum for device versions."""
+
+    V1 = "1.0"
+    A01 = "A01"
+    UNKNOWN = "unknown"
 
 
 class DeviceManager:
@@ -114,15 +130,25 @@ async def create_device_manager(user_data: UserData, home_data_api: HomeDataApi)
     mqtt_session = await create_mqtt_session(mqtt_params)
 
     def device_creator(device: HomeDataDevice, product: HomeDataProduct) -> RoborockDevice:
-        # Check device version and only support V1 for now
-        if device.pv != DeviceVersion.V1.value:
-            raise NotImplementedError(
-                f"Device {device.name} has version {device.pv}, but only V1 devices "
-                f"are supported through the unified interface."
-            )
-        # Create V1 channel that handles both MQTT and local connections
-        v1_channel = create_v1_channel(user_data, mqtt_params, mqtt_session, device)
-        return RoborockDevice(user_data, device, product, v1_channel)
+        channel: Channel
+        traits: list[Trait] = []
+        # TODO: Define a registration mechanism/factory for v1 traits
+        match device.pv:
+            case DeviceVersion.V1:
+                channel = create_v1_channel(user_data, mqtt_params, mqtt_session, device)
+                traits.append(StatusTrait(product, channel.rpc_channel))
+            case DeviceVersion.A01:
+                mqtt_channel = create_mqtt_channel(user_data, mqtt_params, mqtt_session, device)
+                match product.category:
+                    case RoborockCategory.WET_DRY_VAC:
+                        traits.append(DyadApi(mqtt_channel))
+                    case RoborockCategory.WASHING_MACHINE:
+                        traits.append(ZeoApi(mqtt_channel))
+                    case _:
+                        raise NotImplementedError(f"Device {device.name} has unsupported category {product.category}")
+            case _:
+                raise NotImplementedError(f"Device {device.name} has unsupported version {device.pv}")
+        return RoborockDevice(device, channel, traits)
 
     manager = DeviceManager(home_data_api, device_creator, mqtt_session=mqtt_session)
     await manager.discover_devices()

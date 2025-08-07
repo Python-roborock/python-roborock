@@ -6,7 +6,6 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 from roborock.containers import HomeData, UserData
-from roborock.devices.device import DeviceVersion
 from roborock.devices.device_manager import create_device_manager, create_home_data_api
 from roborock.exceptions import RoborockException
 
@@ -63,13 +62,11 @@ async def test_with_device() -> None:
     assert len(devices) == 1
     assert devices[0].duid == "abc123"
     assert devices[0].name == "Roborock S7 MaxV"
-    assert devices[0].device_version == DeviceVersion.V1
 
     device = await device_manager.get_device("abc123")
     assert device is not None
     assert device.duid == "abc123"
     assert device.name == "Roborock S7 MaxV"
-    assert device.device_version == DeviceVersion.V1
 
     await device_manager.close()
 

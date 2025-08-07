@@ -18,6 +18,7 @@ from roborock.protocols.v1_protocol import (
 from roborock.roborock_message import RoborockMessage
 from roborock.roborock_typing import RoborockCommand
 
+from .channel import Channel
 from .local_channel import LocalChannel, LocalSession, create_local_session
 from .mqtt_channel import MqttChannel
 from .v1_rpc_channel import V1RpcChannel, create_combined_rpc_channel, create_mqtt_rpc_channel
@@ -31,7 +32,7 @@ __all__ = [
 _T = TypeVar("_T", bound=RoborockBase)
 
 
-class V1Channel:
+class V1Channel(Channel):
     """Unified V1 protocol channel with automatic MQTT/local connection handling.
 
     This channel abstracts away the complexity of choosing between MQTT and local
@@ -62,6 +63,11 @@ class V1Channel:
         self._local_unsub: Callable[[], None] | None = None
         self._callback: Callable[[RoborockMessage], None] | None = None
         self._networking_info: NetworkInfo | None = None
+
+    @property
+    def is_connected(self) -> bool:
+        """Return whether MQTT connection is available."""
+        return self.is_mqtt_connected or self.is_local_connected
 
     @property
     def is_local_connected(self) -> bool:

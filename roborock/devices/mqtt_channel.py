@@ -5,16 +5,18 @@ import logging
 from collections.abc import Callable
 from json import JSONDecodeError
 
-from roborock.containers import RRiot
+from roborock.containers import HomeDataDevice, RRiot, UserData
 from roborock.exceptions import RoborockException
 from roborock.mqtt.session import MqttParams, MqttSession
 from roborock.protocol import create_mqtt_decoder, create_mqtt_encoder
 from roborock.roborock_message import RoborockMessage
 
+from .channel import Channel
+
 _LOGGER = logging.getLogger(__name__)
 
 
-class MqttChannel:
+class MqttChannel(Channel):
     """Simple RPC-style channel for communicating with a device over MQTT.
 
     Handles request/response correlation and timeouts, but leaves message
@@ -33,6 +35,12 @@ class MqttChannel:
         self._decoder = create_mqtt_decoder(local_key)
         self._encoder = create_mqtt_encoder(local_key)
         self._queue_lock = asyncio.Lock()
+        self._mqtt_unsub: Callable[[], None] | None = None
+
+    @property
+    def is_connected(self) -> bool:
+        """Return true if the channel is connected."""
+        return (self._mqtt_unsub is not None) and self._mqtt_session.connected
 
     @property
     def _publish_topic(self) -> str:
@@ -67,7 +75,14 @@ class MqttChannel:
                 except Exception as e:
                     _LOGGER.exception("Uncaught error in message handler callback: %s", e)
 
-        return await self._mqtt_session.subscribe(self._subscribe_topic, message_handler)
+        self._mqtt_unsub = await self._mqtt_session.subscribe(self._subscribe_topic, message_handler)
+
+        def unsub_wrapper() -> None:
+            if self._mqtt_unsub is not None:
+                self._mqtt_unsub()
+                self._mqtt_unsub = None
+
+        return unsub_wrapper
 
     async def _resolve_future_with_lock(self, message: RoborockMessage) -> None:
         """Resolve waiting future with proper locking."""
@@ -113,3 +128,10 @@ class MqttChannel:
             async with self._queue_lock:
                 self._waiting_queue.pop(request_id, None)
             raise
+
+
+def create_mqtt_channel(
+    user_data: UserData, mqtt_params: MqttParams, mqtt_session: MqttSession, device: HomeDataDevice
+) -> MqttChannel:
+    """Create a V1Channel for the given device."""
+    return MqttChannel(mqtt_session, device.duid, device.local_key, user_data.rriot, mqtt_params)
