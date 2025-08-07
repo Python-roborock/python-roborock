@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import logging
-from enum import Enum, IntEnum, StrEnum
+from collections import namedtuple
+from enum import Enum, IntEnum
 
 _LOGGER = logging.getLogger(__name__)
 completed_warnings = set()
@@ -50,142 +51,66 @@ class RoborockEnum(IntEnum):
         return cls.as_dict().items()
 
 
-class RoborockProductNickname(StrEnum):
-    """Enumeration of product nicknames."""
-
-    CORAL = "Coral"
-    CORALPRO = "CoralPro"
-    PEARL = "Pearl"
-    PEARLC = "PearlC"
-    PEARLE = "PearlE"
-    PEARLELITE = "PearlELite"
-    PEARLPLUS = "PearlPlus"
-    PEARLPLUSS = "PearlPlusS"
-    PEARLS = "PearlS"
-    PEARLSLITE = "PearlSLite"
-    RUBYPLUS = "RubyPlus"
-    RUBYSC = "RubySC"
-    RUBYSE = "RubySE"
-    RUBYSLITE = "RubySLite"
-    TANOS = "Tanos"
-    TANOSE = "TanosE"
-    TANOSS = "TanosS"
-    TANOSSC = "TanosSC"
-    TANOSSE = "TanosSE"
-    TANOSSMAX = "TanosSMax"
-    TANOSSLITE = "TanosSLite"
-    TANOSSPLUS = "TanosSPlus"
-    TANOSV = "TanosV"
-    TOPAZS = "TopazS"
-    TOPAZSC = "TopazSC"
-    TOPAZSPLUS = "TopazSPlus"
-    TOPAZSPOWER = "TopazSPower"
-    TOPAZSV = "TopazSV"
-    ULTRON = "Ultron"
-    ULTRONE = "UltronE"
-    ULTRONLITE = "UltronLite"
-    ULTRONSC = "UltronSC"
-    ULTRONSE = "UltronSE"
-    ULTRONSPLUS = "UltronSPlus"
-    ULTRONSV = "UltronSV"
-    VERDELITE = "Verdelite"
-    VIVIAN = "Vivian"
-    VIVIANC = "VivianC"
+ProductInfo = namedtuple("ProductInfo", ["nickname", "short_models"])
 
 
-short_model_to_enum = {
-    # Pearl Series
-    "a103": RoborockProductNickname.PEARLC,
-    "a104": RoborockProductNickname.PEARLC,
-    "a116": RoborockProductNickname.PEARLPLUSS,
-    "a117": RoborockProductNickname.PEARLPLUSS,
-    "a136": RoborockProductNickname.PEARLPLUSS,
-    "a122": RoborockProductNickname.PEARLSLITE,
-    "a123": RoborockProductNickname.PEARLSLITE,
-    "a167": RoborockProductNickname.PEARLE,
-    "a168": RoborockProductNickname.PEARLE,
-    "a169": RoborockProductNickname.PEARLELITE,
-    "a170": RoborockProductNickname.PEARLELITE,
-    "a74": RoborockProductNickname.PEARL,
-    "a75": RoborockProductNickname.PEARL,
-    "a100": RoborockProductNickname.PEARLS,
-    "a101": RoborockProductNickname.PEARLS,
-    "a86": RoborockProductNickname.PEARLPLUS,
-    "a87": RoborockProductNickname.PEARLPLUS,
-    # Vivian Series
-    "a158": RoborockProductNickname.VIVIANC,
-    "a159": RoborockProductNickname.VIVIANC,
-    "a134": RoborockProductNickname.VIVIAN,
-    "a135": RoborockProductNickname.VIVIAN,
-    "a155": RoborockProductNickname.VIVIAN,
-    "a156": RoborockProductNickname.VIVIAN,
+class RoborockProductNickname(Enum):
     # Coral Series
-    "a143": RoborockProductNickname.CORALPRO,
-    "a144": RoborockProductNickname.CORALPRO,
-    "a20": RoborockProductNickname.CORAL,
-    "a21": RoborockProductNickname.CORAL,
-    # Ultron Series
-    "a73": RoborockProductNickname.ULTRONLITE,
-    "a85": RoborockProductNickname.ULTRONLITE,
-    "a94": RoborockProductNickname.ULTRONSC,
-    "a95": RoborockProductNickname.ULTRONSC,
-    "a124": RoborockProductNickname.ULTRONSE,
-    "a125": RoborockProductNickname.ULTRONSE,
-    "a139": RoborockProductNickname.ULTRONSE,
-    "a140": RoborockProductNickname.ULTRONSE,
-    "a68": RoborockProductNickname.ULTRONSPLUS,
-    "a69": RoborockProductNickname.ULTRONSPLUS,
-    "a70": RoborockProductNickname.ULTRONSPLUS,
-    "a50": RoborockProductNickname.ULTRON,
-    "a51": RoborockProductNickname.ULTRON,
-    "a72": RoborockProductNickname.ULTRONE,
-    "a84": RoborockProductNickname.ULTRONE,
-    "a96": RoborockProductNickname.ULTRONSV,
-    "a97": RoborockProductNickname.ULTRONSV,
-    # Verdelite Series
-    "a146": RoborockProductNickname.VERDELITE,
-    "a147": RoborockProductNickname.VERDELITE,
-    # Topaz Series
-    "a29": RoborockProductNickname.TOPAZS,
-    "a30": RoborockProductNickname.TOPAZS,
-    "a76": RoborockProductNickname.TOPAZS,
-    "a46": RoborockProductNickname.TOPAZSPLUS,
-    "a47": RoborockProductNickname.TOPAZSPLUS,
-    "a66": RoborockProductNickname.TOPAZSPLUS,
-    "a64": RoborockProductNickname.TOPAZSC,
-    "a65": RoborockProductNickname.TOPAZSC,
-    "a26": RoborockProductNickname.TOPAZSV,
-    "a27": RoborockProductNickname.TOPAZSV,
-    "a62": RoborockProductNickname.TOPAZSPOWER,
-    # Tanos Series
-    "a23": RoborockProductNickname.TANOSSPLUS,
-    "a24": RoborockProductNickname.TANOSSPLUS,
-    "a37": RoborockProductNickname.TANOSSLITE,
-    "a38": RoborockProductNickname.TANOSSLITE,
-    "a39": RoborockProductNickname.TANOSSC,
-    "a40": RoborockProductNickname.TANOSSC,
-    "a33": RoborockProductNickname.TANOSSE,
-    "a34": RoborockProductNickname.TANOSSE,
-    "a52": RoborockProductNickname.TANOSSMAX,
-    "t6": RoborockProductNickname.TANOS,
-    "s6": RoborockProductNickname.TANOS,
-    "t7": RoborockProductNickname.TANOSE,
-    "a11": RoborockProductNickname.TANOSE,
-    "t7p": RoborockProductNickname.TANOSV,
-    "a09": RoborockProductNickname.TANOSV,
-    "a10": RoborockProductNickname.TANOSV,
-    "a14": RoborockProductNickname.TANOSS,
-    "a15": RoborockProductNickname.TANOSS,
+    CORAL = ProductInfo(nickname="Coral", short_models=("a20", "a21"))
+    CORALPRO = ProductInfo(nickname="CoralPro", short_models=("a143", "a144"))
+
+    # Pearl Series
+    PEARL = ProductInfo(nickname="Pearl", short_models=("a74", "a75"))
+    PEARLC = ProductInfo(nickname="PearlC", short_models=("a103", "a104"))
+    PEARLE = ProductInfo(nickname="PearlE", short_models=("a167", "a168"))
+    PEARLELITE = ProductInfo(nickname="PearlELite", short_models=("a169", "a170"))
+    PEARLPLUS = ProductInfo(nickname="PearlPlus", short_models=("a86", "a87"))
+    PEARLPLUSS = ProductInfo(nickname="PearlPlusS", short_models=("a116", "a117", "a136"))
+    PEARLS = ProductInfo(nickname="PearlS", short_models=("a100", "a101"))
+    PEARLSLITE = ProductInfo(nickname="PearlSLite", short_models=("a122", "a123"))
+
     # Ruby Series
-    "t4": RoborockProductNickname.RUBYPLUS,
-    "s4": RoborockProductNickname.RUBYPLUS,
-    "p5": RoborockProductNickname.RUBYSC,
-    "a08": RoborockProductNickname.RUBYSC,
-    "a19": RoborockProductNickname.RUBYSE,
-    "p6": RoborockProductNickname.RUBYSLITE,
-    "s5e": RoborockProductNickname.RUBYSLITE,
-    "a05": RoborockProductNickname.RUBYSLITE,
-}
+    RUBYPLUS = ProductInfo(nickname="RubyPlus", short_models=("t4", "s4"))
+    RUBYSC = ProductInfo(nickname="RubySC", short_models=("p5", "a08"))
+    RUBYSE = ProductInfo(nickname="RubySE", short_models=("a19",))
+    RUBYSLITE = ProductInfo(nickname="RubySLite", short_models=("p6", "s5e", "a05"))
+
+    # Tanos Series
+    TANOS = ProductInfo(nickname="Tanos", short_models=("t6", "s6"))
+    TANOSE = ProductInfo(nickname="TanosE", short_models=("t7", "a11"))
+    TANOSS = ProductInfo(nickname="TanosS", short_models=("a14", "a15"))
+    TANOSSC = ProductInfo(nickname="TanosSC", short_models=("a39", "a40"))
+    TANOSSE = ProductInfo(nickname="TanosSE", short_models=("a33", "a34"))
+    TANOSSMAX = ProductInfo(nickname="TanosSMax", short_models=("a52",))
+    TANOSSLITE = ProductInfo(nickname="TanosSLite", short_models=("a37", "a38"))
+    TANOSSPLUS = ProductInfo(nickname="TanosSPlus", short_models=("a23", "a24"))
+    TANOSV = ProductInfo(nickname="TanosV", short_models=("t7p", "a09", "a10"))
+
+    # Topaz Series
+    TOPAZS = ProductInfo(nickname="TopazS", short_models=("a29", "a30", "a76"))
+    TOPAZSC = ProductInfo(nickname="TopazSC", short_models=("a64", "a65"))
+    TOPAZSPLUS = ProductInfo(nickname="TopazSPlus", short_models=("a46", "a47", "a66"))
+    TOPAZSPOWER = ProductInfo(nickname="TopazSPower", short_models=("a62",))
+    TOPAZSV = ProductInfo(nickname="TopazSV", short_models=("a26", "a27"))
+
+    # Ultron Series
+    ULTRON = ProductInfo(nickname="Ultron", short_models=("a50", "a51"))
+    ULTRONE = ProductInfo(nickname="UltronE", short_models=("a72", "a84"))
+    ULTRONLITE = ProductInfo(nickname="UltronLite", short_models=("a73", "a85"))
+    ULTRONSC = ProductInfo(nickname="UltronSC", short_models=("a94", "a95"))
+    ULTRONSE = ProductInfo(nickname="UltronSE", short_models=("a124", "a125", "a139", "a140"))
+    ULTRONSPLUS = ProductInfo(nickname="UltronSPlus", short_models=("a68", "a69", "a70"))
+    ULTRONSV = ProductInfo(nickname="UltronSV", short_models=("a96", "a97"))
+
+    # Verdelite Series
+    VERDELITE = ProductInfo(nickname="Verdelite", short_models=("a146", "a147"))
+
+    # Vivian Series
+    VIVIAN = ProductInfo(nickname="Vivian", short_models=("a134", "a135", "a155", "a156"))
+    VIVIANC = ProductInfo(nickname="VivianC", short_models=("a158", "a159"))
+
+
+short_model_to_enum = {model: product for product in RoborockProductNickname for model in product.value.short_models}
 
 
 class RoborockStateCode(RoborockEnum):
