@@ -117,8 +117,11 @@ async def session(ctx, duration: int):
 
     click.echo("MQTT session started. Querying devices...")
     for device in devices:
+        if not (status_trait := device.traits.get("status")):
+            click.echo(f"Device {device.name} does not have a status trait")
+            continue
         try:
-            status = await device.get_status()
+            status = await status_trait.get_status()
         except RoborockException as e:
             click.echo(f"Failed to get status for {device.name}: {e}")
         else:
