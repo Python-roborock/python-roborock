@@ -30,12 +30,7 @@ class StatusTrait(Trait):
     name = "status"
 
     def __init__(self, product_info: HomeDataProduct, rpc_channel: V1RpcChannel) -> None:
-        """Initialize the RoborockDevice.
-
-        The device takes ownership of the V1 channel for communication with the device.
-        Use `connect()` to establish the connection, which will set up the appropriate
-        protocol channel. Use `close()` to clean up all connections.
-        """
+        """Initialize the StatusTrait."""
         self._product_info = product_info
         self._rpc_channel = rpc_channel
 
