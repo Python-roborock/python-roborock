@@ -293,7 +293,7 @@ HOME_DATA_RAW = {
             "runtimeEnv": None,
             "timeZoneId": "America/Los_Angeles",
             "iconUrl": "no_url",
-            "productId": "product123",
+            "productId": PRODUCT_ID,
             "lon": None,
             "lat": None,
             "share": False,
@@ -773,3 +773,11 @@ GET_CODE_RESPONSE = {"code": 200, "msg": "success", "data": None}
 HASHED_USER = hashlib.md5((USER_ID + ":" + K_VALUE).encode()).hexdigest()[2:10]
 MQTT_PUBLISH_TOPIC = f"rr/m/o/{USER_ID}/{HASHED_USER}/{PRODUCT_ID}"
 TEST_LOCAL_API_HOST = "1.1.1.1"
+
+NETWORK_INFO = {
+    "ip": TEST_LOCAL_API_HOST,
+    "ssid": "test_wifi",
+    "mac": "aa:bb:cc:dd:ee:ff",
+    "bssid": "aa:bb:cc:dd:ee:ff",
+    "rssi": -50,
+}

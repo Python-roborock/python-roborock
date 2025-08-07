@@ -10,7 +10,8 @@ from roborock.cloud_api import RoborockMqttClient
 
 from ..containers import DeviceData, UserData
 from ..exceptions import CommandVacuumError, RoborockException, VacuumError
-from ..protocol import MessageParser, Utils
+from ..protocol import Utils
+from ..protocols.v1_protocol import SecurityData, create_mqtt_payload_encoder
 from ..roborock_message import (
     RoborockMessage,
     RoborockMessageProtocol,
@@ -36,6 +37,9 @@ class RoborockMqttClientV1(RoborockMqttClient, RoborockClientV1):
         RoborockClientV1.__init__(self, device_info, endpoint)
         self.queue_timeout = queue_timeout
         self._logger = RoborockLoggerAdapter(device_info.device.name, _LOGGER)
+        self._payload_encoder = create_mqtt_payload_encoder(
+            SecurityData(endpoint=self._endpoint, nonce=self._nonce),
+        )
 
     async def send_message(self, roborock_message: RoborockMessage):
         await self.validate_connection()
@@ -47,9 +51,7 @@ class RoborockMqttClientV1(RoborockMqttClient, RoborockClientV1):
         response_protocol = (
             RoborockMessageProtocol.MAP_RESPONSE if method in COMMANDS_SECURED else RoborockMessageProtocol.RPC_RESPONSE
         )
-
-        local_key = self.device_info.device.local_key
-        msg = MessageParser.build(roborock_message, local_key, False)
+        msg = self._encoder(roborock_message)
         self._logger.debug(f"id={request_id} Requesting method {method} with {params}")
         async_response = self._async_response(request_id, response_protocol)
         self._send_msg_raw(msg)
@@ -80,10 +82,9 @@ class RoborockMqttClientV1(RoborockMqttClient, RoborockClientV1):
         if method in CUSTOM_COMMANDS:
             # When we have more custom commands do something more complicated here
             return await self._get_calibration_points()
-        request_id, timestamp, payload = self._get_payload(method, params, True)
-        self._logger.debug("Building message id %s for method %s", request_id, method)
-        request_protocol = RoborockMessageProtocol.RPC_REQUEST
-        roborock_message = RoborockMessage(timestamp=timestamp, protocol=request_protocol, payload=payload)
+
+        roborock_message = self._payload_encoder(method, params)
+        self._logger.debug("Building message id %s for method %s", roborock_message.get_request_id, method)
         return await self.send_message(roborock_message)
 
     async def _get_calibration_points(self):

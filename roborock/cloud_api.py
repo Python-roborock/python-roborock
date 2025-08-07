@@ -6,14 +6,19 @@ import threading
 from abc import ABC
 from asyncio import Lock
 from typing import Any
-from urllib.parse import urlparse
 
 import paho.mqtt.client as mqtt
 
 from .api import KEEPALIVE, RoborockClient
 from .containers import DeviceData, UserData
 from .exceptions import RoborockException, VacuumError
-from .protocol import MessageParser, md5hex
+from .protocol import (
+    Decoder,
+    Encoder,
+    create_mqtt_decoder,
+    create_mqtt_encoder,
+    create_mqtt_params,
+)
 from .roborock_future import RoborockFuture
 
 _LOGGER = logging.getLogger(__name__)
@@ -53,27 +58,24 @@ class RoborockMqttClient(RoborockClient, ABC):
         if rriot is None:
             raise RoborockException("Got no rriot data from user_data")
         RoborockClient.__init__(self, device_info)
+        mqtt_params = create_mqtt_params(rriot)
         self._mqtt_user = rriot.u
-        self._hashed_user = md5hex(self._mqtt_user + ":" + rriot.k)[2:10]
-        url = urlparse(rriot.r.m)
-        if not isinstance(url.hostname, str):
-            raise RoborockException("Url parsing returned an invalid hostname")
-        self._mqtt_host = str(url.hostname)
-        self._mqtt_port = url.port
-        self._mqtt_ssl = url.scheme == "ssl"
+        self._hashed_user = mqtt_params.username
+        self._mqtt_host = mqtt_params.host
+        self._mqtt_port = mqtt_params.port
 
         self._mqtt_client = _Mqtt()
         self._mqtt_client.on_connect = self._mqtt_on_connect
         self._mqtt_client.on_message = self._mqtt_on_message
         self._mqtt_client.on_disconnect = self._mqtt_on_disconnect
-        if self._mqtt_ssl:
+        if mqtt_params.tls:
             self._mqtt_client.tls_set()
 
-        self._mqtt_password = rriot.s
-        self._hashed_password = md5hex(self._mqtt_password + ":" + rriot.k)[16:]
-        self._mqtt_client.username_pw_set(self._hashed_user, self._hashed_password)
+        self._mqtt_client.username_pw_set(mqtt_params.username, mqtt_params.password)
         self._waiting_queue: dict[int, RoborockFuture] = {}
         self._mutex = Lock()
+        self._decoder: Decoder = create_mqtt_decoder(device_info.device.local_key)
+        self._encoder: Encoder = create_mqtt_encoder(device_info.device.local_key)
 
     def _mqtt_on_connect(self, *args, **kwargs):
         _, __, ___, rc, ____ = args
@@ -102,7 +104,7 @@ class RoborockMqttClient(RoborockClient, ABC):
     def _mqtt_on_message(self, *args, **kwargs):
         client, __, msg = args
         try:
-            messages, _ = MessageParser.parse(msg.payload, local_key=self.device_info.device.local_key)
+            messages = self._decoder(msg.payload)
             super().on_message_received(messages)
         except Exception as ex:
             self._logger.exception(ex)

@@ -56,7 +56,7 @@ def gen_connack(flags=0, rc=0, properties=b"", property_helper=True):
     return packet
 
 
-def gen_suback(mid: int, qos: int) -> bytes:
+def gen_suback(mid: int, qos: int = 0) -> bytes:
     """Generate a SUBACK packet."""
     return struct.pack("!BBHBB", 144, 2 + 1 + 1, mid, 0, qos)
 
@@ -74,7 +74,7 @@ def _gen_command_with_mid(cmd: int, mid: int, reason_code: int = 0) -> bytes:
     return struct.pack("!BBHB", cmd, 3, mid, reason_code)
 
 
-def gen_puback(mid: int, reason_code: int = -1) -> bytes:
+def gen_puback(mid: int, reason_code: int = 0) -> bytes:
     """Generate a PUBACK packet."""
     return _gen_command_with_mid(64, mid, reason_code)
 
@@ -111,7 +111,7 @@ def gen_publish(
     properties = prop_finalise(properties)
     rl += len(properties)
     # This will break if len(properties) > 127
-    pack_format = pack_format + "%ds" % (len(properties))
+    pack_format = f"{pack_format}{len(properties)}s"
 
     if payload is not None:
         # payload = payload.encode("utf-8")

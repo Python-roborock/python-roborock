@@ -78,7 +78,7 @@ def test_home_data():
     assert device.runtime_env is None
     assert device.time_zone_id == "America/Los_Angeles"
     assert device.icon_url == "no_url"
-    assert device.product_id == "product123"
+    assert device.product_id == "product-id-123"
     assert device.lon is None
     assert device.lat is None
     assert not device.share

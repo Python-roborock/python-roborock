@@ -7,6 +7,7 @@ import re
 from dataclasses import asdict, dataclass, field, fields
 from datetime import timezone
 from enum import Enum, IntEnum
+from functools import cached_property
 from typing import Any, NamedTuple, get_args, get_origin
 
 from .code_mappings import (
@@ -22,10 +23,13 @@ from .code_mappings import (
     RoborockFanSpeedQ7Max,
     RoborockFanSpeedQRevoCurv,
     RoborockFanSpeedQRevoMaster,
+    RoborockFanSpeedQRevoMaxV,
     RoborockFanSpeedS6Pure,
     RoborockFanSpeedS7,
     RoborockFanSpeedS7MaxV,
     RoborockFanSpeedS8MaxVUltra,
+    RoborockFanSpeedSaros10,
+    RoborockFanSpeedSaros10R,
     RoborockFinishReason,
     RoborockInCleaning,
     RoborockMopIntensityCode,
@@ -33,16 +37,22 @@ from .code_mappings import (
     RoborockMopIntensityQ7Max,
     RoborockMopIntensityQRevoCurv,
     RoborockMopIntensityQRevoMaster,
+    RoborockMopIntensityQRevoMaxV,
     RoborockMopIntensityS5Max,
     RoborockMopIntensityS6MaxV,
     RoborockMopIntensityS7,
     RoborockMopIntensityS8MaxVUltra,
+    RoborockMopIntensitySaros10,
+    RoborockMopIntensitySaros10R,
     RoborockMopModeCode,
     RoborockMopModeQRevoCurv,
     RoborockMopModeQRevoMaster,
+    RoborockMopModeQRevoMaxV,
     RoborockMopModeS7,
     RoborockMopModeS8MaxVUltra,
     RoborockMopModeS8ProUltra,
+    RoborockMopModeSaros10,
+    RoborockMopModeSaros10R,
     RoborockProductNickname,
     RoborockStartType,
     RoborockStateCode,
@@ -72,6 +82,8 @@ from .const import (
     ROBOROCK_S8,
     ROBOROCK_S8_MAXV_ULTRA,
     ROBOROCK_S8_PRO_ULTRA,
+    ROBOROCK_SAROS_10,
+    ROBOROCK_SAROS_10R,
     SENSOR_DIRTY_REPLACE_TIME,
     SIDE_BRUSH_REPLACE_TIME,
     STRAINER_REPLACE_TIME,
@@ -562,6 +574,21 @@ class HomeData(RoborockBase):
             devices += self.received_devices
         return devices
 
+    @cached_property
+    def product_map(self) -> dict[str, HomeDataProduct]:
+        """Returns a dictionary of product IDs to HomeDataProduct objects."""
+        return {product.id: product for product in self.products}
+
+    @cached_property
+    def device_products(self) -> dict[str, tuple[HomeDataDevice, HomeDataProduct]]:
+        """Returns a dictionary of device DUIDs to HomeDataDeviceProduct objects."""
+        product_map = self.product_map
+        return {
+            device.duid: (device, product)
+            for device in self.get_all_devices()
+            if (product := product_map.get(device.product_id)) is not None
+        }
+
 
 @dataclass
 class LoginData(RoborockBase):
@@ -696,6 +723,13 @@ class QRevoCurvStatus(Status):
 
 
 @dataclass
+class QRevoMaxVStatus(Status):
+    fan_power: RoborockFanSpeedQRevoMaxV | None = None
+    water_box_mode: RoborockMopIntensityQRevoMaxV | None = None
+    mop_mode: RoborockMopModeQRevoMaxV | None = None
+
+
+@dataclass
 class S6MaxVStatus(Status):
     fan_power: RoborockFanSpeedS7MaxV | None = None
     water_box_mode: RoborockMopIntensityS6MaxV | None = None
@@ -748,6 +782,20 @@ class S8MaxvUltraStatus(Status):
     mop_mode: RoborockMopModeS8MaxVUltra | None = None
 
 
+@dataclass
+class Saros10RStatus(Status):
+    fan_power: RoborockFanSpeedSaros10R | None = None
+    water_box_mode: RoborockMopIntensitySaros10R | None = None
+    mop_mode: RoborockMopModeSaros10R | None = None
+
+
+@dataclass
+class Saros10Status(Status):
+    fan_power: RoborockFanSpeedSaros10 | None = None
+    water_box_mode: RoborockMopIntensitySaros10 | None = None
+    mop_mode: RoborockMopModeSaros10 | None = None
+
+
 ModelStatus: dict[str, type[Status]] = {
     ROBOROCK_S4_MAX: S4MaxStatus,
     ROBOROCK_S5_MAX: S5MaxStatus,
@@ -768,9 +816,11 @@ ModelStatus: dict[str, type[Status]] = {
     # but i am currently unable to do my typical reverse engineering/ get any data from users on this,
     # so this will be here in the mean time.
     ROBOROCK_QREVO_S: P10Status,
-    ROBOROCK_QREVO_MAXV: P10Status,
+    ROBOROCK_QREVO_MAXV: QRevoMaxVStatus,
     ROBOROCK_QREVO_PRO: P10Status,
     ROBOROCK_S8_MAXV_ULTRA: S8MaxvUltraStatus,
+    ROBOROCK_SAROS_10R: Saros10RStatus,
+    ROBOROCK_SAROS_10: Saros10Status,
 }
 
 

@@ -4,10 +4,10 @@ from roborock.local_api import RoborockLocalClient
 
 from .. import CommandVacuumError, DeviceData, RoborockCommand, RoborockException
 from ..exceptions import VacuumError
-from ..protocol import MessageParser
-from ..roborock_message import MessageRetry, RoborockMessage, RoborockMessageProtocol
+from ..protocols.v1_protocol import encode_local_payload
+from ..roborock_message import RoborockMessage, RoborockMessageProtocol
 from ..util import RoborockLoggerAdapter
-from .roborock_client_v1 import COMMANDS_SECURED, RoborockClientV1
+from .roborock_client_v1 import CLOUD_REQUIRED, RoborockClientV1
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -22,26 +22,16 @@ class RoborockLocalClientV1(RoborockLocalClient, RoborockClientV1):
         self.queue_timeout = queue_timeout
         self._logger = RoborockLoggerAdapter(device_data.device.name, _LOGGER)
 
-    def build_roborock_message(
-        self, method: RoborockCommand | str, params: list | dict | int | None = None
-    ) -> RoborockMessage:
-        secured = True if method in COMMANDS_SECURED else False
-        request_id, timestamp, payload = self._get_payload(method, params, secured)
-        self._logger.debug("Building message id %s for method %s", request_id, method)
-        request_protocol = RoborockMessageProtocol.GENERAL_REQUEST
-        message_retry: MessageRetry | None = None
-        if method == RoborockCommand.RETRY_REQUEST and isinstance(params, dict):
-            message_retry = MessageRetry(method=params["method"], retry_id=params["retry_id"])
-        return RoborockMessage(
-            timestamp=timestamp, protocol=request_protocol, payload=payload, message_retry=message_retry
-        )
-
     async def _send_command(
         self,
         method: RoborockCommand | str,
         params: list | dict | int | None = None,
     ):
-        roborock_message = self.build_roborock_message(method, params)
+        if method in CLOUD_REQUIRED:
+            raise RoborockException(f"Method {method} is not supported over local connection")
+
+        roborock_message = encode_local_payload(method, params)
+        self._logger.debug("Building message id %s for method %s", roborock_message.get_request_id(), method)
         return await self.send_message(roborock_message)
 
     async def send_message(self, roborock_message: RoborockMessage):
@@ -57,8 +47,7 @@ class RoborockLocalClientV1(RoborockLocalClient, RoborockClientV1):
             response_protocol = RoborockMessageProtocol.GENERAL_REQUEST
         if request_id is None:
             raise RoborockException(f"Failed build message {roborock_message}")
-        local_key = self.device_info.device.local_key
-        msg = MessageParser.build(roborock_message, local_key=local_key)
+        msg = self._encoder(roborock_message)
         if method:
             self._logger.debug(f"id={request_id} Requesting method {method} with {params}")
         # Send the command to the Roborock device

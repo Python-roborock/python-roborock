@@ -8,6 +8,7 @@ import json
 import logging
 from asyncio import BaseTransport, Lock
 from collections.abc import Callable
+from urllib.parse import urlparse
 
 from construct import (  # type: ignore
     Bytes,
@@ -30,7 +31,9 @@ from construct import (  # type: ignore
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 
-from roborock import BroadcastMessage, RoborockException
+from roborock.containers import BroadcastMessage, RRiot
+from roborock.exceptions import RoborockException
+from roborock.mqtt.session import MqttParams
 from roborock.roborock_message import RoborockMessage
 
 _LOGGER = logging.getLogger(__name__)
@@ -359,3 +362,74 @@ class _Parser:
 
 MessageParser: _Parser = _Parser(_Messages, True)
 BroadcastParser: _Parser = _Parser(_BroadcastMessage, False)
+
+
+def create_mqtt_params(rriot: RRiot) -> MqttParams:
+    """Return the MQTT parameters for this user."""
+    url = urlparse(rriot.r.m)
+    if not isinstance(url.hostname, str):
+        raise RoborockException(f"Url parsing '{rriot.r.m}' returned an invalid hostname")
+    if not url.port:
+        raise RoborockException(f"Url parsing '{rriot.r.m}' returned an invalid port")
+    hashed_user = md5hex(rriot.u + ":" + rriot.k)[2:10]
+    hashed_password = md5hex(rriot.s + ":" + rriot.k)[16:]
+    return MqttParams(
+        host=str(url.hostname),
+        port=url.port,
+        tls=(url.scheme == "ssl"),
+        username=hashed_user,
+        password=hashed_password,
+    )
+
+
+Decoder = Callable[[bytes], list[RoborockMessage]]
+Encoder = Callable[[RoborockMessage], bytes]
+
+
+def create_mqtt_decoder(local_key: str) -> Decoder:
+    """Create a decoder for MQTT messages."""
+
+    def decode(data: bytes) -> list[RoborockMessage]:
+        """Parse the given data into Roborock messages."""
+        messages, _ = MessageParser.parse(data, local_key)
+        return messages
+
+    return decode
+
+
+def create_mqtt_encoder(local_key: str) -> Encoder:
+    """Create an encoder for MQTT messages."""
+
+    def encode(messages: RoborockMessage) -> bytes:
+        """Build the given Roborock messages into a byte string."""
+        return MessageParser.build(messages, local_key, prefixed=False)
+
+    return encode
+
+
+def create_local_decoder(local_key: str) -> Decoder:
+    """Create a decoder for local API messages."""
+
+    # This buffer is used to accumulate bytes until a complete message can be parsed.
+    # It is defined outside the decode function to maintain state across calls.
+    buffer: bytes = b""
+
+    def decode(bytes: bytes) -> list[RoborockMessage]:
+        """Parse the given data into Roborock messages."""
+        nonlocal buffer
+        buffer += bytes
+        parsed_messages, remaining = MessageParser.parse(buffer, local_key=local_key)
+        buffer = remaining
+        return parsed_messages
+
+    return decode
+
+
+def create_local_encoder(local_key: str) -> Encoder:
+    """Create an encoder for local API messages."""
+
+    def encode(message: RoborockMessage) -> bytes:
+        """Called when data is sent to the transport."""
+        return MessageParser.build(message, local_key=local_key)
+
+    return encode

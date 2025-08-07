@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "python-roborock"
-version = "2.18.0"
+version = "2.27.0"
 description = "A package to control Roborock vacuums."
 authors = ["humbertogontijo <humbertogontijo@users.noreply.github.com>"]
 license = "GPL-3.0-only"
@@ -31,6 +31,7 @@ paho-mqtt = ">=1.6.1,<3.0.0"
 construct = "^2.10.57"
 vacuum-map-parser-roborock = "*"
 pyrate-limiter = "^3.7.0"
+aiomqtt = "^2.3.2"
 
 
 [build-system]
@@ -74,4 +75,5 @@ select=["E", "F", "UP", "I"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-timeout = 20
+timeout = 30
+log_format = "%(asctime)s.%(msecs)03d %(levelname)s (%(threadName)s) [%(name)s] %(message)s"

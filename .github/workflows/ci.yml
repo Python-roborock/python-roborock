@@ -50,7 +50,7 @@ jobs:
         run: poetry install
         shell: bash
       - name: Test with Pytest
-        run: poetry run pytest
+        run: poetry run pytest --log-cli-level=DEBUG -vv -s
         shell: bash
   release:
     runs-on: ubuntu-latest
@@ -75,7 +75,7 @@ jobs:
         persist-credentials: false
     - name: Python Semantic Release
       id: release
-      uses: python-semantic-release/python-semantic-release@v9.21.0
+      uses: python-semantic-release/python-semantic-release@v10.2.0
       with:
         github_token: ${{ secrets.GH_TOKEN }}
 

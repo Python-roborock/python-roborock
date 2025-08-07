@@ -33,9 +33,10 @@ class FakeSocketHandler:
     handle request callback handles the incoming requests and prepares the responses.
     """
 
-    def __init__(self, handle_request: RequestHandler) -> None:
+    def __init__(self, handle_request: RequestHandler, response_queue: Queue[bytes]) -> None:
         self.response_buf = io.BytesIO()
         self.handle_request = handle_request
+        self.response_queue = response_queue
 
     def pending(self) -> int:
         """Return the number of bytes in the response buffer."""
@@ -62,8 +63,16 @@ class FakeSocketHandler:
             # The buffer will be emptied when the client calls recv() on the socket
             _LOGGER.debug("Queued: 0x%s", response.hex())
             self.response_buf.write(response)
-
         return len(client_request)
+
+    def push_response(self) -> None:
+        """Push a response to the client."""
+        if not self.response_queue.empty():
+            response = self.response_queue.get()
+            # Enqueue a response to be sent back to the client in the buffer.
+            # The buffer will be emptied when the client calls recv() on the socket
+            _LOGGER.debug("Queued: 0x%s", response.hex())
+            self.response_buf.write(response)
 
 
 @pytest.fixture(name="received_requests")
@@ -97,9 +106,9 @@ def request_handler_fixture(received_requests: Queue[bytes], response_queue: Que
 
 
 @pytest.fixture(name="fake_socket_handler")
-def fake_socket_handler_fixture(request_handler: RequestHandler) -> FakeSocketHandler:
+def fake_socket_handler_fixture(request_handler: RequestHandler, response_queue: Queue[bytes]) -> FakeSocketHandler:
     """Fixture that creates a fake MQTT broker."""
-    return FakeSocketHandler(request_handler)
+    return FakeSocketHandler(request_handler, response_queue)
 
 
 @pytest.fixture(name="mock_sock")

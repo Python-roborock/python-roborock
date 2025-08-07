@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from pathlib import Path
@@ -11,7 +12,8 @@ from pyshark.capture.live_capture import LiveCapture, UnknownInterfaceException 
 from pyshark.packet.packet import Packet  # type: ignore
 
 from roborock import RoborockException
-from roborock.containers import DeviceData, HomeDataProduct, LoginData
+from roborock.containers import DeviceData, HomeData, HomeDataProduct, LoginData
+from roborock.devices.device_manager import create_device_manager, create_home_data_api
 from roborock.protocol import MessageParser
 from roborock.util import run_sync
 from roborock.version_1_apis.roborock_local_client_v1 import RoborockLocalClientV1
@@ -45,7 +47,8 @@ class RoborockContext:
         if self._login_data is None:
             raise RoborockException("You must login first")
 
-    def login_data(self):
+    def login_data(self) -> LoginData:
+        """Get the login data."""
         self.validate()
         return self._login_data
 
@@ -62,7 +65,11 @@ def cli(ctx, debug: int):
 
 @click.command()
 @click.option("--email", required=True)
-@click.option("--password", required=True)
+@click.option(
+    "--password",
+    required=False,
+    help="Password for the Roborock account. If not provided, an email code will be requested.",
+)
 @click.pass_context
 @run_sync()
 async def login(ctx, email, password):
@@ -75,8 +82,53 @@ async def login(ctx, email, password):
     except RoborockException:
         pass
     client = RoborockApiClient(email)
-    user_data = await client.pass_login(password)
+    if password is not None:
+        user_data = await client.pass_login(password)
+    else:
+        print(f"Requesting code for {email}")
+        await client.request_code()
+        code = click.prompt("A code has been sent to your email, please enter the code", type=str)
+        user_data = await client.code_login(code)
+        print("Login successful")
     context.update(LoginData(user_data=user_data, email=email))
+
+
+@click.command()
+@click.pass_context
+@click.option("--duration", default=10, help="Duration to run the MQTT session in seconds")
+@run_sync()
+async def session(ctx, duration: int):
+    context: RoborockContext = ctx.obj
+    login_data = context.login_data()
+
+    home_data_api = create_home_data_api(login_data.email, login_data.user_data)
+
+    async def home_data_cache() -> HomeData:
+        if login_data.home_data is None:
+            login_data.home_data = await home_data_api()
+            context.update(login_data)
+        return login_data.home_data
+
+    # Create device manager
+    device_manager = await create_device_manager(login_data.user_data, home_data_cache)
+
+    devices = await device_manager.get_devices()
+    click.echo(f"Discovered devices: {', '.join([device.name for device in devices])}")
+
+    click.echo("MQTT session started. Querying devices...")
+    for device in devices:
+        try:
+            status = await device.get_status()
+        except RoborockException as e:
+            click.echo(f"Failed to get status for {device.name}: {e}")
+        else:
+            click.echo(f"Device {device.name} status: {status.as_dict()}")
+
+    click.echo("Listening for messages.")
+    await asyncio.sleep(duration)
+
+    # Close the device manager (this will close all devices and MQTT session)
+    await device_manager.close()
 
 
 async def _discover(ctx):
@@ -253,6 +305,7 @@ cli.add_command(execute_scene)
 cli.add_command(status)
 cli.add_command(command)
 cli.add_command(parser)
+cli.add_command(session)
 
 
 def main():

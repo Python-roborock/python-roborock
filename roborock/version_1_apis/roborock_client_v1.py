@@ -1,7 +1,6 @@
 import asyncio
 import dataclasses
 import json
-import math
 import struct
 import time
 from abc import ABC, abstractmethod
@@ -54,14 +53,14 @@ from roborock.roborock_message import (
     RoborockMessage,
     RoborockMessageProtocol,
 )
-from roborock.util import RepeatableTask, get_next_int, unpack_list
+from roborock.util import RepeatableTask, unpack_list
+
+CUSTOM_COMMANDS = {RoborockCommand.GET_MAP_CALIBRATION}
 
 COMMANDS_SECURED = {
     RoborockCommand.GET_MAP_V1,
     RoborockCommand.GET_MULTI_MAP,
 }
-
-CUSTOM_COMMANDS = {RoborockCommand.GET_MAP_CALIBRATION}
 
 CLOUD_REQUIRED = COMMANDS_SECURED.union(CUSTOM_COMMANDS)
 
@@ -339,35 +338,6 @@ class RoborockClientV1(RoborockClient, ABC):
     async def load_multi_map(self, map_flag: int) -> None:
         """Load the map into the vacuum's memory."""
         await self.send_command(RoborockCommand.LOAD_MULTI_MAP, [map_flag])
-
-    def _get_payload(
-        self,
-        method: RoborockCommand | str,
-        params: list | dict | int | None = None,
-        secured=False,
-    ):
-        timestamp = math.floor(time.time())
-        request_id = get_next_int(10000, 32767)
-        inner = {
-            "id": request_id,
-            "method": method,
-            "params": params or [],
-        }
-        if secured:
-            inner["security"] = {
-                "endpoint": self._endpoint,
-                "nonce": self._nonce.hex().lower(),
-            }
-        payload = bytes(
-            json.dumps(
-                {
-                    "dps": {"101": json.dumps(inner, separators=(",", ":"))},
-                    "t": timestamp,
-                },
-                separators=(",", ":"),
-            ).encode()
-        )
-        return request_id, timestamp, payload
 
     @abstractmethod
     async def _send_command(
