@@ -66,7 +66,7 @@ class V1Channel(Channel):
 
     @property
     def is_connected(self) -> bool:
-        """Return whether MQTT connection is available."""
+        """Return whether any connection is available."""
         return self.is_mqtt_connected or self.is_local_connected
 
     @property
