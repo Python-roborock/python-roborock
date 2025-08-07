@@ -47,6 +47,8 @@ class RoborockDevice(ABC):
         self._channel = channel
         self._unsub: Callable[[], None] | None = None
         self._trait_map = {trait.name: trait for trait in traits}
+        if len(self._trait_map) != len(traits):
+            raise ValueError("Duplicate trait names found in traits list")
 
     @property
     def duid(self) -> str:
