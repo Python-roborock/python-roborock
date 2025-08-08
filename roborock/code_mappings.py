@@ -110,7 +110,7 @@ class RoborockProductNickname(Enum):
     VIVIANC = ProductInfo(nickname="VivianC", short_models=("a158", "a159"))
 
 
-short_model_to_enum = {model: product for product in RoborockProductNickname for model in product.value.short_models}
+SHORT_MODEL_TO_ENUM = {model: product for product in RoborockProductNickname for model in product.value.short_models}
 
 
 class RoborockStateCode(RoborockEnum):
