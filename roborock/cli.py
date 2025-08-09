@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -11,7 +12,7 @@ from pyshark import FileCapture  # type: ignore
 from pyshark.capture.live_capture import LiveCapture, UnknownInterfaceException  # type: ignore
 from pyshark.packet.packet import Packet  # type: ignore
 
-from roborock import RoborockException
+from roborock import SHORT_MODEL_TO_ENUM, DeviceFeatures, RoborockCommand, RoborockException
 from roborock.containers import DeviceData, HomeData, HomeDataProduct, LoginData
 from roborock.devices.device_manager import create_device_manager, create_home_data_api
 from roborock.protocol import MessageParser
@@ -300,6 +301,102 @@ async def parser(_, local_key, device_ip, file):
         )
 
 
+@click.command()
+@click.pass_context
+@run_sync()
+async def update_docs(ctx):
+    """
+    Generates or updates a markdown file with features for all devices.
+    """
+    MARKDOWN_FILE = Path("../SUPPORTED_FEATURES.md")
+
+    def write_markdown_table(product_data: dict[str, dict[str, str]], all_features: set[str]):
+        """Writes the data into a markdown table (products as columns)."""
+        sorted_products = sorted(product_data.keys())
+        sorted_features = sorted(list(all_features))
+
+        header = ["Feature"] + sorted_products
+
+        with open(MARKDOWN_FILE, "w", encoding="utf-8") as f:
+            f.write("| " + " | ".join(header) + " |\n")
+            f.write("|" + "---|" * len(header) + "\n")
+
+            # Create data for special rows
+            special_rows = [
+                "Product Nickname",
+                "Protocol Version",
+                "New Feature Info",
+                "New Feature Info Str",
+                "Feature Info",
+            ]
+            for row in special_rows:
+                row_values = [str(product_data[p].get(row, "")) for p in sorted_products]
+                f.write("| " + " | ".join([row] + row_values) + " |\n")
+            for feature in sorted_features:
+                feature_row = [f"`{feature}`"]
+                for product in sorted_products:
+                    feature_row.append(product_data[product].get(feature, ""))
+                f.write("| " + " | ".join(feature_row) + " |\n")
+
+    product_features_map = {}
+    all_feature_names = set()
+
+    context: RoborockContext = ctx.obj
+    login_data = context.login_data()
+    if not login_data.home_data:
+        await _discover(ctx)
+        login_data = context.login_data()
+    home_data = login_data.home_data
+
+    all_devices = home_data.devices + home_data.received_devices
+    click.echo(f"Found {len(all_devices)} devices. Fetching current data via MQTT...")
+
+    for device in all_devices:
+        click.echo(f"  - Processing {device.name} ({device.duid})")
+        product_info = home_data.product_map[device.product_id]
+        device_data = DeviceData(device, product_info.model)
+        mqtt_client = RoborockMqttClientV1(login_data.user_data, device_data)
+        try:
+            init_status_result = await mqtt_client.send_command(
+                RoborockCommand.APP_GET_INIT_STATUS,
+            )
+            product_nickname = SHORT_MODEL_TO_ENUM.get(product_info.model.split(".")[-1])
+            device_features = DeviceFeatures.from_feature_flags(
+                new_feature_info=init_status_result.get("new_feature_info"),
+                new_feature_info_str=init_status_result.get("new_feature_info_str"),
+                feature_info=init_status_result.get("feature_info"),
+                product_nickname=product_nickname,
+            )
+            features_dict = asdict(device_features)
+
+            current_product_data = {
+                "Protocol Version": device.pv,
+                "Product Nickname": product_nickname,
+                "New Feature Info": init_status_result.get("new_feature_info"),
+                "New Feature Info Str": init_status_result.get("new_feature_info_str"),
+                "Feature Info": init_status_result.get("feature_info"),
+            }
+
+            for feature, is_supported in features_dict.items():
+                all_feature_names.add(feature)
+                current_product_data[feature] = "X" if is_supported else ""
+
+            product_features_map[product_info.model] = current_product_data
+
+        except Exception as e:
+            click.echo(f"    - Error processing device {device.name}: {e}")
+        finally:
+            await mqtt_client.async_release()
+
+    if not product_features_map:
+        click.echo("No device data could be gathered. File not updated.")
+        return
+
+    click.echo(f"Writing updated data to {MARKDOWN_FILE}...")
+    write_markdown_table(product_features_map, all_feature_names)
+    click.echo("Done.")
+
+
 cli.add_command(login)
 cli.add_command(discover)
 cli.add_command(list_devices)
@@ -309,6 +406,7 @@ cli.add_command(status)
 cli.add_command(command)
 cli.add_command(parser)
 cli.add_command(session)
+cli.add_command(update_docs)
 
 
 def main():
