@@ -39,6 +39,7 @@ from roborock.roborock_message import RoborockMessage
 _LOGGER = logging.getLogger(__name__)
 SALT = b"TXdfu$jyZ#TZHsg4"
 A01_HASH = "726f626f726f636b2d67a6d6da"
+B01_HASH = "5wwh9ikChRjASpMU8cxg7o1d2E"
 BROADCAST_TOKEN = b"qWKYcdQWrbm9hPqe"
 AP_CONFIG = 1
 SOCK_DISCOVERY = 2
@@ -213,6 +214,10 @@ class EncryptionAdapter(Construct):
             decipher = AES.new(bytes(context.search("local_key"), "utf-8"), AES.MODE_CBC, bytes(iv, "utf-8"))
             f = decipher.encrypt(obj)
             return f
+        elif context.version == b"B01":
+            iv = md5hex(f"{context.random:08x}" + B01_HASH)[9:25]
+            decipher = AES.new(bytes(context.search("local_key"), "utf-8"), AES.MODE_CBC, bytes(iv, "utf-8"))
+            return decipher.encrypt(obj)
         token = self.token_func(context)
         encrypted = Utils.encrypt_ecb(obj, token)
         return encrypted
@@ -224,6 +229,10 @@ class EncryptionAdapter(Construct):
             decipher = AES.new(bytes(context.search("local_key"), "utf-8"), AES.MODE_CBC, bytes(iv, "utf-8"))
             f = decipher.decrypt(obj)
             return f
+        elif context.version == b"B01":
+            iv = md5hex(f"{context.random:08x}" + B01_HASH)[9:25]
+            decipher = AES.new(bytes(context.search("local_key"), "utf-8"), AES.MODE_CBC, bytes(iv, "utf-8"))
+            return decipher.decrypt(obj)
         token = self.token_func(context)
         decrypted = Utils.decrypt_ecb(obj, token)
         return decrypted
@@ -248,7 +257,7 @@ class PrefixedStruct(Struct):
     def _parse(self, stream, context, path):
         subcon1 = Peek(Optional(Bytes(3)))
         peek_version = subcon1.parse_stream(stream, **context)
-        if peek_version not in (b"1.0", b"A01"):
+        if peek_version not in (b"1.0", b"A01", b"B01"):
             subcon2 = Bytes(4)
             subcon2.parse_stream(stream, **context)
         return super()._parse(stream, context, path)

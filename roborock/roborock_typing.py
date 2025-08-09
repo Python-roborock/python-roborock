@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import Enum, StrEnum
 
 from .containers import (
     CleanRecord,
@@ -269,6 +269,20 @@ class RoborockCommand(str, Enum):
     GET_GAP_DEEP_CLEAN_STATUS = "get_gap_deep_clean_status"
     APP_SET_ROBOT_SETTING = "app_set_robot_setting"
     APP_GET_ROBOT_SETTING = "app_get_robot_setting"
+
+
+class RoborockB01Methods(StrEnum):
+    """Methods used by the Roborock B01 model."""
+
+    GET_PROP = "prop.get"
+    GET_MAP_LIST = "service.get_map_list"
+    UPLOAD_BY_MAPTYPE = "service.upload_by_maptype"
+    SET_PROP = "prop.set"
+    GET_PREFERENCE = "service.get_preference"
+    GET_RECORD_LIST = "service.get_record_list"
+    GET_ORDER = "service.get_order"
+    EVENT_ORDER_LIST_POST = "event.order_list.post"
+    POST_PROP = "prop.post"
 
 
 @dataclass
