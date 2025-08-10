@@ -423,6 +423,7 @@ class DeviceFeatures:
     is_clean_route_setting_supported: bool = field(
         metadata={"product_features": [ProductFeatures.MOP_SHAKE_MODULE, ProductFeatures.MOP_SPIN_MODULE]}
     )
+    is_mop_shake_module_supported: bool = field(metadata={"product_features": [ProductFeatures.MOP_SHAKE_MODULE]})
 
     @classmethod
     def from_feature_flags(
