@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from roborock.protocols.b01_protocol import (
     CommandType,
