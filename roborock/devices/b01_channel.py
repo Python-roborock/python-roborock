@@ -21,7 +21,7 @@ async def send_decoded_command(
     dps: int,
     command: CommandType,
     params: ParamsType,
-) -> dict:
+) -> dict[int, Any]:
     """Send a command on the MQTT channel and get a decoded response."""
     _LOGGER.debug("Sending MQTT command: %s", params)
     roborock_message = encode_mqtt_payload(dps, command, params)
