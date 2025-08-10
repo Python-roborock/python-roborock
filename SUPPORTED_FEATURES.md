@@ -1,10 +1,24 @@
 | Feature | roborock.vacuum.a15 | roborock.vacuum.a87 |
 |---|---|---|
-| Product Nickname | RoborockProductNickname.TANOSS | RoborockProductNickname.PEARLPLUS |
+| Product Nickname | TANOSS | PEARLPLUS |
 | Protocol Version | 1.0 | 1.0 |
 | New Feature Info | 636084721975295 | 4499197267967999 |
 | New Feature Info Str | 0000000000002000 | 508A977F7EFEFFFF |
-| Feature Info | [111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 122, 123, 124, 125] | [111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125] |
+| `111` | X | X |
+| `112` | X | X |
+| `113` | X | X |
+| `114` | X | X |
+| `115` | X | X |
+| `116` | X | X |
+| `117` | X | X |
+| `118` | X | X |
+| `119` | X | X |
+| `120` | X | X |
+| `121` |  | X |
+| `122` | X | X |
+| `123` | X | X |
+| `124` | X | X |
+| `125` | X | X |
 | `is_activate_video_charging_and_standby_supported` |  |  |
 | `is_analysis_supported` | X | X |
 | `is_any_state_transit_goto_supported` | X | X |
@@ -27,7 +41,7 @@
 | `is_clean_history_time_line_supported` |  |  |
 | `is_clean_route_deep_slow_plus_supported` |  |  |
 | `is_clean_route_fast_mode_supported` |  | X |
-| `is_clean_route_setting_supported` | X | X |
+| `is_clean_route_setting_supported` |  |  |
 | `is_collect_dust_mode_supported` | X | X |
 | `is_corner_clean_mode_supported` |  |  |
 | `is_corner_mop_stretch_supported` |  | X |
@@ -62,11 +76,11 @@
 | `is_map_carpet_add_support` |  | X |
 | `is_map_eraser_supported` |  |  |
 | `is_matter_supported` |  |  |
-| `is_max_plus_mode_supported` | X | X |
+| `is_max_plus_mode_supported` |  |  |
 | `is_max_zone_opened_supported` |  |  |
 | `is_midway_back_to_dock_supported` |  |  |
 | `is_min_battery_15_to_clean_task_supported` |  | X |
-| `is_mop_forbidden_supported` | X |  |
+| `is_mop_forbidden_supported` |  |  |
 | `is_mop_path_supported` | X | X |
 | `is_mop_shake_water_max_supported` |  |  |
 | `is_multi_floor_supported` | X | X |
@@ -75,7 +89,7 @@
 | `is_new_data_for_clean_history` | X | X |
 | `is_new_data_for_clean_history_detail` | X | X |
 | `is_new_endpoint_supported` |  | X |
-| `is_new_remote_view_supported` | X | X |
+| `is_new_remote_view_supported` |  |  |
 | `is_no_need_carpet_press_set_supported` |  |  |
 | `is_none_pure_clean_mop_with_max_plus` |  |  |
 | `is_object_detect_check_supported` |  |  |
@@ -128,7 +142,7 @@
 | `is_support_smart_scene` |  | X |
 | `is_support_stuck_zone` |  | X |
 | `is_support_voice_control_debug` |  |  |
-| `is_support_water_mode` | X | X |
+| `is_support_water_mode` |  |  |
 | `is_supported_download_test_voice` |  | X |
 | `is_supported_drying` |  | X |
 | `is_supported_valley_electricity` |  | X |
