@@ -1,9 +1,9 @@
-from __future__ import annotations
-
+import dataclasses
 import datetime
 import json
 import logging
 import re
+import types
 from dataclasses import asdict, dataclass, field
 from datetime import timezone
 from enum import Enum
@@ -11,6 +11,7 @@ from functools import cached_property
 from typing import Any, NamedTuple, get_args, get_origin
 
 from .code_mappings import (
+    SHORT_MODEL_TO_ENUM,
     RoborockCategory,
     RoborockCleanType,
     RoborockDockDustCollectionModeCode,
@@ -28,6 +29,7 @@ from .code_mappings import (
     RoborockFanSpeedS7,
     RoborockFanSpeedS7MaxV,
     RoborockFanSpeedS8MaxVUltra,
+    RoborockFanSpeedSaros10,
     RoborockFanSpeedSaros10R,
     RoborockFinishReason,
     RoborockInCleaning,
@@ -41,6 +43,7 @@ from .code_mappings import (
     RoborockMopIntensityS6MaxV,
     RoborockMopIntensityS7,
     RoborockMopIntensityS8MaxVUltra,
+    RoborockMopIntensitySaros10,
     RoborockMopIntensitySaros10R,
     RoborockMopModeCode,
     RoborockMopModeQRevoCurv,
@@ -49,7 +52,9 @@ from .code_mappings import (
     RoborockMopModeS7,
     RoborockMopModeS8MaxVUltra,
     RoborockMopModeS8ProUltra,
+    RoborockMopModeSaros10,
     RoborockMopModeSaros10R,
+    RoborockProductNickname,
     RoborockStartType,
     RoborockStateCode,
 )
@@ -77,116 +82,86 @@ from .const import (
     ROBOROCK_S8,
     ROBOROCK_S8_MAXV_ULTRA,
     ROBOROCK_S8_PRO_ULTRA,
+    ROBOROCK_SAROS_10,
     ROBOROCK_SAROS_10R,
     SENSOR_DIRTY_REPLACE_TIME,
     SIDE_BRUSH_REPLACE_TIME,
     STRAINER_REPLACE_TIME,
     ROBOROCK_G20S_Ultra,
 )
+from .device_features import DeviceFeatures
 from .exceptions import RoborockException
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def camelize(s: str):
+def _camelize(s: str):
     first, *others = s.split("_")
     if len(others) == 0:
         return s
     return "".join([first.lower(), *map(str.title, others)])
 
 
-def decamelize(s: str):
+def _decamelize(s: str):
     return re.sub("([A-Z]+)", "_\\1", s).lower()
-
-
-def decamelize_obj(d: dict | list, ignore_keys: list[str]):
-    if isinstance(d, RoborockBase):
-        d = d.as_dict()
-    if isinstance(d, list):
-        return [decamelize_obj(i, ignore_keys) if isinstance(i, dict | list) else i for i in d]
-    return {
-        (decamelize(a) if a not in ignore_keys else a): decamelize_obj(b, ignore_keys)
-        if isinstance(b, dict | list)
-        else b
-        for a, b in d.items()
-    }
 
 
 @dataclass
 class RoborockBase:
     _ignore_keys = []  # type: ignore
-    is_cached = False
 
     @staticmethod
-    def convert_to_class_obj(type, value):
-        try:
-            class_type = eval(type)
-            if get_origin(class_type) is list:
-                return_list = []
-                cls_type = get_args(class_type)[0]
-                for obj in value:
-                    if issubclass(cls_type, RoborockBase):
-                        return_list.append(cls_type.from_dict(obj))
-                    elif cls_type in {str, int, float}:
-                        return_list.append(cls_type(obj))
-                    else:
-                        return_list.append(cls_type(**obj))
-                return return_list
-            if issubclass(class_type, RoborockBase):
-                converted_value = class_type.from_dict(value)
-            else:
-                converted_value = class_type(value)
-            return converted_value
-        except NameError as err:
-            _LOGGER.exception(err)
-        except ValueError as err:
-            _LOGGER.exception(err)
-        except Exception as err:
-            _LOGGER.exception(err)
-        raise Exception("Fail")
+    def _convert_to_class_obj(class_type: type, value):
+        if get_origin(class_type) is list:
+            sub_type = get_args(class_type)[0]
+            return [RoborockBase._convert_to_class_obj(sub_type, obj) for obj in value]
+        if get_origin(class_type) is dict:
+            _, value_type = get_args(class_type)  # assume keys are only basic types
+            return {k: RoborockBase._convert_to_class_obj(value_type, v) for k, v in value.items()}
+        if issubclass(class_type, RoborockBase):
+            return class_type.from_dict(value)
+        if class_type is Any:
+            return value
+        return class_type(value)  # type: ignore[call-arg]
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]):
-        if isinstance(data, dict):
-            ignore_keys = cls._ignore_keys
-            data = decamelize_obj(data, ignore_keys)
-            cls_annotations: dict[str, str] = {}
-            for base in reversed(cls.__mro__):
-                cls_annotations.update(getattr(base, "__annotations__", {}))
-            remove_keys = []
-            for key, value in data.items():
-                if key not in cls_annotations:
-                    remove_keys.append(key)
-                    continue
-                if value == "None" or value is None:
-                    data[key] = None
-                    continue
-                field_type: str = cls_annotations[key]
-                if "|" in field_type:
-                    # It's a union
-                    types = field_type.split("|")
-                    for type in types:
-                        if "None" in type or "Any" in type:
-                            continue
-                        try:
-                            data[key] = RoborockBase.convert_to_class_obj(type, value)
-                            break
-                        except Exception:
-                            ...
-                else:
+        """Create an instance of the class from a dictionary."""
+        if not isinstance(data, dict):
+            return None
+        field_types = {field.name: field.type for field in dataclasses.fields(cls)}
+        result: dict[str, Any] = {}
+        for key, value in data.items():
+            key = _decamelize(key)
+            if (field_type := field_types.get(key)) is None:
+                continue
+            if value == "None" or value is None:
+                result[key] = None
+                continue
+            if isinstance(field_type, types.UnionType):
+                for subtype in get_args(field_type):
+                    if subtype is types.NoneType:
+                        continue
                     try:
-                        data[key] = RoborockBase.convert_to_class_obj(field_type, value)
+                        result[key] = RoborockBase._convert_to_class_obj(subtype, value)
+                        break
                     except Exception:
-                        ...
-            for key in remove_keys:
-                del data[key]
-            return cls(**data)
+                        _LOGGER.exception(f"Failed to convert {key} with value {value} to type {subtype}")
+                        continue
+            else:
+                try:
+                    result[key] = RoborockBase._convert_to_class_obj(field_type, value)
+                except Exception:
+                    _LOGGER.exception(f"Failed to convert {key} with value {value} to type {field_type}")
+                    continue
+
+        return cls(**result)
 
     def as_dict(self) -> dict:
         return asdict(
             self,
             dict_factory=lambda _fields: {
-                camelize(key): value.value if isinstance(value, Enum) else value
+                _camelize(key): value.value if isinstance(value, Enum) else value
                 for (key, value) in _fields
                 if value is not None
             },
@@ -302,144 +277,6 @@ class HomeDataDevice(RoborockBase):
     silent_ota_switch: bool | None = None
     setting: Any | None = None
     f: bool | None = None
-    device_features: DeviceFeatures | None = None
-
-    # seemingly not just str like I thought - example: '0000000000002000' and '0000000000002F63'
-
-    # def __post_init__(self):
-    #     if self.feature_set is not None and self.new_feature_set is not None and self.new_feature_set != "":
-    #         self.device_features = build_device_features(self.feature_set, self.new_feature_set)
-
-
-@dataclass
-class DeviceFeatures(RoborockBase):
-    map_carpet_add_supported: bool
-    show_clean_finish_reason_supported: bool
-    resegment_supported: bool
-    video_monitor_supported: bool
-    any_state_transit_goto_supported: bool
-    fw_filter_obstacle_supported: bool
-    video_setting_supported: bool
-    ignore_unknown_map_object_supported: bool
-    set_child_supported: bool
-    carpet_supported: bool
-    mop_path_supported: bool
-    multi_map_segment_timer_supported: bool
-    custom_water_box_distance_supported: bool
-    wash_then_charge_cmd_supported: bool
-    room_name_supported: bool
-    current_map_restore_enabled: bool
-    photo_upload_supported: bool
-    shake_mop_set_supported: bool
-    map_beautify_internal_debug_supported: bool
-    new_data_for_clean_history: bool
-    new_data_for_clean_history_detail: bool
-    flow_led_setting_supported: bool
-    dust_collection_setting_supported: bool
-    rpc_retry_supported: bool
-    avoid_collision_supported: bool
-    support_set_switch_map_mode: bool
-    support_smart_scene: bool
-    support_floor_edit: bool
-    support_furniture: bool
-    support_room_tag: bool
-    support_quick_map_builder: bool
-    support_smart_global_clean_with_custom_mode: bool
-    record_allowed: bool
-    careful_slow_map_supported: bool
-    egg_mode_supported: bool
-    unsave_map_reason_supported: bool
-    carpet_show_on_map: bool
-    supported_valley_electricity: bool
-    drying_supported: bool
-    download_test_voice_supported: bool
-    support_backup_map: bool
-    support_custom_mode_in_cleaning: bool
-    support_remote_control_in_call: bool
-    support_set_volume_in_call: bool
-    support_clean_estimate: bool
-    support_custom_dnd: bool
-    carpet_deep_clean_supported: bool
-    stuck_zone_supported: bool
-    custom_door_sill_supported: bool
-    clean_route_fast_mode_supported: bool
-    cliff_zone_supported: bool
-    smart_door_sill_supported: bool
-    support_floor_direction: bool
-    wifi_manage_supported: bool
-    back_charge_auto_wash_supported: bool
-    support_incremental_map: bool
-    offline_map_supported: bool
-
-
-def build_device_features(feature_set: str, new_feature_set: str) -> DeviceFeatures:
-    new_feature_set_int = int(new_feature_set)
-    feature_set_int = int(feature_set)
-    new_feature_set_divided = int(new_feature_set_int / (2**32))
-    # Convert last 8 digits of new feature set into hexadecimal number
-    converted_new_feature_set = int("0x" + new_feature_set[-8:], 16)
-    new_feature_set_mod_8: bool = len(new_feature_set) % 8 == 0
-    return DeviceFeatures(
-        map_carpet_add_supported=bool(1073741824 & new_feature_set_int),
-        show_clean_finish_reason_supported=bool(1 & new_feature_set_int),
-        resegment_supported=bool(4 & new_feature_set_int),
-        video_monitor_supported=bool(8 & new_feature_set_int),
-        any_state_transit_goto_supported=bool(16 & new_feature_set_int),
-        fw_filter_obstacle_supported=bool(32 & new_feature_set_int),
-        video_setting_supported=bool(64 & new_feature_set_int),
-        ignore_unknown_map_object_supported=bool(128 & new_feature_set_int),
-        set_child_supported=bool(256 & new_feature_set_int),
-        carpet_supported=bool(512 & new_feature_set_int),
-        mop_path_supported=bool(2048 & new_feature_set_int),
-        multi_map_segment_timer_supported=bool(feature_set_int and 4096 & new_feature_set_int),
-        custom_water_box_distance_supported=bool(new_feature_set_int and 2147483648 & new_feature_set_int),
-        wash_then_charge_cmd_supported=bool((new_feature_set_divided >> 5) & 1),
-        room_name_supported=bool(16384 & new_feature_set_int),
-        current_map_restore_enabled=bool(8192 & new_feature_set_int),
-        photo_upload_supported=bool(65536 & new_feature_set_int),
-        shake_mop_set_supported=bool(262144 & new_feature_set_int),
-        map_beautify_internal_debug_supported=bool(2097152 & new_feature_set_int),
-        new_data_for_clean_history=bool(4194304 & new_feature_set_int),
-        new_data_for_clean_history_detail=bool(8388608 & new_feature_set_int),
-        flow_led_setting_supported=bool(16777216 & new_feature_set_int),
-        dust_collection_setting_supported=bool(33554432 & new_feature_set_int),
-        rpc_retry_supported=bool(67108864 & new_feature_set_int),
-        avoid_collision_supported=bool(134217728 & new_feature_set_int),
-        support_set_switch_map_mode=bool(268435456 & new_feature_set_int),
-        support_smart_scene=bool(new_feature_set_divided & 2),
-        support_floor_edit=bool(new_feature_set_divided & 8),
-        support_furniture=bool((new_feature_set_divided >> 4) & 1),
-        support_room_tag=bool((new_feature_set_divided >> 6) & 1),
-        support_quick_map_builder=bool((new_feature_set_divided >> 7) & 1),
-        support_smart_global_clean_with_custom_mode=bool((new_feature_set_divided >> 8) & 1),
-        record_allowed=bool(1024 & new_feature_set_int),
-        careful_slow_map_supported=bool((new_feature_set_divided >> 9) & 1),
-        egg_mode_supported=bool((new_feature_set_divided >> 10) & 1),
-        unsave_map_reason_supported=bool((new_feature_set_divided >> 14) & 1),
-        carpet_show_on_map=bool((new_feature_set_divided >> 12) & 1),
-        supported_valley_electricity=bool((new_feature_set_divided >> 13) & 1),
-        # This one could actually be incorrect
-        # ((t.robotNewFeatures / 2 ** 32) >> 15) & 1 && (module422.DMM.isTopazSV_CE || 'cn' == t.deviceLocation));
-        drying_supported=bool((new_feature_set_divided >> 15) & 1),
-        download_test_voice_supported=bool((new_feature_set_divided >> 16) & 1),
-        support_backup_map=bool((new_feature_set_divided >> 17) & 1),
-        support_custom_mode_in_cleaning=bool((new_feature_set_divided >> 18) & 1),
-        support_remote_control_in_call=bool((new_feature_set_divided >> 19) & 1),
-        support_set_volume_in_call=new_feature_set_mod_8 and bool(1 & converted_new_feature_set),
-        support_clean_estimate=new_feature_set_mod_8 and bool(2 & converted_new_feature_set),
-        support_custom_dnd=new_feature_set_mod_8 and bool(4 & converted_new_feature_set),
-        carpet_deep_clean_supported=bool(8 & converted_new_feature_set),
-        stuck_zone_supported=new_feature_set_mod_8 and bool(16 & converted_new_feature_set),
-        custom_door_sill_supported=new_feature_set_mod_8 and bool(32 & converted_new_feature_set),
-        clean_route_fast_mode_supported=bool(256 & converted_new_feature_set),
-        cliff_zone_supported=new_feature_set_mod_8 and bool(512 & converted_new_feature_set),
-        smart_door_sill_supported=new_feature_set_mod_8 and bool(1024 & converted_new_feature_set),
-        support_floor_direction=new_feature_set_mod_8 and bool(2048 & converted_new_feature_set),
-        wifi_manage_supported=bool(128 & converted_new_feature_set),
-        back_charge_auto_wash_supported=bool(4096 & converted_new_feature_set),
-        support_incremental_map=bool(8192 & converted_new_feature_set),
-        offline_map_supported=bool(16384 & converted_new_feature_set),
-    )
 
 
 @dataclass
@@ -588,6 +425,13 @@ class Status(RoborockBase):
             raise RoborockException("Attempted to get mop_mode before status has been updated.")
         return self.mop_mode.as_dict().get(mop_mode)
 
+    @property
+    def current_map(self) -> int | None:
+        """Returns the current map ID if the map is present."""
+        if self.map_status is not None:
+            return (self.map_status - 3) // 4
+        return None
+
 
 @dataclass
 class S4MaxStatus(Status):
@@ -689,6 +533,13 @@ class Saros10RStatus(Status):
     mop_mode: RoborockMopModeSaros10R | None = None
 
 
+@dataclass
+class Saros10Status(Status):
+    fan_power: RoborockFanSpeedSaros10 | None = None
+    water_box_mode: RoborockMopIntensitySaros10 | None = None
+    mop_mode: RoborockMopModeSaros10 | None = None
+
+
 ModelStatus: dict[str, type[Status]] = {
     ROBOROCK_S4_MAX: S4MaxStatus,
     ROBOROCK_S5_MAX: S5MaxStatus,
@@ -713,6 +564,7 @@ ModelStatus: dict[str, type[Status]] = {
     ROBOROCK_QREVO_PRO: P10Status,
     ROBOROCK_S8_MAXV_ULTRA: S8MaxvUltraStatus,
     ROBOROCK_SAROS_10R: Saros10RStatus,
+    ROBOROCK_SAROS_10: Saros10Status,
 }
 
 
@@ -878,6 +730,11 @@ class DeviceData(RoborockBase):
     device: HomeDataDevice
     model: str
     host: str | None = None
+    product_nickname: RoborockProductNickname | None = None
+    device_features: DeviceFeatures | None = None
+
+    def __post_init__(self):
+        self.product_nickname = SHORT_MODEL_TO_ENUM.get(self.model.split(".")[-1], RoborockProductNickname.PEARLPLUS)
 
 
 @dataclass

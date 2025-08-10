@@ -20,7 +20,11 @@ _LOGGER = logging.getLogger(__name__)
 A01_VERSION = b"A01"
 
 
-def encode_mqtt_payload(data: dict[RoborockDyadDataProtocol | RoborockZeoProtocol, Any]) -> RoborockMessage:
+def encode_mqtt_payload(
+    data: dict[RoborockDyadDataProtocol, Any]
+    | dict[RoborockZeoProtocol, Any]
+    | dict[RoborockDyadDataProtocol | RoborockZeoProtocol, Any],
+) -> RoborockMessage:
     """Encode payload for A01 commands over MQTT."""
     dps_data = {"dps": data}
     payload = pad(json.dumps(dps_data).encode("utf-8"), AES.block_size)

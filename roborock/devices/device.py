@@ -4,105 +4,85 @@ This interface is experimental and subject to breaking changes without notice
 until the API is stable.
 """
 
-import enum
 import logging
-from collections.abc import Callable
-from functools import cached_property
+from abc import ABC
+from collections.abc import Callable, Mapping
+from types import MappingProxyType
 
-from roborock.containers import HomeDataDevice, HomeDataProduct, UserData
+from roborock.containers import HomeDataDevice
 from roborock.roborock_message import RoborockMessage
 
-from .mqtt_channel import MqttChannel
+from .channel import Channel
+from .traits.trait import Trait
 
 _LOGGER = logging.getLogger(__name__)
 
 __all__ = [
     "RoborockDevice",
-    "DeviceVersion",
 ]
 
 
-class DeviceVersion(enum.StrEnum):
-    """Enum for device versions."""
+class RoborockDevice(ABC):
+    """A generic channel for establishing a connection with a Roborock device.
 
-    V1 = "1.0"
-    A01 = "A01"
-    UNKNOWN = "unknown"
-
-
-class RoborockDevice:
-    """Unified Roborock device class with automatic connection setup."""
+    Individual channel implementations have their own methods for speaking to
+    the device that hide some of the protocol specific complexity, but they
+    are still specialized for the device type and protocol.
+    """
 
     def __init__(
         self,
-        user_data: UserData,
         device_info: HomeDataDevice,
-        product_info: HomeDataProduct,
-        mqtt_channel: MqttChannel,
+        channel: Channel,
+        traits: list[Trait],
     ) -> None:
         """Initialize the RoborockDevice.
 
-        The device takes ownership of the MQTT channel for communication with the device.
-        Use `connect()` to establish the connection, which will set up the MQTT channel
-        for receiving messages from the device. Use `close()` to unsubscribe from the MQTT
-        channel.
+        The device takes ownership of the channel for communication with the device.
+        Use `connect()` to establish the connection, which will set up the appropriate
+        protocol channel. Use `close()` to clean up all connections.
         """
-        self._user_data = user_data
-        self._device_info = device_info
-        self._product_info = product_info
-        self._mqtt_channel = mqtt_channel
+        self._duid = device_info.duid
+        self._name = device_info.name
+        self._channel = channel
         self._unsub: Callable[[], None] | None = None
+        self._trait_map = {trait.name: trait for trait in traits}
+        if len(self._trait_map) != len(traits):
+            raise ValueError("Duplicate trait names found in traits list")
 
     @property
     def duid(self) -> str:
         """Return the device unique identifier (DUID)."""
-        return self._device_info.duid
+        return self._duid
 
     @property
     def name(self) -> str:
         """Return the device name."""
-        return self._device_info.name
+        return self._name
 
-    @cached_property
-    def device_version(self) -> str:
-        """Return the device version.
-
-        At the moment this is a simple check against the product version (pv) of the device
-        and used as a placeholder for upcoming functionality for devices that will behave
-        differently based on the version and capabilities.
-        """
-        if self._device_info.pv == DeviceVersion.V1.value:
-            return DeviceVersion.V1
-        elif self._device_info.pv == DeviceVersion.A01.value:
-            return DeviceVersion.A01
-        _LOGGER.warning(
-            "Unknown device version %s for device %s, using default UNKNOWN",
-            self._device_info.pv,
-            self._device_info.name,
-        )
-        return DeviceVersion.UNKNOWN
+    @property
+    def is_connected(self) -> bool:
+        """Return whether the device is connected."""
+        return self._channel.is_connected
 
     async def connect(self) -> None:
-        """Connect to the device using MQTT.
-
-        This method will set up the MQTT channel for communication with the device.
-        """
+        """Connect to the device using the appropriate protocol channel."""
         if self._unsub:
             raise ValueError("Already connected to the device")
-        self._unsub = await self._mqtt_channel.subscribe(self._on_mqtt_message)
+        self._unsub = await self._channel.subscribe(self._on_message)
+        _LOGGER.info("Connected to V1 device %s", self.name)
 
     async def close(self) -> None:
-        """Close the MQTT connection to the device.
-
-        This method will unsubscribe from the MQTT channel and clean up resources.
-        """
+        """Close all connections to the device."""
         if self._unsub:
             self._unsub()
             self._unsub = None
 
-    def _on_mqtt_message(self, message: RoborockMessage) -> None:
-        """Handle incoming MQTT messages from the device.
+    def _on_message(self, message: RoborockMessage) -> None:
+        """Handle incoming messages from the device."""
+        _LOGGER.debug("Received message from device: %s", message)
 
-        This method should be overridden in subclasses to handle specific device messages.
-        """
-        _LOGGER.debug("Received message from device %s: %s", self.duid, message)
+    @property
+    def traits(self) -> Mapping[str, Trait]:
+        """Return the traits of the device."""
+        return MappingProxyType(self._trait_map)

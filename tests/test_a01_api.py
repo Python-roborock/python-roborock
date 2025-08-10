@@ -36,6 +36,8 @@ from tests.mock_data import (
 from . import mqtt_packet
 from .conftest import QUEUE_TIMEOUT
 
+RELEASE_TIMEOUT = 2
+
 
 @pytest.fixture(name="a01_mqtt_client")
 async def a01_mqtt_client_fixture(
@@ -59,9 +61,11 @@ async def a01_mqtt_client_fixture(
     try:
         yield client
     finally:
-        if not client.is_connected():
+        # Cleanup is best effort to reduce number of active threads
+        if client.is_connected():
             try:
-                await client.async_release()
+                async with asyncio.timeout(RELEASE_TIMEOUT):
+                    await client.async_release()
             except Exception:
                 pass
 
@@ -207,8 +211,8 @@ async def test_set_value(
     """Test sending an arbitrary MQTT message and parsing the response."""
     # Clear existing messages received during setup
     assert received_requests.qsize() == 2
-    assert received_requests.get(block=True)
-    assert received_requests.get(block=True)
+    assert received_requests.get(block=True, timeout=QUEUE_TIMEOUT)
+    assert received_requests.get(block=True, timeout=QUEUE_TIMEOUT)
     assert received_requests.empty()
 
     # Prepare the response message

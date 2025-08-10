@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections import namedtuple
 from enum import Enum, IntEnum
 
 _LOGGER = logging.getLogger(__name__)
@@ -48,6 +49,68 @@ class RoborockEnum(IntEnum):
     @classmethod
     def items(cls: type[RoborockEnum]):
         return cls.as_dict().items()
+
+
+ProductInfo = namedtuple("ProductInfo", ["nickname", "short_models"])
+
+
+class RoborockProductNickname(Enum):
+    # Coral Series
+    CORAL = ProductInfo(nickname="Coral", short_models=("a20", "a21"))
+    CORALPRO = ProductInfo(nickname="CoralPro", short_models=("a143", "a144"))
+
+    # Pearl Series
+    PEARL = ProductInfo(nickname="Pearl", short_models=("a74", "a75"))
+    PEARLC = ProductInfo(nickname="PearlC", short_models=("a103", "a104"))
+    PEARLE = ProductInfo(nickname="PearlE", short_models=("a167", "a168"))
+    PEARLELITE = ProductInfo(nickname="PearlELite", short_models=("a169", "a170"))
+    PEARLPLUS = ProductInfo(nickname="PearlPlus", short_models=("a86", "a87"))
+    PEARLPLUSS = ProductInfo(nickname="PearlPlusS", short_models=("a116", "a117", "a136"))
+    PEARLS = ProductInfo(nickname="PearlS", short_models=("a100", "a101"))
+    PEARLSLITE = ProductInfo(nickname="PearlSLite", short_models=("a122", "a123"))
+
+    # Ruby Series
+    RUBYPLUS = ProductInfo(nickname="RubyPlus", short_models=("t4", "s4"))
+    RUBYSC = ProductInfo(nickname="RubySC", short_models=("p5", "a08"))
+    RUBYSE = ProductInfo(nickname="RubySE", short_models=("a19",))
+    RUBYSLITE = ProductInfo(nickname="RubySLite", short_models=("p6", "s5e", "a05"))
+
+    # Tanos Series
+    TANOS = ProductInfo(nickname="Tanos", short_models=("t6", "s6"))
+    TANOSE = ProductInfo(nickname="TanosE", short_models=("t7", "a11"))
+    TANOSS = ProductInfo(nickname="TanosS", short_models=("a14", "a15"))
+    TANOSSC = ProductInfo(nickname="TanosSC", short_models=("a39", "a40"))
+    TANOSSE = ProductInfo(nickname="TanosSE", short_models=("a33", "a34"))
+    TANOSSMAX = ProductInfo(nickname="TanosSMax", short_models=("a52",))
+    TANOSSLITE = ProductInfo(nickname="TanosSLite", short_models=("a37", "a38"))
+    TANOSSPLUS = ProductInfo(nickname="TanosSPlus", short_models=("a23", "a24"))
+    TANOSV = ProductInfo(nickname="TanosV", short_models=("t7p", "a09", "a10"))
+
+    # Topaz Series
+    TOPAZS = ProductInfo(nickname="TopazS", short_models=("a29", "a30", "a76"))
+    TOPAZSC = ProductInfo(nickname="TopazSC", short_models=("a64", "a65"))
+    TOPAZSPLUS = ProductInfo(nickname="TopazSPlus", short_models=("a46", "a47", "a66"))
+    TOPAZSPOWER = ProductInfo(nickname="TopazSPower", short_models=("a62",))
+    TOPAZSV = ProductInfo(nickname="TopazSV", short_models=("a26", "a27"))
+
+    # Ultron Series
+    ULTRON = ProductInfo(nickname="Ultron", short_models=("a50", "a51"))
+    ULTRONE = ProductInfo(nickname="UltronE", short_models=("a72", "a84"))
+    ULTRONLITE = ProductInfo(nickname="UltronLite", short_models=("a73", "a85"))
+    ULTRONSC = ProductInfo(nickname="UltronSC", short_models=("a94", "a95"))
+    ULTRONSE = ProductInfo(nickname="UltronSE", short_models=("a124", "a125", "a139", "a140"))
+    ULTRONSPLUS = ProductInfo(nickname="UltronSPlus", short_models=("a68", "a69", "a70"))
+    ULTRONSV = ProductInfo(nickname="UltronSV", short_models=("a96", "a97"))
+
+    # Verdelite Series
+    VERDELITE = ProductInfo(nickname="Verdelite", short_models=("a146", "a147"))
+
+    # Vivian Series
+    VIVIAN = ProductInfo(nickname="Vivian", short_models=("a134", "a135", "a155", "a156"))
+    VIVIANC = ProductInfo(nickname="VivianC", short_models=("a158", "a159"))
+
+
+SHORT_MODEL_TO_ENUM = {model: product for product in RoborockProductNickname for model in product.value.short_models}
 
 
 class RoborockStateCode(RoborockEnum):
@@ -300,6 +363,17 @@ class RoborockFanSpeedS8MaxVUltra(RoborockFanPowerCode):
     smart_mode = 110
 
 
+class RoborockFanSpeedSaros10(RoborockFanPowerCode):
+    off = 105
+    quiet = 101
+    balanced = 102
+    turbo = 103
+    max = 104
+    custom = 106
+    max_plus = 108
+    smart_mode = 110
+
+
 class RoborockFanSpeedSaros10R(RoborockFanPowerCode):
     off = 105
     quiet = 101
@@ -371,6 +445,15 @@ class RoborockMopModeQRevoMaster(RoborockMopModeCode):
 
 
 class RoborockMopModeQRevoMaxV(RoborockMopModeCode):
+    standard = 300
+    deep = 301
+    custom = 302
+    deep_plus = 303
+    fast = 304
+    smart_mode = 306
+
+
+class RoborockMopModeSaros10(RoborockMopModeCode):
     standard = 300
     deep = 301
     custom = 302
@@ -456,6 +539,16 @@ class RoborockMopIntensityS8MaxVUltra(RoborockMopIntensityCode):
     max = 208
     smart_mode = 209
     custom_water_flow = 207
+
+
+class RoborockMopIntensitySaros10(RoborockMopIntensityCode):
+    off = 200
+    mild = 201
+    standard = 202
+    intense = 203
+    extreme = 208
+    custom = 204
+    smart_mode = 209
 
 
 class RoborockMopIntensitySaros10R(RoborockMopIntensityCode):

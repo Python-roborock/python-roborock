@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "python-roborock"
-version = "2.25.1"
+version = "2.31.0"
 description = "A package to control Roborock vacuums."
 authors = ["humbertogontijo <humbertogontijo@users.noreply.github.com>"]
 license = "GPL-3.0-only"

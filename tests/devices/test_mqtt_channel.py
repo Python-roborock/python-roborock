@@ -119,10 +119,12 @@ async def test_mqtt_channel(mqtt_session: Mock, mqtt_channel: MqttChannel) -> No
     assert mqtt_session.subscribe.called
     assert mqtt_session.subscribe.call_args[0][0] == "rr/m/o/user123/username/abc123"
 
-    assert result == unsub
+    unsub.assert_not_called()
+    result()
+    unsub.assert_called_once()
 
 
-async def test_send_command_success(
+async def test_send_message_success(
     mqtt_session: Mock,
     mqtt_channel: MqttChannel,
     mqtt_message_handler: Callable[[bytes], None],
@@ -130,7 +132,7 @@ async def test_send_command_success(
     """Test successful RPC command sending and response handling."""
     # Send a test request. We use a task so we can simulate receiving the response
     # while the command is still being processed.
-    command_task = asyncio.create_task(mqtt_channel.send_command(TEST_REQUEST))
+    command_task = asyncio.create_task(mqtt_channel.send_message(TEST_REQUEST))
     await asyncio.sleep(0.01)  # yield
 
     # Simulate receiving the response message via MQTT
@@ -153,7 +155,7 @@ async def test_send_command_success(
     assert result == TEST_RESPONSE
 
 
-async def test_send_command_without_request_id(
+async def test_send_message_without_request_id(
     mqtt_session: Mock,
     mqtt_channel: MqttChannel,
     mqtt_message_handler: Callable[[bytes], None],
@@ -166,7 +168,7 @@ async def test_send_command_without_request_id(
     )
 
     with pytest.raises(RoborockException, match="Message must have a request_id"):
-        await mqtt_channel.send_command(test_message)
+        await mqtt_channel.send_message(test_message)
 
 
 async def test_concurrent_commands(
@@ -179,8 +181,8 @@ async def test_concurrent_commands(
 
     # Create multiple test messages with different request IDs
     # Start both commands concurrently
-    task1 = asyncio.create_task(mqtt_channel.send_command(TEST_REQUEST, timeout=5.0))
-    task2 = asyncio.create_task(mqtt_channel.send_command(TEST_REQUEST2, timeout=5.0))
+    task1 = asyncio.create_task(mqtt_channel.send_message(TEST_REQUEST, timeout=5.0))
+    task2 = asyncio.create_task(mqtt_channel.send_message(TEST_REQUEST2, timeout=5.0))
     await asyncio.sleep(0.01)  # yield
 
     # Create responses for both
@@ -209,8 +211,8 @@ async def test_concurrent_commands_same_request_id(
 
     # Create multiple test messages with different request IDs
     # Start both commands concurrently
-    task1 = asyncio.create_task(mqtt_channel.send_command(TEST_REQUEST, timeout=5.0))
-    task2 = asyncio.create_task(mqtt_channel.send_command(TEST_REQUEST, timeout=5.0))
+    task1 = asyncio.create_task(mqtt_channel.send_message(TEST_REQUEST, timeout=5.0))
+    task2 = asyncio.create_task(mqtt_channel.send_message(TEST_REQUEST, timeout=5.0))
     await asyncio.sleep(0.01)  # yield
 
     # Create response
@@ -233,7 +235,7 @@ async def test_handle_completed_future(
 ) -> None:
     """Test handling response for an already completed future."""
     # Send request
-    task = asyncio.create_task(mqtt_channel.send_command(TEST_REQUEST, timeout=5.0))
+    task = asyncio.create_task(mqtt_channel.send_message(TEST_REQUEST, timeout=5.0))
     await asyncio.sleep(0.01)  # yield
 
     # Send the response twice
@@ -255,7 +257,7 @@ async def test_subscribe_callback_with_rpc_response(
 ) -> None:
     """Test that subscribe callback is called independent of RPC handling."""
     # Send request
-    task = asyncio.create_task(mqtt_channel.send_command(TEST_REQUEST, timeout=5.0))
+    task = asyncio.create_task(mqtt_channel.send_message(TEST_REQUEST, timeout=5.0))
     await asyncio.sleep(0.01)  # yield
 
     assert not received_messages

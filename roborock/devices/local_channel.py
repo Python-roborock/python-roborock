@@ -10,6 +10,8 @@ from roborock.exceptions import RoborockConnectionException, RoborockException
 from roborock.protocol import Decoder, Encoder, create_local_decoder, create_local_encoder
 from roborock.roborock_message import RoborockMessage
 
+from .channel import Channel
+
 _LOGGER = logging.getLogger(__name__)
 _PORT = 58867
 
@@ -30,7 +32,7 @@ class _LocalProtocol(asyncio.Protocol):
         self.connection_lost_cb(exc)
 
 
-class LocalChannel:
+class LocalChannel(Channel):
     """Simple RPC-style channel for communicating with a device over a local network.
 
     Handles request/response correlation and timeouts, but leaves message
@@ -50,6 +52,11 @@ class LocalChannel:
         self._encoder: Encoder = create_local_encoder(local_key)
         self._queue_lock = asyncio.Lock()
 
+    @property
+    def is_connected(self) -> bool:
+        """Check if the channel is currently connected."""
+        return self._is_connected
+
     async def connect(self) -> None:
         """Connect to the device."""
         if self._is_connected:
@@ -64,7 +71,7 @@ class LocalChannel:
         except OSError as e:
             raise RoborockConnectionException(f"Failed to connect to {self._host}:{_PORT}") from e
 
-    async def close(self) -> None:
+    def close(self) -> None:
         """Disconnect from the device."""
         if self._transport:
             self._transport.close()
@@ -113,7 +120,7 @@ class LocalChannel:
             else:
                 _LOGGER.debug("Received message with no waiting handler: request_id=%s", request_id)
 
-    async def send_command(self, message: RoborockMessage, timeout: float = 10.0) -> RoborockMessage:
+    async def send_message(self, message: RoborockMessage, timeout: float = 10.0) -> RoborockMessage:
         """Send a command message and wait for the response message."""
         if not self._transport or not self._is_connected:
             raise RoborockConnectionException("Not connected to device")
@@ -144,3 +151,25 @@ class LocalChannel:
             async with self._queue_lock:
                 self._waiting_queue.pop(request_id, None)
             raise
+
+
+# This module provides a factory function to create LocalChannel instances.
+#
+# TODO: Make a separate LocalSession and use it to manage retries with the host,
+# similar to how MqttSession works. For now this is a simple factory function
+# for creating channels.
+LocalSession = Callable[[str], LocalChannel]
+
+
+def create_local_session(local_key: str) -> LocalSession:
+    """Creates a local session which can create local channels.
+
+    This plays a role similar to the MqttSession but is really just a factory
+    for creating LocalChannel instances with the same local key.
+    """
+
+    def create_local_channel(host: str) -> LocalChannel:
+        """Create a LocalChannel instance for the given host."""
+        return LocalChannel(host, local_key)
+
+    return create_local_channel

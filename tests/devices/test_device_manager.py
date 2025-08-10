@@ -1,27 +1,35 @@
 """Tests for the DeviceManager class."""
 
 from collections.abc import Generator
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
 from roborock.containers import HomeData, UserData
-from roborock.devices.device import DeviceVersion
 from roborock.devices.device_manager import create_device_manager, create_home_data_api
 from roborock.exceptions import RoborockException
 
 from .. import mock_data
 
 USER_DATA = UserData.from_dict(mock_data.USER_DATA)
+NETWORK_INFO = mock_data.NETWORK_INFO
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(autouse=True, name="mqtt_session")
 def setup_mqtt_session() -> Generator[Mock, None, None]:
     """Fixture to set up the MQTT session for the tests."""
     with patch("roborock.devices.device_manager.create_mqtt_session") as mock_create_session:
-        mock_unsub = Mock()
-        mock_create_session.return_value.subscribe.return_value = mock_unsub
         yield mock_create_session
+
+
+@pytest.fixture(autouse=True)
+def channel_fixture() -> Generator[Mock, None, None]:
+    """Fixture to set up the local session for the tests."""
+    with patch("roborock.devices.device_manager.create_v1_channel") as mock_channel:
+        mock_unsub = Mock()
+        mock_channel.return_value.subscribe = AsyncMock()
+        mock_channel.return_value.subscribe.return_value = mock_unsub
+        yield mock_channel
 
 
 async def home_home_data_no_devices() -> HomeData:
@@ -54,13 +62,11 @@ async def test_with_device() -> None:
     assert len(devices) == 1
     assert devices[0].duid == "abc123"
     assert devices[0].name == "Roborock S7 MaxV"
-    assert devices[0].device_version == DeviceVersion.V1
 
     device = await device_manager.get_device("abc123")
     assert device is not None
     assert device.duid == "abc123"
     assert device.name == "Roborock S7 MaxV"
-    assert device.device_version == DeviceVersion.V1
 
     await device_manager.close()
 

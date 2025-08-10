@@ -104,7 +104,7 @@ async def test_already_connected_warning(
 async def test_close_connection(local_channel: LocalChannel, mock_loop: Mock, mock_transport: Mock) -> None:
     """Test closing the connection."""
     await local_channel.connect()
-    await local_channel.close()
+    local_channel.close()
 
     mock_transport.close.assert_called_once()
     assert local_channel._is_connected is False
@@ -112,17 +112,17 @@ async def test_close_connection(local_channel: LocalChannel, mock_loop: Mock, mo
 
 async def test_close_without_connection(local_channel: LocalChannel) -> None:
     """Test closing when not connected."""
-    await local_channel.close()  # Should not raise an exception
+    local_channel.close()
     assert local_channel._is_connected is False
 
 
-async def test_send_command_not_connected(local_channel: LocalChannel) -> None:
+async def test_send_message_not_connected(local_channel: LocalChannel) -> None:
     """Test sending command when not connected raises exception."""
     with pytest.raises(RoborockConnectionException, match="Not connected to device"):
-        await local_channel.send_command(TEST_REQUEST)
+        await local_channel.send_message(TEST_REQUEST)
 
 
-async def test_send_command_without_request_id(local_channel: LocalChannel, mock_loop: Mock) -> None:
+async def test_send_message_without_request_id(local_channel: LocalChannel, mock_loop: Mock) -> None:
     """Test sending command without request ID raises exception."""
     await local_channel.connect()
 
@@ -133,7 +133,7 @@ async def test_send_command_without_request_id(local_channel: LocalChannel, mock
     )
 
     with pytest.raises(RoborockException, match="Message must have a request_id"):
-        await local_channel.send_command(test_message)
+        await local_channel.send_message(test_message)
 
 
 async def test_successful_command_response(local_channel: LocalChannel, mock_loop: Mock, mock_transport: Mock) -> None:
@@ -141,7 +141,7 @@ async def test_successful_command_response(local_channel: LocalChannel, mock_loo
     await local_channel.connect()
 
     # Send command in background task
-    command_task = asyncio.create_task(local_channel.send_command(TEST_REQUEST))
+    command_task = asyncio.create_task(local_channel.send_message(TEST_REQUEST))
     await asyncio.sleep(0.01)  # yield
 
     # Simulate receiving response via the protocol callback
@@ -165,8 +165,8 @@ async def test_concurrent_commands(local_channel: LocalChannel, mock_loop: Mock,
     await local_channel.connect()
 
     # Start both commands concurrently
-    task1 = asyncio.create_task(local_channel.send_command(TEST_REQUEST, timeout=5.0))
-    task2 = asyncio.create_task(local_channel.send_command(TEST_REQUEST2, timeout=5.0))
+    task1 = asyncio.create_task(local_channel.send_message(TEST_REQUEST, timeout=5.0))
+    task2 = asyncio.create_task(local_channel.send_message(TEST_REQUEST2, timeout=5.0))
     await asyncio.sleep(0.01)  # yield
 
     # Send responses
@@ -188,12 +188,12 @@ async def test_duplicate_request_id_prevention(local_channel: LocalChannel, mock
     await local_channel.connect()
 
     # Start first command
-    task1 = asyncio.create_task(local_channel.send_command(TEST_REQUEST, timeout=5.0))
+    task1 = asyncio.create_task(local_channel.send_message(TEST_REQUEST, timeout=5.0))
     await asyncio.sleep(0.01)  # yield
 
     # Try to start second command with same request ID
     with pytest.raises(RoborockException, match="Request ID 12345 already pending"):
-        await local_channel.send_command(TEST_REQUEST, timeout=5.0)
+        await local_channel.send_message(TEST_REQUEST, timeout=5.0)
 
     # Complete first command
     local_channel._data_received(ENCODER(TEST_RESPONSE))
@@ -208,7 +208,7 @@ async def test_command_timeout(local_channel: LocalChannel, mock_loop: Mock) -> 
     await local_channel.connect()
 
     with pytest.raises(RoborockException, match="Command timed out after 0.1s"):
-        await local_channel.send_command(TEST_REQUEST, timeout=0.1)
+        await local_channel.send_message(TEST_REQUEST, timeout=0.1)
 
 
 async def test_message_decode_error(local_channel: LocalChannel, caplog: pytest.LogCaptureFixture) -> None:
@@ -242,7 +242,7 @@ async def test_subscribe_callback_with_rpc_response(
     await local_channel.connect()
 
     # Send request
-    task = asyncio.create_task(local_channel.send_command(TEST_REQUEST, timeout=5.0))
+    task = asyncio.create_task(local_channel.send_message(TEST_REQUEST, timeout=5.0))
     await asyncio.sleep(0.01)  # yield
 
     # Send response and unrelated message

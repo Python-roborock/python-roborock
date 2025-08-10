@@ -1,3 +1,8 @@
+"""Test cases for the containers module."""
+
+from dataclasses import dataclass
+from typing import Any
+
 from roborock import CleanRecord, CleanSummary, Consumable, DnDTimer, HomeData, S7MaxVStatus, UserData
 from roborock.code_mappings import (
     RoborockCategory,
@@ -9,6 +14,7 @@ from roborock.code_mappings import (
     RoborockMopModeS7,
     RoborockStateCode,
 )
+from roborock.containers import RoborockBase
 
 from .mock_data import (
     CLEAN_RECORD,
@@ -21,6 +27,94 @@ from .mock_data import (
     STATUS,
     USER_DATA,
 )
+
+
+@dataclass
+class SimpleObject(RoborockBase):
+    """Simple object for testing serialization."""
+
+    name: str | None = None
+    value: int | None = None
+
+
+@dataclass
+class ComplexObject(RoborockBase):
+    """Complex object for testing serialization."""
+
+    simple: SimpleObject | None = None
+    items: list[str] | None = None
+    value: int | None = None
+    nested_dict: dict[str, SimpleObject] | None = None
+    nested_list: list[SimpleObject] | None = None
+    any: Any | None = None
+
+
+def test_simple_object() -> None:
+    """Test serialization and deserialization of a simple object."""
+
+    obj = SimpleObject(name="Test", value=42)
+    serialized = obj.as_dict()
+    assert serialized == {"name": "Test", "value": 42}
+    deserialized = SimpleObject.from_dict(serialized)
+    assert deserialized.name == "Test"
+    assert deserialized.value == 42
+
+
+def test_complex_object() -> None:
+    """Test serialization and deserialization of a complex object."""
+    simple = SimpleObject(name="Nested", value=100)
+    obj = ComplexObject(
+        simple=simple,
+        items=["item1", "item2"],
+        value=200,
+        nested_dict={
+            "nested1": SimpleObject(name="Nested1", value=1),
+            "nested2": SimpleObject(name="Nested2", value=2),
+        },
+        nested_list=[SimpleObject(name="Nested3", value=3), SimpleObject(name="Nested4", value=4)],
+        any="This can be anything",
+    )
+    serialized = obj.as_dict()
+    assert serialized == {
+        "simple": {"name": "Nested", "value": 100},
+        "items": ["item1", "item2"],
+        "value": 200,
+        "nestedDict": {
+            "nested1": {"name": "Nested1", "value": 1},
+            "nested2": {"name": "Nested2", "value": 2},
+        },
+        "nestedList": [
+            {"name": "Nested3", "value": 3},
+            {"name": "Nested4", "value": 4},
+        ],
+        "any": "This can be anything",
+    }
+    deserialized = ComplexObject.from_dict(serialized)
+    assert deserialized.simple.name == "Nested"
+    assert deserialized.simple.value == 100
+    assert deserialized.items == ["item1", "item2"]
+    assert deserialized.value == 200
+    assert deserialized.nested_dict == {
+        "nested1": SimpleObject(name="Nested1", value=1),
+        "nested2": SimpleObject(name="Nested2", value=2),
+    }
+    assert deserialized.nested_list == [
+        SimpleObject(name="Nested3", value=3),
+        SimpleObject(name="Nested4", value=4),
+    ]
+    assert deserialized.any == "This can be anything"
+
+
+def test_ignore_unknown_keys() -> None:
+    """Test that we don't fail on unknown keys."""
+    data = {
+        "ignored_key": "This key should be ignored",
+        "name": "named_object",
+        "value": 42,
+    }
+    deserialized = SimpleObject.from_dict(data)
+    assert deserialized.name == "named_object"
+    assert deserialized.value == 42
 
 
 def test_user_data():
@@ -140,6 +234,7 @@ def test_status():
     assert s.fan_power == 102
     assert s.dnd_enabled == 0
     assert s.map_status == 3
+    assert s.current_map == 0
     assert s.is_locating == 0
     assert s.lock_status == 0
     assert s.water_box_mode == 203
@@ -168,6 +263,22 @@ def test_status():
     assert s.water_box_mode == RoborockMopIntensityS7.intense
 
 
+def test_current_map() -> None:
+    """Test the current map logic based on map status."""
+    s = S7MaxVStatus.from_dict(STATUS)
+    assert s.map_status == 3
+    assert s.current_map == 0
+
+    s.map_status = 7
+    assert s.current_map == 1
+
+    s.map_status = 11
+    assert s.current_map == 2
+
+    s.map_status = None
+    assert not s.current_map
+
+
 def test_dnd_timer():
     dnd = DnDTimer.from_dict(DND_TIMER)
     assert dnd.start_hour == 22
@@ -184,6 +295,7 @@ def test_clean_summary():
     assert cs.square_meter_clean_area == 1159.2
     assert cs.clean_count == 31
     assert cs.dust_collection_count == 25
+    assert cs.records
     assert len(cs.records) == 2
     assert cs.records[1] == 1672458041
 
