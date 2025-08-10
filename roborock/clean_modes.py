@@ -26,8 +26,8 @@ class CleanModes(RoborockModeEnum):
     TURBO = ("turbo", 103)
     MAX = ("max", 104)
     MAX_PLUS = ("max_plus", 108)
-    CUSTOM = ("custom", 204)
-    SMART_MODE = ("smart_mode", 209)
+    CUSTOMIZED = ("custom", 106)
+    SMART_MODE = ("smart_mode", 110)
 
 
 class CleanRoutes(RoborockModeEnum):
@@ -36,6 +36,8 @@ class CleanRoutes(RoborockModeEnum):
     DEEP_PLUS = ("deep_plus", 303)
     FAST = ("fast", 304)
     DEEP_PLUS_CN = ("deep_plus", 305)
+    SMART_MODE = ("smart_mode", 306)
+    CUSTOMIZED = ("custom", 302)
 
 
 class CleanModesOld(RoborockModeEnum):
@@ -53,8 +55,10 @@ class WaterModes(RoborockModeEnum):
     STANDARD = ("standard", 202)
     HIGH = ("high", 203)
     INTENSE = ("intense", 203)
-    CUSTOM = ("custom", 207)
+    CUSTOMIZED = ("custom", 204)
+    CUSTOM = ("custom_water_flow", 207)
     EXTREME = ("extreme", 208)
+    SMART_MODE = ("smart_mode", 209)
 
 
 def get_clean_modes(features: DeviceFeatures) -> list[CleanModes]:
