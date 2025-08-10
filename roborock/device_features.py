@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field, fields
-from enum import IntEnum
+from enum import IntEnum, StrEnum
 from typing import Any
 
 from roborock import RoborockProductNickname
@@ -57,6 +57,121 @@ class NewFeatureStrBit(IntEnum):
     MIDWAY_BACK_TO_DOCK = 85
     SUPPORT_MAIN_BRUSH_UP_DOWN = 86
     EGG_DANCE_MODE = 87
+
+
+class ProductFeatures(StrEnum):
+    REMOTE_BACK = "remote_back"
+    CLEANMODE_MAXPLUS = "cleanmode_maxplus"
+    CLEANMODE_PURECLEANMOP = "cleanmode_purecleanmop"
+    CLEANMODE_NONE_PURECLEANMOP_WITH_MAXPLUS = "cleanmode_none_purecleanmop_with_maxplus"
+    MOP_ELECTRONIC_MODULE = "mop_electronic_module"
+    MOP_SHAKE_MODULE = "mop_shake_module"
+    MOP_SPIN_MODULE = "mop_spin_module"
+    DEFAULT_MAP3D = "map3d"
+    DEFAULT_CLEANMODECUSTOM = "custom_cleanmode"
+    REALTIMEVIDEO = "realtimevideo"
+    REALTIMEVIDEO_LIVECALL = "realtimevideo_livecall"
+    REALTIMEVIDEO_RECORDANDSHORTCUT = "realtimevideo_livecall"
+    CAMERA_SINGLELINE = "camera_singleline"
+    CAMERA_DUALLINE = "camera_dualline"
+    CAMERA_RGB = "camera_rgb"
+    CAMERA_DOUBLERGB = "camera_doublergb"
+    AIRECOGNITION_SETTING = "airecognition_setting"
+    AIRECOGNITION_SCENE = "airecognition_scene"
+    AIRECOGNITION_PET = "airecognition_pet"
+    AIRECOGNITION_OBSTACLE = "airecognition_obstacle"
+
+
+# The following combinations are pulled directly from decompiled source code.
+AIRECOGNITION_OBSTACLE = [ProductFeatures.AIRECOGNITION_OBSTACLE]
+RGB_CAMERA_FEATURES = [
+    ProductFeatures.CAMERA_RGB,
+    ProductFeatures.AIRECOGNITION_SETTING,
+    ProductFeatures.AIRECOGNITION_SCENE,
+    ProductFeatures.AIRECOGNITION_PET,
+    ProductFeatures.AIRECOGNITION_OBSTACLE,
+    ProductFeatures.REALTIMEVIDEO,
+    ProductFeatures.REALTIMEVIDEO_LIVECALL,
+    ProductFeatures.REALTIMEVIDEO_RECORDANDSHORTCUT,
+]
+DOUBLE_RGB_CAMERA_FEATURES = [
+    ProductFeatures.CAMERA_DOUBLERGB,
+    ProductFeatures.AIRECOGNITION_SETTING,
+    ProductFeatures.AIRECOGNITION_PET,
+    ProductFeatures.AIRECOGNITION_OBSTACLE,
+    ProductFeatures.REALTIMEVIDEO,
+]
+SINGLE_LINE_CAMERA_FEATURES = [
+    ProductFeatures.CAMERA_SINGLELINE,
+    ProductFeatures.AIRECOGNITION_SETTING,
+    ProductFeatures.AIRECOGNITION_OBSTACLE,
+]
+DUAL_LINE_CAMERA_FEATURES = [
+    ProductFeatures.CAMERA_DUALLINE,
+    ProductFeatures.AIRECOGNITION_SETTING,
+    ProductFeatures.AIRECOGNITION_OBSTACLE,
+    ProductFeatures.AIRECOGNITION_PET,
+]
+
+NEW_DEFAULT_FEATURES = [ProductFeatures.REMOTE_BACK, ProductFeatures.CLEANMODE_MAXPLUS]
+
+
+PEARL_FEATURES = NEW_DEFAULT_FEATURES + SINGLE_LINE_CAMERA_FEATURES + [ProductFeatures.MOP_SPIN_MODULE]
+PEARL_PLUS_FEATURES = NEW_DEFAULT_FEATURES + RGB_CAMERA_FEATURES + [ProductFeatures.MOP_SPIN_MODULE]
+ULTRON_FEATURES = NEW_DEFAULT_FEATURES + DUAL_LINE_CAMERA_FEATURES + [ProductFeatures.MOP_SHAKE_MODULE]
+ULTRONSV_FEATURES = NEW_DEFAULT_FEATURES + RGB_CAMERA_FEATURES + [ProductFeatures.MOP_SHAKE_MODULE]
+TANOSS_FEATURES = NEW_DEFAULT_FEATURES + [ProductFeatures.MOP_SHAKE_MODULE]
+TOPAZSPOWER_FEATURES = NEW_DEFAULT_FEATURES + [ProductFeatures.MOP_SHAKE_MODULE]
+
+product_feature_map = {
+    RoborockProductNickname.PEARL: PEARL_FEATURES,
+    RoborockProductNickname.PEARLS: PEARL_FEATURES,
+    RoborockProductNickname.PEARLPLUS: PEARL_PLUS_FEATURES,
+    RoborockProductNickname.VIVIAN: PEARL_PLUS_FEATURES,
+    RoborockProductNickname.CORAL: PEARL_PLUS_FEATURES,
+    RoborockProductNickname.ULTRON: ULTRON_FEATURES,
+    RoborockProductNickname.ULTRONE: [ProductFeatures.CLEANMODE_NONE_PURECLEANMOP_WITH_MAXPLUS],
+    RoborockProductNickname.ULTRONSV: ULTRONSV_FEATURES,
+    RoborockProductNickname.TOPAZSPOWER: TOPAZSPOWER_FEATURES,
+    RoborockProductNickname.TANOSS: TANOSS_FEATURES,
+    RoborockProductNickname.PEARLC: PEARL_FEATURES,
+    RoborockProductNickname.PEARLPLUSS: PEARL_PLUS_FEATURES,
+    RoborockProductNickname.PEARLSLITE: PEARL_FEATURES,
+    RoborockProductNickname.PEARLE: PEARL_FEATURES,
+    RoborockProductNickname.PEARLELITE: PEARL_FEATURES,
+    RoborockProductNickname.VIVIANC: PEARL_PLUS_FEATURES,
+    RoborockProductNickname.CORALPRO: PEARL_PLUS_FEATURES,
+    RoborockProductNickname.ULTRONLITE: SINGLE_LINE_CAMERA_FEATURES
+    + [ProductFeatures.CLEANMODE_NONE_PURECLEANMOP_WITH_MAXPLUS, ProductFeatures.MOP_ELECTRONIC_MODULE],
+    RoborockProductNickname.ULTRONSC: ULTRON_FEATURES,
+    RoborockProductNickname.ULTRONSE: [
+        ProductFeatures.CLEANMODE_NONE_PURECLEANMOP_WITH_MAXPLUS,
+        ProductFeatures.MOP_ELECTRONIC_MODULE,
+    ],
+    RoborockProductNickname.ULTRONSPLUS: ULTRON_FEATURES,
+    RoborockProductNickname.VERDELITE: ULTRONSV_FEATURES,
+    RoborockProductNickname.TOPAZS: NEW_DEFAULT_FEATURES + [ProductFeatures.MOP_SHAKE_MODULE],
+    RoborockProductNickname.TOPAZSPLUS: NEW_DEFAULT_FEATURES
+    + DUAL_LINE_CAMERA_FEATURES
+    + [ProductFeatures.MOP_SHAKE_MODULE],
+    RoborockProductNickname.TOPAZSC: TOPAZSPOWER_FEATURES + SINGLE_LINE_CAMERA_FEATURES,
+    RoborockProductNickname.TOPAZSV: NEW_DEFAULT_FEATURES + RGB_CAMERA_FEATURES + [ProductFeatures.MOP_SHAKE_MODULE],
+    RoborockProductNickname.TANOSSPLUS: TANOSS_FEATURES + DUAL_LINE_CAMERA_FEATURES,
+    RoborockProductNickname.TANOSSLITE: [ProductFeatures.MOP_ELECTRONIC_MODULE],
+    RoborockProductNickname.TANOSSC: [],
+    RoborockProductNickname.TANOSSE: [],
+    RoborockProductNickname.TANOSSMAX: NEW_DEFAULT_FEATURES
+    + DUAL_LINE_CAMERA_FEATURES
+    + [ProductFeatures.MOP_SHAKE_MODULE],
+    RoborockProductNickname.TANOS: [ProductFeatures.REMOTE_BACK],
+    RoborockProductNickname.TANOSE: [ProductFeatures.MOP_ELECTRONIC_MODULE, ProductFeatures.REMOTE_BACK],
+    RoborockProductNickname.TANOSV: DOUBLE_RGB_CAMERA_FEATURES
+    + [ProductFeatures.REMOTE_BACK, ProductFeatures.MOP_ELECTRONIC_MODULE],
+    RoborockProductNickname.RUBYPLUS: [],
+    RoborockProductNickname.RUBYSC: [],
+    RoborockProductNickname.RUBYSE: [],
+    RoborockProductNickname.RUBYSLITE: [ProductFeatures.MOP_ELECTRONIC_MODULE],
+}
 
 
 @dataclass
@@ -290,6 +405,24 @@ class DeviceFeatures:
     )
     is_support_mop_back_pwm_set: bool = field(metadata={"model_whitelist": [RoborockProductNickname.PEARL]})
     is_collect_dust_mode_supported: bool = field(metadata={"model_blacklist": [RoborockProductNickname.PEARL]})
+    is_support_water_mode: bool = field(
+        metadata={
+            "product_features": [
+                ProductFeatures.MOP_ELECTRONIC_MODULE,
+                ProductFeatures.MOP_SHAKE_MODULE,
+                ProductFeatures.MOP_SPIN_MODULE,
+            ]
+        }
+    )
+    is_pure_clean_mop_supported: bool = field(metadata={"product_features": [ProductFeatures.CLEANMODE_PURECLEANMOP]})
+    is_new_remote_view_supported: bool = field(metadata={"product_features": [ProductFeatures.REMOTE_BACK]})
+    is_max_plus_mode_supported: bool = field(metadata={"product_features": [ProductFeatures.CLEANMODE_MAXPLUS]})
+    is_none_pure_clean_mop_with_max_plus: bool = field(
+        metadata={"product_features": [ProductFeatures.CLEANMODE_NONE_PURECLEANMOP_WITH_MAXPLUS]}
+    )
+    is_clean_route_setting_supported: bool = field(
+        metadata={"product_features": [ProductFeatures.MOP_SHAKE_MODULE, ProductFeatures.MOP_SPIN_MODULE]}
+    )
 
     @classmethod
     def from_feature_flags(
@@ -357,6 +490,11 @@ class DeviceFeatures:
                     kwargs[f.name] = True
                 else:
                     kwargs[f.name] = product_nickname not in blacklist
+            elif (product_features := f.metadata.get("product_features")) is not None:
+                if product_nickname is not None:
+                    available_features = product_feature_map.get(product_nickname, [])
+                    if any(feat in available_features for feat in product_features):  # type: ignore
+                        kwargs[f.name] = True
 
         return cls(**kwargs)
 
