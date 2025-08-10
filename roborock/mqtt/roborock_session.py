@@ -125,14 +125,14 @@ class RoborockMqttSession(MqttSession):
             except Exception as err:
                 # This error is thrown when the MQTT loop is cancelled
                 # and the generator is not stopped.
-                if "generator didn't stop" in str(err):
+                if "generator didn't stop" in str(err) or "generator didn't yield" in str(err):
                     _LOGGER.debug("MQTT loop was cancelled")
                     return
                 if start_future:
                     _LOGGER.error("Uncaught error starting MQTT session: %s", err)
                     start_future.set_exception(err)
                     return
-                _LOGGER.error("Uncaught error during MQTT session: %s", err)
+                _LOGGER.exception("Uncaught error during MQTT session: %s", err)
 
             self._healthy = False
             _LOGGER.info("MQTT session disconnected, retrying in %s seconds", self._backoff.total_seconds())
@@ -180,7 +180,7 @@ class RoborockMqttSession(MqttSession):
                 except asyncio.CancelledError:
                     raise
                 except Exception as e:
-                    _LOGGER.error("Uncaught exception in subscriber callback: %s", e)
+                    _LOGGER.exception("Uncaught exception in subscriber callback: %s", e)
 
     async def subscribe(self, topic: str, callback: Callable[[bytes], None]) -> Callable[[], None]:
         """Subscribe to messages on the specified topic and invoke the callback for new messages.

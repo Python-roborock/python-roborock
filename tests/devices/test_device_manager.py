@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 from roborock.containers import HomeData, UserData
+from roborock.devices.cache import CacheData, InMemoryCache
 from roborock.devices.device_manager import create_device_manager, create_home_data_api
 from roborock.exceptions import RoborockException
 
@@ -98,3 +99,37 @@ async def test_create_home_data_api_exception() -> None:
 
         with pytest.raises(RoborockException, match="Test exception"):
             await api()
+
+
+async def test_cache_logic() -> None:
+    """Test that the cache logic works correctly."""
+    call_count = 0
+
+    async def mock_home_data_with_counter() -> HomeData:
+        nonlocal call_count
+        call_count += 1
+        return HomeData.from_dict(mock_data.HOME_DATA_RAW)
+
+    class TestCache:
+        def __init__(self):
+            self._data = CacheData()
+
+        async def get(self) -> CacheData:
+            return self._data
+
+        async def set(self, value: CacheData) -> None:
+            self._data = value
+
+    # First call happens during create_device_manager initialization
+    device_manager = await create_device_manager(USER_DATA, mock_home_data_with_counter, cache=InMemoryCache())
+    assert call_count == 1
+
+    # Second call should use cache, not increment call_count
+    devices2 = await device_manager.discover_devices()
+    assert call_count == 1  # Should still be 1, not 2
+    assert len(devices2) == 1
+
+    await device_manager.close()
+    assert len(devices2) == 1
+
+    await device_manager.close()

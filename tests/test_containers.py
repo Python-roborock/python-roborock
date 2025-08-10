@@ -234,6 +234,7 @@ def test_status():
     assert s.fan_power == 102
     assert s.dnd_enabled == 0
     assert s.map_status == 3
+    assert s.current_map == 0
     assert s.is_locating == 0
     assert s.lock_status == 0
     assert s.water_box_mode == 203
@@ -260,6 +261,22 @@ def test_status():
     assert s.fan_power == RoborockFanSpeedS7MaxV.balanced
     assert s.mop_mode == RoborockMopModeS7.standard
     assert s.water_box_mode == RoborockMopIntensityS7.intense
+
+
+def test_current_map() -> None:
+    """Test the current map logic based on map status."""
+    s = S7MaxVStatus.from_dict(STATUS)
+    assert s.map_status == 3
+    assert s.current_map == 0
+
+    s.map_status = 7
+    assert s.current_map == 1
+
+    s.map_status = 11
+    assert s.current_map == 2
+
+    s.map_status = None
+    assert not s.current_map
 
 
 def test_dnd_timer():

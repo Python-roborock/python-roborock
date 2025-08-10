@@ -425,6 +425,13 @@ class Status(RoborockBase):
             raise RoborockException("Attempted to get mop_mode before status has been updated.")
         return self.mop_mode.as_dict().get(mop_mode)
 
+    @property
+    def current_map(self) -> int | None:
+        """Returns the current map ID if the map is present."""
+        if self.map_status is not None:
+            return (self.map_status - 3) // 4
+        return None
+
 
 @dataclass
 class S4MaxStatus(Status):

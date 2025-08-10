@@ -12,6 +12,7 @@ from pyshark.packet.packet import Packet  # type: ignore
 
 from roborock import SHORT_MODEL_TO_ENUM, DeviceFeatures, RoborockCommand, RoborockException
 from roborock.containers import DeviceData, HomeData, HomeDataProduct, LoginData, NetworkInfo, RoborockBase, UserData
+from roborock.devices.cache import Cache, CacheData
 from roborock.devices.device_manager import create_device_manager, create_home_data_api
 from roborock.protocol import MessageParser
 from roborock.util import run_sync
@@ -39,7 +40,7 @@ class ConnectionCache(RoborockBase):
     network_info: dict[str, NetworkInfo] | None = None
 
 
-class RoborockContext:
+class RoborockContext(Cache):
     roborock_file = Path("~/.roborock").expanduser()
     _cache_data: ConnectionCache | None = None
 
@@ -67,6 +68,18 @@ class RoborockContext:
         """Get the cache data."""
         self.validate()
         return self._cache_data
+
+    async def get(self) -> CacheData:
+        """Get cached value."""
+        connection_cache = self.cache_data()
+        return CacheData(home_data=connection_cache.home_data, network_info=connection_cache.network_info or {})
+
+    async def set(self, value: CacheData) -> None:
+        """Set value in the cache."""
+        connection_cache = self.cache_data()
+        connection_cache.home_data = value.home_data
+        connection_cache.network_info = value.network_info
+        self.update(connection_cache)
 
 
 @click.option("-d", "--debug", default=False, count=True)
@@ -119,14 +132,8 @@ async def session(ctx, duration: int):
 
     home_data_api = create_home_data_api(cache_data.email, cache_data.user_data)
 
-    async def home_data_cache() -> HomeData:
-        if cache_data.home_data is None:
-            cache_data.home_data = await home_data_api()
-            context.update(cache_data)
-        return cache_data.home_data
-
     # Create device manager
-    device_manager = await create_device_manager(cache_data.user_data, home_data_cache)
+    device_manager = await create_device_manager(cache_data.user_data, home_data_api, context)
 
     devices = await device_manager.get_devices()
     click.echo(f"Discovered devices: {', '.join([device.name for device in devices])}")

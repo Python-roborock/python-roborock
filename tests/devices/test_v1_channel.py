@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from roborock.containers import NetworkInfo, RoborockStateCode, S5MaxStatus, UserData
+from roborock.devices.cache import CacheData, InMemoryCache
 from roborock.devices.local_channel import LocalChannel, LocalSession
 from roborock.devices.mqtt_channel import MqttChannel
 from roborock.devices.v1_channel import V1Channel
@@ -105,6 +106,7 @@ def setup_v1_channel(
         security_data=TEST_SECURITY_DATA,
         mqtt_channel=mock_mqtt_channel,
         local_session=mock_local_session,
+        cache=InMemoryCache(),
     )
 
 
@@ -408,6 +410,52 @@ async def test_v1_channel_networking_info_retrieved_during_connection(
     mock_local_session.assert_called_once_with(mock_data.NETWORK_INFO["ip"])
 
 
+async def test_v1_channel_networking_info_cached_during_connection(
+    mock_mqtt_channel: Mock,
+    mock_local_channel: Mock,
+    mock_local_session: Mock,
+) -> None:
+    """Test that networking information is cached and reused on subsequent connections."""
+
+    # Create a cache with pre-populated network info
+    cache_data = CacheData()
+    cache_data.network_info[TEST_DEVICE_UID] = TEST_NETWORKING_INFO
+
+    mock_cache = AsyncMock()
+    mock_cache.get.return_value = cache_data
+    mock_cache.set = AsyncMock()
+
+    # Setup: MQTT and local connections succeed
+    mock_mqtt_channel.subscribe.return_value = Mock()
+    mock_local_channel.subscribe.return_value = Mock()
+
+    # Create V1Channel with the mock cache
+    v1_channel = V1Channel(
+        device_uid=TEST_DEVICE_UID,
+        security_data=TEST_SECURITY_DATA,
+        mqtt_channel=mock_mqtt_channel,
+        local_session=mock_local_session,
+        cache=mock_cache,
+    )
+
+    # Subscribe - should use cached network info
+    await v1_channel.subscribe(Mock())
+
+    # Verify both connections are established
+    assert v1_channel.is_mqtt_connected
+    assert v1_channel.is_local_connected
+
+    # Verify network info was NOT requested via MQTT (cache hit)
+    mock_mqtt_channel.send_message.assert_not_called()
+
+    # Verify local session was created with the correct IP from cache
+    mock_local_session.assert_called_once_with(mock_data.NETWORK_INFO["ip"])
+
+    # Verify cache was accessed but not updated (cache hit)
+    mock_cache.get.assert_called_once()
+    mock_cache.set.assert_not_called()
+
+
 # V1Channel edge cases tests
 
 
@@ -513,6 +561,7 @@ async def test_v1_channel_full_subscribe_and_command_flow(
         security_data=TEST_SECURITY_DATA,
         mqtt_channel=mock_mqtt_channel,
         local_session=mock_local_session,
+        cache=InMemoryCache(),
     )
 
     # Mock network info for local connection

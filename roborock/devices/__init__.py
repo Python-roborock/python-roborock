@@ -3,4 +3,5 @@
 __all__ = [
     "device",
     "device_manager",
+    "cache",
 ]
