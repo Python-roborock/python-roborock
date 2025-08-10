@@ -11,7 +11,7 @@ from pyshark.capture.live_capture import LiveCapture, UnknownInterfaceException 
 from pyshark.packet.packet import Packet  # type: ignore
 
 from roborock import SHORT_MODEL_TO_ENUM, DeviceFeatures, RoborockCommand, RoborockException
-from roborock.containers import DeviceData, HomeData, HomeDataProduct, LoginData,  NetworkInfo, RoborockBase, UserData
+from roborock.containers import DeviceData, HomeData, HomeDataProduct, LoginData, NetworkInfo, RoborockBase, UserData
 from roborock.devices.device_manager import create_device_manager, create_home_data_api
 from roborock.protocol import MessageParser
 from roborock.util import run_sync
