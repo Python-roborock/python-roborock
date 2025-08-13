@@ -39,6 +39,7 @@ from roborock.roborock_message import RoborockMessage
 _LOGGER = logging.getLogger(__name__)
 SALT = b"TXdfu$jyZ#TZHsg4"
 A01_HASH = "726f626f726f636b2d67a6d6da"
+B01_HASH = "5wwh9ikChRjASpMU8cxg7o1d2E"
 BROADCAST_TOKEN = b"qWKYcdQWrbm9hPqe"
 AP_CONFIG = 1
 SOCK_DISCOVERY = 2
@@ -147,6 +148,26 @@ class Utils:
         return ciphertext
 
     @staticmethod
+    def encrypt_cbc(plaintext: bytes, token: bytes) -> bytes:
+        """Encrypt plaintext with a given token using cbc mode.
+
+        This is currently used for testing purposes only.
+
+        :param bytes plaintext: Plaintext (json) to encrypt
+        :param bytes token: Token to use
+        :return: Encrypted bytes
+        """
+        if not isinstance(plaintext, bytes):
+            raise TypeError("plaintext requires bytes")
+        Utils.verify_token(token)
+        iv = bytes(AES.block_size)
+        cipher = AES.new(token, AES.MODE_CBC, iv)
+        if plaintext:
+            plaintext = pad(plaintext, AES.block_size)
+            return cipher.encrypt(plaintext)
+        return plaintext
+
+    @staticmethod
     def decrypt_cbc(ciphertext: bytes, token: bytes) -> bytes:
         """Decrypt ciphertext with a given token using cbc mode.
 
@@ -213,6 +234,10 @@ class EncryptionAdapter(Construct):
             decipher = AES.new(bytes(context.search("local_key"), "utf-8"), AES.MODE_CBC, bytes(iv, "utf-8"))
             f = decipher.encrypt(obj)
             return f
+        elif context.version == b"B01":
+            iv = md5hex(f"{context.random:08x}" + B01_HASH)[9:25]
+            decipher = AES.new(bytes(context.search("local_key"), "utf-8"), AES.MODE_CBC, bytes(iv, "utf-8"))
+            return decipher.encrypt(obj)
         token = self.token_func(context)
         encrypted = Utils.encrypt_ecb(obj, token)
         return encrypted
@@ -224,6 +249,10 @@ class EncryptionAdapter(Construct):
             decipher = AES.new(bytes(context.search("local_key"), "utf-8"), AES.MODE_CBC, bytes(iv, "utf-8"))
             f = decipher.decrypt(obj)
             return f
+        elif context.version == b"B01":
+            iv = md5hex(f"{context.random:08x}" + B01_HASH)[9:25]
+            decipher = AES.new(bytes(context.search("local_key"), "utf-8"), AES.MODE_CBC, bytes(iv, "utf-8"))
+            return decipher.decrypt(obj)
         token = self.token_func(context)
         decrypted = Utils.decrypt_ecb(obj, token)
         return decrypted
@@ -248,7 +277,7 @@ class PrefixedStruct(Struct):
     def _parse(self, stream, context, path):
         subcon1 = Peek(Optional(Bytes(3)))
         peek_version = subcon1.parse_stream(stream, **context)
-        if peek_version not in (b"1.0", b"A01"):
+        if peek_version not in (b"1.0", b"A01", b"B01"):
             subcon2 = Bytes(4)
             subcon2.parse_stream(stream, **context)
         return super()._parse(stream, context, path)

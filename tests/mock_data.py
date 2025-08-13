@@ -9,7 +9,7 @@ USER_EMAIL = "user@domain.com"
 BASE_URL = "https://usiot.roborock.com"
 
 USER_ID = "user123"
-K_VALUE = "domain123"
+K_VALUE = "qiCNieZa"
 USER_DATA = {
     "uid": 123456,
     "tokentype": "token_type",

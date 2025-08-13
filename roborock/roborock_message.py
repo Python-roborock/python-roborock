@@ -4,6 +4,7 @@ import json
 import math
 import time
 from dataclasses import dataclass, field
+from enum import StrEnum
 
 from roborock import RoborockEnum
 from roborock.util import get_next_int
@@ -130,6 +131,98 @@ class RoborockZeoProtocol(RoborockEnum):
     RPC_RESp = 10102
 
 
+class RoborockB01Protocol(RoborockEnum):
+    RPC_REQUEST = 101
+    RPC_RESPONSE = 102
+    ERROR_CODE = 120
+    STATE = 121
+    BATTERY = 122
+    FAN_POWER = 123
+    WATER_BOX_MODE = 124
+    MAIN_BRUSH_LIFE = 125
+    SIDE_BRUSH_LIFE = 126
+    FILTER_LIFE = 127
+    OFFLINE_STATUS = 135
+    CLEAN_TIMES = 136
+    CLEANING_PREFERENCE = 137
+    CLEAN_TASK_TYPE = 138
+    BACK_TYPE = 139
+    DOCK_TASK_TYPE = 140
+    CLEANING_PROGRESS = 141
+    FC_STATE = 142
+    START_CLEAN_TASK = 201
+    START_BACK_DOCK_TASK = 202
+    START_DOCK_TASK = 203
+    PAUSE = 204
+    RESUME = 205
+    STOP = 206
+    CEIP = 207
+
+
+class RoborockB01Props(StrEnum):
+    """Properties requested by the Roborock B01 model."""
+
+    STATUS = "status"
+    FAULT = "fault"
+    WIND = "wind"
+    WATER = "water"
+    MODE = "mode"
+    QUANTITY = "quantity"
+    ALARM = "alarm"
+    VOLUME = "volume"
+    HYPA = "hypa"
+    MAIN_BRUSH = "main_brush"
+    SIDE_BRUSH = "side_brush"
+    MOP_LIFE = "mop_life"
+    MAIN_SENSOR = "main_sensor"
+    NET_STATUS = "net_status"
+    REPEAT_STATE = "repeat_state"
+    TANK_STATE = "tank_state"
+    SWEEP_TYPE = "sweep_type"
+    CLEAN_PATH_PREFERENCE = "clean_path_preference"
+    CLOTH_STATE = "cloth_state"
+    TIME_ZONE = "time_zone"
+    TIME_ZONE_INFO = "time_zone_info"
+    LANGUAGE = "language"
+    CLEANING_TIME = "cleaning_time"
+    REAL_CLEAN_TIME = "real_clean_time"
+    CLEANING_AREA = "cleaning_area"
+    CUSTOM_TYPE = "custom_type"
+    SOUND = "sound"
+    WORK_MODE = "work_mode"
+    STATION_ACT = "station_act"
+    CHARGE_STATE = "charge_state"
+    CURRENT_MAP_ID = "current_map_id"
+    MAP_NUM = "map_num"
+    DUST_ACTION = "dust_action"
+    QUIET_IS_OPEN = "quiet_is_open"
+    QUIET_BEGIN_TIME = "quiet_begin_time"
+    QUIET_END_TIME = "quiet_end_time"
+    CLEAN_FINISH = "clean_finish"
+    VOICE_TYPE = "voice_type"
+    VOICE_TYPE_VERSION = "voice_type_version"
+    ORDER_TOTAL = "order_total"
+    BUILD_MAP = "build_map"
+    PRIVACY = "privacy"
+    DUST_AUTO_STATE = "dust_auto_state"
+    DUST_FREQUENCY = "dust_frequency"
+    CHILD_LOCK = "child_lock"
+    MULTI_FLOOR = "multi_floor"
+    MAP_SAVE = "map_save"
+    LIGHT_MODE = "light_mode"
+    GREEN_LASER = "green_laser"
+    DUST_BAG_USED = "dust_bag_used"
+    ORDER_SAVE_MODE = "order_save_mode"
+    MANUFACTURER = "manufacturer"
+    BACK_TO_WASH = "back_to_wash"
+    CHARGE_STATION_TYPE = "charge_station_type"
+    PV_CUT_CHARGE = "pv_cut_charge"
+    PV_CHARGING = "pv_charging"
+    SERIAL_NUMBER = "serial_number"
+    RECOMMEND = "recommend"
+    ADD_SWEEP_STATUS = "add_sweep_status"
+
+
 ROBOROCK_DATA_STATUS_PROTOCOL = [
     RoborockDataProtocol.ERROR_CODE,
     RoborockDataProtocol.STATE,
@@ -147,12 +240,6 @@ ROBOROCK_DATA_CONSUMABLE_PROTOCOL = [
 
 
 @dataclass
-class MessageRetry:
-    method: str
-    retry_id: int
-
-
-@dataclass
 class RoborockMessage:
     protocol: RoborockMessageProtocol
     payload: bytes | None = None
@@ -160,7 +247,6 @@ class RoborockMessage:
     version: bytes = b"1.0"
     random: int = field(default_factory=lambda: get_next_int(10000, 99999))
     timestamp: int = field(default_factory=lambda: math.floor(time.time()))
-    message_retry: MessageRetry | None = None
 
     def get_request_id(self) -> int | None:
         if self.payload:
@@ -169,31 +255,4 @@ class RoborockMessage:
                 if data_point_number in ["101", "102"]:
                     data_point_response = json.loads(data_point)
                     return data_point_response.get("id")
-        return None
-
-    def get_retry_id(self) -> int | None:
-        if self.message_retry:
-            return self.message_retry.retry_id
-        return self.get_request_id()
-
-    def get_method(self) -> str | None:
-        if self.message_retry:
-            return self.message_retry.method
-        protocol = self.protocol
-        if self.payload and protocol in [4, 5, 101, 102]:
-            payload = json.loads(self.payload.decode())
-            for data_point_number, data_point in payload.get("dps").items():
-                if data_point_number in ["101", "102"]:
-                    data_point_response = json.loads(data_point)
-                    return data_point_response.get("method")
-        return None
-
-    def get_params(self) -> list | dict | None:
-        protocol = self.protocol
-        if self.payload and protocol in [4, 101, 102]:
-            payload = json.loads(self.payload.decode())
-            for data_point_number, data_point in payload.get("dps").items():
-                if data_point_number in ["101", "102"]:
-                    data_point_response = json.loads(data_point)
-                    return data_point_response.get("params")
         return None

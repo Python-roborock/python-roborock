@@ -7,6 +7,7 @@ import json
 import logging
 import math
 import secrets
+import struct
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -15,7 +16,7 @@ from typing import Any
 from roborock.containers import RRiot
 from roborock.exceptions import RoborockException
 from roborock.protocol import Utils
-from roborock.roborock_message import MessageRetry, RoborockMessage, RoborockMessageProtocol
+from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 from roborock.roborock_typing import RoborockCommand
 from roborock.util import get_next_int
 
@@ -43,6 +44,10 @@ class SecurityData:
     def to_dict(self) -> dict[str, Any]:
         """Convert security data to a dictionary for sending in the payload."""
         return {"security": {"endpoint": self.endpoint, "nonce": self.nonce.hex().lower()}}
+
+    def to_diagnostic_data(self) -> dict[str, Any]:
+        """Convert security data to a dictionary for debugging purposes."""
+        return {"nonce": self.nonce.hex().lower()}
 
 
 def create_security_data(rriot: RRiot) -> SecurityData:
@@ -102,15 +107,10 @@ def encode_local_payload(method: CommandType, params: ParamsType) -> RoborockMes
     request = RequestMessage(method=method, params=params)
     payload = request.as_payload(security_data=None)
 
-    message_retry: MessageRetry | None = None
-    if method == RoborockCommand.RETRY_REQUEST and isinstance(params, dict):
-        message_retry = MessageRetry(method=method, retry_id=params["retry_id"])
-
     return RoborockMessage(
         timestamp=request.timestamp,
         protocol=RoborockMessageProtocol.GENERAL_REQUEST,
         payload=payload,
-        message_retry=message_retry,
     )
 
 
@@ -147,3 +147,37 @@ def decode_rpc_response(message: RoborockMessage) -> dict[str, Any]:
     if not isinstance(result, dict):
         raise RoborockException(f"Invalid V1 message format: 'result' should be a dictionary for {message.payload!r}")
     return result
+
+
+@dataclass
+class MapResponse:
+    """Data structure for the V1 Map response."""
+
+    request_id: int
+    """The request ID of the map response."""
+
+    data: bytes
+    """The map data, decrypted and decompressed."""
+
+
+def create_map_response_decoder(security_data: SecurityData) -> Callable[[RoborockMessage], MapResponse]:
+    """Create a decoder for V1 map response messages."""
+
+    def _decode_map_response(message: RoborockMessage) -> MapResponse:
+        """Decode a V1 map response message."""
+        if not message.payload or len(message.payload) < 24:
+            raise RoborockException("Invalid V1 map response format: missing payload")
+        header, body = message.payload[:24], message.payload[24:]
+        [endpoint, _, request_id, _] = struct.unpack("<8s8sH6s", header)
+        if not endpoint.decode().startswith(security_data.endpoint):
+            raise RoborockException(
+                f"Invalid V1 map response endpoint: {endpoint!r}, expected {security_data.endpoint!r}"
+            )
+        try:
+            decrypted = Utils.decrypt_cbc(body, security_data.nonce)
+        except ValueError as err:
+            raise RoborockException("Failed to decode map message payload") from err
+        decompressed = Utils.decompress(decrypted)
+        return MapResponse(request_id=request_id, data=decompressed)
+
+    return _decode_map_response

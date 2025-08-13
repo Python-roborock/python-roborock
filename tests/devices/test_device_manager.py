@@ -93,7 +93,7 @@ async def test_home_data_api_exception() -> None:
 async def test_create_home_data_api_exception() -> None:
     """Test that exceptions from the home data API are propagated through the wrapper."""
 
-    with patch("roborock.devices.device_manager.RoborockApiClient.get_home_data") as mock_get_home_data:
+    with patch("roborock.devices.device_manager.RoborockApiClient.get_home_data_v3") as mock_get_home_data:
         mock_get_home_data.side_effect = RoborockException("Test exception")
         api = create_home_data_api(USER_DATA, mock_get_home_data)
 

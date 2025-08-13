@@ -49,6 +49,7 @@ class RoborockMqttSession(MqttSession):
         self._params = params
         self._background_task: asyncio.Task[None] | None = None
         self._healthy = False
+        self._stop = False
         self._backoff = MIN_BACKOFF_INTERVAL
         self._client: aiomqtt.Client | None = None
         self._client_lock = asyncio.Lock()
@@ -81,6 +82,7 @@ class RoborockMqttSession(MqttSession):
 
     async def close(self) -> None:
         """Cancels the MQTT loop and shutdown the client library."""
+        self._stop = True
         if self._background_task:
             self._background_task.cancel()
             try:
@@ -135,6 +137,9 @@ class RoborockMqttSession(MqttSession):
                 _LOGGER.exception("Uncaught error during MQTT session: %s", err)
 
             self._healthy = False
+            if self._stop:
+                _LOGGER.debug("MQTT session closed, stopping retry loop")
+                return
             _LOGGER.info("MQTT session disconnected, retrying in %s seconds", self._backoff.total_seconds())
             await asyncio.sleep(self._backoff.total_seconds())
             self._backoff = min(self._backoff * BACKOFF_MULTIPLIER, MAX_BACKOFF_INTERVAL)

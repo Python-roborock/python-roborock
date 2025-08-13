@@ -307,7 +307,7 @@ def create_local_connection_fixture(request_handler: RequestHandler) -> Generato
 
         return (mock_transport, "proto")
 
-    with patch("roborock.local_api.get_running_loop") as mock_loop:
+    with patch("roborock.version_1_apis.roborock_local_client_v1.get_running_loop") as mock_loop:
         mock_loop.return_value.create_connection.side_effect = create_connection
         yield
 

@@ -21,6 +21,7 @@ from roborock.web_api import RoborockApiClient
 from .cache import Cache, NoCache
 from .channel import Channel
 from .mqtt_channel import create_mqtt_channel
+from .traits.b01.props import B01PropsApi
 from .traits.dyad import DyadApi
 from .traits.status import StatusTrait
 from .traits.trait import Trait
@@ -45,6 +46,7 @@ class DeviceVersion(enum.StrEnum):
 
     V1 = "1.0"
     A01 = "A01"
+    B01 = "B01"
     UNKNOWN = "unknown"
 
 
@@ -120,7 +122,7 @@ def create_home_data_api(email: str, user_data: UserData) -> HomeDataApi:
     client = RoborockApiClient(email)
 
     async def home_data_api() -> HomeData:
-        return await client.get_home_data(user_data)
+        return await client.get_home_data_v3(user_data)
 
     return home_data_api
 
@@ -159,6 +161,9 @@ async def create_device_manager(
                         traits.append(ZeoApi(mqtt_channel))
                     case _:
                         raise NotImplementedError(f"Device {device.name} has unsupported category {product.category}")
+            case DeviceVersion.B01:
+                mqtt_channel = create_mqtt_channel(user_data, mqtt_params, mqtt_session, device)
+                traits.append(B01PropsApi(mqtt_channel))
             case _:
                 raise NotImplementedError(f"Device {device.name} has unsupported version {device.pv}")
         return RoborockDevice(device, channel, traits)
