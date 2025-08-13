@@ -235,7 +235,7 @@ async def status(ctx, device_id):
     devices = home_data.devices + home_data.received_devices
     device = next(device for device in devices if device.duid == device_id)
     product_info: dict[str, HomeDataProduct] = {product.id: product for product in home_data.products}
-    device_data = DeviceData(device, product_info[device.product_id].model)
+    device_data = DeviceData(device, product_info[device.product_id].model, region=cache_data.user_data.region)
 
     mqtt_client = RoborockMqttClientV1(cache_data.user_data, device_data)
     if not (networking := cache_data.network_info.get(device.duid)):
@@ -245,7 +245,9 @@ async def status(ctx, device_id):
     else:
         _LOGGER.debug("Using cached networking info for device %s: %s", device.duid, networking)
 
-    local_device_data = DeviceData(device, product_info[device.product_id].model, networking.ip)
+    local_device_data = DeviceData(
+        device, product_info[device.product_id].model, networking.ip, region=cache_data.user_data.region
+    )
     local_client = RoborockLocalClientV1(local_device_data)
     status = await local_client.get_status()
     click.echo(json.dumps(status.as_dict(), indent=4))
@@ -270,7 +272,7 @@ async def command(ctx, cmd, device_id, params):
     )
     if model is None:
         raise RoborockException(f"Could not find model for device {device.name}")
-    device_info = DeviceData(device=device, model=model)
+    device_info = DeviceData(device=device, model=model, region=cache_data.user_data.region)
     mqtt_client = RoborockMqttClientV1(cache_data.user_data, device_info)
     await mqtt_client.send_command(cmd, json.loads(params) if params is not None else None)
     await mqtt_client.async_release()

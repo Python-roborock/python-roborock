@@ -7,8 +7,8 @@ def test_supported_features_qrevo_maxv():
     model = "roborock.vacuum.a87"
     product_nickname = SHORT_MODEL_TO_ENUM.get(model.split(".")[-1])
     device_features = DeviceFeatures.from_feature_flags(
-        new_feature_info=2247397454282751,
-        new_feature_info_str="000A177F7EFEFFFF",
+        new_feature_info=4499197267967999,
+        new_feature_info_str="508A977F7EFEFFFF",
         feature_info=[111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125],
         product_nickname=product_nickname,
     )

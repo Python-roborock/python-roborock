@@ -3,8 +3,21 @@
 from dataclasses import dataclass
 from typing import Any
 
-from roborock import CleanRecord, CleanSummary, Consumable, DnDTimer, HomeData, S7MaxVStatus, UserData
+from roborock import (
+    CleanRecord,
+    CleanRoutes,
+    CleanSummary,
+    Consumable,
+    DeviceFeatures,
+    DnDTimer,
+    HomeData,
+    S7MaxVStatus,
+    UserData,
+    VacuumModes,
+    WaterModes,
+)
 from roborock.code_mappings import (
+    SHORT_MODEL_TO_ENUM,
     RoborockCategory,
     RoborockDockErrorCode,
     RoborockDockTypeCode,
@@ -14,7 +27,7 @@ from roborock.code_mappings import (
     RoborockMopModeS7,
     RoborockStateCode,
 )
-from roborock.containers import RoborockBase
+from roborock.containers import CustomStatus, RoborockBase
 
 from .mock_data import (
     CLEAN_RECORD,
@@ -325,3 +338,85 @@ def test_no_value():
     assert s.dock_type == RoborockDockTypeCode.unknown
     assert -9999 not in RoborockDockTypeCode.keys()
     assert "missing" not in RoborockDockTypeCode.values()
+
+
+def test_status_s7():
+    model = "roborock.vacuum.a15"
+    product_nickname = SHORT_MODEL_TO_ENUM.get(model.split(".")[-1])
+    device_features = DeviceFeatures.from_feature_flags(
+        new_feature_info=636084721975295,
+        new_feature_info_str="0000000000002000",
+        feature_info=[111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 122, 123, 124, 125],
+        product_nickname=product_nickname,
+    )
+
+    status_type = CustomStatus(device_features, "US")
+    status = status_type.from_dict(STATUS)
+    print(status.supported_fan_powers)
+    assert set(status.supported_fan_powers) == {
+        VacuumModes.QUIET,
+        VacuumModes.BALANCED,
+        VacuumModes.TURBO,
+        VacuumModes.MAX,
+        VacuumModes.OFF,
+        VacuumModes.CUSTOMIZED,
+    }
+    assert status.water_box_mode == 203
+    assert status.water_box_mode_name == WaterModes.INTENSE.value
+    assert set(status.supported_water_modes) == {
+        WaterModes.MILD,
+        WaterModes.STANDARD,
+        WaterModes.INTENSE,
+        WaterModes.CUSTOMIZED,
+        WaterModes.OFF,
+    }
+    assert set(status.supported_mop_modes) == {
+        CleanRoutes.STANDARD,
+        CleanRoutes.DEEP,
+        CleanRoutes.DEEP_PLUS,
+        CleanRoutes.CUSTOMIZED,
+    }
+
+
+def test_status_qrevo_maxv():
+    model = "roborock.vacuum.a87"
+    product_nickname = SHORT_MODEL_TO_ENUM.get(model.split(".")[-1])
+    device_features = DeviceFeatures.from_feature_flags(
+        new_feature_info=4499197267967999,
+        new_feature_info_str="508A977F7EFEFFFF",
+        feature_info=[111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125],
+        product_nickname=product_nickname,
+    )
+
+    status_type = CustomStatus(device_features, "US")
+    status = status_type.from_dict(STATUS)
+    print(status.supported_fan_powers)
+    assert set(status.supported_fan_powers) == {
+        VacuumModes.QUIET,
+        VacuumModes.BALANCED,
+        VacuumModes.TURBO,
+        VacuumModes.MAX,
+        VacuumModes.MAX_PLUS,
+        VacuumModes.OFF,
+        VacuumModes.CUSTOMIZED,
+        VacuumModes.SMART_MODE,
+    }
+    assert status.water_box_mode == 203
+    assert status.water_box_mode_name == WaterModes.HIGH.value
+    assert set(status.supported_water_modes) == {
+        WaterModes.LOW,
+        WaterModes.MEDIUM,
+        WaterModes.HIGH,
+        WaterModes.CUSTOM,
+        WaterModes.CUSTOMIZED,
+        WaterModes.SMART_MODE,
+        WaterModes.OFF,
+    }
+    assert set(status.supported_mop_modes) == {
+        CleanRoutes.FAST,
+        CleanRoutes.STANDARD,
+        CleanRoutes.DEEP,
+        CleanRoutes.DEEP_PLUS,
+        CleanRoutes.CUSTOMIZED,
+        CleanRoutes.SMART_MODE,
+    }
