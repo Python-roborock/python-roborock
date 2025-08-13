@@ -69,7 +69,7 @@ class MqttChannel(Channel):
                 return
             for message in messages:
                 _LOGGER.debug("Received message: %s", message)
-                if message.version == b"V1":
+                if message.version == b"1.0":
                     asyncio.create_task(self._resolve_future_with_lock(message))
                 try:
                     callback(message)
