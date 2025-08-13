@@ -69,7 +69,8 @@ class MqttChannel(Channel):
                 return
             for message in messages:
                 _LOGGER.debug("Received message: %s", message)
-                asyncio.create_task(self._resolve_future_with_lock(message))
+                if message.version == b"V1":
+                    asyncio.create_task(self._resolve_future_with_lock(message))
                 try:
                     callback(message)
                 except Exception as e:
@@ -94,6 +95,15 @@ class MqttChannel(Channel):
                 future.set_result(message)
             else:
                 _LOGGER.debug("Received message with no waiting handler: request_id=%s", request_id)
+
+    async def send_message_no_wait(self, message: RoborockMessage) -> None:
+        """Send a command message without waiting for a response."""
+        try:
+            encoded_msg = self._encoder(message)
+            await self._mqtt_session.publish(self._publish_topic, encoded_msg)
+        except Exception:
+            logging.exception("Uncaught error sending command")
+            raise
 
     async def send_message(self, message: RoborockMessage, timeout: float = 10.0) -> RoborockMessage:
         """Send a command message and wait for the response message.

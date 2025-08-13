@@ -23,7 +23,7 @@ ParamsType = list | dict | int | None
 
 def encode_mqtt_payload(dps: int, command: CommandType, params: ParamsType) -> RoborockMessage:
     """Encode payload for B01 commands over MQTT."""
-    dps_data = {"dps": {dps: {"method": command, "params": params or []}}}
+    dps_data = {"dps": {dps: {"method": str(command), "msgId": "1751755654575", "params": params or []}}}
     payload = pad(json.dumps(dps_data).encode("utf-8"), AES.block_size)
     return RoborockMessage(
         protocol=RoborockMessageProtocol.RPC_REQUEST,
