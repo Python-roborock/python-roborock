@@ -8,7 +8,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import timezone
 from enum import Enum
 from functools import cached_property
-from typing import Any, NamedTuple, get_args, get_origin
+from typing import Any, ClassVar, NamedTuple, get_args, get_origin
 
 from .code_mappings import (
     SHORT_MODEL_TO_ENUM,
@@ -110,6 +110,11 @@ def _decamelize(s: str):
 @dataclass
 class RoborockBase:
     _ignore_keys = []  # type: ignore
+    _registry: ClassVar[dict[str, type["RoborockBase"]]] = {}
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        RoborockBase._registry[cls.__name__] = cls
 
     @staticmethod
     def _convert_to_class_obj(class_type: type, value):
