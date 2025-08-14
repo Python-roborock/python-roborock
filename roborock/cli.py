@@ -1,16 +1,17 @@
 import asyncio
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
 import click
+import yaml
 from pyshark import FileCapture  # type: ignore
 from pyshark.capture.live_capture import LiveCapture, UnknownInterfaceException  # type: ignore
 from pyshark.packet.packet import Packet  # type: ignore
 
-from roborock import RoborockException
+from roborock import SHORT_MODEL_TO_ENUM, DeviceFeatures, RoborockCommand, RoborockException
 from roborock.containers import DeviceData, HomeData, HomeDataProduct, LoginData, NetworkInfo, RoborockBase, UserData
 from roborock.devices.cache import Cache, CacheData
 from roborock.devices.device_manager import create_device_manager, create_home_data_api
@@ -325,6 +326,159 @@ async def parser(_, local_key, device_ip, file):
         )
 
 
+@click.command()
+@click.pass_context
+@run_sync()
+async def get_device_info(ctx: click.Context):
+    """
+    Connects to devices and prints their feature information in YAML format.
+    """
+    click.echo("Discovering devices...")
+    context: RoborockContext = await _load_and_discover(ctx)
+    cache_data = context.cache_data()
+
+    home_data = cache_data.home_data
+
+    all_devices = home_data.devices + home_data.received_devices
+    if not all_devices:
+        click.echo("No devices found.")
+        return
+
+    click.echo(f"Found {len(all_devices)} devices. Fetching data...")
+
+    all_products_data = {}
+
+    for device in all_devices:
+        click.echo(f"  - Processing {device.name} ({device.duid})")
+        product_info = home_data.product_map[device.product_id]
+        device_data = DeviceData(device, product_info.model)
+        mqtt_client = RoborockMqttClientV1(cache_data.user_data, device_data)
+
+        try:
+            init_status_result = await mqtt_client.send_command(
+                RoborockCommand.APP_GET_INIT_STATUS,
+            )
+            product_nickname = SHORT_MODEL_TO_ENUM.get(product_info.model.split(".")[-1]).name
+            current_product_data = {
+                "Protocol Version": device.pv,
+                "Product Nickname": product_nickname,
+                "New Feature Info": init_status_result.get("new_feature_info"),
+                "New Feature Info Str": init_status_result.get("new_feature_info_str"),
+                "Feature Info": init_status_result.get("feature_info"),
+            }
+
+            all_products_data[product_info.model] = current_product_data
+
+        except Exception as e:
+            click.echo(f"    - Error processing device {device.name}: {e}", err=True)
+        finally:
+            await mqtt_client.async_release()
+
+    if all_products_data:
+        click.echo("\n--- Device Information (copy to your YAML file) ---\n")
+        # Use yaml.dump to print in a clean, copy-paste friendly format
+        click.echo(yaml.dump(all_products_data, sort_keys=False))
+
+
+@click.command()
+@click.option("--data-file", default="../device_info.yaml", help="Path to the YAML file with device feature data.")
+@click.option("--output-file", default="../SUPPORTED_FEATURES.md", help="Path to the output markdown file.")
+def update_docs(data_file: str, output_file: str):
+    """
+    Generates a markdown file by processing raw feature data from a YAML file.
+    """
+    data_path = Path(data_file)
+    output_path = Path(output_file)
+
+    if not data_path.exists():
+        click.echo(f"Error: Data file not found at '{data_path}'", err=True)
+        return
+
+    click.echo(f"Loading data from {data_path}...")
+    with open(data_path, encoding="utf-8") as f:
+        product_data_from_yaml = yaml.safe_load(f)
+
+    if not product_data_from_yaml:
+        click.echo("No data found in YAML file. Exiting.", err=True)
+        return
+
+    product_features_map = {}
+    all_feature_names = set()
+
+    # Process the raw data from YAML to build the feature map
+    for model, data in product_data_from_yaml.items():
+        # Reconstruct the DeviceFeatures object from the raw data in the YAML file
+        device_features = DeviceFeatures.from_feature_flags(
+            new_feature_info=data.get("New Feature Info"),
+            new_feature_info_str=data.get("New Feature Info Str"),
+            feature_info=data.get("Feature Info"),
+            product_nickname=data.get("Product Nickname"),
+        )
+        features_dict = asdict(device_features)
+
+        # This dictionary will hold the final data for the markdown table row
+        current_product_data = {
+            "Product Nickname": data.get("Product Nickname", ""),
+            "Protocol Version": data.get("Protocol Version", ""),
+            "New Feature Info": data.get("New Feature Info", ""),
+            "New Feature Info Str": data.get("New Feature Info Str", ""),
+        }
+
+        # Populate features from the calculated DeviceFeatures object
+        for feature, is_supported in features_dict.items():
+            all_feature_names.add(feature)
+            if is_supported:
+                current_product_data[feature] = "X"
+
+        supported_codes = data.get("Feature Info", [])
+        if isinstance(supported_codes, list):
+            for code in supported_codes:
+                feature_name = str(code)
+                all_feature_names.add(feature_name)
+                current_product_data[feature_name] = "X"
+
+        product_features_map[model] = current_product_data
+
+    # --- Helper function to write the markdown table ---
+    def write_markdown_table(product_features: dict[str, dict[str, any]], all_features: set[str]):
+        """Writes the data into a markdown table (products as columns)."""
+        sorted_products = sorted(product_features.keys())
+        special_rows = [
+            "Product Nickname",
+            "Protocol Version",
+            "New Feature Info",
+            "New Feature Info Str",
+        ]
+        # Regular features are the remaining keys, sorted alphabetically
+        # We filter out the special rows to avoid duplicating them.
+        sorted_features = sorted(list(all_features - set(special_rows)))
+
+        header = ["Feature"] + sorted_products
+
+        click.echo(f"Writing documentation to {output_path}...")
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write("| " + " | ".join(header) + " |\n")
+            f.write("|" + "---|" * len(header) + "\n")
+
+            # Write the special metadata rows first
+            for row_name in special_rows:
+                row_values = [str(product_features[p].get(row_name, "")) for p in sorted_products]
+                f.write("| " + " | ".join([row_name] + row_values) + " |\n")
+
+            # Write the feature rows
+            for feature in sorted_features:
+                # Use backticks for feature names that are just numbers (from the list)
+                display_feature = f"`{feature}`"
+                feature_row = [display_feature]
+                for product in sorted_products:
+                    # Use .get() to place an 'X' or an empty string
+                    feature_row.append(product_features[product].get(feature, ""))
+                f.write("| " + " | ".join(feature_row) + " |\n")
+
+    write_markdown_table(product_features_map, all_feature_names)
+    click.echo("Done.")
+
+
 cli.add_command(login)
 cli.add_command(discover)
 cli.add_command(list_devices)
@@ -334,6 +488,8 @@ cli.add_command(status)
 cli.add_command(command)
 cli.add_command(parser)
 cli.add_command(session)
+cli.add_command(get_device_info)
+cli.add_command(update_docs)
 
 
 def main():
