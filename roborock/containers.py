@@ -33,6 +33,7 @@ from .code_mappings import (
     RoborockFanSpeedSaros10R,
     RoborockFinishReason,
     RoborockInCleaning,
+    RoborockModeEnum,
     RoborockMopIntensityCode,
     RoborockMopIntensityP10,
     RoborockMopIntensityQ7Max,
@@ -120,6 +121,8 @@ class RoborockBase:
             return {k: RoborockBase._convert_to_class_obj(value_type, v) for k, v in value.items()}
         if issubclass(class_type, RoborockBase):
             return class_type.from_dict(value)
+        if issubclass(class_type, RoborockModeEnum):
+            return class_type.from_code(value)
         if class_type is Any:
             return value
         return class_type(value)  # type: ignore[call-arg]

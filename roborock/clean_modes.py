@@ -1,21 +1,8 @@
 from __future__ import annotations
 
-from enum import StrEnum
-
 from roborock import DeviceFeatures
 
-
-class RoborockModeEnum(StrEnum):
-    """A custom StrEnum that also stores an integer code for each member."""
-
-    code: int
-
-    def __new__(cls, value: str, code: int) -> RoborockModeEnum:
-        """Creates a new enum member."""
-        member = str.__new__(cls, value)
-        member._value_ = value
-        member.code = code
-        return member
+from .code_mappings import RoborockModeEnum
 
 
 class CleanModes(RoborockModeEnum):
