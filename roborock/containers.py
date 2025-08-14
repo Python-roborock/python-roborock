@@ -8,17 +8,8 @@ from dataclasses import asdict, dataclass, field
 from datetime import timezone
 from enum import Enum
 from functools import cached_property
-from typing import Any, NamedTuple, TypeVar, get_args, get_origin
+from typing import Any, NamedTuple, get_args, get_origin
 
-from .clean_modes import (
-    CleanRoutes,
-    RoborockModeEnum,
-    VacuumModes,
-    WaterModes,
-    get_clean_modes,
-    get_clean_routes,
-    get_water_modes,
-)
 from .code_mappings import (
     SHORT_MODEL_TO_ENUM,
     RoborockCategory,
@@ -28,6 +19,7 @@ from .code_mappings import (
     RoborockDockTypeCode,
     RoborockDockWashTowelModeCode,
     RoborockErrorCode,
+    RoborockFanPowerCode,
     RoborockFanSpeedP10,
     RoborockFanSpeedQ7Max,
     RoborockFanSpeedQRevoCurv,
@@ -41,6 +33,7 @@ from .code_mappings import (
     RoborockFanSpeedSaros10R,
     RoborockFinishReason,
     RoborockInCleaning,
+    RoborockMopIntensityCode,
     RoborockMopIntensityP10,
     RoborockMopIntensityQ7Max,
     RoborockMopIntensityQRevoCurv,
@@ -52,6 +45,7 @@ from .code_mappings import (
     RoborockMopIntensityS8MaxVUltra,
     RoborockMopIntensitySaros10,
     RoborockMopIntensitySaros10R,
+    RoborockMopModeCode,
     RoborockMopModeQRevoCurv,
     RoborockMopModeQRevoMaster,
     RoborockMopModeQRevoMaxV,
@@ -96,9 +90,9 @@ from .const import (
     ROBOROCK_G20S_Ultra,
 )
 from .device_features import DeviceFeatures
+from .exceptions import RoborockException
 
 _LOGGER = logging.getLogger(__name__)
-T = TypeVar("T", bound="RoborockModeEnum")
 
 
 def _camelize(s: str):
@@ -359,12 +353,12 @@ class Status(RoborockBase):
     back_type: int | None = None
     wash_phase: int | None = None
     wash_ready: int | None = None
-    fan_power: int | None = None
+    fan_power: RoborockFanPowerCode | None = None
     dnd_enabled: int | None = None
     map_status: int | None = None
     is_locating: int | None = None
     lock_status: int | None = None
-    water_box_mode: int | None = None
+    water_box_mode: RoborockMopIntensityCode | None = None
     water_box_carriage_status: int | None = None
     mop_forbidden_enable: int | None = None
     camera_status: int | None = None
@@ -377,7 +371,7 @@ class Status(RoborockBase):
     dust_collection_status: int | None = None
     auto_dust_collection: int | None = None
     avoid_count: int | None = None
-    mop_mode: int | None = None
+    mop_mode: RoborockMopModeCode | None = None
     debug_mode: int | None = None
     collision_avoid_status: int | None = None
     switch_map_mode: int | None = None
@@ -398,11 +392,9 @@ class Status(RoborockBase):
     error_code_name: str | None = None
     state_name: str | None = None
     water_box_mode_name: str | None = None
+    fan_power_options: list[str] = field(default_factory=list)
     fan_power_name: str | None = None
     mop_mode_name: str | None = None
-    supported_fan_powers: list[VacuumModes] = field(default_factory=list, init=False, repr=False)
-    supported_water_modes: list[WaterModes] = field(default_factory=list, init=False, repr=False)
-    supported_mop_modes: list[CleanRoutes] = field(default_factory=list, init=False, repr=False)
 
     def __post_init__(self) -> None:
         self.square_meter_clean_area = round(self.clean_area / 1000000, 1) if self.clean_area is not None else None
@@ -410,52 +402,28 @@ class Status(RoborockBase):
             self.error_code_name = self.error_code.name
         if self.state is not None:
             self.state_name = self.state.name
-
-    @staticmethod
-    def _find_enum_by_code(code: int | None, enums: list[T]) -> T | None:
-        """Helper to find an enum member in a list by its code."""
-        if code is None:
-            return None
-        for enum_member in enums:
-            if enum_member.code == code:
-                return enum_member
-        return None
-
-    @staticmethod
-    def _find_code_by_name(name: str, enums: list[T]) -> int | None:
-        """Helper to find an enum member in a list by its code."""
-        for enum_member in enums:
-            if enum_member.value == name:
-                return enum_member.code
-        return None
-
-    def configure(self, features: DeviceFeatures, region: str) -> None:
-        """
-        Configures the status object with device-specific capabilities and processes the data.
-        This method should be called immediately after creating the Status object.
-        """
-        self.supported_fan_powers = get_clean_modes(features)
-        self.supported_water_modes = get_water_modes(features)
-        self.supported_mop_modes = get_clean_routes(features, region)
-        fan_power_enum = self._find_enum_by_code(self.fan_power, self.supported_fan_powers)
-        self.fan_power_name = fan_power_enum.value if fan_power_enum else None
-
-        # Resolve Water Mode
-        water_box_mode_enum = self._find_enum_by_code(self.water_box_mode, self.supported_water_modes)
-        self.water_box_mode_name = water_box_mode_enum.value if water_box_mode_enum else None
-
-        # Resolve Mop Mode (Clean Route)
-        mop_mode_enum = self._find_enum_by_code(self.mop_mode, self.supported_mop_modes)
-        self.mop_mode_name = mop_mode_enum.value if mop_mode_enum else None
+        if self.water_box_mode is not None:
+            self.water_box_mode_name = self.water_box_mode.name
+        if self.fan_power is not None:
+            self.fan_power_options = self.fan_power.keys()
+            self.fan_power_name = self.fan_power.name
+        if self.mop_mode is not None:
+            self.mop_mode_name = self.mop_mode.name
 
     def get_fan_speed_code(self, fan_speed: str) -> int:
-        return self._find_code_by_name(fan_speed, self.supported_fan_powers)
+        if self.fan_power is None:
+            raise RoborockException("Attempted to get fan speed before status has been updated.")
+        return self.fan_power.as_dict().get(fan_speed)
 
     def get_mop_intensity_code(self, mop_intensity: str) -> int:
-        return self._find_code_by_name(mop_intensity, self.supported_water_modes)
+        if self.water_box_mode is None:
+            raise RoborockException("Attempted to get mop_intensity before status has been updated.")
+        return self.water_box_mode.as_dict().get(mop_intensity)
 
     def get_mop_mode_code(self, mop_mode: str) -> int:
-        return self._find_code_by_name(mop_mode, self.supported_mop_modes)
+        if self.mop_mode is None:
+            raise RoborockException("Attempted to get mop_mode before status has been updated.")
+        return self.mop_mode.as_dict().get(mop_mode)
 
     @property
     def current_map(self) -> int | None:
@@ -463,33 +431,6 @@ class Status(RoborockBase):
         if self.map_status is not None:
             return (self.map_status - 3) // 4
         return None
-
-
-class CustomStatus:
-    """A factory for creating fully configured Status objects for a specific device."""
-
-    def __init__(self, features: DeviceFeatures, region: str):
-        """
-        Initializes the factory with the device-specific configuration.
-
-        Args:
-            features: The DeviceFeatures object for the target device.
-            region: The region code for the device (e.g., "US", "CN").
-        """
-        self._features = features
-        self._region = region
-
-    def from_dict(self, data: dict) -> Status:
-        """
-        Creates a Status instance from a dictionary and immediately configures it.
-        """
-        # Step 1: Create the base Status object from the raw API data.
-        instance = Status.from_dict(data)
-
-        # Step 2: Configure it with the stored features and region.
-        instance.configure(features=self._features, region=self._region)
-
-        return instance
 
 
 @dataclass
@@ -789,7 +730,6 @@ class DeviceData(RoborockBase):
     device: HomeDataDevice
     model: str
     host: str | None = None
-    region: str = "us"
     product_nickname: RoborockProductNickname | None = None
     device_features: DeviceFeatures | None = None
 

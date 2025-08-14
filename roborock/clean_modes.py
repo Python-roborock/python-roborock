@@ -95,19 +95,6 @@ def get_clean_modes(features: DeviceFeatures) -> list[VacuumModes]:
         modes.append(VacuumModes.SMART_MODE)
     if features.is_customized_clean_supported:
         modes.append(VacuumModes.CUSTOMIZED)
-
-def get_clean_modes(features: DeviceFeatures) -> list[CleanModes]:
-    """Get the valid clean modes for the device - also known as 'fan power' or 'suction mode'"""
-    modes = [CleanModes.QUIET, CleanModes.BALANCED, CleanModes.TURBO, CleanModes.MAX]
-    if features.is_max_plus_mode_supported or features.is_none_pure_clean_mop_with_max_plus:
-        # If the vacuum has max plus mode supported
-        modes.append(CleanModes.MAX_PLUS)
-    if features.is_pure_clean_mop_supported:
-        # If the vacuum is capable of 'pure mop clean' aka no vacuum
-        modes.append(CleanModes.OFF)
-    else:
-        # If not, we can add gentle
-        modes.append(CleanModes.GENTLE)
     return modes
 
 
