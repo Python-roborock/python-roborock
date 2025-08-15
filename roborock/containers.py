@@ -727,8 +727,6 @@ class NetworkInfo(RoborockBase):
 
 @dataclass
 class AppInitStatusLocalInfo(RoborockBase):
-    """"""
-
     location: str
     bom: str | None = None
     featureset: int | None = None
@@ -741,8 +739,6 @@ class AppInitStatusLocalInfo(RoborockBase):
 
 @dataclass
 class AppInitStatus(RoborockBase):
-    """"""
-
     local_info: AppInitStatusLocalInfo
     feature_info: list[int]
     new_feature_info: int
