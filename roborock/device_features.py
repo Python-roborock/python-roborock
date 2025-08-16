@@ -4,7 +4,7 @@ from dataclasses import dataclass, field, fields
 from enum import IntEnum, StrEnum
 from typing import Any
 
-from roborock import RoborockProductNickname
+from .code_mappings import RoborockProductNickname
 
 
 class NewFeatureStrBit(IntEnum):

@@ -162,8 +162,8 @@ async def create_device_manager(
                     case _:
                         raise NotImplementedError(f"Device {device.name} has unsupported category {product.category}")
             case DeviceVersion.B01:
-                mqtt_channel = create_mqtt_channel(user_data, mqtt_params, mqtt_session, device)
-                traits.append(B01PropsApi(mqtt_channel))
+                channel = create_mqtt_channel(user_data, mqtt_params, mqtt_session, device)
+                traits.append(B01PropsApi(channel))
             case _:
                 raise NotImplementedError(f"Device {device.name} has unsupported version {device.pv}")
         return RoborockDevice(device, channel, traits)
