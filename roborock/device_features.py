@@ -116,14 +116,14 @@ DUAL_LINE_CAMERA_FEATURES = [
 NEW_DEFAULT_FEATURES = [ProductFeatures.REMOTE_BACK, ProductFeatures.CLEANMODE_MAXPLUS]
 
 
-PEARL_FEATURES = NEW_DEFAULT_FEATURES + SINGLE_LINE_CAMERA_FEATURES + [ProductFeatures.MOP_SPIN_MODULE]
+PEARL_FEATURES = SINGLE_LINE_CAMERA_FEATURES + [ProductFeatures.CLEANMODE_MAXPLUS, ProductFeatures.MOP_SPIN_MODULE]
 PEARL_PLUS_FEATURES = NEW_DEFAULT_FEATURES + RGB_CAMERA_FEATURES + [ProductFeatures.MOP_SPIN_MODULE]
 ULTRON_FEATURES = NEW_DEFAULT_FEATURES + DUAL_LINE_CAMERA_FEATURES + [ProductFeatures.MOP_SHAKE_MODULE]
 ULTRONSV_FEATURES = NEW_DEFAULT_FEATURES + RGB_CAMERA_FEATURES + [ProductFeatures.MOP_SHAKE_MODULE]
-TANOSS_FEATURES = NEW_DEFAULT_FEATURES + [ProductFeatures.MOP_SHAKE_MODULE]
-TOPAZSPOWER_FEATURES = NEW_DEFAULT_FEATURES + [ProductFeatures.MOP_SHAKE_MODULE]
+TANOSS_FEATURES = [ProductFeatures.REMOTE_BACK, ProductFeatures.MOP_SHAKE_MODULE]
+TOPAZSPOWER_FEATURES = [ProductFeatures.CLEANMODE_MAXPLUS, ProductFeatures.MOP_SHAKE_MODULE]
 
-product_feature_map = {
+product_feature_map: dict[RoborockProductNickname, list[ProductFeatures]] = {
     RoborockProductNickname.PEARL: PEARL_FEATURES,
     RoborockProductNickname.PEARLS: PEARL_FEATURES,
     RoborockProductNickname.PEARLPLUS: PEARL_PLUS_FEATURES,
@@ -139,7 +139,8 @@ product_feature_map = {
     RoborockProductNickname.PEARLSLITE: PEARL_FEATURES,
     RoborockProductNickname.PEARLE: PEARL_FEATURES,
     RoborockProductNickname.PEARLELITE: PEARL_FEATURES,
-    RoborockProductNickname.VIVIANC: PEARL_PLUS_FEATURES,
+    RoborockProductNickname.VIVIANC: [ProductFeatures.CLEANMODE_MAXPLUS, ProductFeatures.MOP_SPIN_MODULE]
+    + SINGLE_LINE_CAMERA_FEATURES,
     RoborockProductNickname.CORALPRO: PEARL_PLUS_FEATURES,
     RoborockProductNickname.ULTRONLITE: SINGLE_LINE_CAMERA_FEATURES
     + [ProductFeatures.CLEANMODE_NONE_PURECLEANMOP_WITH_MAXPLUS, ProductFeatures.MOP_ELECTRONIC_MODULE],
@@ -150,7 +151,7 @@ product_feature_map = {
     ],
     RoborockProductNickname.ULTRONSPLUS: ULTRON_FEATURES,
     RoborockProductNickname.VERDELITE: ULTRONSV_FEATURES,
-    RoborockProductNickname.TOPAZS: NEW_DEFAULT_FEATURES + [ProductFeatures.MOP_SHAKE_MODULE],
+    RoborockProductNickname.TOPAZS: [ProductFeatures.REMOTE_BACK, ProductFeatures.MOP_SHAKE_MODULE],
     RoborockProductNickname.TOPAZSPLUS: NEW_DEFAULT_FEATURES
     + DUAL_LINE_CAMERA_FEATURES
     + [ProductFeatures.MOP_SHAKE_MODULE],
@@ -172,6 +173,51 @@ product_feature_map = {
     RoborockProductNickname.RUBYSE: [],
     RoborockProductNickname.RUBYSLITE: [ProductFeatures.MOP_ELECTRONIC_MODULE],
 }
+
+
+def update_features():
+    """Update the feature mapping."""
+    # Their firmware describes what doesn't have these features - not which one does.
+    # Matching that for ease of future updates.
+    PRODUCTS_WITHOUT_CUSTOM_CLEAN = {
+        RoborockProductNickname.TANOS,
+        RoborockProductNickname.RUBYPLUS,
+        RoborockProductNickname.RUBYSC,
+        RoborockProductNickname.RUBYSE,
+    }
+    PRODUCTS_WITHOUT_DEFAULT_3D_MAP = {
+        RoborockProductNickname.TANOS,
+        RoborockProductNickname.TANOSSPLUS,
+        RoborockProductNickname.TANOSE,
+        RoborockProductNickname.TANOSV,
+        RoborockProductNickname.RUBYPLUS,
+        RoborockProductNickname.RUBYSC,
+        RoborockProductNickname.RUBYSE,
+    }
+    PRODUCTS_WITHOUT_PURE_CLEAN_MOP = {
+        RoborockProductNickname.TANOS,
+        RoborockProductNickname.TANOSE,
+        RoborockProductNickname.TANOSV,
+        RoborockProductNickname.TANOSSLITE,
+        RoborockProductNickname.TANOSSE,
+        RoborockProductNickname.TANOSSC,
+        RoborockProductNickname.ULTRONLITE,
+        RoborockProductNickname.ULTRONE,
+        RoborockProductNickname.RUBYPLUS,
+        RoborockProductNickname.RUBYSLITE,
+        RoborockProductNickname.RUBYSC,
+        RoborockProductNickname.RUBYSE,
+    }
+    for product, feature_list in product_feature_map.items():
+        if product not in PRODUCTS_WITHOUT_CUSTOM_CLEAN:
+            feature_list.append(ProductFeatures.DEFAULT_CLEANMODECUSTOM)
+        if product not in PRODUCTS_WITHOUT_DEFAULT_3D_MAP:
+            feature_list.append(ProductFeatures.DEFAULT_MAP3D)
+        if product not in PRODUCTS_WITHOUT_PURE_CLEAN_MOP:
+            feature_list.append(ProductFeatures.CLEANMODE_PURECLEANMOP)
+
+
+update_features()
 
 
 @dataclass
@@ -424,6 +470,9 @@ class DeviceFeatures:
         metadata={"product_features": [ProductFeatures.MOP_SHAKE_MODULE, ProductFeatures.MOP_SPIN_MODULE]}
     )
     is_mop_shake_module_supported: bool = field(metadata={"product_features": [ProductFeatures.MOP_SHAKE_MODULE]})
+    is_customized_clean_supported: bool = field(
+        metadata={"product_features": [ProductFeatures.MOP_SHAKE_MODULE, ProductFeatures.MOP_SPIN_MODULE]}
+    )
 
     @classmethod
     def from_feature_flags(
