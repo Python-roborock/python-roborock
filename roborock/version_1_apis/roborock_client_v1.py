@@ -1,13 +1,13 @@
 import asyncio
 import dataclasses
 import json
-import struct
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Coroutine
 from typing import Any, TypeVar, final
 
 from roborock import (
+    AppInitStatus,
     DeviceProp,
     DockSummary,
     RoborockCommand,
@@ -45,7 +45,7 @@ from roborock.containers import (
     ValleyElectricityTimer,
     WashTowelMode,
 )
-from roborock.protocol import Utils
+from roborock.protocols.v1_protocol import MapResponse, SecurityData, create_map_response_decoder
 from roborock.roborock_message import (
     ROBOROCK_DATA_CONSUMABLE_PROTOCOL,
     ROBOROCK_DATA_STATUS_PROTOCOL,
@@ -150,10 +150,15 @@ class RoborockClientV1(RoborockClient, ABC):
     """Roborock client base class for version 1 devices."""
 
     _listeners: dict[str, ListenerModel] = {}
+    _map_response_decoder: Callable[[RoborockMessage], MapResponse] | None = None
 
-    def __init__(self, device_info: DeviceData, endpoint: str):
+    def __init__(self, device_info: DeviceData, security_data: SecurityData | None) -> None:
         """Initializes the Roborock client."""
         super().__init__(device_info)
+        if security_data is not None:
+            self._diagnostic_data.update({"misc_info": security_data.to_diagnostic_data()})
+            self._map_response_decoder = create_map_response_decoder(security_data)
+
         self._status_type: type[Status] = ModelStatus.get(device_info.model, S7MaxVStatus)
         self.cache: dict[CacheableAttribute, AttributeCache] = {
             cacheable_attribute: AttributeCache(attr, self._send_command)
@@ -162,7 +167,6 @@ class RoborockClientV1(RoborockClient, ABC):
         if device_info.device.duid not in self._listeners:
             self._listeners[device_info.device.duid] = ListenerModel({}, self.cache)
         self.listener_model = self._listeners[device_info.device.duid]
-        self._endpoint = endpoint
 
     async def async_release(self) -> None:
         await super().async_release()
@@ -339,6 +343,10 @@ class RoborockClientV1(RoborockClient, ABC):
         """Load the map into the vacuum's memory."""
         await self.send_command(RoborockCommand.LOAD_MULTI_MAP, [map_flag])
 
+    async def get_app_init_status(self) -> AppInitStatus:
+        """Gets the app init status (needed for determining vacuum capabilities)."""
+        return await self.send_command(RoborockCommand.APP_GET_INIT_STATUS, return_type=AppInitStatus)
+
     @abstractmethod
     async def _send_command(
         self,
@@ -429,21 +437,15 @@ class RoborockClientV1(RoborockClient, ABC):
                             dps = {data_point_number: data_point}
                             self._logger.debug(f"Got unknown data point {dps}")
                 elif data.payload and protocol == RoborockMessageProtocol.MAP_RESPONSE:
-                    payload = data.payload[0:24]
-                    [endpoint, _, request_id, _] = struct.unpack("<8s8sH6s", payload)
-                    if endpoint.decode().startswith(self._endpoint):
-                        try:
-                            decrypted = Utils.decrypt_cbc(data.payload[24:], self._nonce)
-                        except ValueError as err:
-                            raise RoborockException(f"Failed to decode {data.payload!r} for {data.protocol}") from err
-                        decompressed = Utils.decompress(decrypted)
-                        queue = self._waiting_queue.get(request_id)
+                    if self._map_response_decoder is not None:
+                        map_response = self._map_response_decoder(data)
+                        queue = self._waiting_queue.get(map_response.request_id)
                         if queue:
-                            if isinstance(decompressed, list):
-                                decompressed = decompressed[0]
-                            queue.set_result(decompressed)
+                            queue.set_result(map_response.data)
                         else:
-                            self._logger.debug("Received response for unknown request id %s", request_id)
+                            self._logger.debug(
+                                "Received unsolicited map response for request_id %s", map_response.request_id
+                            )
                 else:
                     queue = self._waiting_queue.get(data.seq)
                     if queue:

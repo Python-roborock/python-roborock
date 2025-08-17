@@ -11,7 +11,6 @@ def test_roborock_message() -> None:
         message1 = RoborockMessage(
             protocol=RoborockMessageProtocol.RPC_REQUEST,
             payload=json.dumps({"dps": {"101": json.dumps({"id": 4321})}}).encode(),
-            message_retry=None,
         )
         assert message1.get_request_id() == 4321
 
@@ -19,7 +18,6 @@ def test_roborock_message() -> None:
         message2 = RoborockMessage(
             protocol=RoborockMessageProtocol.RPC_RESPONSE,
             payload=json.dumps({"dps": {"94": json.dumps({"id": 444}), "102": json.dumps({"id": 333})}}).encode(),
-            message_retry=None,
         )
         assert message2.get_request_id() == 333
 

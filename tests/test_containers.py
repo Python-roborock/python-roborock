@@ -22,6 +22,7 @@ from .mock_data import (
     CONSUMABLE,
     DND_TIMER,
     HOME_DATA_RAW,
+    K_VALUE,
     LOCAL_KEY,
     PRODUCT_ID,
     STATUS,
@@ -130,7 +131,7 @@ def test_user_data():
     assert ud.rriot.u == "user123"
     assert ud.rriot.s == "pass123"
     assert ud.rriot.h == "unknown123"
-    assert ud.rriot.k == "domain123"
+    assert ud.rriot.k == K_VALUE
     assert ud.rriot.r.r == "US"
     assert ud.rriot.r.a == "https://api-us.roborock.com"
     assert ud.rriot.r.m == "tcp://mqtt-us.roborock.com:8883"

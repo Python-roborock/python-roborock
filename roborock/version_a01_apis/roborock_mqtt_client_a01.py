@@ -39,7 +39,7 @@ class RoborockMqttClientA01(RoborockMqttClient, RoborockClientA01):
         self.queue_timeout = queue_timeout
         self._logger = RoborockLoggerAdapter(device_info.device.name, _LOGGER)
 
-    async def send_message(self, roborock_message: RoborockMessage):
+    async def _send_message(self, roborock_message: RoborockMessage):
         await self.validate_connection()
         response_protocol = RoborockMessageProtocol.RPC_RESPONSE
 
@@ -67,11 +67,11 @@ class RoborockMqttClientA01(RoborockMqttClient, RoborockClientA01):
         message = encode_mqtt_payload(
             {RoborockDyadDataProtocol.ID_QUERY: str([int(protocol) for protocol in dyad_data_protocols])}
         )
-        return await self.send_message(message)
+        return await self._send_message(message)
 
     async def set_value(
         self, protocol: RoborockDyadDataProtocol | RoborockZeoProtocol, value: typing.Any
     ) -> dict[int, typing.Any]:
         """Set a value for a specific protocol on the A01 device."""
         message = encode_mqtt_payload({protocol: value})
-        return await self.send_message(message)
+        return await self._send_message(message)

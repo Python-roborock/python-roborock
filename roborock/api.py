@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-import base64
 import logging
-import secrets
 import time
 from abc import ABC, abstractmethod
 from typing import Any
@@ -37,14 +35,11 @@ class RoborockClient(ABC):
     def __init__(self, device_info: DeviceData) -> None:
         """Initialize RoborockClient."""
         self.device_info = device_info
-        self._nonce = secrets.token_bytes(16)
         self._waiting_queue: dict[int, RoborockFuture] = {}
         self._last_device_msg_in = time.monotonic()
         self._last_disconnection = time.monotonic()
         self.keep_alive = KEEPALIVE
-        self._diagnostic_data: dict[str, dict[str, Any]] = {
-            "misc_info": {"Nonce": base64.b64encode(self._nonce).decode("utf-8")}
-        }
+        self._diagnostic_data: dict[str, dict[str, Any]] = {}
         self.is_available: bool = True
 
     async def async_release(self) -> None:
@@ -116,7 +111,3 @@ class RoborockClient(ABC):
             request_id = new_id
         self._waiting_queue[request_id] = queue
         return asyncio.ensure_future(self._wait_response(request_id, queue))
-
-    @abstractmethod
-    async def send_message(self, roborock_message: RoborockMessage):
-        """Send a message to the Roborock device."""

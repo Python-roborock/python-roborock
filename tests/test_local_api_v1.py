@@ -9,6 +9,7 @@ from unittest.mock import patch
 import pytest
 
 from roborock.containers import RoomMapping
+from roborock.exceptions import RoborockException
 from roborock.protocol import MessageParser
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 from roborock.version_1_apis import RoborockLocalClientV1
@@ -93,3 +94,27 @@ async def test_get_room_mapping(
         RoomMapping(segment_id=16, iot_id="2362048"),
         RoomMapping(segment_id=17, iot_id="2362044"),
     ]
+
+
+async def test_retry_request(
+    received_requests: Queue,
+    response_queue: Queue,
+    connected_local_client: RoborockLocalClientV1,
+) -> None:
+    """Test sending an arbitrary MQTT message and parsing the response."""
+
+    test_request_id = 5050
+
+    retry_message = build_rpc_response(
+        seq=test_request_id,
+        message={
+            "id": test_request_id,
+            "result": "retry",
+        },
+    )
+    response_queue.put(retry_message)
+
+    with patch("roborock.protocols.v1_protocol.get_next_int", return_value=test_request_id), pytest.raises(
+        RoborockException, match="Device is busy, try again later"
+    ):
+        await connected_local_client.get_room_mapping()
