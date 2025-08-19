@@ -1,13 +1,11 @@
 """Modules for communicating with specific Roborock devices over MQTT."""
 
-import asyncio
 import logging
 from collections.abc import Callable
-from json import JSONDecodeError
 
 from roborock.containers import HomeDataDevice, RRiot, UserData
 from roborock.exceptions import RoborockException
-from roborock.mqtt.session import MqttParams, MqttSession
+from roborock.mqtt.session import MqttParams, MqttSession, MqttSessionException
 from roborock.protocol import create_mqtt_decoder, create_mqtt_encoder
 from roborock.roborock_message import RoborockMessage
 
@@ -30,17 +28,16 @@ class MqttChannel(Channel):
         self._rriot = rriot
         self._mqtt_params = mqtt_params
 
-        # RPC support
-        self._waiting_queue: dict[int, asyncio.Future[RoborockMessage]] = {}
         self._decoder = create_mqtt_decoder(local_key)
         self._encoder = create_mqtt_encoder(local_key)
-        self._queue_lock = asyncio.Lock()
-        self._mqtt_unsub: Callable[[], None] | None = None
 
     @property
     def is_connected(self) -> bool:
-        """Return true if the channel is connected."""
-        return (self._mqtt_unsub is not None) and self._mqtt_session.connected
+        """Return true if the channel is connected.
+
+        This passes through the underlying MQTT session's connected state.
+        """
+        return self._mqtt_session.connected
 
     @property
     def _publish_topic(self) -> str:
@@ -57,9 +54,6 @@ class MqttChannel(Channel):
 
         The callback will be called with the message payload when a message is received.
 
-        All messages received will be processed through the provided callback, even
-        those sent in response to the `send_command` command.
-
         Returns a callable that can be used to unsubscribe from the topic.
         """
 
@@ -69,75 +63,29 @@ class MqttChannel(Channel):
                 return
             for message in messages:
                 _LOGGER.debug("Received message: %s", message)
-                if message.version != b"B01":
-                    asyncio.create_task(self._resolve_future_with_lock(message))
                 try:
                     callback(message)
                 except Exception as e:
                     _LOGGER.exception("Uncaught error in message handler callback: %s", e)
 
-        self._mqtt_unsub = await self._mqtt_session.subscribe(self._subscribe_topic, message_handler)
+        return await self._mqtt_session.subscribe(self._subscribe_topic, message_handler)
 
-        def unsub_wrapper() -> None:
-            if self._mqtt_unsub is not None:
-                self._mqtt_unsub()
-                self._mqtt_unsub = None
+    async def publish(self, message: RoborockMessage) -> None:
+        """Publish a command message.
 
-        return unsub_wrapper
-
-    async def _resolve_future_with_lock(self, message: RoborockMessage) -> None:
-        """Resolve waiting future with proper locking."""
-        if (request_id := message.get_request_id()) is None:
-            _LOGGER.debug("Received message with no request_id")
-            return
-        async with self._queue_lock:
-            if (future := self._waiting_queue.pop(request_id, None)) is not None:
-                future.set_result(message)
-            else:
-                _LOGGER.debug("Received message with no waiting handler: request_id=%s", request_id)
-
-    async def send_message_no_wait(self, message: RoborockMessage) -> None:
-        """Send a command message without waiting for a response."""
-        try:
-            encoded_msg = self._encoder(message)
-            await self._mqtt_session.publish(self._publish_topic, encoded_msg)
-        except Exception:
-            logging.exception("Uncaught error sending command")
-            raise
-
-    async def send_message(self, message: RoborockMessage, timeout: float = 10.0) -> RoborockMessage:
-        """Send a command message and wait for the response message.
-
-        Returns the raw response message - caller is responsible for parsing.
+        The caller is responsible for handling any responses and associating them
+        with the incoming request.
         """
         try:
-            if (request_id := message.get_request_id()) is None:
-                raise RoborockException("Message must have a request_id for RPC calls")
-        except (ValueError, JSONDecodeError) as err:
-            _LOGGER.exception("Error getting request_id from message: %s", err)
-            raise RoborockException(f"Invalid message format, Message must have a request_id: {err}") from err
-
-        future: asyncio.Future[RoborockMessage] = asyncio.Future()
-        async with self._queue_lock:
-            if request_id in self._waiting_queue:
-                raise RoborockException(f"Request ID {request_id} already pending, cannot send command")
-            self._waiting_queue[request_id] = future
-
-        try:
             encoded_msg = self._encoder(message)
-            await self._mqtt_session.publish(self._publish_topic, encoded_msg)
-
-            return await asyncio.wait_for(future, timeout=timeout)
-
-        except asyncio.TimeoutError as ex:
-            async with self._queue_lock:
-                self._waiting_queue.pop(request_id, None)
-            raise RoborockException(f"Command timed out after {timeout}s") from ex
-        except Exception:
-            logging.exception("Uncaught error sending command")
-            async with self._queue_lock:
-                self._waiting_queue.pop(request_id, None)
-            raise
+        except Exception as e:
+            _LOGGER.exception("Error encoding MQTT message: %s", e)
+            raise RoborockException(f"Failed to encode MQTT message: {e}") from e
+        try:
+            return await self._mqtt_session.publish(self._publish_topic, encoded_msg)
+        except MqttSessionException as e:
+            _LOGGER.exception("Error publishing MQTT message: %s", e)
+            raise RoborockException(f"Failed to publish MQTT message: {e}") from e
 
 
 def create_mqtt_channel(

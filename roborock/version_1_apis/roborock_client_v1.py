@@ -7,6 +7,7 @@ from collections.abc import Callable, Coroutine
 from typing import Any, TypeVar, final
 
 from roborock import (
+    AppInitStatus,
     DeviceProp,
     DockSummary,
     RoborockCommand,
@@ -341,6 +342,10 @@ class RoborockClientV1(RoborockClient, ABC):
     async def load_multi_map(self, map_flag: int) -> None:
         """Load the map into the vacuum's memory."""
         await self.send_command(RoborockCommand.LOAD_MULTI_MAP, [map_flag])
+
+    async def get_app_init_status(self) -> AppInitStatus:
+        """Gets the app init status (needed for determining vacuum capabilities)."""
+        return await self.send_command(RoborockCommand.APP_GET_INIT_STATUS, return_type=AppInitStatus)
 
     @abstractmethod
     async def _send_command(

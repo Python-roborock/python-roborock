@@ -10,7 +10,7 @@ from .. import CommandVacuumError, DeviceData, RoborockCommand
 from ..api import RoborockClient
 from ..exceptions import RoborockConnectionException, RoborockException, VacuumError
 from ..protocol import Decoder, Encoder, create_local_decoder, create_local_encoder
-from ..protocols.v1_protocol import encode_local_payload
+from ..protocols.v1_protocol import RequestMessage
 from ..roborock_message import RoborockMessage, RoborockMessageProtocol
 from ..util import RoborockLoggerAdapter
 from .roborock_client_v1 import CLOUD_REQUIRED, RoborockClientV1
@@ -123,12 +123,20 @@ class RoborockLocalClientV1(RoborockClientV1, RoborockClient):
 
     async def hello(self):
         try:
-            return await self._send_message(_HELLO_REQUEST_MESSAGE)
+            return await self._send_message(
+                roborock_message=_HELLO_REQUEST_MESSAGE,
+                request_id=_HELLO_REQUEST_MESSAGE.seq,
+                response_protocol=RoborockMessageProtocol.HELLO_RESPONSE,
+            )
         except Exception as e:
             self._logger.error(e)
 
     async def ping(self) -> None:
-        await self._send_message(_PING_REQUEST_MESSAGE)
+        await self._send_message(
+            roborock_message=_PING_REQUEST_MESSAGE,
+            request_id=_PING_REQUEST_MESSAGE.seq,
+            response_protocol=RoborockMessageProtocol.PING_RESPONSE,
+        )
 
     def _send_msg_raw(self, data: bytes):
         try:
@@ -145,27 +153,26 @@ class RoborockLocalClientV1(RoborockClientV1, RoborockClient):
     ):
         if method in CLOUD_REQUIRED:
             raise RoborockException(f"Method {method} is not supported over local connection")
-
-        roborock_message = encode_local_payload(method, params)
-        self._logger.debug("Building message id %s for method %s", roborock_message.get_request_id(), method)
-        return await self._send_message(roborock_message, method, params)
+        request_message = RequestMessage(method=method, params=params)
+        roborock_message = request_message.encode_message(RoborockMessageProtocol.GENERAL_REQUEST)
+        self._logger.debug("Building message id %s for method %s", request_message.request_id, method)
+        return await self._send_message(
+            roborock_message,
+            request_id=request_message.request_id,
+            response_protocol=RoborockMessageProtocol.GENERAL_REQUEST,
+            method=method,
+            params=params,
+        )
 
     async def _send_message(
         self,
         roborock_message: RoborockMessage,
+        request_id: int,
+        response_protocol: int,
         method: str | None = None,
         params: list | dict | int | None = None,
     ) -> RoborockMessage:
         await self.validate_connection()
-        request_id: int | None
-        if not method or not method.startswith("get"):
-            request_id = roborock_message.seq
-            response_protocol = request_id + 1
-        else:
-            request_id = roborock_message.get_request_id()
-            response_protocol = RoborockMessageProtocol.GENERAL_REQUEST
-        if request_id is None:
-            raise RoborockException(f"Failed build message {roborock_message}")
         msg = self._encoder(roborock_message)
         if method:
             self._logger.debug(f"id={request_id} Requesting method {method} with {params}")

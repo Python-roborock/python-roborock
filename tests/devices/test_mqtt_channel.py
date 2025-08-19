@@ -3,14 +3,13 @@
 import asyncio
 import json
 import logging
-from collections.abc import Callable, Generator
+from collections.abc import AsyncGenerator, Callable, Generator
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
 from roborock.containers import HomeData, UserData
 from roborock.devices.mqtt_channel import MqttChannel
-from roborock.exceptions import RoborockException
 from roborock.mqtt.session import MqttParams
 from roborock.protocol import create_mqtt_decoder, create_mqtt_encoder
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
@@ -64,23 +63,29 @@ def setup_mqtt_channel(mqtt_session: Mock) -> MqttChannel:
     )
 
 
-@pytest.fixture(name="received_messages", autouse=True)
-async def setup_subscribe_callback(mqtt_channel: MqttChannel) -> list[RoborockMessage]:
+@pytest.fixture(name="mqtt_subscribers", autouse=True)
+async def setup_subscribe_callback(mqtt_session: Mock) -> AsyncGenerator[list[Callable[[bytes], None]], None]:
     """Fixture to record messages received by the subscriber."""
-    messages: list[RoborockMessage] = []
-    await mqtt_channel.subscribe(messages.append)
-    return messages
+    subscriber_callbacks = []
+
+    def mock_subscribe(_: str, callback: Callable[[bytes], None]) -> Callable[[], None]:
+        subscriber_callbacks.append(callback)
+        return lambda: subscriber_callbacks.remove(callback)
+
+    mqtt_session.subscribe.side_effect = mock_subscribe
+    yield subscriber_callbacks
+    assert not subscriber_callbacks, "Not all subscribers were unsubscribed"
 
 
 @pytest.fixture(name="mqtt_message_handler")
-async def setup_message_handler(mqtt_session: Mock, mqtt_channel: MqttChannel) -> Callable[[bytes], None]:
+async def setup_message_handler(mqtt_subscribers: list[Callable[[bytes], None]]) -> Callable[[bytes], None]:
     """Fixture to allow simulating incoming MQTT messages."""
-    # Subscribe to set up message handling. We grab the message handler callback
-    # and use it to simulate receiving a response.
-    assert mqtt_session.subscribe
-    subscribe_call_args = mqtt_session.subscribe.call_args
-    message_handler = subscribe_call_args[0][1]
-    return message_handler
+
+    def invoke_all_callbacks(message: bytes) -> None:
+        for callback in mqtt_subscribers:
+            callback(message)
+
+    return invoke_all_callbacks
 
 
 @pytest.fixture
@@ -107,24 +112,7 @@ async def mock_home_data() -> HomeData:
     return HomeData.from_dict(mock_data.HOME_DATA_RAW)
 
 
-async def test_mqtt_channel(mqtt_session: Mock, mqtt_channel: MqttChannel) -> None:
-    """Test MQTT channel setup."""
-
-    unsub = Mock()
-    mqtt_session.subscribe.return_value = unsub
-
-    callback = Mock()
-    result = await mqtt_channel.subscribe(callback)
-
-    assert mqtt_session.subscribe.called
-    assert mqtt_session.subscribe.call_args[0][0] == "rr/m/o/user123/username/abc123"
-
-    unsub.assert_not_called()
-    result()
-    unsub.assert_called_once()
-
-
-async def test_send_message_success(
+async def test_publish_success(
     mqtt_session: Mock,
     mqtt_channel: MqttChannel,
     mqtt_message_handler: Callable[[bytes], None],
@@ -132,15 +120,12 @@ async def test_send_message_success(
     """Test successful RPC command sending and response handling."""
     # Send a test request. We use a task so we can simulate receiving the response
     # while the command is still being processed.
-    command_task = asyncio.create_task(mqtt_channel.send_message(TEST_REQUEST))
+    await mqtt_channel.publish(TEST_REQUEST)
     await asyncio.sleep(0.01)  # yield
 
     # Simulate receiving the response message via MQTT
     mqtt_message_handler(ENCODER(TEST_RESPONSE))
     await asyncio.sleep(0.01)  # yield
-
-    # Get the result
-    result = await command_task
 
     # Verify the command was sent
     assert mqtt_session.publish.called
@@ -149,141 +134,129 @@ async def test_send_message_success(
     decoded_message = next(iter(DECODER(raw_sent_msg)))
     assert decoded_message == TEST_REQUEST
     assert decoded_message.protocol == RoborockMessageProtocol.RPC_REQUEST
-    assert decoded_message.get_request_id() == 12345
-
-    # Verify we got the response message back
-    assert result == TEST_RESPONSE
-
-
-async def test_send_message_without_request_id(
-    mqtt_session: Mock,
-    mqtt_channel: MqttChannel,
-    mqtt_message_handler: Callable[[bytes], None],
-) -> None:
-    """Test sending command without request ID raises exception."""
-    # Create a message without request ID
-    test_message = RoborockMessage(
-        protocol=RoborockMessageProtocol.RPC_REQUEST,
-        payload=b"no_request_id",
-    )
-
-    with pytest.raises(RoborockException, match="Message must have a request_id"):
-        await mqtt_channel.send_message(test_message)
-
-
-async def test_concurrent_commands(
-    mqtt_session: Mock,
-    mqtt_channel: MqttChannel,
-    mqtt_message_handler: Callable[[bytes], None],
-    warning_caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Test handling multiple concurrent RPC commands."""
-
-    # Create multiple test messages with different request IDs
-    # Start both commands concurrently
-    task1 = asyncio.create_task(mqtt_channel.send_message(TEST_REQUEST, timeout=5.0))
-    task2 = asyncio.create_task(mqtt_channel.send_message(TEST_REQUEST2, timeout=5.0))
-    await asyncio.sleep(0.01)  # yield
-
-    # Create responses for both
-    mqtt_message_handler(ENCODER(TEST_RESPONSE))
-    await asyncio.sleep(0.01)  # yield
-
-    mqtt_message_handler(ENCODER(TEST_RESPONSE2))
-    await asyncio.sleep(0.01)  # yield
-
-    # Both should complete successfully
-    result1 = await task1
-    result2 = await task2
-
-    assert result1 == TEST_RESPONSE
-    assert result2 == TEST_RESPONSE2
-
-    assert not warning_caplog.records
-
-
-async def test_concurrent_commands_same_request_id(
-    mqtt_session: Mock,
-    mqtt_channel: MqttChannel,
-    mqtt_message_handler: Callable[[bytes], None],
-) -> None:
-    """Test that we are not allowed to send two commands with the same request id."""
-
-    # Create multiple test messages with different request IDs
-    # Start both commands concurrently
-    task1 = asyncio.create_task(mqtt_channel.send_message(TEST_REQUEST, timeout=5.0))
-    task2 = asyncio.create_task(mqtt_channel.send_message(TEST_REQUEST, timeout=5.0))
-    await asyncio.sleep(0.01)  # yield
-
-    # Create response
-    mqtt_message_handler(ENCODER(TEST_RESPONSE))
-    await asyncio.sleep(0.01)  # yield
-
-    # Both should complete successfully
-    result1 = await task1
-    assert result1 == TEST_RESPONSE
-
-    with pytest.raises(RoborockException, match="Request ID 12345 already pending, cannot send command"):
-        await task2
-
-
-async def test_handle_completed_future(
-    mqtt_session: Mock,
-    mqtt_channel: MqttChannel,
-    mqtt_message_handler: Callable[[bytes], None],
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Test handling response for an already completed future."""
-    # Send request
-    task = asyncio.create_task(mqtt_channel.send_message(TEST_REQUEST, timeout=5.0))
-    await asyncio.sleep(0.01)  # yield
-
-    # Send the response twice
-    mqtt_message_handler(ENCODER(TEST_RESPONSE))
-    await asyncio.sleep(0.01)  # yield
-    mqtt_message_handler(ENCODER(TEST_RESPONSE))
-    await asyncio.sleep(0.01)  # yield
-
-    # Task completes and second message is not associated with a waiting handler
-    result = await task
-    assert result == TEST_RESPONSE
-
-
-async def test_subscribe_callback_with_rpc_response(
-    mqtt_session: Mock,
-    mqtt_channel: MqttChannel,
-    received_messages: list[RoborockMessage],
-    mqtt_message_handler: Callable[[bytes], None],
-) -> None:
-    """Test that subscribe callback is called independent of RPC handling."""
-    # Send request
-    task = asyncio.create_task(mqtt_channel.send_message(TEST_REQUEST, timeout=5.0))
-    await asyncio.sleep(0.01)  # yield
-
-    assert not received_messages
-
-    # Send the response for this command and an unrelated command
-    mqtt_message_handler(ENCODER(TEST_RESPONSE))
-    await asyncio.sleep(0.01)  # yield
-    mqtt_message_handler(ENCODER(TEST_RESPONSE2))
-    await asyncio.sleep(0.01)  # yield
-
-    # Task completes
-    result = await task
-    assert result == TEST_RESPONSE
-
-    # The subscribe callback should have been called with the same response
-    assert received_messages == [TEST_RESPONSE, TEST_RESPONSE2]
 
 
 async def test_message_decode_error(
+    mqtt_channel: MqttChannel,
     mqtt_message_handler: Callable[[bytes], None],
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test an error during message decoding."""
+    callback = Mock()
+    unsub = await mqtt_channel.subscribe(callback)
+
     mqtt_message_handler(b"invalid_payload")
     await asyncio.sleep(0.01)  # yield
 
     assert len(caplog.records) == 1
     assert caplog.records[0].levelname == "WARNING"
     assert "Failed to decode MQTT message" in caplog.records[0].message
+    unsub()
+
+
+async def test_concurrent_subscribers(mqtt_session: Mock, mqtt_channel: MqttChannel) -> None:
+    """Test multiple concurrent subscribers receive all messages."""
+    # Set up multiple subscribers
+    subscriber1_messages: list[RoborockMessage] = []
+    subscriber2_messages: list[RoborockMessage] = []
+    subscriber3_messages: list[RoborockMessage] = []
+
+    unsub1 = await mqtt_channel.subscribe(subscriber1_messages.append)
+    unsub2 = await mqtt_channel.subscribe(subscriber2_messages.append)
+    unsub3 = await mqtt_channel.subscribe(subscriber3_messages.append)
+
+    # Verify that each subscription creates a separate call to the MQTT session
+    assert mqtt_session.subscribe.call_count == 3
+
+    # All subscriptions should be to the same topic
+    for call in mqtt_session.subscribe.call_args_list:
+        assert call[0][0] == "rr/m/o/user123/username/abc123"
+
+    # Get the message handlers for each subscriber
+    handler1 = mqtt_session.subscribe.call_args_list[0][0][1]
+    handler2 = mqtt_session.subscribe.call_args_list[1][0][1]
+    handler3 = mqtt_session.subscribe.call_args_list[2][0][1]
+
+    # Simulate receiving messages - each handler should decode the message independently
+    handler1(ENCODER(TEST_REQUEST))
+    handler2(ENCODER(TEST_REQUEST))
+    handler3(ENCODER(TEST_REQUEST))
+    await asyncio.sleep(0.01)  # yield
+
+    # All subscribers should receive the message
+    assert len(subscriber1_messages) == 1
+    assert len(subscriber2_messages) == 1
+    assert len(subscriber3_messages) == 1
+    assert subscriber1_messages[0] == TEST_REQUEST
+    assert subscriber2_messages[0] == TEST_REQUEST
+    assert subscriber3_messages[0] == TEST_REQUEST
+
+    # Send another message to all handlers
+    handler1(ENCODER(TEST_RESPONSE))
+    handler2(ENCODER(TEST_RESPONSE))
+    handler3(ENCODER(TEST_RESPONSE))
+    await asyncio.sleep(0.01)  # yield
+
+    # All subscribers should have received both messages
+    assert len(subscriber1_messages) == 2
+    assert len(subscriber2_messages) == 2
+    assert len(subscriber3_messages) == 2
+    assert subscriber1_messages == [TEST_REQUEST, TEST_RESPONSE]
+    assert subscriber2_messages == [TEST_REQUEST, TEST_RESPONSE]
+    assert subscriber3_messages == [TEST_REQUEST, TEST_RESPONSE]
+
+    # Test unsubscribing one subscriber
+    unsub1()
+
+    # Send another message only to remaining handlers
+    handler2(ENCODER(TEST_REQUEST2))
+    handler3(ENCODER(TEST_REQUEST2))
+    await asyncio.sleep(0.01)  # yield
+
+    # First subscriber should not have received the new message
+    assert len(subscriber1_messages) == 2
+    assert len(subscriber2_messages) == 3
+    assert len(subscriber3_messages) == 3
+    assert subscriber2_messages[2] == TEST_REQUEST2
+    assert subscriber3_messages[2] == TEST_REQUEST2
+
+    # Unsubscribe remaining subscribers
+    unsub2()
+    unsub3()
+
+
+async def test_concurrent_subscribers_with_callback_exception(
+    mqtt_session: Mock, mqtt_channel: MqttChannel, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Test that exception in one subscriber callback doesn't affect others."""
+    caplog.set_level(logging.ERROR)
+
+    def failing_callback(message: RoborockMessage) -> None:
+        raise ValueError("Callback error")
+
+    subscriber2_messages: list[RoborockMessage] = []
+
+    unsub1 = await mqtt_channel.subscribe(failing_callback)
+    unsub2 = await mqtt_channel.subscribe(subscriber2_messages.append)
+
+    # Get the message handlers
+    handler1 = mqtt_session.subscribe.call_args_list[0][0][1]
+    handler2 = mqtt_session.subscribe.call_args_list[1][0][1]
+
+    # Simulate receiving a message - first handler will raise exception
+    handler1(ENCODER(TEST_REQUEST))
+    handler2(ENCODER(TEST_REQUEST))
+    await asyncio.sleep(0.01)  # yield
+
+    # Exception should be logged but other subscribers should still work
+    assert len(subscriber2_messages) == 1
+    assert subscriber2_messages[0] == TEST_REQUEST
+
+    # Check that exception was logged
+    error_records = [record for record in caplog.records if record.levelname == "ERROR"]
+    assert len(error_records) == 1
+    assert "Uncaught error in message handler callback" in error_records[0].message
+
+    # Unsubscribe all remaining subscribers
+    unsub1()
+    unsub2()
