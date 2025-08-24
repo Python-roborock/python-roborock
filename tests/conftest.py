@@ -6,13 +6,14 @@ from asyncio import Protocol
 from collections.abc import AsyncGenerator, Callable, Generator
 from queue import Queue
 from typing import Any
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from aioresponses import aioresponses
 
 from roborock import HomeData, UserData
 from roborock.containers import DeviceData
+from roborock.roborock_message import RoborockMessage
 from roborock.version_1_apis.roborock_local_client_v1 import RoborockLocalClientV1
 from roborock.version_1_apis.roborock_mqtt_client_v1 import RoborockMqttClientV1
 from tests.mock_data import HOME_DATA_RAW, HOME_DATA_SCENES_RAW, TEST_LOCAL_API_HOST, USER_DATA
@@ -329,3 +330,47 @@ async def local_client_fixture(mock_create_local_connection: None) -> AsyncGener
                 await client.async_release()
             except Exception:
                 pass
+
+
+class FakeChannel:
+    """A fake channel that handles publish and subscribe calls."""
+
+    def __init__(self):
+        """Initialize the fake channel."""
+        self.subscribers: list[Callable[[RoborockMessage], None]] = []
+        self.published_messages: list[RoborockMessage] = []
+        self.response_queue: list[RoborockMessage] = []
+        self._is_connected = False
+        self.publish_side_effect: Exception | None = None
+        self.publish = AsyncMock(side_effect=self._publish)
+        self.subscribe = AsyncMock(side_effect=self._subscribe)
+        self.connect = AsyncMock(side_effect=self._connect)
+        self.close = AsyncMock(side_effect=self._close)
+
+    async def _connect(self) -> None:
+        self._is_connected = True
+
+    async def _close(self) -> None:
+        self._is_connected = False
+
+    @property
+    def is_connected(self) -> bool:
+        """Return true if connected."""
+        return self._is_connected
+
+    async def _publish(self, message: RoborockMessage) -> None:
+        """Simulate publishing a message and triggering a response."""
+        self.published_messages.append(message)
+        if self.publish_side_effect:
+            raise self.publish_side_effect
+        # When a message is published, simulate a response
+        if self.response_queue:
+            response = self.response_queue.pop(0)
+            # Give a chance for the subscriber to be registered
+            for subscriber in list(self.subscribers):
+                subscriber(response)
+
+    async def _subscribe(self, callback: Callable[[RoborockMessage], None]) -> Callable[[], None]:
+        """Simulate subscribing to messages."""
+        self.subscribers.append(callback)
+        return lambda: self.subscribers.remove(callback)

@@ -734,6 +734,29 @@ class NetworkInfo(RoborockBase):
 
 
 @dataclass
+class AppInitStatusLocalInfo(RoborockBase):
+    location: str
+    bom: str | None = None
+    featureset: int | None = None
+    language: str | None = None
+    logserver: str | None = None
+    wifiplan: str | None = None
+    timezone: str | None = None
+    name: str | None = None
+
+
+@dataclass
+class AppInitStatus(RoborockBase):
+    local_info: AppInitStatusLocalInfo
+    feature_info: list[int]
+    new_feature_info: int
+    new_feature_info_str: str
+    new_feature_info_2: int | None = None
+    carriage_type: int | None = None
+    dsp_version: int | None = None
+
+
+@dataclass
 class DeviceData(RoborockBase):
     device: HomeDataDevice
     model: str

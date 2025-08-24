@@ -27,6 +27,6 @@ class B01PropsApi(Trait):
 
     async def query_values(self, props: list[RoborockB01Props]) -> None:
         """Query the device for the values of the given Dyad protocols."""
-        return await send_decoded_command(
+        await send_decoded_command(
             self._channel, dps=10000, command=RoborockB01Methods.GET_PROP, params={"property": props}
         )

@@ -10,11 +10,10 @@ from roborock.containers import RoborockBase, UserData
 from roborock.exceptions import RoborockException
 from roborock.protocol import Utils
 from roborock.protocols.v1_protocol import (
+    RequestMessage,
     SecurityData,
     create_map_response_decoder,
-    create_mqtt_payload_encoder,
     decode_rpc_response,
-    encode_local_payload,
 )
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 from roborock.roborock_typing import RoborockCommand
@@ -58,7 +57,7 @@ def request_id_fixture() -> Generator[int, None, None]:
 )
 def test_encode_local_payload(command, params, expected):
     """Test encoding of local payload for V1 commands."""
-    message = encode_local_payload(command, params)
+    message = RequestMessage(command, params).encode_message(RoborockMessageProtocol.GENERAL_REQUEST)
     assert isinstance(message, RoborockMessage)
     assert message.protocol == RoborockMessageProtocol.GENERAL_REQUEST
     assert message.payload == expected
@@ -76,8 +75,8 @@ def test_encode_local_payload(command, params, expected):
 )
 def test_encode_mqtt_payload(command, params, expected):
     """Test encoding of local payload for V1 commands."""
-    encoder = create_mqtt_payload_encoder(SECURITY_DATA)
-    message = encoder(command, params)
+    request_message = RequestMessage(command, params=params)
+    message = request_message.encode_message(RoborockMessageProtocol.RPC_REQUEST, SECURITY_DATA)
     assert isinstance(message, RoborockMessage)
     assert message.protocol == RoborockMessageProtocol.RPC_REQUEST
     assert message.payload == expected
@@ -129,7 +128,8 @@ def test_decode_rpc_response(payload: bytes, expected: RoborockBase) -> None:
         timestamp=1652547161,
     )
     decoded_message = decode_rpc_response(message)
-    assert decoded_message == expected
+    assert decoded_message.request_id == 20005
+    assert decoded_message.data == expected
 
 
 def test_create_map_response_decoder():

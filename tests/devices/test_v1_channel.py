@@ -6,14 +6,14 @@ and failure modes, ensuring the V1Channel behaves correctly in various scenarios
 
 import json
 import logging
-from unittest.mock import AsyncMock, Mock
+from collections.abc import Iterator
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
 from roborock.containers import NetworkInfo, RoborockStateCode, S5MaxStatus, UserData
 from roborock.devices.cache import CacheData, InMemoryCache
-from roborock.devices.local_channel import LocalChannel, LocalSession
-from roborock.devices.mqtt_channel import MqttChannel
+from roborock.devices.local_channel import LocalSession
 from roborock.devices.v1_channel import V1Channel
 from roborock.exceptions import RoborockException
 from roborock.protocol import create_local_decoder, create_local_encoder, create_mqtt_decoder, create_mqtt_encoder
@@ -22,6 +22,7 @@ from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 from roborock.roborock_typing import RoborockCommand
 
 from .. import mock_data
+from ..conftest import FakeChannel
 
 USER_DATA = UserData.from_dict(mock_data.USER_DATA)
 TEST_DEVICE_UID = "abc123"
@@ -33,12 +34,18 @@ TEST_HOST = "1.1.1.1"
 # Test messages for V1 protocol
 TEST_REQUEST = RoborockMessage(
     protocol=RoborockMessageProtocol.RPC_REQUEST,
-    payload=json.dumps({"dps": {"101": json.dumps({"id": 12345, "method": "get_status"})}}).encode(),
+    payload=json.dumps({"dps": {"101": json.dumps({"id": 12346, "method": "get_status"})}}).encode(),
 )
 TEST_RESPONSE = RoborockMessage(
     protocol=RoborockMessageProtocol.RPC_RESPONSE,
     payload=json.dumps(
-        {"dps": {"102": json.dumps({"id": 12345, "result": {"state": RoborockStateCode.cleaning}})}}
+        {"dps": {"102": json.dumps({"id": 12346, "result": {"state": RoborockStateCode.cleaning}})}}
+    ).encode(),
+)
+TEST_RESPONSE_2 = RoborockMessage(
+    protocol=RoborockMessageProtocol.RPC_RESPONSE,
+    payload=json.dumps(
+        {"dps": {"102": json.dumps({"id": 12347, "result": {"state": RoborockStateCode.cleaning}})}}
     ).encode(),
 )
 TEST_NETWORK_INFO_RESPONSE = RoborockMessage(
@@ -56,35 +63,17 @@ LOCAL_DECODER = create_local_decoder(TEST_LOCAL_KEY)
 
 
 @pytest.fixture(name="mock_mqtt_channel")
-def setup_mock_mqtt_channel() -> Mock:
+async def setup_mock_mqtt_channel() -> FakeChannel:
     """Mock MQTT channel for testing."""
-    mock_mqtt = AsyncMock(spec=MqttChannel)
-    mock_mqtt.subscribe = AsyncMock()
-    mock_mqtt.send_message = AsyncMock()
-    return mock_mqtt
-
-
-@pytest.fixture(name="mqtt_responses", autouse=True)
-def setup_mqtt_responses(mock_mqtt_channel: Mock) -> list[RoborockMessage]:
-    """Fixture to provide a list of mock MQTT responses."""
-
-    responses: list[RoborockMessage] = [TEST_NETWORK_INFO_RESPONSE]
-
-    def send_message(*args) -> RoborockMessage:
-        return responses.pop(0)
-
-    mock_mqtt_channel.send_message.side_effect = send_message
-    return responses
+    channel = FakeChannel()
+    await channel.connect()
+    return channel
 
 
 @pytest.fixture(name="mock_local_channel")
-def setup_mock_local_channel() -> Mock:
+async def setup_mock_local_channel() -> FakeChannel:
     """Mock Local channel for testing."""
-    mock_local = AsyncMock(spec=LocalChannel)
-    mock_local.connect = AsyncMock()
-    mock_local.subscribe = AsyncMock()
-    mock_local.send_message = AsyncMock()
-    return mock_local
+    return FakeChannel()
 
 
 @pytest.fixture(name="mock_local_session")
@@ -93,6 +82,22 @@ def setup_mock_local_session(mock_local_channel: Mock) -> Mock:
     mock_session = Mock(spec=LocalSession)
     mock_session.return_value = mock_local_channel
     return mock_session
+
+
+@pytest.fixture(name="mock_request_id", autouse=True)
+def setup_mock_request_id() -> Iterator[None]:
+    """Assign sequential request ids for testing."""
+
+    next_id = 12345
+
+    def fake_next_int(*args) -> int:
+        nonlocal next_id
+        id_to_return = next_id
+        next_id += 1
+        return id_to_return
+
+    with patch("roborock.protocols.v1_protocol.get_next_int", side_effect=fake_next_int):
+        yield
 
 
 @pytest.fixture(name="v1_channel")
@@ -119,24 +124,20 @@ def setup_warning_caplog(caplog: pytest.LogCaptureFixture) -> pytest.LogCaptureF
 
 async def test_v1_channel_subscribe_mqtt_only_success(
     v1_channel: V1Channel,
-    mock_mqtt_channel: Mock,
+    mock_mqtt_channel: FakeChannel,
     mock_local_session: Mock,
-    mock_local_channel: Mock,
+    mock_local_channel: FakeChannel,
 ) -> None:
     """Test successful subscription with MQTT only (local connection fails)."""
     # Setup: MQTT succeeds, local fails
-    mqtt_unsub = Mock()
-    mock_mqtt_channel.subscribe.return_value = mqtt_unsub
-    mock_mqtt_channel.send_message.return_value = TEST_NETWORK_INFO_RESPONSE
+    mock_mqtt_channel.response_queue.append(TEST_NETWORK_INFO_RESPONSE)
     mock_local_channel.connect.side_effect = RoborockException("Connection failed")
 
     callback = Mock()
     unsub = await v1_channel.subscribe(callback)
 
     # Verify MQTT connection was established
-    mock_mqtt_channel.subscribe.assert_called_once()
-    # Check that a callback was passed to MQTT subscription
-    assert callable(mock_mqtt_channel.subscribe.call_args[0][0])
+    assert mock_mqtt_channel.subscribers
 
     # Verify local connection was attempted but failed
     mock_local_session.assert_called_once_with(TEST_HOST)
@@ -148,7 +149,40 @@ async def test_v1_channel_subscribe_mqtt_only_success(
 
     # Test unsubscribe
     unsub()
-    mqtt_unsub.assert_called_once()
+    assert not mock_mqtt_channel.subscribers
+
+
+async def test_v1_channel_mqtt_disconnected(
+    v1_channel: V1Channel,
+    mock_mqtt_channel: FakeChannel,
+    mock_local_session: Mock,
+    mock_local_channel: FakeChannel,
+) -> None:
+    """Test successful subscription with MQTT only (local connection fails)."""
+    # Setup: MQTT succeeds, local fails
+    mock_mqtt_channel.response_queue.append(TEST_NETWORK_INFO_RESPONSE)
+    mock_local_channel.connect.side_effect = RoborockException("Connection failed")
+
+    callback = Mock()
+    unsub = await v1_channel.subscribe(callback)
+
+    # Verify MQTT connection was established
+    assert mock_mqtt_channel.subscribers
+
+    # Verify local connection was attempted but failed
+    mock_local_session.assert_called_once_with(TEST_HOST)
+    mock_local_channel.connect.assert_called_once()
+
+    # Simulate an MQTT disconnection where the channel is not healthy
+    await mock_mqtt_channel.close()
+
+    # Verify properties
+    assert not v1_channel.is_mqtt_connected
+    assert not v1_channel.is_local_connected
+
+    # Test unsubscribe
+    unsub()
+    assert not mock_mqtt_channel.subscribers
 
 
 async def test_v1_channel_subscribe_both_connections_success(
@@ -157,20 +191,15 @@ async def test_v1_channel_subscribe_both_connections_success(
     mock_local_channel: Mock,
 ) -> None:
     """Test successful subscription with both MQTT and local connections."""
-    # Setup: both succeed
-    mqtt_unsub = Mock()
-    local_unsub = Mock()
-    mock_mqtt_channel.subscribe.return_value = mqtt_unsub
-    mock_local_channel.subscribe.return_value = local_unsub
+    mock_mqtt_channel.response_queue.append(TEST_NETWORK_INFO_RESPONSE)
 
     # Mock network info retrieval
     callback = Mock()
     unsub = await v1_channel.subscribe(callback)
 
     # Verify both connections established
-    mock_mqtt_channel.subscribe.assert_called_once()
-    mock_local_channel.connect.assert_called_once()
-    mock_local_channel.subscribe.assert_called_once()
+    assert mock_mqtt_channel.subscribers
+    assert mock_local_channel.subscribers
 
     # Verify properties
     assert v1_channel.is_mqtt_connected
@@ -178,13 +207,13 @@ async def test_v1_channel_subscribe_both_connections_success(
 
     # Test unsubscribe cleans up both
     unsub()
-    mqtt_unsub.assert_called_once()
-    local_unsub.assert_called_once()
+    assert not mock_mqtt_channel.subscribers
+    assert not mock_local_channel.subscribers
 
 
 async def test_v1_channel_subscribe_already_connected_error(v1_channel: V1Channel, mock_mqtt_channel: Mock) -> None:
     """Test error when trying to subscribe when already connected."""
-    mock_mqtt_channel.subscribe.return_value = Mock()
+    mock_mqtt_channel.response_queue.append(TEST_NETWORK_INFO_RESPONSE)
 
     # First subscription succeeds
     await v1_channel.subscribe(Mock())
@@ -201,7 +230,7 @@ async def test_v1_channel_local_connection_warning_logged(
     warning_caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test that local connection failures are logged as warnings."""
-    mock_mqtt_channel.subscribe.return_value = Mock()
+    mock_mqtt_channel.response_queue.append(TEST_NETWORK_INFO_RESPONSE)
     mock_local_channel.connect.side_effect = RoborockException("Local connection failed")
 
     await v1_channel.subscribe(Mock())
@@ -220,19 +249,17 @@ async def test_v1_channel_send_command_local_preferred(
 ) -> None:
     """Test command sending prefers local connection when available."""
     # Establish connections
+    mock_mqtt_channel.response_queue.append(TEST_NETWORK_INFO_RESPONSE)
     await v1_channel.subscribe(Mock())
-    mock_mqtt_channel.send_message.reset_mock(return_value=False)
 
     # Send command
-    mock_local_channel.send_message.return_value = TEST_RESPONSE
+    mock_local_channel.response_queue.append(TEST_RESPONSE)
     result = await v1_channel.rpc_channel.send_command(
         RoborockCommand.CHANGE_SOUND_VOLUME,
         response_type=S5MaxStatus,
     )
 
-    # Verify local was used, not MQTT
-    mock_local_channel.send_message.assert_called_once()
-    mock_mqtt_channel.send_message.assert_not_called()
+    # Verify local response was parsed
     assert result.state == RoborockStateCode.cleaning
 
 
@@ -240,55 +267,45 @@ async def test_v1_channel_send_command_local_fails(
     v1_channel: V1Channel,
     mock_mqtt_channel: Mock,
     mock_local_channel: Mock,
-    mqtt_responses: list[RoborockMessage],
 ) -> None:
     """Test case where sending with local connection fails."""
 
     # Establish connections
+    mock_mqtt_channel.response_queue.append(TEST_NETWORK_INFO_RESPONSE)
     await v1_channel.subscribe(Mock())
-    mock_mqtt_channel.send_message.reset_mock(return_value=False)
 
     # Local command fails
-    mock_local_channel.send_message.side_effect = RoborockException("Local failed")
+    mock_local_channel.publish = Mock()
+    mock_local_channel.publish.side_effect = RoborockException("Local failed")
 
     # Send command
-    mqtt_responses.append(TEST_RESPONSE)
     with pytest.raises(RoborockException, match="Local failed"):
         await v1_channel.rpc_channel.send_command(
             RoborockCommand.CHANGE_SOUND_VOLUME,
             response_type=S5MaxStatus,
         )
 
-    # Verify local was attempted but not mqtt
-    mock_local_channel.send_message.assert_called_once()
-    mock_mqtt_channel.send_message.assert_not_called()
-
 
 async def test_v1_channel_send_decoded_command_mqtt_only(
     v1_channel: V1Channel,
     mock_mqtt_channel: Mock,
     mock_local_channel: Mock,
-    mqtt_responses: list[RoborockMessage],
 ) -> None:
     """Test command sending works with MQTT only."""
     # Setup: only MQTT connection
-    # mock_mqtt_channel.subscribe.return_value = Mock()
+    mock_mqtt_channel.response_queue.append(TEST_NETWORK_INFO_RESPONSE)
     mock_local_channel.connect.side_effect = RoborockException("No local")
 
     await v1_channel.subscribe(Mock())
-    mock_mqtt_channel.send_message.assert_called_once()  # network info
-    mock_mqtt_channel.send_message.reset_mock(return_value=False)
 
     # Send command
-    mqtt_responses.append(TEST_RESPONSE)
+    mock_mqtt_channel.response_queue.append(TEST_RESPONSE)
     result = await v1_channel.rpc_channel.send_command(
         RoborockCommand.CHANGE_SOUND_VOLUME,
         response_type=S5MaxStatus,
     )
 
     # Verify only MQTT was used
-    mock_local_channel.send_message.assert_not_called()
-    mock_mqtt_channel.send_message.assert_called_once()
     assert result.state == RoborockStateCode.cleaning
 
 
@@ -299,10 +316,11 @@ async def test_v1_channel_send_decoded_command_with_params(
 ) -> None:
     """Test command sending with parameters."""
 
+    mock_mqtt_channel.response_queue.append(TEST_NETWORK_INFO_RESPONSE)
     await v1_channel.subscribe(Mock())
 
     # Send command with params
-    mock_local_channel.send_message.return_value = TEST_RESPONSE
+    mock_local_channel.response_queue.append(TEST_RESPONSE)
     test_params = {"volume": 80}
     await v1_channel.rpc_channel.send_command(
         RoborockCommand.CHANGE_SOUND_VOLUME,
@@ -311,9 +329,8 @@ async def test_v1_channel_send_decoded_command_with_params(
     )
 
     # Verify command was sent with correct params
-    mock_local_channel.send_message.assert_called_once()
-    call_args = mock_local_channel.send_message.call_args
-    sent_message = call_args[0][0]
+    assert mock_local_channel.published_messages
+    sent_message = mock_local_channel.published_messages[0]
     assert sent_message
     assert isinstance(sent_message, RoborockMessage)
     assert sent_message.payload
@@ -324,58 +341,6 @@ async def test_v1_channel_send_decoded_command_with_params(
     decoded_payload = json.loads(json_data["dps"]["101"])
     assert decoded_payload["method"] == "change_sound_volume"
     assert decoded_payload["params"] == {"volume": 80}
-
-
-async def test_v1_channel_subscription_receives_mqtt_messages(
-    v1_channel: V1Channel,
-    mock_mqtt_channel: Mock,
-    mock_local_channel: Mock,
-) -> None:
-    """Test that subscribed callback receives MQTT messages."""
-    callback = Mock()
-
-    # Setup MQTT subscription to capture the internal callback
-    mock_mqtt_channel.subscribe.return_value = Mock()
-    mock_local_channel.connect.side_effect = RoborockException("Local failed")
-
-    # Subscribe
-    await v1_channel.subscribe(callback)
-
-    # Get the MQTT callback that was registered
-    mqtt_callback = mock_mqtt_channel.subscribe.call_args[0][0]
-
-    # Simulate MQTT message
-    test_message = TEST_RESPONSE
-    mqtt_callback(test_message)
-
-    # Verify user callback was called
-    callback.assert_called_once_with(test_message)
-
-
-async def test_v1_channel_subscription_receives_local_messages(
-    v1_channel: V1Channel,
-    mock_mqtt_channel: Mock,
-    mock_local_channel: Mock,
-) -> None:
-    """Test that subscribed callback receives local messages."""
-    callback = Mock()
-
-    # Setup both connections
-    mock_mqtt_channel.subscribe.return_value = Mock()
-    mock_local_channel.subscribe.return_value = Mock()
-
-    # Subscribe
-    await v1_channel.subscribe(callback)
-
-    # Get the local callback that was registered
-    local_callback = mock_local_channel.subscribe.call_args[0][0]
-
-    # Simulate local message
-    test_message = TEST_RESPONSE
-    local_callback(test_message)
-
-    # Verify user callback was called
-    callback.assert_called_once_with(test_message)
 
 
 # V1Channel networking tests
@@ -389,12 +354,7 @@ async def test_v1_channel_networking_info_retrieved_during_connection(
 ) -> None:
     """Test that networking information is retrieved during local connection setup."""
     # Setup: MQTT returns network info when requested
-    mock_mqtt_channel.subscribe.return_value = Mock()
-    mock_mqtt_channel.send_message.return_value = RoborockMessage(
-        protocol=RoborockMessageProtocol.RPC_RESPONSE,
-        payload=json.dumps({"dps": {"102": json.dumps({"id": 12345, "result": mock_data.NETWORK_INFO})}}).encode(),
-    )
-    mock_local_channel.subscribe.return_value = Mock()
+    mock_mqtt_channel.response_queue.append(TEST_NETWORK_INFO_RESPONSE)
 
     # Subscribe - this should trigger network info retrieval for local connection
     await v1_channel.subscribe(Mock())
@@ -404,7 +364,7 @@ async def test_v1_channel_networking_info_retrieved_during_connection(
     assert v1_channel.is_local_connected
 
     # Verify network info was requested via MQTT
-    mock_mqtt_channel.send_message.assert_called_once()
+    assert mock_mqtt_channel.published_messages
 
     # Verify local session was created with the correct IP
     mock_local_session.assert_called_once_with(mock_data.NETWORK_INFO["ip"])
@@ -425,10 +385,6 @@ async def test_v1_channel_networking_info_cached_during_connection(
     mock_cache.get.return_value = cache_data
     mock_cache.set = AsyncMock()
 
-    # Setup: MQTT and local connections succeed
-    mock_mqtt_channel.subscribe.return_value = Mock()
-    mock_local_channel.subscribe.return_value = Mock()
-
     # Create V1Channel with the mock cache
     v1_channel = V1Channel(
         device_uid=TEST_DEVICE_UID,
@@ -446,7 +402,8 @@ async def test_v1_channel_networking_info_cached_during_connection(
     assert v1_channel.is_local_connected
 
     # Verify network info was NOT requested via MQTT (cache hit)
-    mock_mqtt_channel.send_message.assert_not_called()
+    assert not mock_mqtt_channel.published_messages
+    assert not mock_local_channel.published_messages
 
     # Verify local session was created with the correct IP from cache
     mock_local_session.assert_called_once_with(mock_data.NETWORK_INFO["ip"])
@@ -464,24 +421,7 @@ async def test_v1_channel_local_connect_network_info_failure(
     mock_mqtt_channel: Mock,
 ) -> None:
     """Test local connection when network info retrieval fails."""
-    mock_mqtt_channel.send_message.side_effect = RoborockException("Network info failed")
-
-    with pytest.raises(RoborockException):
-        await v1_channel._local_connect()
-
-
-async def test_v1_channel_local_connect_connection_failure(
-    v1_channel: V1Channel,
-    mock_mqtt_channel: Mock,
-    mock_local_channel: Mock,
-) -> None:
-    """Test local connection when connection itself fails."""
-    # Network info succeeds but connection fails
-    mock_mqtt_channel.send_message.return_value = RoborockMessage(
-        protocol=RoborockMessageProtocol.RPC_RESPONSE,
-        payload=json.dumps({"dps": {"102": json.dumps({"id": 12345, "result": mock_data.NETWORK_INFO})}}).encode(),
-    )
-    mock_local_channel.connect.side_effect = RoborockException("Connection failed")
+    mock_mqtt_channel.publish_side_effect = RoborockException("Network info failed")
 
     with pytest.raises(RoborockException):
         await v1_channel._local_connect()
@@ -489,25 +429,24 @@ async def test_v1_channel_local_connect_connection_failure(
 
 async def test_v1_channel_command_encoding_validation(
     v1_channel: V1Channel,
-    mqtt_responses: list[RoborockMessage],
     mock_mqtt_channel: Mock,
     mock_local_channel: Mock,
 ) -> None:
     """Test that command encoding works for different protocols."""
+    mock_mqtt_channel.response_queue.append(TEST_NETWORK_INFO_RESPONSE)
     await v1_channel.subscribe(Mock())
-    mock_mqtt_channel.send_message.reset_mock(return_value=False)
 
     # Send mqtt command and capture the request
-    mqtt_responses.append(TEST_RESPONSE)
+    mock_mqtt_channel.response_queue.append(TEST_RESPONSE)
     await v1_channel.mqtt_rpc_channel.send_command(RoborockCommand.CHANGE_SOUND_VOLUME, params={"volume": 50})
-    mock_mqtt_channel.send_message.assert_called_once()
-    mqtt_message = mock_mqtt_channel.send_message.call_args[0][0]
+    assert mock_mqtt_channel.published_messages
+    mqtt_message = mock_mqtt_channel.published_messages[0]
 
     # Send local command and capture the request
-    mock_local_channel.send_message.return_value = TEST_RESPONSE
+    mock_local_channel.response_queue.append(TEST_RESPONSE_2)
     await v1_channel.rpc_channel.send_command(RoborockCommand.CHANGE_SOUND_VOLUME, params={"volume": 50})
-    mock_local_channel.send_message.assert_called_once()
-    local_message = mock_local_channel.send_message.call_args[0][0]
+    assert mock_local_channel.published_messages
+    local_message = mock_local_channel.published_messages[0]
 
     # Verify both are RoborockMessage instances
     assert isinstance(mqtt_message, RoborockMessage)
@@ -545,15 +484,10 @@ async def test_v1_channel_full_subscribe_and_command_flow(
     mock_mqtt_channel: Mock,
     mock_local_session: Mock,
     mock_local_channel: Mock,
-    mqtt_responses: list[RoborockMessage],
 ) -> None:
     """Test the complete flow from subscription to command execution."""
     # Setup: successful connections and responses
-    mqtt_unsub = Mock()
-    local_unsub = Mock()
-    mock_mqtt_channel.subscribe.return_value = mqtt_unsub
-    mock_local_channel.subscribe.return_value = local_unsub
-    mock_local_channel.send_message.return_value = TEST_RESPONSE
+    mock_mqtt_channel.response_queue.append(TEST_NETWORK_INFO_RESPONSE)
 
     # Create V1Channel and subscribe
     v1_channel = V1Channel(
@@ -567,21 +501,25 @@ async def test_v1_channel_full_subscribe_and_command_flow(
     # Mock network info for local connection
     callback = Mock()
     unsub = await v1_channel.subscribe(callback)
-    mock_mqtt_channel.send_message.reset_mock(return_value=False)
 
     # Verify both connections established
     assert v1_channel.is_mqtt_connected
     assert v1_channel.is_local_connected
+    assert mock_mqtt_channel.subscribers
+    assert mock_local_channel.subscribers
+
+    mock_mqtt_channel.published_messages.clear()
 
     # Send a command (should use local)
+    mock_local_channel.response_queue.append(TEST_RESPONSE)
     result = await v1_channel.rpc_channel.send_command(
         RoborockCommand.GET_STATUS,
         response_type=S5MaxStatus,
     )
 
     # Verify command was sent via local connection
-    mock_local_channel.send_message.assert_called_once()
-    mock_mqtt_channel.send_message.assert_not_called()
+    assert mock_local_channel.published_messages
+    assert not mock_mqtt_channel.published_messages
     assert result.state == RoborockStateCode.cleaning
 
     # Test message callback
@@ -592,5 +530,5 @@ async def test_v1_channel_full_subscribe_and_command_flow(
 
     # Clean up
     unsub()
-    mqtt_unsub.assert_called_once()
-    local_unsub.assert_called_once()
+    assert not mock_mqtt_channel.subscribers
+    assert not mock_local_channel.subscribers

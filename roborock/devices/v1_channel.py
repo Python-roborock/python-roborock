@@ -79,7 +79,7 @@ class V1Channel(Channel):
     @property
     def is_mqtt_connected(self) -> bool:
         """Return whether MQTT connection is available."""
-        return self._mqtt_unsub is not None
+        return self._mqtt_unsub is not None and self._mqtt_channel.is_connected
 
     @property
     def rpc_channel(self) -> V1RpcChannel:

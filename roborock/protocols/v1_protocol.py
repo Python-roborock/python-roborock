@@ -25,8 +25,6 @@ _LOGGER = logging.getLogger(__name__)
 __all__ = [
     "SecurityData",
     "create_security_data",
-    "create_mqtt_payload_encoder",
-    "encode_local_payload",
     "decode_rpc_response",
 ]
 
@@ -66,7 +64,19 @@ class RequestMessage:
     timestamp: int = field(default_factory=lambda: math.floor(time.time()))
     request_id: int = field(default_factory=lambda: get_next_int(10000, 32767))
 
-    def as_payload(self, security_data: SecurityData | None) -> bytes:
+    def encode_message(
+        self,
+        protocol: RoborockMessageProtocol,
+        security_data: SecurityData | None = None,
+    ) -> RoborockMessage:
+        """Convert the request message to a RoborockMessage."""
+        return RoborockMessage(
+            timestamp=self.timestamp,
+            protocol=protocol,
+            payload=self._as_payload(security_data=security_data),
+        )
+
+    def _as_payload(self, security_data: SecurityData | None) -> bytes:
         """Convert the request arguments to a dictionary."""
         inner = {
             "id": self.request_id,
@@ -85,36 +95,18 @@ class RequestMessage:
         )
 
 
-def create_mqtt_payload_encoder(security_data: SecurityData) -> Callable[[CommandType, ParamsType], RoborockMessage]:
-    """Create a payload encoder for V1 commands over MQTT."""
+@dataclass(kw_only=True, frozen=True)
+class ResponseMessage:
+    """Data structure for v1 RoborockMessage responses."""
 
-    def _get_payload(method: CommandType, params: ParamsType) -> RoborockMessage:
-        """Build the payload for a V1 command."""
-        request = RequestMessage(method=method, params=params)
-        payload = request.as_payload(security_data)  # always secure
-        return RoborockMessage(
-            timestamp=request.timestamp,
-            protocol=RoborockMessageProtocol.RPC_REQUEST,
-            payload=payload,
-        )
+    request_id: int | None
+    """The request ID of the response."""
 
-    return _get_payload
+    data: dict[str, Any]
+    """The data of the response."""
 
 
-def encode_local_payload(method: CommandType, params: ParamsType) -> RoborockMessage:
-    """Encode payload for V1 commands over local connection."""
-
-    request = RequestMessage(method=method, params=params)
-    payload = request.as_payload(security_data=None)
-
-    return RoborockMessage(
-        timestamp=request.timestamp,
-        protocol=RoborockMessageProtocol.GENERAL_REQUEST,
-        payload=payload,
-    )
-
-
-def decode_rpc_response(message: RoborockMessage) -> dict[str, Any]:
+def decode_rpc_response(message: RoborockMessage) -> ResponseMessage:
     """Decode a V1 RPC_RESPONSE message."""
     if not message.payload:
         raise RoborockException("Invalid V1 message format: missing payload")
@@ -128,14 +120,19 @@ def decode_rpc_response(message: RoborockMessage) -> dict[str, Any]:
     if not isinstance(datapoints, dict):
         raise RoborockException(f"Invalid V1 message format: 'dps' should be a dictionary for {message.payload!r}")
 
-    if not (data_point := datapoints.get("102")):
-        raise RoborockException("Invalid V1 message format: missing '102' data point")
+    if not (data_point := datapoints.get(str(RoborockMessageProtocol.RPC_RESPONSE))):
+        raise RoborockException(
+            f"Invalid V1 message format: missing '{RoborockMessageProtocol.RPC_RESPONSE}' data point"
+        )
 
     try:
         data_point_response = json.loads(data_point)
     except (json.JSONDecodeError, TypeError) as e:
-        raise RoborockException(f"Invalid V1 message data point '102': {e} for {message.payload!r}") from e
+        raise RoborockException(
+            f"Invalid V1 message data point '{RoborockMessageProtocol.RPC_RESPONSE}': {e} for {message.payload!r}"
+        ) from e
 
+    request_id: int | None = data_point_response.get("id")
     if error := data_point_response.get("error"):
         raise RoborockException(f"Error in message: {error}")
 
@@ -146,7 +143,7 @@ def decode_rpc_response(message: RoborockMessage) -> dict[str, Any]:
         result = result[0]
     if not isinstance(result, dict):
         raise RoborockException(f"Invalid V1 message format: 'result' should be a dictionary for {message.payload!r}")
-    return result
+    return ResponseMessage(request_id=request_id, data=result)
 
 
 @dataclass

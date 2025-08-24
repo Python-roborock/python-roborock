@@ -24,4 +24,4 @@ async def send_decoded_command(
     """Send a command on the MQTT channel and get a decoded response."""
     _LOGGER.debug("Sending MQTT command: %s", params)
     roborock_message = encode_mqtt_payload(dps, command, params)
-    await mqtt_channel.send_message_no_wait(roborock_message)
+    await mqtt_channel.publish(roborock_message)
