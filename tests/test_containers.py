@@ -4,6 +4,12 @@ from dataclasses import dataclass
 from typing import Any
 
 from roborock import CleanRecord, CleanSummary, Consumable, DnDTimer, HomeData, S7MaxVStatus, UserData
+from roborock.b01_containers import (
+    B01Fault,
+    B01Props,
+    SCWindMapping,
+    WorkStatusMapping,
+)
 from roborock.code_mappings import (
     RoborockCategory,
     RoborockDockErrorCode,
@@ -330,12 +336,6 @@ def test_no_value():
 
 def test_b01props_deserialization():
     """Test that B01Props can be deserialized after its module is dynamically imported."""
-    from roborock.b01_containers import (
-        B01Fault,
-        B01Props,
-        SCWindMapping,
-        WorkStatusMapping,
-    )
 
     B01_PROPS_MOCK_DATA = {
         "status": 6,
