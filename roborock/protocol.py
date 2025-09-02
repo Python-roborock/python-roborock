@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-import asyncio
 import binascii
 import gzip
 import hashlib
-import json
 import logging
-from asyncio import BaseTransport, Lock
 from collections.abc import Callable
 from urllib.parse import urlparse
 
@@ -31,7 +28,7 @@ from construct import (  # type: ignore
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 
-from roborock.containers import BroadcastMessage, RRiot
+from roborock.containers import RRiot
 from roborock.exceptions import RoborockException
 from roborock.mqtt.session import MqttParams
 from roborock.roborock_message import RoborockMessage
@@ -40,7 +37,6 @@ _LOGGER = logging.getLogger(__name__)
 SALT = b"TXdfu$jyZ#TZHsg4"
 A01_HASH = "726f626f726f636b2d67a6d6da"
 B01_HASH = "5wwh9ikChRjASpMU8cxg7o1d2E"
-BROADCAST_TOKEN = b"qWKYcdQWrbm9hPqe"
 AP_CONFIG = 1
 SOCK_DISCOVERY = 2
 
@@ -49,38 +45,6 @@ def md5hex(message: str) -> str:
     md5 = hashlib.md5()
     md5.update(message.encode())
     return md5.hexdigest()
-
-
-class RoborockProtocol(asyncio.DatagramProtocol):
-    def __init__(self, timeout: int = 5):
-        self.timeout = timeout
-        self.transport: BaseTransport | None = None
-        self.devices_found: list[BroadcastMessage] = []
-        self._mutex = Lock()
-
-    def __del__(self):
-        self.close()
-
-    def datagram_received(self, data, _):
-        [broadcast_message], _ = BroadcastParser.parse(data)
-        if broadcast_message.payload:
-            parsed_message = BroadcastMessage.from_dict(json.loads(broadcast_message.payload))
-            _LOGGER.debug(f"Received broadcast: {parsed_message}")
-            self.devices_found.append(parsed_message)
-
-    async def discover(self):
-        async with self._mutex:
-            try:
-                loop = asyncio.get_event_loop()
-                self.transport, _ = await loop.create_datagram_endpoint(lambda: self, local_addr=("0.0.0.0", 58866))
-                await asyncio.sleep(self.timeout)
-                return self.devices_found
-            finally:
-                self.close()
-                self.devices_found = []
-
-    def close(self):
-        self.transport.close() if self.transport else None
 
 
 class Utils:
@@ -324,19 +288,6 @@ _Messages = Struct(
     "remaining" / Optional(GreedyBytes),
 )
 
-_BroadcastMessage = Struct(
-    "message"
-    / RawCopy(
-        Struct(
-            "version" / Bytes(3),
-            "seq" / Int32ub,
-            "protocol" / Int16ub,
-            "payload" / EncryptionAdapter(lambda ctx: BROADCAST_TOKEN),
-        )
-    ),
-    "checksum" / Checksum(Int32ub, Utils.crc, lambda ctx: ctx.message.data),
-)
-
 
 class _Parser:
     def __init__(self, con: Construct, required_local_key: bool):
@@ -390,7 +341,6 @@ class _Parser:
 
 
 MessageParser: _Parser = _Parser(_Messages, True)
-BroadcastParser: _Parser = _Parser(_BroadcastMessage, False)
 
 
 def create_mqtt_params(rriot: RRiot) -> MqttParams:
