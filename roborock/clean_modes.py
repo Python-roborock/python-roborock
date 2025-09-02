@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 from .code_mappings import RoborockModeEnum
 from .device_features import DeviceFeatures
 
