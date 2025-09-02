@@ -33,6 +33,7 @@ from .code_mappings import (
     RoborockFanSpeedSaros10R,
     RoborockFinishReason,
     RoborockInCleaning,
+    RoborockModeEnum,
     RoborockMopIntensityCode,
     RoborockMopIntensityP10,
     RoborockMopIntensityQ7Max,
@@ -120,6 +121,8 @@ class RoborockBase:
             return {k: RoborockBase._convert_to_class_obj(value_type, v) for k, v in value.items()}
         if issubclass(class_type, RoborockBase):
             return class_type.from_dict(value)
+        if issubclass(class_type, RoborockModeEnum):
+            return class_type.from_code(value)
         if class_type is Any:
             return value
         return class_type(value)  # type: ignore[call-arg]
@@ -723,6 +726,29 @@ class NetworkInfo(RoborockBase):
     mac: str | None = None
     bssid: str | None = None
     rssi: int | None = None
+
+
+@dataclass
+class AppInitStatusLocalInfo(RoborockBase):
+    location: str
+    bom: str | None = None
+    featureset: int | None = None
+    language: str | None = None
+    logserver: str | None = None
+    wifiplan: str | None = None
+    timezone: str | None = None
+    name: str | None = None
+
+
+@dataclass
+class AppInitStatus(RoborockBase):
+    local_info: AppInitStatusLocalInfo
+    feature_info: list[int]
+    new_feature_info: int
+    new_feature_info_str: str
+    new_feature_info_2: int | None = None
+    carriage_type: int | None = None
+    dsp_version: int | None = None
 
 
 @dataclass

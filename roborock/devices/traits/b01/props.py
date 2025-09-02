@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from roborock import RoborockB01Methods
 from roborock.roborock_message import RoborockB01Props
@@ -26,6 +25,8 @@ class B01PropsApi(Trait):
         """Initialize the B01Props API."""
         self._channel = channel
 
-    async def query_values(self, props: list[RoborockB01Props]) -> dict[int, Any]:
+    async def query_values(self, props: list[RoborockB01Props]) -> None:
         """Query the device for the values of the given Dyad protocols."""
-        return await send_decoded_command(self._channel, dps=10000, command=RoborockB01Methods.GET_PROP, params=props)
+        await send_decoded_command(
+            self._channel, dps=10000, command=RoborockB01Methods.GET_PROP, params={"property": props}
+        )

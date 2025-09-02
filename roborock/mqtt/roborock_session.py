@@ -17,6 +17,8 @@ from contextlib import asynccontextmanager
 import aiomqtt
 from aiomqtt import MqttError, TLSParameters
 
+from roborock.callbacks import CallbackMap
+
 from .session import MqttParams, MqttSession, MqttSessionException
 
 _LOGGER = logging.getLogger(__name__)
@@ -53,7 +55,7 @@ class RoborockMqttSession(MqttSession):
         self._backoff = MIN_BACKOFF_INTERVAL
         self._client: aiomqtt.Client | None = None
         self._client_lock = asyncio.Lock()
-        self._listeners: dict[str, list[Callable[[bytes], None]]] = {}
+        self._listeners: CallbackMap[str, bytes] = CallbackMap(_LOGGER)
 
     @property
     def connected(self) -> bool:
@@ -164,7 +166,7 @@ class RoborockMqttSession(MqttSession):
                 # Re-establish any existing subscriptions
                 async with self._client_lock:
                     self._client = client
-                    for topic in self._listeners:
+                    for topic in self._listeners.keys():
                         _LOGGER.debug("Re-establishing subscription to topic %s", topic)
                         # TODO: If this fails it will break the whole connection. Make
                         # this retry again in the background with backoff.
@@ -179,13 +181,7 @@ class RoborockMqttSession(MqttSession):
         _LOGGER.debug("Processing MQTT messages")
         async for message in client.messages:
             _LOGGER.debug("Received message: %s", message)
-            for listener in self._listeners.get(message.topic.value, []):
-                try:
-                    listener(message.payload)
-                except asyncio.CancelledError:
-                    raise
-                except Exception as e:
-                    _LOGGER.exception("Uncaught exception in subscriber callback: %s", e)
+            self._listeners(message.topic.value, message.payload)
 
     async def subscribe(self, topic: str, callback: Callable[[bytes], None]) -> Callable[[], None]:
         """Subscribe to messages on the specified topic and invoke the callback for new messages.
@@ -196,9 +192,7 @@ class RoborockMqttSession(MqttSession):
         The returned callable unsubscribes from the topic when called.
         """
         _LOGGER.debug("Subscribing to topic %s", topic)
-        if topic not in self._listeners:
-            self._listeners[topic] = []
-        self._listeners[topic].append(callback)
+        unsub = self._listeners.add_callback(topic, callback)
 
         async with self._client_lock:
             if self._client:
@@ -210,7 +204,7 @@ class RoborockMqttSession(MqttSession):
             else:
                 _LOGGER.debug("Client not connected, will establish subscription later")
 
-        return lambda: self._listeners[topic].remove(callback)
+        return unsub
 
     async def publish(self, topic: str, message: bytes) -> None:
         """Publish a message on the topic."""

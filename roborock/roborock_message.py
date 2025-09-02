@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import math
 import time
 from dataclasses import dataclass, field
@@ -247,12 +246,3 @@ class RoborockMessage:
     version: bytes = b"1.0"
     random: int = field(default_factory=lambda: get_next_int(10000, 99999))
     timestamp: int = field(default_factory=lambda: math.floor(time.time()))
-
-    def get_request_id(self) -> int | None:
-        if self.payload:
-            payload = json.loads(self.payload.decode())
-            for data_point_number, data_point in payload.get("dps").items():
-                if data_point_number in ["101", "102"]:
-                    data_point_response = json.loads(data_point)
-                    return data_point_response.get("id")
-        return None

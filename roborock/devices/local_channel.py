@@ -4,8 +4,8 @@ import asyncio
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
-from json import JSONDecodeError
 
+from roborock.callbacks import CallbackList, decoder_callback
 from roborock.exceptions import RoborockConnectionException, RoborockException
 from roborock.protocol import Decoder, Encoder, create_local_decoder, create_local_encoder
 from roborock.roborock_message import RoborockMessage
@@ -43,14 +43,13 @@ class LocalChannel(Channel):
         self._host = host
         self._transport: asyncio.Transport | None = None
         self._protocol: _LocalProtocol | None = None
-        self._subscribers: list[Callable[[RoborockMessage], None]] = []
+        self._subscribers: CallbackList[RoborockMessage] = CallbackList(_LOGGER)
         self._is_connected = False
 
-        # RPC support
-        self._waiting_queue: dict[int, asyncio.Future[RoborockMessage]] = {}
         self._decoder: Decoder = create_local_decoder(local_key)
         self._encoder: Encoder = create_local_encoder(local_key)
-        self._queue_lock = asyncio.Lock()
+        # Callback to decode messages and dispatch to subscribers
+        self._data_received: Callable[[bytes], None] = decoder_callback(self._decoder, self._subscribers, _LOGGER)
 
     @property
     def is_connected(self) -> bool:
@@ -80,20 +79,6 @@ class LocalChannel(Channel):
         self._transport = None
         self._is_connected = False
 
-    def _data_received(self, data: bytes) -> None:
-        """Handle incoming data from the transport."""
-        if not (messages := self._decoder(data)):
-            _LOGGER.warning("Failed to decode local message: %s", data)
-            return
-        for message in messages:
-            _LOGGER.debug("Received message: %s", message)
-            asyncio.create_task(self._resolve_future_with_lock(message))
-            for callback in self._subscribers:
-                try:
-                    callback(message)
-                except Exception as e:
-                    _LOGGER.exception("Uncaught error in message handler callback: %s", e)
-
     def _connection_lost(self, exc: Exception | None) -> None:
         """Handle connection loss."""
         _LOGGER.warning("Connection lost to %s", self._host, exc_info=exc)
@@ -102,55 +87,26 @@ class LocalChannel(Channel):
 
     async def subscribe(self, callback: Callable[[RoborockMessage], None]) -> Callable[[], None]:
         """Subscribe to all messages from the device."""
-        self._subscribers.append(callback)
+        return self._subscribers.add_callback(callback)
 
-        def unsubscribe() -> None:
-            self._subscribers.remove(callback)
+    async def publish(self, message: RoborockMessage) -> None:
+        """Send a command message.
 
-        return unsubscribe
-
-    async def _resolve_future_with_lock(self, message: RoborockMessage) -> None:
-        """Resolve waiting future with proper locking."""
-        if (request_id := message.get_request_id()) is None:
-            _LOGGER.debug("Received message with no request_id")
-            return
-        async with self._queue_lock:
-            if (future := self._waiting_queue.pop(request_id, None)) is not None:
-                future.set_result(message)
-            else:
-                _LOGGER.debug("Received message with no waiting handler: request_id=%s", request_id)
-
-    async def send_message(self, message: RoborockMessage, timeout: float = 10.0) -> RoborockMessage:
-        """Send a command message and wait for the response message."""
+        The caller is responsible for associating the message with its response.
+        """
         if not self._transport or not self._is_connected:
             raise RoborockConnectionException("Not connected to device")
 
         try:
-            if (request_id := message.get_request_id()) is None:
-                raise RoborockException("Message must have a request_id for RPC calls")
-        except (ValueError, JSONDecodeError) as err:
-            _LOGGER.exception("Error getting request_id from message: %s", err)
-            raise RoborockException(f"Invalid message format, Message must have a request_id: {err}") from err
-
-        future: asyncio.Future[RoborockMessage] = asyncio.Future()
-        async with self._queue_lock:
-            if request_id in self._waiting_queue:
-                raise RoborockException(f"Request ID {request_id} already pending, cannot send command")
-            self._waiting_queue[request_id] = future
-
-        try:
             encoded_msg = self._encoder(message)
+        except Exception as err:
+            _LOGGER.exception("Error encoding MQTT message: %s", err)
+            raise RoborockException(f"Failed to encode MQTT message: {err}") from err
+        try:
             self._transport.write(encoded_msg)
-            return await asyncio.wait_for(future, timeout=timeout)
-        except asyncio.TimeoutError as ex:
-            async with self._queue_lock:
-                self._waiting_queue.pop(request_id, None)
-            raise RoborockException(f"Command timed out after {timeout}s") from ex
-        except Exception:
+        except Exception as err:
             logging.exception("Uncaught error sending command")
-            async with self._queue_lock:
-                self._waiting_queue.pop(request_id, None)
-            raise
+            raise RoborockException(f"Failed to send message: {message}") from err
 
 
 # This module provides a factory function to create LocalChannel instances.

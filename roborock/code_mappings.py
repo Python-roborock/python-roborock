@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections import namedtuple
-from enum import Enum, IntEnum
+from enum import Enum, IntEnum, StrEnum
 
 _LOGGER = logging.getLogger(__name__)
 completed_warnings = set()
@@ -49,6 +49,26 @@ class RoborockEnum(IntEnum):
     @classmethod
     def items(cls: type[RoborockEnum]):
         return cls.as_dict().items()
+
+
+class RoborockModeEnum(StrEnum):
+    """A custom StrEnum that also stores an integer code for each member."""
+
+    code: int
+
+    def __new__(cls, value: str, code: int) -> RoborockModeEnum:
+        """Creates a new enum member."""
+        member = str.__new__(cls, value)
+        member._value_ = value
+        member.code = code
+        return member
+
+    @classmethod
+    def from_code(cls, code: int):
+        for member in cls:
+            if member.code == code:
+                return member
+        raise ValueError(f"{code} is not a valid code for {cls.__name__}")
 
 
 ProductInfo = namedtuple("ProductInfo", ["nickname", "short_models"])

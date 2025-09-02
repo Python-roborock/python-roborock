@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from roborock.protocols.b01_protocol import (
     CommandType,
     ParamsType,
-    decode_rpc_response,
     encode_mqtt_payload,
 )
 
@@ -22,9 +20,8 @@ async def send_decoded_command(
     dps: int,
     command: CommandType,
     params: ParamsType,
-) -> dict[int, Any]:
+) -> None:
     """Send a command on the MQTT channel and get a decoded response."""
     _LOGGER.debug("Sending MQTT command: %s", params)
     roborock_message = encode_mqtt_payload(dps, command, params)
-    response = await mqtt_channel.send_message(roborock_message)
-    return decode_rpc_response(response)  # type: ignore[return-value]
+    await mqtt_channel.publish(roborock_message)

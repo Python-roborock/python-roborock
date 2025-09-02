@@ -9,7 +9,7 @@ from roborock.cloud_api import RoborockMqttClient
 
 from ..containers import DeviceData, UserData
 from ..exceptions import CommandVacuumError, RoborockException, VacuumError
-from ..protocols.v1_protocol import create_mqtt_payload_encoder, create_security_data
+from ..protocols.v1_protocol import RequestMessage, create_security_data
 from ..roborock_message import (
     RoborockMessageProtocol,
 )
@@ -28,12 +28,12 @@ class RoborockMqttClientV1(RoborockMqttClient, RoborockClientV1):
         rriot = user_data.rriot
         if rriot is None:
             raise RoborockException("Got no rriot data from user_data")
-        security_data = create_security_data(rriot)
         RoborockMqttClient.__init__(self, user_data, device_info)
+        security_data = create_security_data(rriot)
         RoborockClientV1.__init__(self, device_info, security_data=security_data)
         self.queue_timeout = queue_timeout
         self._logger = RoborockLoggerAdapter(device_info.device.name, _LOGGER)
-        self._payload_encoder = create_mqtt_payload_encoder(security_data)
+        self._security_data = security_data
 
     async def _send_command(
         self,
@@ -44,13 +44,15 @@ class RoborockMqttClientV1(RoborockMqttClient, RoborockClientV1):
             # When we have more custom commands do something more complicated here
             return await self._get_calibration_points()
 
-        roborock_message = self._payload_encoder(method, params)
-        self._logger.debug("Building message id %s for method %s", roborock_message.get_request_id, method)
+        request_message = RequestMessage(method=method, params=params)
+        roborock_message = request_message.encode_message(
+            RoborockMessageProtocol.RPC_REQUEST,
+            security_data=self._security_data,
+        )
+        self._logger.debug("Building message id %s for method %s", request_message.request_id, method)
 
         await self.validate_connection()
-        request_id = roborock_message.get_request_id()
-        if request_id is None:
-            raise RoborockException(f"Failed build message {roborock_message}")
+        request_id = request_message.request_id
         response_protocol = (
             RoborockMessageProtocol.MAP_RESPONSE if method in COMMANDS_SECURED else RoborockMessageProtocol.RPC_RESPONSE
         )
