@@ -123,7 +123,38 @@ ULTRONSV_FEATURES = NEW_DEFAULT_FEATURES + RGB_CAMERA_FEATURES + [ProductFeature
 TANOSS_FEATURES = [ProductFeatures.REMOTE_BACK, ProductFeatures.MOP_SHAKE_MODULE]
 TOPAZSPOWER_FEATURES = [ProductFeatures.CLEANMODE_MAXPLUS, ProductFeatures.MOP_SHAKE_MODULE]
 
-product_feature_map: dict[RoborockProductNickname, list[ProductFeatures]] = {
+PRODUCTS_WITHOUT_CUSTOM_CLEAN: set[RoborockProductNickname] = {
+    RoborockProductNickname.TANOS,
+    RoborockProductNickname.RUBYPLUS,
+    RoborockProductNickname.RUBYSC,
+    RoborockProductNickname.RUBYSE,
+}
+PRODUCTS_WITHOUT_DEFAULT_3D_MAP: set[RoborockProductNickname] = {
+    RoborockProductNickname.TANOS,
+    RoborockProductNickname.TANOSSPLUS,
+    RoborockProductNickname.TANOSE,
+    RoborockProductNickname.TANOSV,
+    RoborockProductNickname.RUBYPLUS,
+    RoborockProductNickname.RUBYSC,
+    RoborockProductNickname.RUBYSE,
+}
+PRODUCTS_WITHOUT_PURE_CLEAN_MOP: set[RoborockProductNickname] = {
+    RoborockProductNickname.TANOS,
+    RoborockProductNickname.TANOSE,
+    RoborockProductNickname.TANOSV,
+    RoborockProductNickname.TANOSSLITE,
+    RoborockProductNickname.TANOSSE,
+    RoborockProductNickname.TANOSSC,
+    RoborockProductNickname.ULTRONLITE,
+    RoborockProductNickname.ULTRONE,
+    RoborockProductNickname.RUBYPLUS,
+    RoborockProductNickname.RUBYSLITE,
+    RoborockProductNickname.RUBYSC,
+    RoborockProductNickname.RUBYSE,
+}
+
+# Base map containing the initial, unconditional features for each product.
+_BASE_PRODUCT_FEATURE_MAP: dict[RoborockProductNickname, list[ProductFeatures]] = {
     RoborockProductNickname.PEARL: PEARL_FEATURES,
     RoborockProductNickname.PEARLS: PEARL_FEATURES,
     RoborockProductNickname.PEARLPLUS: PEARL_PLUS_FEATURES,
@@ -174,50 +205,15 @@ product_feature_map: dict[RoborockProductNickname, list[ProductFeatures]] = {
     RoborockProductNickname.RUBYSLITE: [ProductFeatures.MOP_ELECTRONIC_MODULE],
 }
 
-
-def update_features():
-    """Update the feature mapping."""
-    # Their firmware describes what doesn't have these features - not which one does.
-    # Matching that for ease of future updates.
-    PRODUCTS_WITHOUT_CUSTOM_CLEAN = {
-        RoborockProductNickname.TANOS,
-        RoborockProductNickname.RUBYPLUS,
-        RoborockProductNickname.RUBYSC,
-        RoborockProductNickname.RUBYSE,
-    }
-    PRODUCTS_WITHOUT_DEFAULT_3D_MAP = {
-        RoborockProductNickname.TANOS,
-        RoborockProductNickname.TANOSSPLUS,
-        RoborockProductNickname.TANOSE,
-        RoborockProductNickname.TANOSV,
-        RoborockProductNickname.RUBYPLUS,
-        RoborockProductNickname.RUBYSC,
-        RoborockProductNickname.RUBYSE,
-    }
-    PRODUCTS_WITHOUT_PURE_CLEAN_MOP = {
-        RoborockProductNickname.TANOS,
-        RoborockProductNickname.TANOSE,
-        RoborockProductNickname.TANOSV,
-        RoborockProductNickname.TANOSSLITE,
-        RoborockProductNickname.TANOSSE,
-        RoborockProductNickname.TANOSSC,
-        RoborockProductNickname.ULTRONLITE,
-        RoborockProductNickname.ULTRONE,
-        RoborockProductNickname.RUBYPLUS,
-        RoborockProductNickname.RUBYSLITE,
-        RoborockProductNickname.RUBYSC,
-        RoborockProductNickname.RUBYSE,
-    }
-    for product, feature_list in product_feature_map.items():
-        if product not in PRODUCTS_WITHOUT_CUSTOM_CLEAN:
-            feature_list.append(ProductFeatures.DEFAULT_CLEANMODECUSTOM)
-        if product not in PRODUCTS_WITHOUT_DEFAULT_3D_MAP:
-            feature_list.append(ProductFeatures.DEFAULT_MAP3D)
-        if product not in PRODUCTS_WITHOUT_PURE_CLEAN_MOP:
-            feature_list.append(ProductFeatures.CLEANMODE_PURECLEANMOP)
-
-
-update_features()
+product_feature_map: dict[RoborockProductNickname, list[ProductFeatures]] = {
+    product: (
+        features
+        + ([ProductFeatures.DEFAULT_CLEANMODECUSTOM] if product not in PRODUCTS_WITHOUT_CUSTOM_CLEAN else [])
+        + ([ProductFeatures.DEFAULT_MAP3D] if product not in PRODUCTS_WITHOUT_DEFAULT_3D_MAP else [])
+        + ([ProductFeatures.CLEANMODE_PURECLEANMOP] if product not in PRODUCTS_WITHOUT_PURE_CLEAN_MOP else [])
+    )
+    for product, features in _BASE_PRODUCT_FEATURE_MAP.items()
+}
 
 
 @dataclass
