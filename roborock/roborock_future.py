@@ -5,7 +5,7 @@ from typing import Any
 
 import async_timeout
 
-from .exceptions import VacuumError
+from .exceptions import RoborockInvalidUserData, VacuumError
 
 
 class RoborockFuture:
@@ -21,11 +21,11 @@ class RoborockFuture:
     def set_result(self, item: Any) -> None:
         self.loop.call_soon_threadsafe(self._set_result, item)
 
-    def _set_exception(self, exc: VacuumError) -> None:
+    def _set_exception(self, exc: VacuumError | RoborockInvalidUserData) -> None:
         if not self.fut.cancelled():
             self.fut.set_exception(exc)
 
-    def set_exception(self, exc: VacuumError) -> None:
+    def set_exception(self, exc: VacuumError | RoborockInvalidUserData) -> None:
         self.loop.call_soon_threadsafe(self._set_exception, exc)
 
     async def async_get(self, timeout: float | int) -> tuple[Any, VacuumError | None]:

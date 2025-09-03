@@ -8,10 +8,11 @@ from asyncio import Lock
 from typing import Any
 
 import paho.mqtt.client as mqtt
+from paho.mqtt.reasoncodes import ReasonCodes
 
 from .api import KEEPALIVE, RoborockClient
 from .containers import DeviceData, UserData
-from .exceptions import RoborockException, VacuumError
+from .exceptions import RoborockException, RoborockInvalidUserData, VacuumError
 from .protocol import (
     Decoder,
     Encoder,
@@ -78,13 +79,19 @@ class RoborockMqttClient(RoborockClient, ABC):
         self._encoder: Encoder = create_mqtt_encoder(device_info.device.local_key)
 
     def _mqtt_on_connect(self, *args, **kwargs):
-        _, __, ___, rc, ____ = args
+        rc: ReasonCodes = args[3]
         connection_queue = self._waiting_queue.get(CONNECT_REQUEST_ID)
-        if rc != mqtt.MQTT_ERR_SUCCESS:
-            message = f"Failed to connect ({mqtt.error_string(rc)})"
+        if rc != 0:
+            message = f"Failed to connect ({str(rc)})"
             self._logger.error(message)
             if connection_queue:
-                connection_queue.set_exception(VacuumError(message))
+                # These are the ReasonCodes relating to authorization issues.
+                if rc.value in {24, 25, 133, 134, 135, 144}:
+                    connection_queue.set_exception(
+                        RoborockInvalidUserData("Failed to connect to mqtt. Invalid user data. Re-auth is needed.")
+                    )
+                else:
+                    connection_queue.set_exception(VacuumError(message))
             else:
                 self._logger.debug("Failed to notify connect future, not in queue")
             return
@@ -92,7 +99,7 @@ class RoborockMqttClient(RoborockClient, ABC):
         topic = f"rr/m/o/{self._mqtt_user}/{self._hashed_user}/{self.device_info.device.duid}"
         (result, mid) = self._mqtt_client.subscribe(topic)
         if result != 0:
-            message = f"Failed to subscribe ({mqtt.error_string(rc)})"
+            message = f"Failed to subscribe ({str(rc)})"
             self._logger.error(message)
             if connection_queue:
                 connection_queue.set_exception(VacuumError(message))
