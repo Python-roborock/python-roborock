@@ -119,7 +119,7 @@ class RoborockMqttClient(RoborockClient, ABC):
     def _mqtt_on_disconnect(self, *args, **kwargs):
         _, __, rc, ___ = args
         try:
-            exc = RoborockException(mqtt.error_string(rc)) if rc != mqtt.MQTT_ERR_SUCCESS else None
+            exc = RoborockException(str(rc)) if rc != mqtt.MQTT_ERR_SUCCESS else None
             super().on_connection_lost(exc)
             connection_queue = self._waiting_queue.get(DISCONNECT_REQUEST_ID)
             if connection_queue:
@@ -145,7 +145,7 @@ class RoborockMqttClient(RoborockClient, ABC):
 
         if rc != mqtt.MQTT_ERR_SUCCESS:
             disconnected_future.cancel()
-            raise RoborockException(f"Failed to disconnect ({mqtt.error_string(rc)})")
+            raise RoborockException(f"Failed to disconnect ({str(rc)})")
 
         return disconnected_future
 
@@ -184,4 +184,4 @@ class RoborockMqttClient(RoborockClient, ABC):
             f"rr/m/i/{self._mqtt_user}/{self._hashed_user}/{self.device_info.device.duid}", msg
         )
         if info.rc != mqtt.MQTT_ERR_SUCCESS:
-            raise RoborockException(f"Failed to publish ({mqtt.error_string(info.rc)})")
+            raise RoborockException(f"Failed to publish ({str(info.rc)})")
