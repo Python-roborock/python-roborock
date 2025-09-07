@@ -8,7 +8,9 @@ from asyncio import Lock
 from typing import Any
 
 import paho.mqtt.client as mqtt
-from paho.mqtt.reasoncodes import ReasonCodes
+
+# Mypy is not seeing this for some reason. It wants me to use the depreciated ReasonCodes
+from paho.mqtt.reasoncodes import ReasonCode  # type: ignore
 
 from .api import KEEPALIVE, RoborockClient
 from .containers import DeviceData, UserData
@@ -68,7 +70,8 @@ class RoborockMqttClient(RoborockClient, ABC):
         self._mqtt_client = _Mqtt()
         self._mqtt_client.on_connect = self._mqtt_on_connect
         self._mqtt_client.on_message = self._mqtt_on_message
-        self._mqtt_client.on_disconnect = self._mqtt_on_disconnect
+        # Due to the incorrect ReasonCode, it is confused by typing
+        self._mqtt_client.on_disconnect = self._mqtt_on_disconnect  # type: ignore
         if mqtt_params.tls:
             self._mqtt_client.tls_set()
 
@@ -78,11 +81,17 @@ class RoborockMqttClient(RoborockClient, ABC):
         self._decoder: Decoder = create_mqtt_decoder(device_info.device.local_key)
         self._encoder: Encoder = create_mqtt_encoder(device_info.device.local_key)
 
-    def _mqtt_on_connect(self, *args, **kwargs):
-        rc: ReasonCodes = args[3]
+    def _mqtt_on_connect(
+        self,
+        client: mqtt.Client,
+        data: object,
+        flags: dict[str, int],
+        rc: ReasonCode,
+        properties: mqtt.Properties | None = None,
+    ):
         connection_queue = self._waiting_queue.get(CONNECT_REQUEST_ID)
-        if rc != 0:
-            message = f"Failed to connect ({str(rc)})"
+        if rc.is_failure:
+            message = f"Failed to connect ({rc})"
             self._logger.error(message)
             if connection_queue:
                 # These are the ReasonCodes relating to authorization issues.
@@ -116,10 +125,16 @@ class RoborockMqttClient(RoborockClient, ABC):
         except Exception as ex:
             self._logger.exception(ex)
 
-    def _mqtt_on_disconnect(self, *args, **kwargs):
-        _, __, rc, ___ = args
+    def _mqtt_on_disconnect(
+        self,
+        client: mqtt.Client,
+        data: object,
+        flags: dict[str, int],
+        rc: ReasonCode,
+        properties: mqtt.Properties | None = None,
+    ):
         try:
-            exc = RoborockException(str(rc)) if rc != mqtt.MQTT_ERR_SUCCESS else None
+            exc = RoborockException(str(rc)) if rc.is_failure else None
             super().on_connection_lost(exc)
             connection_queue = self._waiting_queue.get(DISCONNECT_REQUEST_ID)
             if connection_queue:
