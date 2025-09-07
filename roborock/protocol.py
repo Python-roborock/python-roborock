@@ -304,10 +304,10 @@ class _Parser:
             messages.append(
                 RoborockMessage(
                     version=message.message.value.version,
-                    seq=message.message.value.seq,
+                    seq=message.message.value.get("seq"),
                     random=message.message.value.get("random"),
                     timestamp=message.message.value.get("timestamp"),
-                    protocol=message.message.value.protocol,
+                    protocol=message.message.value.get("protocol"),
                     payload=message.message.value.payload,
                 )
             )
