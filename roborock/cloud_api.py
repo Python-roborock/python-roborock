@@ -130,11 +130,11 @@ class RoborockMqttClient(RoborockClient, ABC):
         client: mqtt.Client,
         data: object,
         flags: dict[str, int],
-        rc: ReasonCode,
+        rc: ReasonCode | None,
         properties: mqtt.Properties | None = None,
     ):
         try:
-            exc = RoborockException(str(rc)) if rc.is_failure else None
+            exc = RoborockException(str(rc)) if rc is not None and rc.is_failure else None
             super().on_connection_lost(exc)
             connection_queue = self._waiting_queue.get(DISCONNECT_REQUEST_ID)
             if connection_queue:
