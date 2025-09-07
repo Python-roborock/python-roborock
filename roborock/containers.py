@@ -783,6 +783,7 @@ class FlowLedStatus(RoborockBase):
 class BroadcastMessage(RoborockBase):
     duid: str
     ip: str
+    version: bytes
 
 
 class ServerTimer(NamedTuple):
