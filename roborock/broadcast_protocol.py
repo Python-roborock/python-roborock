@@ -16,8 +16,9 @@ from construct import (  # type: ignore
     RawCopy,
     Struct,
 )
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from Crypto.Cipher import AES
 
+from roborock import RoborockException
 from roborock.containers import BroadcastMessage
 from roborock.protocol import EncryptionAdapter, Utils, _Parser
 
@@ -40,14 +41,18 @@ class RoborockProtocol(asyncio.DatagramProtocol):
             if version == b"L01":
                 [parsed_msg], _ = L01Parser.parse(data)
                 encrypted_payload = parsed_msg.payload
+                if encrypted_payload is None:
+                    raise RoborockException("No encrypted payload found in broadcast message")
+                ciphertext = encrypted_payload[:-16]
+                tag = encrypted_payload[-16:]
 
                 key = hashlib.sha256(BROADCAST_TOKEN).digest()
                 iv_digest_input = data[:9]
                 digest = hashlib.sha256(iv_digest_input).digest()
                 iv = digest[:12]
 
-                cipher = AESGCM(key)
-                decrypted_payload_bytes = cipher.decrypt(iv, encrypted_payload, None)
+                cipher = AES.new(key, AES.MODE_GCM, nonce=iv)
+                decrypted_payload_bytes = cipher.decrypt_and_verify(ciphertext, tag)
                 json_payload = json.loads(decrypted_payload_bytes)
                 parsed_message = BroadcastMessage(duid=json_payload["duid"], ip=json_payload["ip"], version=version)
                 _LOGGER.debug(f"Received L01 broadcast: {parsed_message}")
@@ -61,7 +66,7 @@ class RoborockProtocol(asyncio.DatagramProtocol):
                     _LOGGER.debug(f"Received broadcast: {parsed_message}")
                     self.devices_found.append(parsed_message)
         except Exception as e:
-            _LOGGER.warning(f"Failed to decode message: {bytes}. Error: {e}")
+            _LOGGER.warning(f"Failed to decode message: {data!r}. Error: {e}")
 
     async def discover(self) -> list[BroadcastMessage]:
         async with self._mutex:
