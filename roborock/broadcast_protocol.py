@@ -29,9 +29,6 @@ class RoborockProtocol(asyncio.DatagramProtocol):
         self.devices_found: list[BroadcastMessage] = []
         self._mutex = Lock()
 
-    def __del__(self):
-        self.close()
-
     def datagram_received(self, data, _):
         [broadcast_message], _ = BroadcastParser.parse(data)
         if broadcast_message.payload:
