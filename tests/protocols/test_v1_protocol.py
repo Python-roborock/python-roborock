@@ -1,6 +1,7 @@
 """Tests for the v1 protocol message encoding and decoding."""
 
 import json
+import logging
 import pathlib
 from collections.abc import Generator
 from unittest.mock import patch
@@ -183,13 +184,14 @@ def test_create_map_response_decoder():
 
     decoder = create_map_response_decoder(SECURITY_DATA)
     result = decoder(message)
-
+    assert result is not None
     assert result.request_id == 44508
     assert result.data == test_data
 
 
-def test_create_map_response_decoder_invalid_endpoint():
+def test_create_map_response_decoder_invalid_endpoint(caplog: pytest.LogCaptureFixture):
     """Test map response decoder with invalid endpoint."""
+    caplog.set_level(logging.DEBUG)
     # Create header with wrong endpoint
     header = b"wrongend" + b"\x00" * 8 + b"\xdc\xad" + b"\x00" * 6
     payload = header + b"encrypted_data"
@@ -204,9 +206,8 @@ def test_create_map_response_decoder_invalid_endpoint():
     )
 
     decoder = create_map_response_decoder(SECURITY_DATA)
-
-    with pytest.raises(RoborockException, match="Invalid V1 map response endpoint"):
-        decoder(message)
+    assert decoder(message) is None
+    assert "Received map response requested not made by this device, ignoring." in caplog.text
 
 
 def test_create_map_response_decoder_invalid_payload():
