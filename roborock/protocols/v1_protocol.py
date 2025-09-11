@@ -157,19 +157,18 @@ class MapResponse:
     """The map data, decrypted and decompressed."""
 
 
-def create_map_response_decoder(security_data: SecurityData) -> Callable[[RoborockMessage], MapResponse]:
+def create_map_response_decoder(security_data: SecurityData) -> Callable[[RoborockMessage], MapResponse | None]:
     """Create a decoder for V1 map response messages."""
 
-    def _decode_map_response(message: RoborockMessage) -> MapResponse:
+    def _decode_map_response(message: RoborockMessage) -> MapResponse | None:
         """Decode a V1 map response message."""
         if not message.payload or len(message.payload) < 24:
             raise RoborockException("Invalid V1 map response format: missing payload")
         header, body = message.payload[:24], message.payload[24:]
         [endpoint, _, request_id, _] = struct.unpack("<8s8sH6s", header)
         if not endpoint.decode().startswith(security_data.endpoint):
-            raise RoborockException(
-                f"Invalid V1 map response endpoint: {endpoint!r}, expected {security_data.endpoint!r}"
-            )
+            _LOGGER.debug("Received map response requested not made by this device, ignoring.")
+            return None
         try:
             decrypted = Utils.decrypt_cbc(body, security_data.nonce)
         except ValueError as err:
