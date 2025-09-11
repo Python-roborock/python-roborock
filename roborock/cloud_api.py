@@ -80,6 +80,8 @@ class RoborockMqttClient(RoborockClient, ABC):
         self._mutex = Lock()
         self._decoder: Decoder = create_mqtt_decoder(device_info.device.local_key)
         self._encoder: Encoder = create_mqtt_encoder(device_info.device.local_key)
+        self.previous_attempt_was_subscribe = False
+        self._topic = f"rr/m/o/{self._mqtt_user}/{self._hashed_user}/{self.device_info.device.duid}"
 
     def _mqtt_on_connect(
         self,
@@ -105,19 +107,19 @@ class RoborockMqttClient(RoborockClient, ABC):
                 self._logger.debug("Failed to notify connect future, not in queue")
             return
         self._logger.info(f"Connected to mqtt {self._mqtt_host}:{self._mqtt_port}")
-        topic = f"rr/m/o/{self._mqtt_user}/{self._hashed_user}/{self.device_info.device.duid}"
-        (result, mid) = self._mqtt_client.subscribe(topic)
+        (result, mid) = self._mqtt_client.subscribe(self._topic)
         if result != 0:
             message = f"Failed to subscribe ({str(rc)})"
             self._logger.error(message)
             if connection_queue:
                 connection_queue.set_exception(VacuumError(message))
             return
-        self._logger.info(f"Subscribed to topic {topic}")
+        self._logger.info(f"Subscribed to topic {self._topic}")
         if connection_queue:
             connection_queue.set_result(True)
 
     def _mqtt_on_message(self, *args, **kwargs):
+        self.previous_attempt_was_subscribe = False
         client, __, msg = args
         try:
             messages = self._decoder(msg.payload)
@@ -199,4 +201,34 @@ class RoborockMqttClient(RoborockClient, ABC):
             f"rr/m/i/{self._mqtt_user}/{self._hashed_user}/{self.device_info.device.duid}", msg
         )
         if info.rc != mqtt.MQTT_ERR_SUCCESS:
-            raise RoborockException(f"Failed to publish ({str(info.rc)})")
+            raise RoborockException(f"Failed to publish ({mqtt.error_string(info.rc)})")
+
+    async def validate_connection(self) -> None:
+        """Override the default validate connection to try to re-subscribe rather than disconnect."""
+        if self.previous_attempt_was_subscribe:
+            # If we have already tried to unsub and resub, and we are still in this state,
+            # we should just do the normal validate connection.
+            return await super().validate_connection()
+        try:
+            if not self.should_keepalive():
+                self.previous_attempt_was_subscribe = True
+                loop = asyncio.get_running_loop()
+
+                self._logger.info("Resetting Roborock connection due to keepalive timeout")
+                (result, mid) = await loop.run_in_executor(None, self._mqtt_client.unsubscribe, self._topic)
+
+                if result != 0:
+                    message = f"Failed to unsubscribe ({mqtt.error_string(result)})"
+                    self._logger.error(message)
+                    return await super().validate_connection()
+                (result, mid) = await loop.run_in_executor(None, self._mqtt_client.subscribe, self._topic)
+
+                if result != 0:
+                    message = f"Failed to subscribe ({mqtt.error_string(result)})"
+                    self._logger.error(message)
+                    return await super().validate_connection()
+
+                self._logger.info(f"Subscribed to topic {self._topic}")
+        except Exception:  # noqa
+            return await super().validate_connection()
+        await self.async_connect()

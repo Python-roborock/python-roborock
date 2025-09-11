@@ -23,7 +23,7 @@ from .roborock_message import (
 from .util import get_next_int
 
 _LOGGER = logging.getLogger(__name__)
-KEEPALIVE = 60
+KEEPALIVE = 70
 
 
 class RoborockClient(ABC):
