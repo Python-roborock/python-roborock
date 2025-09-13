@@ -150,6 +150,86 @@ class Utils:
         return ciphertext
 
     @staticmethod
+    def _l01_key(local_key: str, timestamp: int) -> bytes:
+        """Derive key for L01 protocol."""
+        hash_input = Utils.encode_timestamp(timestamp) + Utils.ensure_bytes(local_key) + SALT
+        return hashlib.sha256(hash_input).digest()
+
+    @staticmethod
+    def _l01_iv(timestamp: int, nonce: int, sequence: int) -> bytes:
+        """Derive IV for L01 protocol."""
+        digest_input = sequence.to_bytes(4, "big") + nonce.to_bytes(4, "big") + timestamp.to_bytes(4, "big")
+        digest = hashlib.sha256(digest_input).digest()
+        return digest[:12]
+
+    @staticmethod
+    def _l01_aad(timestamp: int, nonce: int, sequence: int, connect_nonce: int, ack_nonce: int) -> bytes:
+        """Derive AAD for L01 protocol."""
+        return (
+            sequence.to_bytes(4, "big")
+            + connect_nonce.to_bytes(4, "big")
+            + ack_nonce.to_bytes(4, "big")
+            + nonce.to_bytes(4, "big")
+            + timestamp.to_bytes(4, "big")
+        )
+
+    @staticmethod
+    def encrypt_gcm_l01(
+        plaintext: bytes,
+        local_key: str,
+        timestamp: int,
+        sequence: int,
+        nonce: int,
+        connect_nonce: int,
+        ack_nonce: int,
+    ) -> bytes:
+        """Encrypt plaintext for L01 protocol using AES-256-GCM."""
+        if not isinstance(plaintext, bytes):
+            raise TypeError("plaintext requires bytes")
+
+        key = Utils._l01_key(local_key, timestamp)
+        iv = Utils._l01_iv(timestamp, nonce, sequence)
+        aad = Utils._l01_aad(timestamp, nonce, sequence, connect_nonce, ack_nonce)
+
+        cipher = AES.new(key, AES.MODE_GCM, nonce=iv)
+        cipher.update(aad)
+        ciphertext, tag = cipher.encrypt_and_digest(plaintext)
+
+        return ciphertext + tag
+
+    @staticmethod
+    def decrypt_gcm_l01(
+        payload: bytes,
+        local_key: str,
+        timestamp: int,
+        sequence: int,
+        nonce: int,
+        connect_nonce: int,
+        ack_nonce: int,
+    ) -> bytes:
+        """Decrypt payload for L01 protocol using AES-256-GCM."""
+        if not isinstance(payload, bytes):
+            raise TypeError("payload requires bytes")
+
+        key = Utils._l01_key(local_key, timestamp)
+        iv = Utils._l01_iv(timestamp, nonce, sequence)
+        aad = Utils._l01_aad(timestamp, nonce, sequence, connect_nonce, ack_nonce)
+
+        if len(payload) < 16:
+            raise ValueError("Invalid payload length for GCM decryption")
+
+        tag = payload[-16:]
+        ciphertext = payload[:-16]
+
+        cipher = AES.new(key, AES.MODE_GCM, nonce=iv)
+        cipher.update(aad)
+
+        try:
+            return cipher.decrypt_and_verify(ciphertext, tag)
+        except ValueError as e:
+            raise RoborockException("GCM tag verification failed") from e
+
+    @staticmethod
     def crc(data: bytes) -> int:
         """Gather bytes for checksum calculation."""
         return binascii.crc32(data)
