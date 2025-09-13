@@ -134,8 +134,8 @@ class RoborockBase:
             return None
         field_types = {field.name: field.type for field in dataclasses.fields(cls)}
         result: dict[str, Any] = {}
-        for key, value in data.items():
-            key = _decamelize(key)
+        for orig_key, value in data.items():
+            key = _decamelize(orig_key)
             if (field_type := field_types.get(key)) is None:
                 continue
             if value == "None" or value is None:
@@ -178,16 +178,18 @@ class RoborockBaseTimer(RoborockBase):
     end_hour: int | None = None
     end_minute: int | None = None
     enabled: int | None = None
-    start_time: datetime.time | None = None
-    end_time: datetime.time | None = None
 
-    def __post_init__(self) -> None:
-        self.start_time = (
+    @property
+    def start_time(self) -> datetime.time | None:
+        return (
             datetime.time(hour=self.start_hour, minute=self.start_minute)
             if self.start_hour is not None and self.start_minute is not None
             else None
         )
-        self.end_time = (
+
+    @property
+    def end_time(self) -> datetime.time | None:
+        return (
             datetime.time(hour=self.end_hour, minute=self.end_minute)
             if self.end_hour is not None and self.end_minute is not None
             else None

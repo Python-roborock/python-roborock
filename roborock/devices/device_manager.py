@@ -22,6 +22,7 @@ from .cache import Cache, NoCache
 from .channel import Channel
 from .mqtt_channel import create_mqtt_channel
 from .traits.b01.props import B01PropsApi
+from .traits.dnd import DoNotDisturbTrait
 from .traits.dyad import DyadApi
 from .traits.status import StatusTrait
 from .traits.trait import Trait
@@ -152,6 +153,7 @@ async def create_device_manager(
             case DeviceVersion.V1:
                 channel = create_v1_channel(user_data, mqtt_params, mqtt_session, device, cache)
                 traits.append(StatusTrait(product, channel.rpc_channel))
+                traits.append(DoNotDisturbTrait(channel.rpc_channel))
             case DeviceVersion.A01:
                 mqtt_channel = create_mqtt_channel(user_data, mqtt_params, mqtt_session, device)
                 match product.category:

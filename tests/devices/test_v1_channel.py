@@ -254,7 +254,7 @@ async def test_v1_channel_send_command_local_preferred(
 
     # Send command
     mock_local_channel.response_queue.append(TEST_RESPONSE)
-    result = await v1_channel.rpc_channel.send_command(
+    result = await v1_channel.rpc_channel().send_command(
         RoborockCommand.CHANGE_SOUND_VOLUME,
         response_type=S5MaxStatus,
     )
@@ -280,7 +280,7 @@ async def test_v1_channel_send_command_local_fails(
 
     # Send command
     with pytest.raises(RoborockException, match="Local failed"):
-        await v1_channel.rpc_channel.send_command(
+        await v1_channel.rpc_channel().send_command(
             RoborockCommand.CHANGE_SOUND_VOLUME,
             response_type=S5MaxStatus,
         )
@@ -300,7 +300,7 @@ async def test_v1_channel_send_decoded_command_mqtt_only(
 
     # Send command
     mock_mqtt_channel.response_queue.append(TEST_RESPONSE)
-    result = await v1_channel.rpc_channel.send_command(
+    result = await v1_channel.rpc_channel().send_command(
         RoborockCommand.CHANGE_SOUND_VOLUME,
         response_type=S5MaxStatus,
     )
@@ -322,7 +322,7 @@ async def test_v1_channel_send_decoded_command_with_params(
     # Send command with params
     mock_local_channel.response_queue.append(TEST_RESPONSE)
     test_params = {"volume": 80}
-    await v1_channel.rpc_channel.send_command(
+    await v1_channel.rpc_channel().send_command(
         RoborockCommand.CHANGE_SOUND_VOLUME,
         response_type=S5MaxStatus,
         params=test_params,
@@ -444,7 +444,7 @@ async def test_v1_channel_command_encoding_validation(
 
     # Send local command and capture the request
     mock_local_channel.response_queue.append(TEST_RESPONSE_2)
-    await v1_channel.rpc_channel.send_command(RoborockCommand.CHANGE_SOUND_VOLUME, params={"volume": 50})
+    await v1_channel.rpc_channel().send_command(RoborockCommand.CHANGE_SOUND_VOLUME, params={"volume": 50})
     assert mock_local_channel.published_messages
     local_message = mock_local_channel.published_messages[0]
 
@@ -512,7 +512,7 @@ async def test_v1_channel_full_subscribe_and_command_flow(
 
     # Send a command (should use local)
     mock_local_channel.response_queue.append(TEST_RESPONSE)
-    result = await v1_channel.rpc_channel.send_command(
+    result = await v1_channel.rpc_channel().send_command(
         RoborockCommand.GET_STATUS,
         response_type=S5MaxStatus,
     )

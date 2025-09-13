@@ -81,9 +81,12 @@ class V1Channel(Channel):
         """Return whether MQTT connection is available."""
         return self._mqtt_unsub is not None and self._mqtt_channel.is_connected
 
-    @property
     def rpc_channel(self) -> V1RpcChannel:
-        """Return the combined RPC channel prefers local with a fallback to MQTT."""
+        """Return the combined RPC channel prefers local with a fallback to MQTT.
+
+        This is dynamic based on the current connection status. That is, it may return
+        a different channel depending on whether local or MQTT is available.
+        """
         return self._combined_rpc_channel or self._mqtt_rpc_channel
 
     @property

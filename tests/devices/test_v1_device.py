@@ -44,7 +44,7 @@ def traits_fixture(rpc_channel: AsyncMock) -> list[Trait]:
     return [
         StatusTrait(
             product_info=HOME_DATA.products[0],
-            rpc_channel=rpc_channel,
+            rpc_channel=lambda: rpc_channel,
         )
     ]
 

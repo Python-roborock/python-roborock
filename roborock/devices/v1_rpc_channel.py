@@ -132,8 +132,10 @@ class PayloadEncodedV1RpcChannel(BaseV1RpcChannel):
         params: ParamsType = None,
     ) -> Any:
         """Send a command and return a parsed response RoborockBase type."""
-        _LOGGER.debug("Sending command (%s): %s, params=%s", self._name, method, params)
         request_message = RequestMessage(method, params=params)
+        _LOGGER.debug(
+            "Sending command (%s, request_id=%s): %s, params=%s", self._name, request_message.request_id, method, params
+        )
         message = self._payload_encoder(request_message)
 
         future: asyncio.Future[dict[str, Any]] = asyncio.Future()
@@ -141,8 +143,10 @@ class PayloadEncodedV1RpcChannel(BaseV1RpcChannel):
         def find_response(response_message: RoborockMessage) -> None:
             try:
                 decoded = decode_rpc_response(response_message)
-            except RoborockException:
+            except RoborockException as ex:
+                _LOGGER.debug("Exception while decoding message (%s): %s", response_message, ex)
                 return
+            _LOGGER.debug("Received response (request_id=%s): %s", self._name, decoded.request_id)
             if decoded.request_id == request_message.request_id:
                 future.set_result(decoded.data)
 

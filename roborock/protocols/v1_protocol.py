@@ -109,7 +109,7 @@ class ResponseMessage:
 def decode_rpc_response(message: RoborockMessage) -> ResponseMessage:
     """Decode a V1 RPC_RESPONSE message."""
     if not message.payload:
-        raise RoborockException("Invalid V1 message format: missing payload")
+        return ResponseMessage(request_id=message.seq, data={})
     try:
         payload = json.loads(message.payload.decode())
     except (json.JSONDecodeError, TypeError) as e:
@@ -141,6 +141,8 @@ def decode_rpc_response(message: RoborockMessage) -> ResponseMessage:
     _LOGGER.debug("Decoded V1 message result: %s", result)
     if isinstance(result, list) and result:
         result = result[0]
+    if isinstance(result, str) and result == "ok":
+        result = {}
     if not isinstance(result, dict):
         raise RoborockException(f"Invalid V1 message format: 'result' should be a dictionary for {message.payload!r}")
     return ResponseMessage(request_id=request_id, data=result)
