@@ -9,9 +9,12 @@ from typing import Any
 
 import paho.mqtt.client as mqtt
 
+# Mypy is not seeing this for some reason. It wants me to use the depreciated ReasonCodes
+from paho.mqtt.reasoncodes import ReasonCode  # type: ignore
+
 from .api import KEEPALIVE, RoborockClient
 from .containers import DeviceData, UserData
-from .exceptions import RoborockException, VacuumError
+from .exceptions import RoborockException, RoborockInvalidUserData, VacuumError
 from .protocol import (
     Decoder,
     Encoder,
@@ -67,7 +70,8 @@ class RoborockMqttClient(RoborockClient, ABC):
         self._mqtt_client = _Mqtt()
         self._mqtt_client.on_connect = self._mqtt_on_connect
         self._mqtt_client.on_message = self._mqtt_on_message
-        self._mqtt_client.on_disconnect = self._mqtt_on_disconnect
+        # Due to the incorrect ReasonCode, it is confused by typing
+        self._mqtt_client.on_disconnect = self._mqtt_on_disconnect  # type: ignore
         if mqtt_params.tls:
             self._mqtt_client.tls_set()
 
@@ -76,32 +80,46 @@ class RoborockMqttClient(RoborockClient, ABC):
         self._mutex = Lock()
         self._decoder: Decoder = create_mqtt_decoder(device_info.device.local_key)
         self._encoder: Encoder = create_mqtt_encoder(device_info.device.local_key)
+        self.previous_attempt_was_subscribe = False
+        self._topic = f"rr/m/o/{self._mqtt_user}/{self._hashed_user}/{self.device_info.device.duid}"
 
-    def _mqtt_on_connect(self, *args, **kwargs):
-        _, __, ___, rc, ____ = args
+    def _mqtt_on_connect(
+        self,
+        client: mqtt.Client,
+        data: object,
+        flags: dict[str, int],
+        rc: ReasonCode,
+        properties: mqtt.Properties | None = None,
+    ):
         connection_queue = self._waiting_queue.get(CONNECT_REQUEST_ID)
-        if rc != mqtt.MQTT_ERR_SUCCESS:
-            message = f"Failed to connect ({mqtt.error_string(rc)})"
+        if rc.is_failure:
+            message = f"Failed to connect ({rc})"
             self._logger.error(message)
             if connection_queue:
-                connection_queue.set_exception(VacuumError(message))
+                # These are the ReasonCodes relating to authorization issues.
+                if rc.value in {24, 25, 133, 134, 135, 144}:
+                    connection_queue.set_exception(
+                        RoborockInvalidUserData("Failed to connect to mqtt. Invalid user data. Re-auth is needed.")
+                    )
+                else:
+                    connection_queue.set_exception(VacuumError(message))
             else:
                 self._logger.debug("Failed to notify connect future, not in queue")
             return
         self._logger.info(f"Connected to mqtt {self._mqtt_host}:{self._mqtt_port}")
-        topic = f"rr/m/o/{self._mqtt_user}/{self._hashed_user}/{self.device_info.device.duid}"
-        (result, mid) = self._mqtt_client.subscribe(topic)
+        (result, mid) = self._mqtt_client.subscribe(self._topic)
         if result != 0:
-            message = f"Failed to subscribe ({mqtt.error_string(rc)})"
+            message = f"Failed to subscribe ({str(rc)})"
             self._logger.error(message)
             if connection_queue:
                 connection_queue.set_exception(VacuumError(message))
             return
-        self._logger.info(f"Subscribed to topic {topic}")
+        self._logger.info(f"Subscribed to topic {self._topic}")
         if connection_queue:
             connection_queue.set_result(True)
 
     def _mqtt_on_message(self, *args, **kwargs):
+        self.previous_attempt_was_subscribe = False
         client, __, msg = args
         try:
             messages = self._decoder(msg.payload)
@@ -109,10 +127,16 @@ class RoborockMqttClient(RoborockClient, ABC):
         except Exception as ex:
             self._logger.exception(ex)
 
-    def _mqtt_on_disconnect(self, *args, **kwargs):
-        _, __, rc, ___ = args
+    def _mqtt_on_disconnect(
+        self,
+        client: mqtt.Client,
+        data: object,
+        flags: dict[str, int],
+        rc: ReasonCode | None,
+        properties: mqtt.Properties | None = None,
+    ):
         try:
-            exc = RoborockException(mqtt.error_string(rc)) if rc != mqtt.MQTT_ERR_SUCCESS else None
+            exc = RoborockException(str(rc)) if rc is not None and rc.is_failure else None
             super().on_connection_lost(exc)
             connection_queue = self._waiting_queue.get(DISCONNECT_REQUEST_ID)
             if connection_queue:
@@ -138,7 +162,7 @@ class RoborockMqttClient(RoborockClient, ABC):
 
         if rc != mqtt.MQTT_ERR_SUCCESS:
             disconnected_future.cancel()
-            raise RoborockException(f"Failed to disconnect ({mqtt.error_string(rc)})")
+            raise RoborockException(f"Failed to disconnect ({str(rc)})")
 
         return disconnected_future
 
@@ -178,3 +202,33 @@ class RoborockMqttClient(RoborockClient, ABC):
         )
         if info.rc != mqtt.MQTT_ERR_SUCCESS:
             raise RoborockException(f"Failed to publish ({mqtt.error_string(info.rc)})")
+
+    async def validate_connection(self) -> None:
+        """Override the default validate connection to try to re-subscribe rather than disconnect."""
+        if self.previous_attempt_was_subscribe:
+            # If we have already tried to unsub and resub, and we are still in this state,
+            # we should just do the normal validate connection.
+            return await super().validate_connection()
+        try:
+            if not self.should_keepalive():
+                self.previous_attempt_was_subscribe = True
+                loop = asyncio.get_running_loop()
+
+                self._logger.info("Resetting Roborock connection due to keepalive timeout")
+                (result, mid) = await loop.run_in_executor(None, self._mqtt_client.unsubscribe, self._topic)
+
+                if result != 0:
+                    message = f"Failed to unsubscribe ({mqtt.error_string(result)})"
+                    self._logger.error(message)
+                    return await super().validate_connection()
+                (result, mid) = await loop.run_in_executor(None, self._mqtt_client.subscribe, self._topic)
+
+                if result != 0:
+                    message = f"Failed to subscribe ({mqtt.error_string(result)})"
+                    self._logger.error(message)
+                    return await super().validate_connection()
+
+                self._logger.info(f"Subscribed to topic {self._topic}")
+        except Exception:  # noqa
+            return await super().validate_connection()
+        await self.async_connect()
