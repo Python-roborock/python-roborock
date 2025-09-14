@@ -109,8 +109,6 @@ def _decamelize(s: str):
 
 @dataclass
 class RoborockBase:
-    _ignore_keys = []  # type: ignore
-
     @staticmethod
     def _convert_to_class_obj(class_type: type, value):
         if get_origin(class_type) is list:
@@ -684,19 +682,20 @@ class MultiMapsListMapInfoBakMaps(RoborockBase):
 
 @dataclass
 class MultiMapsListMapInfo(RoborockBase):
-    _ignore_keys = ["mapFlag"]
-
-    mapFlag: int
+    map_flag: int
     name: str
     add_time: Any | None = None
     length: Any | None = None
     bak_maps: list[MultiMapsListMapInfoBakMaps] | None = None
 
+    @property
+    def mapFlag(self) -> int:
+        """Alias for map_flag, returns the map flag as an integer."""
+        return self.map_flag
+
 
 @dataclass
 class MultiMapsList(RoborockBase):
-    _ignore_keys = ["mapFlag"]
-
     max_multi_map: int | None = None
     max_bak_map: int | None = None
     multi_map_count: int | None = None
