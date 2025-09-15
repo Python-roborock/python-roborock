@@ -282,6 +282,16 @@ class EncryptionAdapter(Construct):
             iv = md5hex(f"{context.random:08x}" + B01_HASH)[9:25]
             decipher = AES.new(bytes(context.search("local_key"), "utf-8"), AES.MODE_CBC, bytes(iv, "utf-8"))
             return decipher.encrypt(obj)
+        elif context.version == b"L01":
+            return Utils.encrypt_gcm_l01(
+                plaintext=obj,
+                local_key=context.search("local_key"),
+                timestamp=context.timestamp,
+                sequence=context.seq,
+                nonce=context.random,
+                connect_nonce=context.search("connect_nonce"),
+                ack_nonce=context.search("ack_nonce"),
+            )
         token = self.token_func(context)
         encrypted = Utils.encrypt_ecb(obj, token)
         return encrypted
@@ -297,6 +307,16 @@ class EncryptionAdapter(Construct):
             iv = md5hex(f"{context.random:08x}" + B01_HASH)[9:25]
             decipher = AES.new(bytes(context.search("local_key"), "utf-8"), AES.MODE_CBC, bytes(iv, "utf-8"))
             return decipher.decrypt(obj)
+        elif context.version == b"L01":
+            return Utils.decrypt_gcm_l01(
+                payload=obj,
+                local_key=context.search("local_key"),
+                timestamp=context.timestamp,
+                sequence=context.seq,
+                nonce=context.random,
+                connect_nonce=context.search("connect_nonce"),
+                ack_nonce=context.search("ack_nonce"),
+            )
         token = self.token_func(context)
         decrypted = Utils.decrypt_ecb(obj, token)
         return decrypted
@@ -321,7 +341,7 @@ class PrefixedStruct(Struct):
     def _parse(self, stream, context, path):
         subcon1 = Peek(Optional(Bytes(3)))
         peek_version = subcon1.parse_stream(stream, **context)
-        if peek_version not in (b"1.0", b"A01", b"B01"):
+        if peek_version not in (b"1.0", b"A01", b"B01", b"L01"):
             subcon2 = Bytes(4)
             subcon2.parse_stream(stream, **context)
         return super()._parse(stream, context, path)
@@ -374,10 +394,12 @@ class _Parser:
         self.con = con
         self.required_local_key = required_local_key
 
-    def parse(self, data: bytes, local_key: str | None = None) -> tuple[list[RoborockMessage], bytes]:
+    def parse(
+        self, data: bytes, local_key: str | None = None, connect_nonce: int | None = None, ack_nonce: int | None = None
+    ) -> tuple[list[RoborockMessage], bytes]:
         if self.required_local_key and local_key is None:
             raise RoborockException("Local key is required")
-        parsed = self.con.parse(data, local_key=local_key)
+        parsed = self.con.parse(data, local_key=local_key, connect_nonce=connect_nonce, ack_nonce=ack_nonce)
         parsed_messages = [Container({"message": parsed.message})] if parsed.get("message") else parsed.messages
         messages = []
         for message in parsed_messages:
@@ -395,7 +417,12 @@ class _Parser:
         return messages, remaining
 
     def build(
-        self, roborock_messages: list[RoborockMessage] | RoborockMessage, local_key: str, prefixed: bool = True
+        self,
+        roborock_messages: list[RoborockMessage] | RoborockMessage,
+        local_key: str,
+        prefixed: bool = True,
+        connect_nonce: int | None = None,
+        ack_nonce: int | None = None,
     ) -> bytes:
         if isinstance(roborock_messages, RoborockMessage):
             roborock_messages = [roborock_messages]
@@ -416,7 +443,11 @@ class _Parser:
                 }
             )
         return self.con.build(
-            {"messages": [message for message in messages], "remaining": b""}, local_key=local_key, prefixed=prefixed
+            {"messages": [message for message in messages], "remaining": b""},
+            local_key=local_key,
+            prefixed=prefixed,
+            connect_nonce=connect_nonce,
+            ack_nonce=ack_nonce,
         )
 
 
@@ -466,29 +497,31 @@ def create_mqtt_encoder(local_key: str) -> Encoder:
     return encode
 
 
-def create_local_decoder(local_key: str) -> Decoder:
+def create_local_decoder(local_key: str, connect_nonce: int | None = None, ack_nonce: int | None = None) -> Decoder:
     """Create a decoder for local API messages."""
 
     # This buffer is used to accumulate bytes until a complete message can be parsed.
     # It is defined outside the decode function to maintain state across calls.
     buffer: bytes = b""
 
-    def decode(bytes: bytes) -> list[RoborockMessage]:
+    def decode(bytes_data: bytes) -> list[RoborockMessage]:
         """Parse the given data into Roborock messages."""
         nonlocal buffer
-        buffer += bytes
-        parsed_messages, remaining = MessageParser.parse(buffer, local_key=local_key)
+        buffer += bytes_data
+        parsed_messages, remaining = MessageParser.parse(
+            buffer, local_key=local_key, connect_nonce=connect_nonce, ack_nonce=ack_nonce
+        )
         buffer = remaining
         return parsed_messages
 
     return decode
 
 
-def create_local_encoder(local_key: str) -> Encoder:
+def create_local_encoder(local_key: str, connect_nonce: int | None = None, ack_nonce: int | None = None) -> Encoder:
     """Create an encoder for local API messages."""
 
     def encode(message: RoborockMessage) -> bytes:
         """Called when data is sent to the transport."""
-        return MessageParser.build(message, local_key=local_key)
+        return MessageParser.build(message, local_key=local_key, connect_nonce=connect_nonce, ack_nonce=ack_nonce)
 
     return encode

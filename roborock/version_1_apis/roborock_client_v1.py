@@ -450,7 +450,10 @@ class RoborockClientV1(RoborockClient, ABC):
                 else:
                     queue = self._waiting_queue.get(data.seq)
                     if queue:
-                        queue.set_result(data.payload)
+                        if data.protocol == RoborockMessageProtocol.HELLO_RESPONSE:
+                            queue.set_result(data)
+                        else:
+                            queue.set_result(data.payload)
                     else:
                         self._logger.debug("Received response for unknown request id %s", data.seq)
         except Exception as ex:

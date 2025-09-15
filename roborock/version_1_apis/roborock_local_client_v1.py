@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 from asyncio import Lock, TimerHandle, Transport, get_running_loop
 from collections.abc import Callable
@@ -12,17 +13,11 @@ from ..exceptions import RoborockConnectionException, RoborockException, VacuumE
 from ..protocol import Decoder, Encoder, create_local_decoder, create_local_encoder
 from ..protocols.v1_protocol import RequestMessage
 from ..roborock_message import RoborockMessage, RoborockMessageProtocol
-from ..util import RoborockLoggerAdapter
+from ..util import RoborockLoggerAdapter, get_next_int
 from .roborock_client_v1 import CLOUD_REQUIRED, RoborockClientV1
 
 _LOGGER = logging.getLogger(__name__)
 
-
-_HELLO_REQUEST_MESSAGE = RoborockMessage(
-    protocol=RoborockMessageProtocol.HELLO_REQUEST,
-    seq=1,
-    random=22,
-)
 
 _PING_REQUEST_MESSAGE = RoborockMessage(
     protocol=RoborockMessageProtocol.PING_REQUEST,
@@ -50,7 +45,7 @@ class _LocalProtocol(asyncio.Protocol):
 class RoborockLocalClientV1(RoborockClientV1, RoborockClient):
     """Roborock local client for v1 devices."""
 
-    def __init__(self, device_data: DeviceData, queue_timeout: int = 4):
+    def __init__(self, device_data: DeviceData, queue_timeout: int = 4, version: str | None = None):
         """Initialize the Roborock local client."""
         if device_data.host is None:
             raise RoborockException("Host is required")
@@ -63,6 +58,9 @@ class RoborockLocalClientV1(RoborockClientV1, RoborockClient):
         RoborockClientV1.__init__(self, device_data, security_data=None)
         RoborockClient.__init__(self, device_data)
         self._local_protocol = _LocalProtocol(self._data_received, self._connection_lost)
+        self._version = version
+        self._connect_nonce: int | None = None
+        self._ack_nonce: int | None = None
         self._encoder: Encoder = create_local_encoder(device_data.device.local_key)
         self._decoder: Decoder = create_local_decoder(device_data.device.local_key)
         self.queue_timeout = queue_timeout
@@ -121,15 +119,49 @@ class RoborockLocalClientV1(RoborockClientV1, RoborockClient):
         async with self._mutex:
             self._sync_disconnect()
 
-    async def hello(self):
+    def _reinitialize_encoder_decoder(self):
+        self._encoder = create_local_encoder(self.device_info.device.local_key, self._connect_nonce, self._ack_nonce)
+        self._decoder = create_local_decoder(self.device_info.device.local_key, self._connect_nonce, self._ack_nonce)
+
+    async def _do_hello(self, version: str) -> bool:
+        """Perform the initial handshaking."""
+        self._logger.debug(f"Attempting to use the {version} protocol for client {self.device_info.device.duid}...")
+        self._connect_nonce = get_next_int(10000, 32767)
+        request = RoborockMessage(
+            protocol=RoborockMessageProtocol.HELLO_REQUEST,
+            version=version.encode(),
+            random=self._connect_nonce,
+            seq=1,
+        )
         try:
-            return await self._send_message(
-                roborock_message=_HELLO_REQUEST_MESSAGE,
-                request_id=_HELLO_REQUEST_MESSAGE.seq,
+            response = await self._send_message(
+                roborock_message=request,
+                request_id=request.seq,
                 response_protocol=RoborockMessageProtocol.HELLO_RESPONSE,
             )
-        except Exception as e:
-            self._logger.error(e)
+            if response.version.decode() == "L01":
+                self._ack_nonce = response.random
+            self._version = version
+            self._reinitialize_encoder_decoder()
+            self._logger.debug(f"Client {self.device_info.device.duid} speaks the {version} protocol.")
+            return True
+        except RoborockException as e:
+            self._logger.debug(
+                f"Client {self.device_info.device.duid} does not respond or does not speak the {version} protocol. {e}"
+            )
+            return False
+
+    async def hello(self):
+        """Send hello to the device to negotiate protocol."""
+        if self._version:
+            # version is forced
+            if not await self._do_hello(self._version):
+                raise RoborockException(f"Failed to connect to device with protocol {self._version}")
+        else:
+            # try 1.0, then L01
+            if not await self._do_hello("1.0"):
+                if not await self._do_hello("L01"):
+                    raise RoborockException("Failed to connect to device with any known protocol")
 
     async def ping(self) -> None:
         await self._send_message(
@@ -153,6 +185,33 @@ class RoborockLocalClientV1(RoborockClientV1, RoborockClient):
     ):
         if method in CLOUD_REQUIRED:
             raise RoborockException(f"Method {method} is not supported over local connection")
+        if self._version == "L01":
+            request_id = get_next_int(10000, 999999)
+            # For L01, the payload is a JSON string with a "dps" field.
+            dps_payload = {
+                "id": request_id,
+                "method": method,
+                "params": params,
+            }
+            payload = {
+                "dps": {str(RoborockMessageProtocol.RPC_REQUEST.value): json.dumps(dps_payload)},
+                "t": get_next_int(1000000000, 9999999999),
+            }
+            roborock_message = RoborockMessage(
+                protocol=RoborockMessageProtocol.GENERAL_REQUEST,
+                payload=json.dumps(payload).encode("utf-8"),
+                version=self._version.encode(),
+            )
+            roborock_message.seq = request_id
+            self._logger.debug("Building message id %s for method %s", request_id, method)
+            return await self._send_message(
+                roborock_message,
+                request_id=request_id,
+                response_protocol=RoborockMessageProtocol.GENERAL_REQUEST,
+                method=method,
+                params=params,
+            )
+
         request_message = RequestMessage(method=method, params=params)
         roborock_message = request_message.encode_message(RoborockMessageProtocol.GENERAL_REQUEST)
         self._logger.debug("Building message id %s for method %s", request_message.request_id, method)

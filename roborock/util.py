@@ -90,7 +90,7 @@ class RoborockLoggerAdapter(logging.LoggerAdapter):
 counter_map: dict[tuple[int, int], int] = {}
 
 
-def get_next_int(min_val: int, max_val: int):
+def get_next_int(min_val: int, max_val: int) -> int:
     """Gets a random int in the range, precached to help keep it fast."""
     if (min_val, max_val) not in counter_map:
         # If we have never seen this range, or if the cache is getting low, make a bunch of preshuffled values.
