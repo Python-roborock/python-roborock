@@ -97,6 +97,7 @@ class RoborockMqttClient(RoborockClient, ABC):
             self._logger.error(message)
             if connection_queue:
                 connection_queue.set_exception(VacuumError(message))
+            else:
                 self._logger.debug("Failed to notify connect future, not in queue")
             return
         self._logger.info(f"Connected to mqtt {self._mqtt_host}:{self._mqtt_port}")
