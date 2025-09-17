@@ -14,7 +14,7 @@ from paho.mqtt.reasoncodes import ReasonCode  # type: ignore
 
 from .api import KEEPALIVE, RoborockClient
 from .containers import DeviceData, UserData
-from .exceptions import RoborockException, RoborockInvalidUserData, VacuumError
+from .exceptions import RoborockException, VacuumError
 from .protocol import (
     Decoder,
     Encoder,
@@ -96,14 +96,7 @@ class RoborockMqttClient(RoborockClient, ABC):
             message = f"Failed to connect ({rc})"
             self._logger.error(message)
             if connection_queue:
-                # These are the ReasonCodes relating to authorization issues.
-                if rc.value in {24, 25, 133, 134, 135, 144}:
-                    connection_queue.set_exception(
-                        RoborockInvalidUserData("Failed to connect to mqtt. Invalid user data. Re-auth is needed.")
-                    )
-                else:
-                    connection_queue.set_exception(VacuumError(message))
-            else:
+                connection_queue.set_exception(VacuumError(message))
                 self._logger.debug("Failed to notify connect future, not in queue")
             return
         self._logger.info(f"Connected to mqtt {self._mqtt_host}:{self._mqtt_port}")

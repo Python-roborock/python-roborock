@@ -77,7 +77,3 @@ class RoborockTooManyRequest(RoborockException):
 
 class RoborockRateLimit(RoborockException):
     """Class for our rate limits exceptions."""
-
-
-class RoborockInvalidUserData(RoborockException):
-    """Class to state the user data is invalid (expired or manipulated)."""
