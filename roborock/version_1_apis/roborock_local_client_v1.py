@@ -120,7 +120,9 @@ class RoborockLocalClientV1(RoborockClientV1, RoborockClient):
             self._sync_disconnect()
 
     def _reinitialize_encoder_decoder(self):
-        self._encoder = create_local_encoder(self.device_info.device.local_key, self._connect_nonce, self._ack_nonce)
+        self._encoder = create_local_encoder(
+            self.device_info.device.local_key, self._connect_nonce, self._ack_nonce, prefixed=False
+        )
         self._decoder = create_local_decoder(self.device_info.device.local_key, self._connect_nonce, self._ack_nonce)
 
     async def _do_hello(self, version: str) -> bool:
@@ -141,8 +143,8 @@ class RoborockLocalClientV1(RoborockClientV1, RoborockClient):
             )
             if response.version.decode() == "L01":
                 self._ack_nonce = response.random
+                self._reinitialize_encoder_decoder()
             self._version = version
-            self._reinitialize_encoder_decoder()
             self._logger.debug(f"Client {self.device_info.device.duid} speaks the {version} protocol.")
             return True
         except RoborockException as e:
