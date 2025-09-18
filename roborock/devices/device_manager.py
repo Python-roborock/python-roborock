@@ -5,6 +5,8 @@ import enum
 import logging
 from collections.abc import Awaitable, Callable
 
+import aiohttp
+
 from roborock.code_mappings import RoborockCategory
 from roborock.containers import (
     HomeData,
@@ -113,7 +115,9 @@ class DeviceManager:
         await asyncio.gather(*tasks)
 
 
-def create_home_data_api(email: str, user_data: UserData) -> HomeDataApi:
+def create_home_data_api(
+    email: str, user_data: UserData, base_url: str | None = None, session: aiohttp.ClientSession | None = None
+) -> HomeDataApi:
     """Create a home data API wrapper.
 
     This function creates a wrapper around the Roborock API client to fetch
@@ -122,7 +126,7 @@ def create_home_data_api(email: str, user_data: UserData) -> HomeDataApi:
 
     # Note: This will auto discover the API base URL. This can be improved
     # by caching this next to `UserData` if needed to avoid unnecessary API calls.
-    client = RoborockApiClient(email)
+    client = RoborockApiClient(username=email, base_url=base_url, session=session)
 
     async def home_data_api() -> HomeData:
         return await client.get_home_data_v3(user_data)
