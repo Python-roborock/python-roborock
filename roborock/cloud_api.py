@@ -197,32 +197,61 @@ class RoborockMqttClient(RoborockClient, ABC):
         if info.rc != mqtt.MQTT_ERR_SUCCESS:
             raise RoborockException(f"Failed to publish ({mqtt.error_string(info.rc)})")
 
+    async def unsubscribe(self):
+        """Unsubscribe from the topic."""
+        loop = asyncio.get_running_loop()
+        (result, mid) = await loop.run_in_executor(None, self._mqtt_client.unsubscribe, self._topic)
+
+        if result != 0:
+            message = f"Failed to unsubscribe ({mqtt.error_string(result)})"
+            self._logger.error(message)
+        else:
+            self._logger.info(f"Unsubscribed from topic {self._topic}")
+        return result
+
+    async def subscribe(self):
+        """Subscribe to the topic."""
+        loop = asyncio.get_running_loop()
+        (result, mid) = await loop.run_in_executor(None, self._mqtt_client.subscribe, self._topic)
+
+        if result != 0:
+            message = f"Failed to subscribe ({mqtt.error_string(result)})"
+            self._logger.error(message)
+        else:
+            self._logger.info(f"Subscribed to topic {self._topic}")
+        return result
+
+    async def reconnect(self) -> None:
+        """Reconnect to the MQTT broker."""
+        await self.async_disconnect()
+        await self.async_connect()
+
     async def validate_connection(self) -> None:
-        """Override the default validate connection to try to re-subscribe rather than disconnect."""
-        if self.previous_attempt_was_subscribe:
-            # If we have already tried to unsub and resub, and we are still in this state,
-            # we should just do the normal validate connection.
-            return await super().validate_connection()
-        try:
-            if not self.should_keepalive():
+        """Override the default validate connection to try to re-subscribe rather than disconnect.
+        When something seems to be wrong with our connection, we should follow the following steps:
+        1. Try to unsubscribe and resubscribe from the topic.
+        2. If we don't end up getting a message, we should completely disconnect and reconnect to the MQTT broker.
+        3. We will continue to try to disconnect and reconnect until we get a message.
+        4. If we get a message, the next time connection is lost, We will go back to step 1.
+        """
+        if not self.should_keepalive():
+            self._logger.info("Resetting Roborock connection due to keepalive timeout")
+            if self.previous_attempt_was_subscribe:
+                # If we have already tried to unsub and resub, and we are still in this state,
+                # we should try to reconnect.
+                return await self.reconnect()
+            try:
+                # Mark that we have tried to unsubscribe and resubscribe
                 self.previous_attempt_was_subscribe = True
-                loop = asyncio.get_running_loop()
+                if await self.unsubscribe() == 0:
+                    # If we fail to unsubscribe, reconnect to the broker
+                    return await self.reconnect()
+                if await self.subscribe() == 0:
+                    # If we fail to subscribe, reconnected to the broker.
+                    return await self.reconnect()
 
-                self._logger.info("Resetting Roborock connection due to keepalive timeout")
-                (result, mid) = await loop.run_in_executor(None, self._mqtt_client.unsubscribe, self._topic)
-
-                if result != 0:
-                    message = f"Failed to unsubscribe ({mqtt.error_string(result)})"
-                    self._logger.error(message)
-                    return await super().validate_connection()
-                (result, mid) = await loop.run_in_executor(None, self._mqtt_client.subscribe, self._topic)
-
-                if result != 0:
-                    message = f"Failed to subscribe ({mqtt.error_string(result)})"
-                    self._logger.error(message)
-                    return await super().validate_connection()
-
-                self._logger.info(f"Subscribed to topic {self._topic}")
-        except Exception:  # noqa
-            return await super().validate_connection()
+            except Exception:  # noqa
+                # If we get any errors at all, we should just reconnect.
+                return await self.reconnect()
+        # Call connect to make sure everything is still in a good state.
         await self.async_connect()

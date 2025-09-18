@@ -138,6 +138,12 @@ class RoborockLocalClientV1(RoborockClientV1, RoborockClient):
             response_protocol=RoborockMessageProtocol.PING_RESPONSE,
         )
 
+    async def validate_connection(self) -> None:
+        if not self.should_keepalive():
+            self._logger.info("Resetting Roborock connection due to keepalive timeout")
+            await self.async_disconnect()
+        await self.async_connect()
+
     def _send_msg_raw(self, data: bytes):
         try:
             if not self.transport:

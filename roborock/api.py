@@ -78,12 +78,6 @@ class RoborockClient(ABC):
             return False
         return True
 
-    async def validate_connection(self) -> None:
-        if not self.should_keepalive():
-            self._logger.info("Resetting Roborock connection due to keepalive timeout")
-            await self.async_disconnect()
-        await self.async_connect()
-
     async def _wait_response(self, request_id: int, queue: RoborockFuture) -> Any:
         try:
             response = await queue.async_get(self.queue_timeout)
