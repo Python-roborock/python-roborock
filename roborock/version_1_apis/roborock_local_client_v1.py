@@ -194,12 +194,12 @@ class RoborockLocalClientV1(RoborockClientV1, RoborockClient):
                 "params": params,
             }
             payload = {
-                "dps": {str(RoborockMessageProtocol.RPC_REQUEST.value): json.dumps(dps_payload)},
+                "dps": {str(RoborockMessageProtocol.RPC_REQUEST.value): json.dumps(dps_payload, separators=(",", ":"))},
                 "t": get_next_int(1000000000, 9999999999),
             }
             roborock_message = RoborockMessage(
                 protocol=RoborockMessageProtocol.GENERAL_REQUEST,
-                payload=json.dumps(payload).encode("utf-8"),
+                payload=json.dumps(payload, separators=(",", ":")).encode("utf-8"),
                 version=self._version.encode(),
             )
             roborock_message.seq = request_id
