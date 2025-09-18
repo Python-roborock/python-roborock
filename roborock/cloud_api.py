@@ -86,7 +86,7 @@ class RoborockMqttClient(RoborockClient, ABC):
     def _mqtt_on_connect(
         self,
         client: mqtt.Client,
-        data: object,
+        userdata: object,
         flags: dict[str, int],
         rc: ReasonCode,
         properties: mqtt.Properties | None = None,
