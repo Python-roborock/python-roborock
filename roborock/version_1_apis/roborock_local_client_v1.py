@@ -138,7 +138,7 @@ class RoborockLocalClientV1(RoborockClientV1, RoborockClient):
             response_protocol=RoborockMessageProtocol.PING_RESPONSE,
         )
 
-    async def validate_connection(self) -> None:
+    async def _validate_connection(self) -> None:
         if not self.should_keepalive():
             self._logger.info("Resetting Roborock connection due to keepalive timeout")
             await self.async_disconnect()
@@ -178,7 +178,7 @@ class RoborockLocalClientV1(RoborockClientV1, RoborockClient):
         method: str | None = None,
         params: list | dict | int | None = None,
     ) -> RoborockMessage:
-        await self.validate_connection()
+        await self._validate_connection()
         msg = self._encoder(roborock_message)
         if method:
             self._logger.debug(f"id={request_id} Requesting method {method} with {params}")

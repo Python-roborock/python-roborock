@@ -8,6 +8,7 @@ from asyncio import Lock
 from typing import Any
 
 import paho.mqtt.client as mqtt
+from paho.mqtt.enums import MQTTErrorCode
 
 # Mypy is not seeing this for some reason. It wants me to use the depreciated ReasonCodes
 from paho.mqtt.reasoncodes import ReasonCode  # type: ignore
@@ -80,7 +81,7 @@ class RoborockMqttClient(RoborockClient, ABC):
         self._mutex = Lock()
         self._decoder: Decoder = create_mqtt_decoder(device_info.device.local_key)
         self._encoder: Encoder = create_mqtt_encoder(device_info.device.local_key)
-        self.previous_attempt_was_subscribe = False
+        self.received_message_since_last_disconnect = False
         self._topic = f"rr/m/o/{self._mqtt_user}/{self._hashed_user}/{self.device_info.device.duid}"
 
     def _mqtt_on_connect(
@@ -113,7 +114,7 @@ class RoborockMqttClient(RoborockClient, ABC):
             connection_queue.set_result(True)
 
     def _mqtt_on_message(self, *args, **kwargs):
-        self.previous_attempt_was_subscribe = False
+        self.received_message_since_last_disconnect = False
         client, __, msg = args
         try:
             messages = self._decoder(msg.payload)
@@ -197,7 +198,7 @@ class RoborockMqttClient(RoborockClient, ABC):
         if info.rc != mqtt.MQTT_ERR_SUCCESS:
             raise RoborockException(f"Failed to publish ({mqtt.error_string(info.rc)})")
 
-    async def unsubscribe(self):
+    async def _unsubscribe(self) -> MQTTErrorCode:
         """Unsubscribe from the topic."""
         loop = asyncio.get_running_loop()
         (result, mid) = await loop.run_in_executor(None, self._mqtt_client.unsubscribe, self._topic)
@@ -209,7 +210,7 @@ class RoborockMqttClient(RoborockClient, ABC):
             self._logger.info(f"Unsubscribed from topic {self._topic}")
         return result
 
-    async def subscribe(self):
+    async def _subscribe(self) -> MQTTErrorCode:
         """Subscribe to the topic."""
         loop = asyncio.get_running_loop()
         (result, mid) = await loop.run_in_executor(None, self._mqtt_client.subscribe, self._topic)
@@ -221,12 +222,12 @@ class RoborockMqttClient(RoborockClient, ABC):
             self._logger.info(f"Subscribed to topic {self._topic}")
         return result
 
-    async def reconnect(self) -> None:
+    async def _reconnect(self) -> None:
         """Reconnect to the MQTT broker."""
         await self.async_disconnect()
         await self.async_connect()
 
-    async def validate_connection(self) -> None:
+    async def _validate_connection(self) -> None:
         """Override the default validate connection to try to re-subscribe rather than disconnect.
         When something seems to be wrong with our connection, we should follow the following steps:
         1. Try to unsubscribe and resubscribe from the topic.
@@ -234,24 +235,25 @@ class RoborockMqttClient(RoborockClient, ABC):
         3. We will continue to try to disconnect and reconnect until we get a message.
         4. If we get a message, the next time connection is lost, We will go back to step 1.
         """
+        # If we should no longer keep the current connection alive...
         if not self.should_keepalive():
             self._logger.info("Resetting Roborock connection due to keepalive timeout")
-            if self.previous_attempt_was_subscribe:
+            if self.received_message_since_last_disconnect:
                 # If we have already tried to unsub and resub, and we are still in this state,
                 # we should try to reconnect.
-                return await self.reconnect()
+                return await self._reconnect()
             try:
                 # Mark that we have tried to unsubscribe and resubscribe
-                self.previous_attempt_was_subscribe = True
-                if await self.unsubscribe() == 0:
+                self.received_message_since_last_disconnect = True
+                if await self._unsubscribe() != 0:
                     # If we fail to unsubscribe, reconnect to the broker
-                    return await self.reconnect()
-                if await self.subscribe() == 0:
+                    return await self._reconnect()
+                if await self._subscribe() != 0:
                     # If we fail to subscribe, reconnected to the broker.
-                    return await self.reconnect()
+                    return await self._reconnect()
 
             except Exception:  # noqa
                 # If we get any errors at all, we should just reconnect.
-                return await self.reconnect()
+                return await self._reconnect()
         # Call connect to make sure everything is still in a good state.
         await self.async_connect()

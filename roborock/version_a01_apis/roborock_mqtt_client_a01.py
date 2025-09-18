@@ -40,7 +40,7 @@ class RoborockMqttClientA01(RoborockMqttClient, RoborockClientA01):
         self._logger = RoborockLoggerAdapter(device_info.device.name, _LOGGER)
 
     async def _send_message(self, roborock_message: RoborockMessage):
-        await self.validate_connection()
+        await self._validate_connection()
         response_protocol = RoborockMessageProtocol.RPC_RESPONSE
 
         m = self._encoder(roborock_message)
