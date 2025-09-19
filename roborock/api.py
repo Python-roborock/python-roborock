@@ -23,7 +23,7 @@ from .roborock_message import (
 from .util import get_next_int
 
 _LOGGER = logging.getLogger(__name__)
-KEEPALIVE = 60
+KEEPALIVE = 70
 
 
 class RoborockClient(ABC):
@@ -77,12 +77,6 @@ class RoborockClient(ABC):
         if now - self._last_disconnection > self.keep_alive**2 and now - self._last_device_msg_in > self.keep_alive:
             return False
         return True
-
-    async def validate_connection(self) -> None:
-        if not self.should_keepalive():
-            self._logger.info("Resetting Roborock connection due to keepalive timeout")
-            await self.async_disconnect()
-        await self.async_connect()
 
     async def _wait_response(self, request_id: int, queue: RoborockFuture) -> Any:
         try:

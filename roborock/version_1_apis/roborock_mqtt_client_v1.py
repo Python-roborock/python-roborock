@@ -51,7 +51,7 @@ class RoborockMqttClientV1(RoborockMqttClient, RoborockClientV1):
         )
         self._logger.debug("Building message id %s for method %s", request_message.request_id, method)
 
-        await self.validate_connection()
+        await self._validate_connection()
         request_id = request_message.request_id
         response_protocol = (
             RoborockMessageProtocol.MAP_RESPONSE if method in COMMANDS_SECURED else RoborockMessageProtocol.RPC_RESPONSE
