@@ -1,6 +1,8 @@
 import asyncio
 import json
 import logging
+import math
+import time
 from asyncio import Lock, TimerHandle, Transport, get_running_loop
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -195,14 +197,16 @@ class RoborockLocalClientV1(RoborockClientV1, RoborockClient):
                 "method": method,
                 "params": params,
             }
+            ts = math.floor(time.time())
             payload = {
                 "dps": {str(RoborockMessageProtocol.RPC_REQUEST.value): json.dumps(dps_payload, separators=(",", ":"))},
-                "t": get_next_int(1000000000, 9999999999),
+                "t": ts,
             }
             roborock_message = RoborockMessage(
                 protocol=RoborockMessageProtocol.GENERAL_REQUEST,
                 payload=json.dumps(payload, separators=(",", ":")).encode("utf-8"),
                 version=self._version.encode(),
+                timestamp=ts,
             )
             roborock_message.seq = request_id
             self._logger.debug("Building message id %s for method %s", request_id, method)
