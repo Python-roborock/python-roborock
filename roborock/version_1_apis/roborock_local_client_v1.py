@@ -191,8 +191,6 @@ class RoborockLocalClientV1(RoborockClientV1, RoborockClient):
     ):
         if method in CLOUD_REQUIRED:
             raise RoborockException(f"Method {method} is not supported over local connection")
-        if self._version is None:
-            await self.async_connect()
         if self._version == "L01":
             request_id = get_next_int(10000, 999999)
             dps_payload = {

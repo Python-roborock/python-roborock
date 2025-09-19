@@ -448,6 +448,8 @@ class RoborockClientV1(RoborockClient, ABC):
                                     "Received unsolicited map response for request_id %s", map_response.request_id
                                 )
                 else:
+                    if data.protocol == RoborockMessageProtocol.GENERAL_RESPONSE and data.payload is None:
+                        continue
                     queue = self._waiting_queue.get(data.seq)
                     if queue:
                         if data.protocol == RoborockMessageProtocol.HELLO_RESPONSE:
