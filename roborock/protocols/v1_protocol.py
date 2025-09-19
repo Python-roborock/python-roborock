@@ -95,6 +95,9 @@ class RequestMessage:
         )
 
 
+ResponseData = dict[str, Any] | list | int
+
+
 @dataclass(kw_only=True, frozen=True)
 class ResponseMessage:
     """Data structure for v1 RoborockMessage responses."""
@@ -102,14 +105,23 @@ class ResponseMessage:
     request_id: int | None
     """The request ID of the response."""
 
-    data: dict[str, Any]
-    """The data of the response."""
+    data: ResponseData
+    """The data of the response, where the type depends on the command."""
+
+    api_error: RoborockException | None = None
+    """The API error message of the response if any."""
 
 
 def decode_rpc_response(message: RoborockMessage) -> ResponseMessage:
-    """Decode a V1 RPC_RESPONSE message."""
+    """Decode a V1 RPC_RESPONSE message.
+
+    This will raise a RoborockException if the message cannot be parsed. A
+    response object will be returned even if there is an error in the
+    response, as long as we can extract the request ID. This is so we can
+    associate an API response with a request even if there was an error.
+    """
     if not message.payload:
-        raise RoborockException("Invalid V1 message format: missing payload")
+        return ResponseMessage(request_id=message.seq, data={})
     try:
         payload = json.loads(message.payload.decode())
     except (json.JSONDecodeError, TypeError) as e:
@@ -133,17 +145,26 @@ def decode_rpc_response(message: RoborockMessage) -> ResponseMessage:
         ) from e
 
     request_id: int | None = data_point_response.get("id")
+    exc: RoborockException | None = None
     if error := data_point_response.get("error"):
-        raise RoborockException(f"Error in message: {error}")
-
+        exc = RoborockException(error)
     if not (result := data_point_response.get("result")):
-        raise RoborockException(f"Invalid V1 message format: missing 'result' in data point for {message.payload!r}")
-    _LOGGER.debug("Decoded V1 message result: %s", result)
-    if isinstance(result, list) and result:
-        result = result[0]
-    if not isinstance(result, dict):
-        raise RoborockException(f"Invalid V1 message format: 'result' should be a dictionary for {message.payload!r}")
-    return ResponseMessage(request_id=request_id, data=result)
+        exc = RoborockException(f"Invalid V1 message format: missing 'result' in data point for {message.payload!r}")
+    else:
+        _LOGGER.debug("Decoded V1 message result: %s", result)
+        if isinstance(result, str):
+            if result == "unknown_method":
+                exc = RoborockException("The method called is not recognized by the device.")
+            elif result != "ok":
+                exc = RoborockException(f"Unexpected API Result: {result}")
+            result = {}
+        if not isinstance(result, (dict, list, int)):
+            raise RoborockException(
+                f"Invalid V1 message format: 'result' was unexpected type {type(result)}. {message.payload!r}"
+            )
+    if not request_id and exc:
+        raise exc
+    return ResponseMessage(request_id=request_id, data=result, api_error=exc)
 
 
 @dataclass
@@ -157,19 +178,18 @@ class MapResponse:
     """The map data, decrypted and decompressed."""
 
 
-def create_map_response_decoder(security_data: SecurityData) -> Callable[[RoborockMessage], MapResponse]:
+def create_map_response_decoder(security_data: SecurityData) -> Callable[[RoborockMessage], MapResponse | None]:
     """Create a decoder for V1 map response messages."""
 
-    def _decode_map_response(message: RoborockMessage) -> MapResponse:
+    def _decode_map_response(message: RoborockMessage) -> MapResponse | None:
         """Decode a V1 map response message."""
         if not message.payload or len(message.payload) < 24:
             raise RoborockException("Invalid V1 map response format: missing payload")
         header, body = message.payload[:24], message.payload[24:]
         [endpoint, _, request_id, _] = struct.unpack("<8s8sH6s", header)
         if not endpoint.decode().startswith(security_data.endpoint):
-            raise RoborockException(
-                f"Invalid V1 map response endpoint: {endpoint!r}, expected {security_data.endpoint!r}"
-            )
+            _LOGGER.debug("Received map response requested not made by this device, ignoring.")
+            return None
         try:
             decrypted = Utils.decrypt_cbc(body, security_data.nonce)
         except ValueError as err:

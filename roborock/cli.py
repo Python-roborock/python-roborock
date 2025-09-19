@@ -1,27 +1,94 @@
+"""Command line interface for python-roborock.
+
+The CLI supports both one-off commands and an interactive session mode. In session
+mode, an asyncio event loop is created in a separate thread, allowing users to
+interactively run commands that require async operations.
+
+Typical CLI usage:
+```
+$ roborock login --email <email> [--password <password>]
+$ roborock discover
+$ roborock list-devices
+$ roborock status --device_id <device_id>
+```
+...
+
+Session mode usage:
+```
+$ roborock session
+roborock> list-devices
+...
+roborock> status --device_id <device_id>
+```
+"""
 import asyncio
+import datetime
+import functools
 import json
 import logging
+import threading
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import click
+import click_shell
 import yaml
 from pyshark import FileCapture  # type: ignore
 from pyshark.capture.live_capture import LiveCapture, UnknownInterfaceException  # type: ignore
 from pyshark.packet.packet import Packet  # type: ignore
 
 from roborock import SHORT_MODEL_TO_ENUM, DeviceFeatures, RoborockCommand, RoborockException
-from roborock.containers import DeviceData, HomeData, HomeDataProduct, LoginData, NetworkInfo, RoborockBase, UserData
+from roborock.containers import DeviceData, HomeData, NetworkInfo, RoborockBase, UserData
 from roborock.devices.cache import Cache, CacheData
-from roborock.devices.device_manager import create_device_manager, create_home_data_api
+from roborock.devices.device import RoborockDevice
+from roborock.devices.device_manager import DeviceManager, create_device_manager, create_home_data_api
 from roborock.protocol import MessageParser
-from roborock.util import run_sync
-from roborock.version_1_apis.roborock_local_client_v1 import RoborockLocalClientV1
 from roborock.version_1_apis.roborock_mqtt_client_v1 import RoborockMqttClientV1
 from roborock.web_api import RoborockApiClient
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def dump_json(obj: Any) -> Any:
+    """Dump an object as JSON."""
+
+    def custom_json_serializer(obj):
+        if isinstance(obj, datetime.time):
+            return obj.isoformat()
+        raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
+
+    return json.dumps(obj, default=custom_json_serializer)
+
+
+def async_command(func):
+    """Decorator for async commands that work in both CLI and session modes.
+
+    The CLI supports two execution modes:
+    1. CLI mode: One-off commands that create their own event loop
+    2. Session mode: Interactive shell with a persistent background event loop
+
+    This decorator ensures async commands work correctly in both modes:
+    - CLI mode: Uses asyncio.run() to create a new event loop
+    - Session mode: Uses the existing session event loop via run_in_session()
+    """
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        ctx = args[0]
+        context: RoborockContext = ctx.obj
+
+        async def run():
+            return await func(*args, **kwargs)
+
+        if context.is_session_mode():
+            # Session mode - run in the persistent loop
+            return context.run_in_session(run())
+        else:
+            # CLI mode - just run normally (asyncio.run handles loop creation)
+            return asyncio.run(run())
+
+    return wrapper
 
 
 @dataclass
@@ -41,12 +108,52 @@ class ConnectionCache(RoborockBase):
     network_info: dict[str, NetworkInfo] | None = None
 
 
+class DeviceConnectionManager:
+    """Manages device connections for both CLI and session modes."""
+
+    def __init__(self, context: "RoborockContext", loop: asyncio.AbstractEventLoop | None = None):
+        self.context = context
+        self.loop = loop
+        self.device_manager: DeviceManager | None = None
+        self._devices: dict[str, RoborockDevice] = {}
+
+    async def ensure_device_manager(self) -> DeviceManager:
+        """Ensure device manager is initialized."""
+        if self.device_manager is None:
+            cache_data = self.context.cache_data()
+            home_data_api = create_home_data_api(cache_data.email, cache_data.user_data)
+            self.device_manager = await create_device_manager(cache_data.user_data, home_data_api, self.context)
+            # Cache devices for quick lookup
+            devices = await self.device_manager.get_devices()
+            self._devices = {device.duid: device for device in devices}
+        return self.device_manager
+
+    async def get_device(self, device_id: str) -> RoborockDevice:
+        """Get a device by ID, creating connections if needed."""
+        await self.ensure_device_manager()
+        if device_id not in self._devices:
+            raise RoborockException(f"Device {device_id} not found")
+        return self._devices[device_id]
+
+    async def close(self):
+        """Close device manager connections."""
+        if self.device_manager:
+            await self.device_manager.close()
+            self.device_manager = None
+            self._devices = {}
+
+
 class RoborockContext(Cache):
+    """Context that handles both CLI and session modes internally."""
+
     roborock_file = Path("~/.roborock").expanduser()
     _cache_data: ConnectionCache | None = None
 
     def __init__(self):
         self.reload()
+        self._session_loop: asyncio.AbstractEventLoop | None = None
+        self._session_thread: threading.Thread | None = None
+        self._device_manager: DeviceConnectionManager | None = None
 
     def reload(self):
         if self.roborock_file.is_file():
@@ -68,7 +175,76 @@ class RoborockContext(Cache):
     def cache_data(self) -> ConnectionCache:
         """Get the cache data."""
         self.validate()
-        return self._cache_data
+        return cast(ConnectionCache, self._cache_data)
+
+    def start_session_mode(self):
+        """Start session mode with a background event loop."""
+        if self._session_loop is not None:
+            return  # Already started
+
+        self._session_loop = asyncio.new_event_loop()
+        self._session_thread = threading.Thread(target=self._run_session_loop)
+        self._session_thread.daemon = True
+        self._session_thread.start()
+
+    def _run_session_loop(self):
+        """Run the session event loop in a background thread."""
+        assert self._session_loop is not None  # guaranteed by start_session_mode
+        asyncio.set_event_loop(self._session_loop)
+        self._session_loop.run_forever()
+
+    def is_session_mode(self) -> bool:
+        return self._session_loop is not None
+
+    def run_in_session(self, coro):
+        """Run a coroutine in the session loop (session mode only)."""
+        if not self._session_loop:
+            raise RoborockException("Not in session mode")
+        future = asyncio.run_coroutine_threadsafe(coro, self._session_loop)
+        return future.result()
+
+    async def get_device_manager(self) -> DeviceConnectionManager:
+        """Get device manager, creating if needed."""
+        await self.get_devices()
+        if self._device_manager is None:
+            self._device_manager = DeviceConnectionManager(self, self._session_loop)
+        return self._device_manager
+
+    async def refresh_devices(self) -> ConnectionCache:
+        """Refresh device data from server (always fetches fresh data)."""
+        cache_data = self.cache_data()
+        client = RoborockApiClient(cache_data.email)
+        home_data = await client.get_home_data_v3(cache_data.user_data)
+        cache_data.home_data = home_data
+        self.update(cache_data)
+        return cache_data
+
+    async def get_devices(self) -> ConnectionCache:
+        """Get device data (uses cache if available, fetches if needed)."""
+        cache_data = self.cache_data()
+        if not cache_data.home_data:
+            cache_data = await self.refresh_devices()
+        return cache_data
+
+    async def cleanup(self):
+        """Clean up resources (mainly for session mode)."""
+        if self._device_manager:
+            await self._device_manager.close()
+            self._device_manager = None
+
+        # Stop session loop if running
+        if self._session_loop:
+            self._session_loop.call_soon_threadsafe(self._session_loop.stop)
+            if self._session_thread:
+                self._session_thread.join(timeout=5.0)
+            self._session_loop = None
+            self._session_thread = None
+
+    def finish_session(self) -> None:
+        """Finish the session and clean up resources."""
+        if self._session_loop:
+            future = asyncio.run_coroutine_threadsafe(self.cleanup(), self._session_loop)
+            future.result(timeout=5.0)
 
     async def get(self) -> CacheData:
         """Get cached value."""
@@ -101,7 +277,7 @@ def cli(ctx, debug: int):
     help="Password for the Roborock account. If not provided, an email code will be requested.",
 )
 @click.pass_context
-@run_sync()
+@async_command
 async def login(ctx, email, password):
     """Login to Roborock account."""
     context: RoborockContext = ctx.obj
@@ -120,91 +296,67 @@ async def login(ctx, email, password):
         code = click.prompt("A code has been sent to your email, please enter the code", type=str)
         user_data = await client.code_login(code)
         print("Login successful")
-    context.update(LoginData(user_data=user_data, email=email))
+    context.update(ConnectionCache(user_data=user_data, email=email))
 
 
-@click.command()
+def _shell_session_finished(ctx):
+    """Callback for when shell session finishes."""
+    context: RoborockContext = ctx.obj
+    try:
+        context.finish_session()
+    except Exception as e:
+        click.echo(f"Error during cleanup: {e}", err=True)
+    click.echo("Session finished")
+
+
+@click_shell.shell(
+    prompt="roborock> ",
+    on_finished=_shell_session_finished,
+)
 @click.pass_context
-@click.option("--duration", default=10, help="Duration to run the MQTT session in seconds")
-@run_sync()
-async def session(ctx, duration: int):
+def session(ctx):
+    """Start an interactive session."""
     context: RoborockContext = ctx.obj
-    cache_data = context.cache_data()
-
-    home_data_api = create_home_data_api(cache_data.email, cache_data.user_data)
-
-    # Create device manager
-    device_manager = await create_device_manager(cache_data.user_data, home_data_api, context)
-
-    devices = await device_manager.get_devices()
-    click.echo(f"Discovered devices: {', '.join([device.name for device in devices])}")
-
-    click.echo("MQTT session started. Querying devices...")
-    for device in devices:
-        if not (status_trait := device.traits.get("status")):
-            click.echo(f"Device {device.name} does not have a status trait")
-            continue
-        try:
-            status = await status_trait.get_status()
-        except RoborockException as e:
-            click.echo(f"Failed to get status for {device.name}: {e}")
-        else:
-            click.echo(f"Device {device.name} status: {status.as_dict()}")
-
-    click.echo("Listening for messages.")
-    await asyncio.sleep(duration)
-
-    # Close the device manager (this will close all devices and MQTT session)
-    await device_manager.close()
+    # Start session mode with background loop
+    context.start_session_mode()
+    context.run_in_session(context.get_device_manager())
+    click.echo("OK")
 
 
-async def _discover(ctx):
+@session.command()
+@click.pass_context
+@async_command
+async def discover(ctx):
+    """Discover devices."""
     context: RoborockContext = ctx.obj
-    cache_data = context.cache_data()
-    if not cache_data:
-        raise Exception("You need to login first")
-    client = RoborockApiClient(cache_data.email)
-    home_data = await client.get_home_data_v3(cache_data.user_data)
-    cache_data.home_data = home_data
-    context.update(cache_data)
+    # Use the explicit refresh method for the discover command
+    cache_data = await context.refresh_devices()
+
+    home_data = cache_data.home_data
     click.echo(f"Discovered devices {', '.join([device.name for device in home_data.get_all_devices()])}")
 
 
-async def _load_and_discover(ctx) -> RoborockContext:
-    """Discover devices if home data is not available."""
-    context: RoborockContext = ctx.obj
-    cache_data = context.cache_data()
-    if not cache_data.home_data:
-        await _discover(ctx)
-        cache_data = context.cache_data()
-    return context
-
-
-@click.command()
+@session.command()
 @click.pass_context
-@run_sync()
-async def discover(ctx):
-    await _discover(ctx)
-
-
-@click.command()
-@click.pass_context
-@run_sync()
+@async_command
 async def list_devices(ctx):
-    context: RoborockContext = await _load_and_discover(ctx)
-    cache_data = context.cache_data()
+    context: RoborockContext = ctx.obj
+    cache_data = await context.get_devices()
+
     home_data = cache_data.home_data
-    device_name_id = {device.name: device.duid for device in home_data.devices + home_data.received_devices}
+
+    device_name_id = {device.name: device.duid for device in home_data.get_all_devices()}
     click.echo(json.dumps(device_name_id, indent=4))
 
 
 @click.command()
 @click.option("--device_id", required=True)
 @click.pass_context
-@run_sync()
+@async_command
 async def list_scenes(ctx, device_id):
-    context: RoborockContext = await _load_and_discover(ctx)
-    cache_data = context.cache_data()
+    context: RoborockContext = ctx.obj
+    cache_data = await context.get_devices()
+
     client = RoborockApiClient(cache_data.email)
     scenes = await client.get_scenes(cache_data.user_data, device_id)
     output_list = []
@@ -216,40 +368,90 @@ async def list_scenes(ctx, device_id):
 @click.command()
 @click.option("--scene_id", required=True)
 @click.pass_context
-@run_sync()
+@async_command
 async def execute_scene(ctx, scene_id):
-    context: RoborockContext = await _load_and_discover(ctx)
-    cache_data = context.cache_data()
+    context: RoborockContext = ctx.obj
+    cache_data = await context.get_devices()
+
     client = RoborockApiClient(cache_data.email)
     await client.execute_scene(cache_data.user_data, scene_id)
 
 
-@click.command()
+@session.command()
 @click.option("--device_id", required=True)
 @click.pass_context
-@run_sync()
-async def status(ctx, device_id):
-    context: RoborockContext = await _load_and_discover(ctx)
-    cache_data = context.cache_data()
+@async_command
+async def status(ctx, device_id: str):
+    """Get device status."""
+    context: RoborockContext = ctx.obj
 
-    home_data = cache_data.home_data
-    devices = home_data.devices + home_data.received_devices
-    device = next(device for device in devices if device.duid == device_id)
-    product_info: dict[str, HomeDataProduct] = {product.id: product for product in home_data.products}
-    device_data = DeviceData(device, product_info[device.product_id].model)
+    device_manager = await context.get_device_manager()
+    device = await device_manager.get_device(device_id)
 
-    mqtt_client = RoborockMqttClientV1(cache_data.user_data, device_data)
-    if not (networking := cache_data.network_info.get(device.duid)):
-        networking = await mqtt_client.get_networking()
-        cache_data.network_info[device.duid] = networking
-        context.update(cache_data)
-    else:
-        _LOGGER.debug("Using cached networking info for device %s: %s", device.duid, networking)
+    if not (status_trait := device.traits.get("status")):
+        click.echo(f"Device {device.name} does not have a status trait")
+        return
 
-    local_device_data = DeviceData(device, product_info[device.product_id].model, networking.ip)
-    local_client = RoborockLocalClientV1(local_device_data)
-    status = await local_client.get_status()
-    click.echo(json.dumps(status.as_dict(), indent=4))
+    status_result = await status_trait.get_status()
+    click.echo(dump_json(status_result.as_dict()))
+
+
+@session.command()
+@click.option("--device_id", required=True)
+@click.pass_context
+@async_command
+async def clean_summary(ctx, device_id: str):
+    """Get device clean summary."""
+    context: RoborockContext = ctx.obj
+
+    device_manager = await context.get_device_manager()
+    device = await device_manager.get_device(device_id)
+    if not (clean_summary_trait := device.traits.get("clean_summary")):
+        click.echo(f"Device {device.name} does not have a clean summary trait")
+        return
+
+    clean_summary_result = await clean_summary_trait.get_clean_summary()
+    click.echo(dump_json(clean_summary_result.as_dict()))
+
+
+@session.command()
+@click.option("--device_id", required=True)
+@click.pass_context
+@async_command
+async def volume(ctx, device_id: str):
+    """Get device volume."""
+    context: RoborockContext = ctx.obj
+
+    device_manager = await context.get_device_manager()
+    device = await device_manager.get_device(device_id)
+
+    if not (volume_trait := device.traits.get("sound_volume")):
+        click.echo(f"Device {device.name} does not have a volume trait")
+        return
+
+    volume_result = await volume_trait.get_volume()
+    click.echo(f"Device {device_id} volume:")
+    click.echo(volume_result)
+
+
+@session.command()
+@click.option("--device_id", required=True)
+@click.option("--volume", required=True, type=int)
+@click.pass_context
+@async_command
+async def set_volume(ctx, device_id: str, volume: int):
+    """Set the devicevolume."""
+    context: RoborockContext = ctx.obj
+
+    device_manager = await context.get_device_manager()
+    device = await device_manager.get_device(device_id)
+
+    if not (volume_trait := device.traits.get("sound_volume")):
+        click.echo(f"Device {device.name} does not have a volume trait")
+        return
+
+    await volume_trait.set_volume(volume)
+    click.echo(f"Set Device {device_id} volume to {volume}")
 
 
 @click.command()
@@ -257,13 +459,13 @@ async def status(ctx, device_id):
 @click.option("--cmd", required=True)
 @click.option("--params", required=False)
 @click.pass_context
-@run_sync()
+@async_command
 async def command(ctx, cmd, device_id, params):
-    context: RoborockContext = await _load_and_discover(ctx)
-    cache_data = context.cache_data()
+    context: RoborockContext = ctx.obj
+    cache_data = await context.get_devices()
 
     home_data = cache_data.home_data
-    devices = home_data.devices + home_data.received_devices
+    devices = home_data.get_all_devices()
     device = next(device for device in devices if device.duid == device_id)
     model = next(
         (product.model for product in home_data.products if device is not None and product.id == device.product_id),
@@ -282,7 +484,7 @@ async def command(ctx, cmd, device_id, params):
 @click.option("--device_ip", required=True)
 @click.option("--file", required=False)
 @click.pass_context
-@run_sync()
+@async_command
 async def parser(_, local_key, device_ip, file):
     file_provided = file is not None
     if file_provided:
@@ -328,18 +530,18 @@ async def parser(_, local_key, device_ip, file):
 
 @click.command()
 @click.pass_context
-@run_sync()
+@async_command
 async def get_device_info(ctx: click.Context):
     """
     Connects to devices and prints their feature information in YAML format.
     """
     click.echo("Discovering devices...")
-    context: RoborockContext = await _load_and_discover(ctx)
-    cache_data = context.cache_data()
+    context: RoborockContext = ctx.obj
+    cache_data = await context.get_devices()
 
     home_data = cache_data.home_data
 
-    all_devices = home_data.devices + home_data.received_devices
+    all_devices = home_data.get_all_devices()
     if not all_devices:
         click.echo("No devices found.")
         return
@@ -490,6 +692,9 @@ cli.add_command(parser)
 cli.add_command(session)
 cli.add_command(get_device_info)
 cli.add_command(update_docs)
+cli.add_command(clean_summary)
+cli.add_command(volume)
+cli.add_command(set_volume)
 
 
 def main():

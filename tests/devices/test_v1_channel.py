@@ -497,6 +497,9 @@ async def test_v1_channel_full_subscribe_and_command_flow(
         local_session=mock_local_session,
         cache=InMemoryCache(),
     )
+    # Get a handle to the V1RpcChannel. It may change which connection is
+    # active, but getting now to reproduce a bug where it doesn't change.
+    rpc_channel = v1_channel.rpc_channel
 
     # Mock network info for local connection
     callback = Mock()
@@ -512,7 +515,7 @@ async def test_v1_channel_full_subscribe_and_command_flow(
 
     # Send a command (should use local)
     mock_local_channel.response_queue.append(TEST_RESPONSE)
-    result = await v1_channel.rpc_channel.send_command(
+    result = await rpc_channel.send_command(
         RoborockCommand.GET_STATUS,
         response_type=S5MaxStatus,
     )

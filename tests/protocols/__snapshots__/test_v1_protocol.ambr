@@ -1,16 +1,52 @@
 # serializer version: 1
+# name: test_decode_rpc_payload[get_clean_summary]
+  20001
+# ---
+# name: test_decode_rpc_payload[get_clean_summary].1
+  '''
+  [
+    1442559,
+    24258125000,
+    296,
+    [
+      1756848207,
+      1754930385,
+      1753203976,
+      1752183435,
+      1747427370,
+      1746204046,
+      1745601543,
+      1744387080,
+      1743528522,
+      1742489154,
+      1741022299,
+      1740433682,
+      1739902516,
+      1738875106,
+      1738864366,
+      1738620067,
+      1736873889,
+      1736197544,
+      1736121269,
+      1734458038
+    ]
+  ]
+  '''
+# ---
 # name: test_decode_rpc_payload[get_dnd]
   20002
 # ---
 # name: test_decode_rpc_payload[get_dnd].1
   '''
-  {
-    "start_hour": 22,
-    "start_minute": 0,
-    "end_hour": 8,
-    "end_minute": 0,
-    "enabled": 1
-  }
+  [
+    {
+      "start_hour": 22,
+      "start_minute": 0,
+      "end_hour": 8,
+      "end_minute": 0,
+      "enabled": 1
+    }
+  ]
   '''
 # ---
 # name: test_decode_rpc_payload[get_status]
@@ -18,31 +54,43 @@
 # ---
 # name: test_decode_rpc_payload[get_status].1
   '''
-  {
-    "msg_ver": 2,
-    "msg_seq": 515,
-    "state": 8,
-    "battery": 100,
-    "clean_time": 5405,
-    "clean_area": 91287500,
-    "error_code": 0,
-    "map_present": 1,
-    "in_cleaning": 0,
-    "in_returning": 0,
-    "in_fresh_state": 1,
-    "lab_status": 1,
-    "water_box_status": 0,
-    "fan_power": 106,
-    "dnd_enabled": 1,
-    "map_status": 3,
-    "is_locating": 0,
-    "lock_status": 0,
-    "water_box_mode": 204,
-    "distance_off": 0,
-    "water_box_carriage_status": 0,
-    "mop_forbidden_enable": 0,
-    "unsave_map_reason": 4,
-    "unsave_map_flag": 0
-  }
+  [
+    {
+      "msg_ver": 2,
+      "msg_seq": 515,
+      "state": 8,
+      "battery": 100,
+      "clean_time": 5405,
+      "clean_area": 91287500,
+      "error_code": 0,
+      "map_present": 1,
+      "in_cleaning": 0,
+      "in_returning": 0,
+      "in_fresh_state": 1,
+      "lab_status": 1,
+      "water_box_status": 0,
+      "fan_power": 106,
+      "dnd_enabled": 1,
+      "map_status": 3,
+      "is_locating": 0,
+      "lock_status": 0,
+      "water_box_mode": 204,
+      "distance_off": 0,
+      "water_box_carriage_status": 0,
+      "mop_forbidden_enable": 0,
+      "unsave_map_reason": 4,
+      "unsave_map_flag": 0
+    }
+  ]
+  '''
+# ---
+# name: test_decode_rpc_payload[get_volume]
+  20001
+# ---
+# name: test_decode_rpc_payload[get_volume].1
+  '''
+  [
+    90
+  ]
   '''
 # ---

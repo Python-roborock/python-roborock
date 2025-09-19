@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "python-roborock"
-version = "2.39.0"
+version = "2.44.1"
 description = "A package to control Roborock vacuums."
 authors = ["humbertogontijo <humbertogontijo@users.noreply.github.com>"]
 license = "GPL-3.0-only"
@@ -32,6 +32,7 @@ construct = "^2.10.57"
 vacuum-map-parser-roborock = "*"
 pyrate-limiter = "^3.7.0"
 aiomqtt = "^2.3.2"
+click-shell = "^2.1"
 
 
 [build-system]

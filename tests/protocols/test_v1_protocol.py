@@ -1,6 +1,7 @@
 """Tests for the v1 protocol message encoding and decoding."""
 
 import json
+import logging
 import pathlib
 from collections.abc import Generator
 from unittest.mock import patch
@@ -95,32 +96,34 @@ def test_encode_mqtt_payload(command, params, expected):
     [
         (
             b'{"t":1652547161,"dps":{"102":"{\\"id\\":20005,\\"result\\":[{\\"msg_ver\\":2,\\"msg_seq\\":1072,\\"state\\":8,\\"battery\\":100,\\"clean_time\\":1041,\\"clean_area\\":37080000,\\"error_code\\":0,\\"map_present\\":1,\\"in_cleaning\\":0,\\"in_returning\\":0,\\"in_fresh_state\\":1,\\"lab_status\\":1,\\"water_box_status\\":0,\\"fan_power\\":103,\\"dnd_enabled\\":0,\\"map_status\\":3,\\"is_locating\\":0,\\"lock_status\\":0,\\"water_box_mode\\":202,\\"distance_off\\":0,\\"water_box_carriage_status\\":0,\\"mop_forbidden_enable\\":0,\\"unsave_map_reason\\":0,\\"unsave_map_flag\\":0}]}"}}',
-            {
-                "msg_ver": 2,
-                "msg_seq": 1072,
-                "state": 8,
-                "battery": 100,
-                "clean_time": 1041,
-                "clean_area": 37080000,
-                "error_code": 0,
-                "map_present": 1,
-                "in_cleaning": 0,
-                "in_returning": 0,
-                "in_fresh_state": 1,
-                "lab_status": 1,
-                "water_box_status": 0,
-                "fan_power": 103,
-                "dnd_enabled": 0,
-                "map_status": 3,
-                "is_locating": 0,
-                "lock_status": 0,
-                "water_box_mode": 202,
-                "distance_off": 0,
-                "water_box_carriage_status": 0,
-                "mop_forbidden_enable": 0,
-                "unsave_map_reason": 0,
-                "unsave_map_flag": 0,
-            },
+            [
+                {
+                    "msg_ver": 2,
+                    "msg_seq": 1072,
+                    "state": 8,
+                    "battery": 100,
+                    "clean_time": 1041,
+                    "clean_area": 37080000,
+                    "error_code": 0,
+                    "map_present": 1,
+                    "in_cleaning": 0,
+                    "in_returning": 0,
+                    "in_fresh_state": 1,
+                    "lab_status": 1,
+                    "water_box_status": 0,
+                    "fan_power": 103,
+                    "dnd_enabled": 0,
+                    "map_status": 3,
+                    "is_locating": 0,
+                    "lock_status": 0,
+                    "water_box_mode": 202,
+                    "distance_off": 0,
+                    "water_box_carriage_status": 0,
+                    "mop_forbidden_enable": 0,
+                    "unsave_map_reason": 0,
+                    "unsave_map_flag": 0,
+                }
+            ],
         ),
     ],
 )
@@ -183,13 +186,14 @@ def test_create_map_response_decoder():
 
     decoder = create_map_response_decoder(SECURITY_DATA)
     result = decoder(message)
-
+    assert result is not None
     assert result.request_id == 44508
     assert result.data == test_data
 
 
-def test_create_map_response_decoder_invalid_endpoint():
+def test_create_map_response_decoder_invalid_endpoint(caplog: pytest.LogCaptureFixture):
     """Test map response decoder with invalid endpoint."""
+    caplog.set_level(logging.DEBUG)
     # Create header with wrong endpoint
     header = b"wrongend" + b"\x00" * 8 + b"\xdc\xad" + b"\x00" * 6
     payload = header + b"encrypted_data"
@@ -204,9 +208,8 @@ def test_create_map_response_decoder_invalid_endpoint():
     )
 
     decoder = create_map_response_decoder(SECURITY_DATA)
-
-    with pytest.raises(RoborockException, match="Invalid V1 map response endpoint"):
-        decoder(message)
+    assert decoder(message) is None
+    assert "Received map response requested not made by this device, ignoring." in caplog.text
 
 
 def test_create_map_response_decoder_invalid_payload():
@@ -224,3 +227,50 @@ def test_create_map_response_decoder_invalid_payload():
 
     with pytest.raises(RoborockException, match="Invalid V1 map response format: missing payload"):
         decoder(message)
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected_data", "expected_error"),
+    [
+        (
+            b'{"t":1757883536,"dps":{"102":"{\\"id\\":20001,\\"result\\":\\"unknown_method\\"}"}}',
+            {},
+            "The method called is not recognized by the device.",
+        ),
+        (
+            b'{"t":1757883536,"dps":{"102":"{\\"id\\":20001,\\"result\\":\\"other\\"}"}}',
+            {},
+            "Unexpected API Result",
+        ),
+    ],
+)
+def test_decode_result_with_error(payload: bytes, expected_data: dict[str, str], expected_error: str) -> None:
+    """Test decoding a v1 RPC response protocol message."""
+    # The values other than the payload are arbitrary
+    message = RoborockMessage(
+        protocol=RoborockMessageProtocol.GENERAL_RESPONSE,
+        payload=payload,
+        seq=12750,
+        version=b"1.0",
+        random=97431,
+        timestamp=1652547161,
+    )
+    decoded_message = decode_rpc_response(message)
+    assert decoded_message.request_id == 20001
+    assert decoded_message.data == expected_data
+    assert decoded_message.api_error
+    assert expected_error in str(decoded_message.api_error)
+
+
+def test_decode_no_request_id():
+    """Test map response decoder without a request id is raised as an exception."""
+    message = RoborockMessage(
+        protocol=RoborockMessageProtocol.GENERAL_RESPONSE,
+        payload=b'{"t":1757883536,"dps":{"102":"{\\"result\\":\\"unknown_method\\"}"}}',
+        seq=12750,
+        version=b"1.0",
+        random=97431,
+        timestamp=1652547161,
+    )
+    with pytest.raises(RoborockException, match="The method called is not recognized by the device"):
+        decode_rpc_response(message)
