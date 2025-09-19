@@ -63,8 +63,11 @@ class RoborockLocalClientV1(RoborockClientV1, RoborockClient):
         self._version = version
         self._connect_nonce: int | None = None
         self._ack_nonce: int | None = None
-        self._encoder: Encoder = create_local_encoder(device_data.device.local_key)
-        self._decoder: Decoder = create_local_decoder(device_data.device.local_key)
+        if version == "L01":
+            self._set_l01_encoder_decoder()
+        else:
+            self._encoder: Encoder = create_local_encoder(device_data.device.local_key)
+            self._decoder: Decoder = create_local_decoder(device_data.device.local_key)
         self.queue_timeout = queue_timeout
         self._logger = RoborockLoggerAdapter(device_data.device.name, _LOGGER)
 
@@ -121,10 +124,9 @@ class RoborockLocalClientV1(RoborockClientV1, RoborockClient):
         async with self._mutex:
             self._sync_disconnect()
 
-    def _reinitialize_encoder_decoder(self):
-        self._encoder = create_local_encoder(
-            self.device_info.device.local_key, self._connect_nonce, self._ack_nonce, prefixed=False
-        )
+    def _set_l01_encoder_decoder(self):
+        """Tell the system to use the L01 encoder/decoder."""
+        self._encoder = create_local_encoder(self.device_info.device.local_key, self._connect_nonce, self._ack_nonce)
         self._decoder = create_local_decoder(self.device_info.device.local_key, self._connect_nonce, self._ack_nonce)
 
     async def _do_hello(self, version: str) -> bool:
@@ -145,13 +147,13 @@ class RoborockLocalClientV1(RoborockClientV1, RoborockClient):
             )
             if response.version.decode() == "L01":
                 self._ack_nonce = response.random
-                self._reinitialize_encoder_decoder()
+                self._set_l01_encoder_decoder()
             self._version = version
             self._logger.debug(f"Client {self.device_info.device.duid} speaks the {version} protocol.")
             return True
         except RoborockException as e:
             self._logger.debug(
-                f"Client {self.device_info.device.duid} does not respond or does not speak the {version} protocol. {e}"
+                f"Client {self.device_info.device.duid} did not respond or does not speak the {version} protocol. {e}"
             )
             return False
 
@@ -191,7 +193,6 @@ class RoborockLocalClientV1(RoborockClientV1, RoborockClient):
             raise RoborockException(f"Method {method} is not supported over local connection")
         if self._version == "L01":
             request_id = get_next_int(10000, 999999)
-            # For L01, the payload is a JSON string with a "dps" field.
             dps_payload = {
                 "id": request_id,
                 "method": method,
@@ -208,7 +209,6 @@ class RoborockLocalClientV1(RoborockClientV1, RoborockClient):
                 version=self._version.encode(),
                 timestamp=ts,
             )
-            roborock_message.seq = request_id
             self._logger.debug("Building message id %s for method %s", request_id, method)
             return await self._send_message(
                 roborock_message,

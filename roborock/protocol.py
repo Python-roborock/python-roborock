@@ -517,15 +517,11 @@ def create_local_decoder(local_key: str, connect_nonce: int | None = None, ack_n
     return decode
 
 
-def create_local_encoder(
-    local_key: str, connect_nonce: int | None = None, ack_nonce: int | None = None, prefixed: bool = True
-) -> Encoder:
+def create_local_encoder(local_key: str, connect_nonce: int | None = None, ack_nonce: int | None = None) -> Encoder:
     """Create an encoder for local API messages."""
 
     def encode(message: RoborockMessage) -> bytes:
         """Called when data is sent to the transport."""
-        return MessageParser.build(
-            message, local_key=local_key, connect_nonce=connect_nonce, ack_nonce=ack_nonce, prefixed=prefixed
-        )
+        return MessageParser.build(message, local_key=local_key, connect_nonce=connect_nonce, ack_nonce=ack_nonce)
 
     return encode
