@@ -271,6 +271,21 @@ def mock_rest() -> aioresponses:
             status=200,
             payload={"api": None, "code": 200, "result": None, "status": "ok", "success": True},
         )
+        mocked.post(
+            re.compile(r"https://.*iot\.roborock\.com/api/v4/email/code/send.*"),
+            status=200,
+            payload={"code": 200, "data": None, "msg": "success"},
+        )
+        mocked.post(
+            re.compile(r"https://.*iot\.roborock\.com/api/v3/key/sign.*"),
+            status=200,
+            payload={"code": 200, "data": {"k": "mock_k"}, "msg": "success"},
+        )
+        mocked.post(
+            re.compile(r"https://.*iot\.roborock\.com/api/v4/auth/email/login/code.*"),
+            status=200,
+            payload={"code": 200, "data": USER_DATA, "msg": "success"},
+        )
         yield mocked
 
 
