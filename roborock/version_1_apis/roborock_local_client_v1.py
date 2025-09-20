@@ -21,13 +21,6 @@ from .roborock_client_v1 import CLOUD_REQUIRED, RoborockClientV1
 _LOGGER = logging.getLogger(__name__)
 
 
-_PING_REQUEST_MESSAGE = RoborockMessage(
-    protocol=RoborockMessageProtocol.PING_REQUEST,
-    seq=2,
-    random=23,
-)
-
-
 @dataclass
 class _LocalProtocol(asyncio.Protocol):
     """Callbacks for the Roborock local client transport."""
@@ -170,11 +163,16 @@ class RoborockLocalClientV1(RoborockClientV1, RoborockClient):
                     raise RoborockException("Failed to connect to device with any known protocol")
 
     async def ping(self) -> None:
+        self._logger.debug("Ping")
+        ping_message = RoborockMessage(
+            protocol=RoborockMessageProtocol.PING_REQUEST,
+        )
         await self._send_message(
-            roborock_message=_PING_REQUEST_MESSAGE,
-            request_id=_PING_REQUEST_MESSAGE.seq,
+            roborock_message=ping_message,
+            request_id=ping_message.seq,
             response_protocol=RoborockMessageProtocol.PING_RESPONSE,
         )
+        self._logger.debug("Pong")
 
     def _send_msg_raw(self, data: bytes):
         try:

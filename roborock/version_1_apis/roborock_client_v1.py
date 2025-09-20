@@ -449,6 +449,7 @@ class RoborockClientV1(RoborockClient, ABC):
                                 )
                 else:
                     if data.protocol == RoborockMessageProtocol.GENERAL_RESPONSE and data.payload is None:
+                        # Api will often send blank messages with matching sequences, we can ignore these.
                         continue
                     queue = self._waiting_queue.get(data.seq)
                     if queue:
