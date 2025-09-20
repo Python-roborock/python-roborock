@@ -18,7 +18,6 @@ from .exceptions import (
 from .roborock_future import RoborockFuture
 from .roborock_message import (
     RoborockMessage,
-    RoborockMessageProtocol,
 )
 from .util import get_next_int
 
@@ -97,9 +96,7 @@ class RoborockClient(ABC):
 
     def _async_response(self, request_id: int, protocol_id: int = 0) -> Any:
         queue = RoborockFuture(protocol_id)
-        if request_id in self._waiting_queue and not (
-            request_id == 2 and protocol_id == RoborockMessageProtocol.PING_REQUEST
-        ):
+        if request_id in self._waiting_queue:
             new_id = get_next_int(10000, 32767)
             self._logger.warning(
                 "Attempting to create a future with an existing id %s (%s)... New id is %s. "
