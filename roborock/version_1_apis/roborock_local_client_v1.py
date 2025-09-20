@@ -163,9 +163,9 @@ class RoborockLocalClientV1(RoborockClientV1, RoborockClient):
                     raise RoborockException("Failed to connect to device with any known protocol")
 
     async def ping(self) -> None:
-        ping_message = RoborockMessage(
-            protocol=RoborockMessageProtocol.PING_REQUEST,
-        )
+        # Realistically, this should be set here, but this is to be safe and for typing.
+        version = b"1.0" if self._version is None else self._version.encode()
+        ping_message = RoborockMessage(protocol=RoborockMessageProtocol.PING_REQUEST, version=version)
         await self._send_message(
             roborock_message=ping_message,
             request_id=ping_message.seq,
