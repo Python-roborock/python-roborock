@@ -1,8 +1,5 @@
 import asyncio
-import json
 import logging
-import math
-import time
 from asyncio import Lock, TimerHandle, Transport, get_running_loop
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -12,7 +9,7 @@ import async_timeout
 from .. import CommandVacuumError, DeviceData, RoborockCommand
 from ..api import RoborockClient
 from ..exceptions import RoborockConnectionException, RoborockException, VacuumError
-from ..protocol import Decoder, Encoder, create_local_decoder, create_local_encoder
+from ..protocol import create_local_decoder, create_local_encoder
 from ..protocols.v1_protocol import RequestMessage
 from ..roborock_message import RoborockMessage, RoborockMessageProtocol
 from ..util import RoborockLoggerAdapter, get_next_int
@@ -54,13 +51,9 @@ class RoborockLocalClientV1(RoborockClientV1, RoborockClient):
         RoborockClient.__init__(self, device_data)
         self._local_protocol = _LocalProtocol(self._data_received, self._connection_lost)
         self._version = version
-        self._connect_nonce: int | None = None
+        self._connect_nonce = get_next_int(10000, 32767)
         self._ack_nonce: int | None = None
-        if version == "L01":
-            self._set_l01_encoder_decoder()
-        else:
-            self._encoder: Encoder = create_local_encoder(device_data.device.local_key)
-            self._decoder: Decoder = create_local_decoder(device_data.device.local_key)
+        self._set_encoder_decoder()
         self.queue_timeout = queue_timeout
         self._logger = RoborockLoggerAdapter(device_data.device.name, _LOGGER)
 
@@ -117,15 +110,14 @@ class RoborockLocalClientV1(RoborockClientV1, RoborockClient):
         async with self._mutex:
             self._sync_disconnect()
 
-    def _set_l01_encoder_decoder(self):
-        """Tell the system to use the L01 encoder/decoder."""
+    def _set_encoder_decoder(self):
+        """Updates the encoder decoder. For L01 these are updated with nonces after the first hello."""
         self._encoder = create_local_encoder(self.device_info.device.local_key, self._connect_nonce, self._ack_nonce)
         self._decoder = create_local_decoder(self.device_info.device.local_key, self._connect_nonce, self._ack_nonce)
 
     async def _do_hello(self, version: str) -> bool:
         """Perform the initial handshaking."""
         self._logger.debug(f"Attempting to use the {version} protocol for client {self.device_info.device.duid}...")
-        self._connect_nonce = get_next_int(10000, 32767)
         request = RoborockMessage(
             protocol=RoborockMessageProtocol.HELLO_REQUEST,
             version=version.encode(),
@@ -138,9 +130,8 @@ class RoborockLocalClientV1(RoborockClientV1, RoborockClient):
                 request_id=request.seq,
                 response_protocol=RoborockMessageProtocol.HELLO_RESPONSE,
             )
-            if response.version.decode() == "L01":
-                self._ack_nonce = response.random
-                self._set_l01_encoder_decoder()
+            self._ack_nonce = response.random
+            self._set_encoder_decoder()
             self._version = version
             self._logger.debug(f"Client {self.device_info.device.duid} speaks the {version} protocol.")
             return True
@@ -187,35 +178,10 @@ class RoborockLocalClientV1(RoborockClientV1, RoborockClient):
     ):
         if method in CLOUD_REQUIRED:
             raise RoborockException(f"Method {method} is not supported over local connection")
-        if self._version == "L01":
-            request_id = get_next_int(10000, 999999)
-            dps_payload = {
-                "id": request_id,
-                "method": method,
-                "params": params,
-            }
-            ts = math.floor(time.time())
-            payload = {
-                "dps": {str(RoborockMessageProtocol.RPC_REQUEST.value): json.dumps(dps_payload, separators=(",", ":"))},
-                "t": ts,
-            }
-            roborock_message = RoborockMessage(
-                protocol=RoborockMessageProtocol.GENERAL_REQUEST,
-                payload=json.dumps(payload, separators=(",", ":")).encode("utf-8"),
-                version=self._version.encode(),
-                timestamp=ts,
-            )
-            self._logger.debug("Building message id %s for method %s", request_id, method)
-            return await self._send_message(
-                roborock_message,
-                request_id=request_id,
-                response_protocol=RoborockMessageProtocol.GENERAL_REQUEST,
-                method=method,
-                params=params,
-            )
-
         request_message = RequestMessage(method=method, params=params)
-        roborock_message = request_message.encode_message(RoborockMessageProtocol.GENERAL_REQUEST)
+        roborock_message = request_message.encode_message(
+            RoborockMessageProtocol.GENERAL_REQUEST, version=self._version if self._version is not None else "1.0"
+        )
         self._logger.debug("Building message id %s for method %s", request_message.request_id, method)
         return await self._send_message(
             roborock_message,

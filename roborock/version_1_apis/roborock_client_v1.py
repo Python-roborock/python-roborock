@@ -447,10 +447,10 @@ class RoborockClientV1(RoborockClient, ABC):
                                 self._logger.debug(
                                     "Received unsolicited map response for request_id %s", map_response.request_id
                                 )
+                elif data.protocol == RoborockMessageProtocol.GENERAL_RESPONSE and data.payload is None:
+                    # Api will often send blank messages with matching sequences, we can ignore these.
+                    continue
                 else:
-                    if data.protocol == RoborockMessageProtocol.GENERAL_RESPONSE and data.payload is None:
-                        # Api will often send blank messages with matching sequences, we can ignore these.
-                        continue
                     queue = self._waiting_queue.get(data.seq)
                     if queue:
                         if data.protocol == RoborockMessageProtocol.HELLO_RESPONSE:
