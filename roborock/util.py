@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import datetime
-import functools
 import logging
-from asyncio import AbstractEventLoop, TimerHandle
+from asyncio import TimerHandle
 from collections.abc import Callable, Coroutine, MutableMapping
 from typing import Any, TypeVar
 
@@ -16,15 +15,6 @@ DEFAULT_TIME_ZONE: datetime.tzinfo | None = datetime.datetime.now().astimezone()
 
 def unpack_list(value: list[T], size: int) -> list[T | None]:
     return (value + [None] * size)[:size]  # type: ignore
-
-
-def get_running_loop_or_create_one() -> AbstractEventLoop:
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-    return loop
 
 
 def parse_datetime_to_roborock_datetime(
@@ -58,19 +48,6 @@ def parse_time_to_datetime(
     )
 
     return parse_datetime_to_roborock_datetime(start_datetime, end_datetime)
-
-
-def run_sync():
-    loop = get_running_loop_or_create_one()
-
-    def decorator(func):
-        @functools.wraps(func)
-        def wrapped(*args, **kwargs):
-            return loop.run_until_complete(func(*args, **kwargs))
-
-        return wrapped
-
-    return decorator
 
 
 class RepeatableTask:

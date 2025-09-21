@@ -17,6 +17,7 @@ from roborock.protocols.v1_protocol import (
     CommandType,
     ParamsType,
     RequestMessage,
+    ResponseData,
     SecurityData,
     decode_rpc_response,
 )
@@ -88,16 +89,15 @@ class BaseV1RpcChannel(V1RpcChannel):
         raise NotImplementedError
 
 
-class CombinedV1RpcChannel(BaseV1RpcChannel):
-    """A V1 RPC channel that can use both local and MQTT channels, preferring local when available."""
+class PickFirstAvailable(BaseV1RpcChannel):
+    """A V1 RPC channel that tries multiple channels and picks the first that works."""
 
     def __init__(
-        self, local_channel: LocalChannel, local_rpc_channel: V1RpcChannel, mqtt_channel: V1RpcChannel
+        self,
+        channel_cbs: list[Callable[[], V1RpcChannel | None]],
     ) -> None:
-        """Initialize the combined channel with local and MQTT channels."""
-        self._local_channel = local_channel
-        self._local_rpc_channel = local_rpc_channel
-        self._mqtt_rpc_channel = mqtt_channel
+        """Initialize the pick-first-available channel."""
+        self._channel_cbs = channel_cbs
 
     async def _send_raw_command(
         self,
@@ -106,9 +106,10 @@ class CombinedV1RpcChannel(BaseV1RpcChannel):
         params: ParamsType = None,
     ) -> Any:
         """Send a command and return a parsed response RoborockBase type."""
-        if self._local_channel.is_connected:
-            return await self._local_rpc_channel.send_command(method, params=params)
-        return await self._mqtt_rpc_channel.send_command(method, params=params)
+        for channel_cb in self._channel_cbs:
+            if channel := channel_cb():
+                return await channel.send_command(method, params=params)
+        raise RoborockException("No available connection to send command")
 
 
 class PayloadEncodedV1RpcChannel(BaseV1RpcChannel):
@@ -130,21 +131,28 @@ class PayloadEncodedV1RpcChannel(BaseV1RpcChannel):
         method: CommandType,
         *,
         params: ParamsType = None,
-    ) -> Any:
+    ) -> ResponseData:
         """Send a command and return a parsed response RoborockBase type."""
-        _LOGGER.debug("Sending command (%s): %s, params=%s", self._name, method, params)
         request_message = RequestMessage(method, params=params)
+        _LOGGER.debug(
+            "Sending command (%s, request_id=%s): %s, params=%s", self._name, request_message.request_id, method, params
+        )
         message = self._payload_encoder(request_message)
 
-        future: asyncio.Future[dict[str, Any]] = asyncio.Future()
+        future: asyncio.Future[ResponseData] = asyncio.Future()
 
         def find_response(response_message: RoborockMessage) -> None:
             try:
                 decoded = decode_rpc_response(response_message)
-            except RoborockException:
+            except RoborockException as ex:
+                _LOGGER.debug("Exception while decoding message (%s): %s", response_message, ex)
                 return
+            _LOGGER.debug("Received response (request_id=%s): %s", self._name, decoded.request_id)
             if decoded.request_id == request_message.request_id:
-                future.set_result(decoded.data)
+                if decoded.api_error:
+                    future.set_exception(decoded.api_error)
+                else:
+                    future.set_result(decoded.data)
 
         unsub = await self._channel.subscribe(find_response)
         try:
@@ -166,11 +174,10 @@ def create_mqtt_rpc_channel(mqtt_channel: MqttChannel, security_data: SecurityDa
     )
 
 
-def create_combined_rpc_channel(local_channel: LocalChannel, mqtt_rpc_channel: V1RpcChannel) -> V1RpcChannel:
-    """Create a V1 RPC channel that combines local and MQTT channels."""
-    local_rpc_channel = PayloadEncodedV1RpcChannel(
+def create_local_rpc_channel(local_channel: LocalChannel) -> V1RpcChannel:
+    """Create a V1 RPC channel using a local channel."""
+    return PayloadEncodedV1RpcChannel(
         "local",
         local_channel,
         lambda x: x.encode_message(RoborockMessageProtocol.GENERAL_REQUEST),
     )
-    return CombinedV1RpcChannel(local_channel, local_rpc_channel, mqtt_rpc_channel)

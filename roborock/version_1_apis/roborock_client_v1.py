@@ -150,7 +150,7 @@ class RoborockClientV1(RoborockClient, ABC):
     """Roborock client base class for version 1 devices."""
 
     _listeners: dict[str, ListenerModel] = {}
-    _map_response_decoder: Callable[[RoborockMessage], MapResponse] | None = None
+    _map_response_decoder: Callable[[RoborockMessage], MapResponse | None] | None = None
 
     def __init__(self, device_info: DeviceData, security_data: SecurityData | None) -> None:
         """Initializes the Roborock client."""
@@ -439,13 +439,14 @@ class RoborockClientV1(RoborockClient, ABC):
                 elif data.payload and protocol == RoborockMessageProtocol.MAP_RESPONSE:
                     if self._map_response_decoder is not None:
                         map_response = self._map_response_decoder(data)
-                        queue = self._waiting_queue.get(map_response.request_id)
-                        if queue:
-                            queue.set_result(map_response.data)
-                        else:
-                            self._logger.debug(
-                                "Received unsolicited map response for request_id %s", map_response.request_id
-                            )
+                        if map_response is not None:
+                            queue = self._waiting_queue.get(map_response.request_id)
+                            if queue:
+                                queue.set_result(map_response.data)
+                            else:
+                                self._logger.debug(
+                                    "Received unsolicited map response for request_id %s", map_response.request_id
+                                )
                 else:
                     queue = self._waiting_queue.get(data.seq)
                     if queue:

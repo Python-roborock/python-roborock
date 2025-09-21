@@ -684,6 +684,7 @@ class RoborockFinishReason(RoborockEnum):
     manual_interrupt = 21  # Cleaning interrupted by user
     cleanup_interrupted = 24  # Cleanup interrupted
     manual_interrupt_2 = 21
+    manual_interrupt_12 = 29
     breakpoint = 32  # Could not continue cleaning
     breakpoint_2 = 33
     cleanup_interrupted_2 = 34

@@ -1,0 +1,4 @@
+# serializer version: 1
+# name: test_multi_maps_list_info
+  MultiMapsList(max_multi_map=4, max_bak_map=1, multi_map_count=2, map_info=[MultiMapsListMapInfo(map_flag=0, name='Downstairs', add_time=1757636125, length=10, bak_maps=[MultiMapsListMapInfoBakMaps(mapflag=None, add_time=1739205442)]), MultiMapsListMapInfo(map_flag=1, name='Foyer', add_time=1734283706, length=5, bak_maps=[MultiMapsListMapInfoBakMaps(mapflag=None, add_time=1728184107)])])
+# ---

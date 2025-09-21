@@ -109,8 +109,6 @@ def _decamelize(s: str):
 
 @dataclass
 class RoborockBase:
-    _ignore_keys = []  # type: ignore
-
     @staticmethod
     def _convert_to_class_obj(class_type: type, value):
         if get_origin(class_type) is list:
@@ -134,8 +132,8 @@ class RoborockBase:
             return None
         field_types = {field.name: field.type for field in dataclasses.fields(cls)}
         result: dict[str, Any] = {}
-        for key, value in data.items():
-            key = _decamelize(key)
+        for orig_key, value in data.items():
+            key = _decamelize(orig_key)
             if (field_type := field_types.get(key)) is None:
                 continue
             if value == "None" or value is None:
@@ -178,16 +176,18 @@ class RoborockBaseTimer(RoborockBase):
     end_hour: int | None = None
     end_minute: int | None = None
     enabled: int | None = None
-    start_time: datetime.time | None = None
-    end_time: datetime.time | None = None
 
-    def __post_init__(self) -> None:
-        self.start_time = (
+    @property
+    def start_time(self) -> datetime.time | None:
+        return (
             datetime.time(hour=self.start_hour, minute=self.start_minute)
             if self.start_hour is not None and self.start_minute is not None
             else None
         )
-        self.end_time = (
+
+    @property
+    def end_time(self) -> datetime.time | None:
+        return (
             datetime.time(hour=self.end_hour, minute=self.end_minute)
             if self.end_hour is not None and self.end_minute is not None
             else None
@@ -684,19 +684,20 @@ class MultiMapsListMapInfoBakMaps(RoborockBase):
 
 @dataclass
 class MultiMapsListMapInfo(RoborockBase):
-    _ignore_keys = ["mapFlag"]
-
-    mapFlag: int
+    map_flag: int
     name: str
     add_time: Any | None = None
     length: Any | None = None
     bak_maps: list[MultiMapsListMapInfoBakMaps] | None = None
 
+    @property
+    def mapFlag(self) -> int:
+        """Alias for map_flag, returns the map flag as an integer."""
+        return self.map_flag
+
 
 @dataclass
 class MultiMapsList(RoborockBase):
-    _ignore_keys = ["mapFlag"]
-
     max_multi_map: int | None = None
     max_bak_map: int | None = None
     multi_map_count: int | None = None
@@ -783,6 +784,7 @@ class FlowLedStatus(RoborockBase):
 class BroadcastMessage(RoborockBase):
     duid: str
     ip: str
+    version: bytes
 
 
 class ServerTimer(NamedTuple):

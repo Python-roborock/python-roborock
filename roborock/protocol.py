@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-import asyncio
 import binascii
 import gzip
 import hashlib
-import json
 import logging
-from asyncio import BaseTransport, Lock
 from collections.abc import Callable
 from urllib.parse import urlparse
 
@@ -31,7 +28,7 @@ from construct import (  # type: ignore
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 
-from roborock.containers import BroadcastMessage, RRiot
+from roborock.containers import RRiot
 from roborock.exceptions import RoborockException
 from roborock.mqtt.session import MqttParams
 from roborock.roborock_message import RoborockMessage
@@ -40,7 +37,6 @@ _LOGGER = logging.getLogger(__name__)
 SALT = b"TXdfu$jyZ#TZHsg4"
 A01_HASH = "726f626f726f636b2d67a6d6da"
 B01_HASH = "5wwh9ikChRjASpMU8cxg7o1d2E"
-BROADCAST_TOKEN = b"qWKYcdQWrbm9hPqe"
 AP_CONFIG = 1
 SOCK_DISCOVERY = 2
 
@@ -49,38 +45,6 @@ def md5hex(message: str) -> str:
     md5 = hashlib.md5()
     md5.update(message.encode())
     return md5.hexdigest()
-
-
-class RoborockProtocol(asyncio.DatagramProtocol):
-    def __init__(self, timeout: int = 5):
-        self.timeout = timeout
-        self.transport: BaseTransport | None = None
-        self.devices_found: list[BroadcastMessage] = []
-        self._mutex = Lock()
-
-    def __del__(self):
-        self.close()
-
-    def datagram_received(self, data, _):
-        [broadcast_message], _ = BroadcastParser.parse(data)
-        if broadcast_message.payload:
-            parsed_message = BroadcastMessage.from_dict(json.loads(broadcast_message.payload))
-            _LOGGER.debug(f"Received broadcast: {parsed_message}")
-            self.devices_found.append(parsed_message)
-
-    async def discover(self):
-        async with self._mutex:
-            try:
-                loop = asyncio.get_event_loop()
-                self.transport, _ = await loop.create_datagram_endpoint(lambda: self, local_addr=("0.0.0.0", 58866))
-                await asyncio.sleep(self.timeout)
-                return self.devices_found
-            finally:
-                self.close()
-                self.devices_found = []
-
-    def close(self):
-        self.transport.close() if self.transport else None
 
 
 class Utils:
@@ -184,6 +148,86 @@ class Utils:
             decipher = AES.new(token, AES.MODE_CBC, iv)
             return unpad(decipher.decrypt(ciphertext), AES.block_size)
         return ciphertext
+
+    @staticmethod
+    def _l01_key(local_key: str, timestamp: int) -> bytes:
+        """Derive key for L01 protocol."""
+        hash_input = Utils.encode_timestamp(timestamp) + Utils.ensure_bytes(local_key) + SALT
+        return hashlib.sha256(hash_input).digest()
+
+    @staticmethod
+    def _l01_iv(timestamp: int, nonce: int, sequence: int) -> bytes:
+        """Derive IV for L01 protocol."""
+        digest_input = sequence.to_bytes(4, "big") + nonce.to_bytes(4, "big") + timestamp.to_bytes(4, "big")
+        digest = hashlib.sha256(digest_input).digest()
+        return digest[:12]
+
+    @staticmethod
+    def _l01_aad(timestamp: int, nonce: int, sequence: int, connect_nonce: int, ack_nonce: int) -> bytes:
+        """Derive AAD for L01 protocol."""
+        return (
+            sequence.to_bytes(4, "big")
+            + connect_nonce.to_bytes(4, "big")
+            + ack_nonce.to_bytes(4, "big")
+            + nonce.to_bytes(4, "big")
+            + timestamp.to_bytes(4, "big")
+        )
+
+    @staticmethod
+    def encrypt_gcm_l01(
+        plaintext: bytes,
+        local_key: str,
+        timestamp: int,
+        sequence: int,
+        nonce: int,
+        connect_nonce: int,
+        ack_nonce: int,
+    ) -> bytes:
+        """Encrypt plaintext for L01 protocol using AES-256-GCM."""
+        if not isinstance(plaintext, bytes):
+            raise TypeError("plaintext requires bytes")
+
+        key = Utils._l01_key(local_key, timestamp)
+        iv = Utils._l01_iv(timestamp, nonce, sequence)
+        aad = Utils._l01_aad(timestamp, nonce, sequence, connect_nonce, ack_nonce)
+
+        cipher = AES.new(key, AES.MODE_GCM, nonce=iv)
+        cipher.update(aad)
+        ciphertext, tag = cipher.encrypt_and_digest(plaintext)
+
+        return ciphertext + tag
+
+    @staticmethod
+    def decrypt_gcm_l01(
+        payload: bytes,
+        local_key: str,
+        timestamp: int,
+        sequence: int,
+        nonce: int,
+        connect_nonce: int,
+        ack_nonce: int,
+    ) -> bytes:
+        """Decrypt payload for L01 protocol using AES-256-GCM."""
+        if not isinstance(payload, bytes):
+            raise TypeError("payload requires bytes")
+
+        key = Utils._l01_key(local_key, timestamp)
+        iv = Utils._l01_iv(timestamp, nonce, sequence)
+        aad = Utils._l01_aad(timestamp, nonce, sequence, connect_nonce, ack_nonce)
+
+        if len(payload) < 16:
+            raise ValueError("Invalid payload length for GCM decryption")
+
+        tag = payload[-16:]
+        ciphertext = payload[:-16]
+
+        cipher = AES.new(key, AES.MODE_GCM, nonce=iv)
+        cipher.update(aad)
+
+        try:
+            return cipher.decrypt_and_verify(ciphertext, tag)
+        except ValueError as e:
+            raise RoborockException("GCM tag verification failed") from e
 
     @staticmethod
     def crc(data: bytes) -> int:
@@ -324,19 +368,6 @@ _Messages = Struct(
     "remaining" / Optional(GreedyBytes),
 )
 
-_BroadcastMessage = Struct(
-    "message"
-    / RawCopy(
-        Struct(
-            "version" / Bytes(3),
-            "seq" / Int32ub,
-            "protocol" / Int16ub,
-            "payload" / EncryptionAdapter(lambda ctx: BROADCAST_TOKEN),
-        )
-    ),
-    "checksum" / Checksum(Int32ub, Utils.crc, lambda ctx: ctx.message.data),
-)
-
 
 class _Parser:
     def __init__(self, con: Construct, required_local_key: bool):
@@ -353,10 +384,10 @@ class _Parser:
             messages.append(
                 RoborockMessage(
                     version=message.message.value.version,
-                    seq=message.message.value.seq,
+                    seq=message.message.value.get("seq"),
                     random=message.message.value.get("random"),
                     timestamp=message.message.value.get("timestamp"),
-                    protocol=message.message.value.protocol,
+                    protocol=message.message.value.get("protocol"),
                     payload=message.message.value.payload,
                 )
             )
@@ -390,7 +421,6 @@ class _Parser:
 
 
 MessageParser: _Parser = _Parser(_Messages, True)
-BroadcastParser: _Parser = _Parser(_BroadcastMessage, False)
 
 
 def create_mqtt_params(rriot: RRiot) -> MqttParams:

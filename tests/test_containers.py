@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 from typing import Any
 
+from syrupy import SnapshotAssertion
+
 from roborock import CleanRecord, CleanSummary, Consumable, DnDTimer, HomeData, S7MaxVStatus, UserData
 from roborock.b01_containers import (
     B01Fault,
@@ -20,7 +22,7 @@ from roborock.code_mappings import (
     RoborockMopModeS7,
     RoborockStateCode,
 )
-from roborock.containers import RoborockBase
+from roborock.containers import MultiMapsList, RoborockBase
 
 from .mock_data import (
     CLEAN_RECORD,
@@ -427,3 +429,55 @@ def test_b01props_deserialization():
     assert deserialized.status == WorkStatusMapping.SWEEP_MOPING_2
     assert deserialized.wind == SCWindMapping.SUPER_STRONG
     assert deserialized.net_status.ip == "192.168.1.102"
+
+
+def test_multi_maps_list_info(snapshot: SnapshotAssertion) -> None:
+    """Test that MultiMapsListInfo can be deserialized correctly."""
+    data = {
+        "max_multi_map": 4,
+        "max_bak_map": 1,
+        "multi_map_count": 2,
+        "map_info": [
+            {
+                "mapFlag": 0,
+                "add_time": 1757636125,
+                "length": 10,
+                "name": "Downstairs",
+                "bak_maps": [{"mapFlag": 4, "add_time": 1739205442}],
+                "rooms": [
+                    {"id": 16, "tag": 12, "iot_name_id": "6990322", "iot_name": "Room"},
+                    {"id": 17, "tag": 15, "iot_name_id": "7140977", "iot_name": "Room"},
+                    {"id": 18, "tag": 12, "iot_name_id": "6985623", "iot_name": "Room"},
+                    {"id": 19, "tag": 14, "iot_name_id": "6990378", "iot_name": "Room"},
+                    {"id": 20, "tag": 10, "iot_name_id": "7063728", "iot_name": "Room"},
+                    {"id": 22, "tag": 12, "iot_name_id": "6995506", "iot_name": "Room"},
+                    {"id": 23, "tag": 15, "iot_name_id": "7140979", "iot_name": "Room"},
+                    {"id": 25, "tag": 13, "iot_name_id": "6990383", "iot_name": "Room"},
+                    {"id": 24, "tag": -1, "iot_name_id": "-1", "iot_name": "Room"},
+                ],
+                "furnitures": [
+                    {"id": 1, "type": 46, "subtype": 2},
+                    {"id": 2, "type": 47, "subtype": 0},
+                    {"id": 3, "type": 56, "subtype": 0},
+                    {"id": 4, "type": 43, "subtype": 0},
+                    {"id": 5, "type": 44, "subtype": 0},
+                    {"id": 6, "type": 44, "subtype": 0},
+                    {"id": 7, "type": 44, "subtype": 0},
+                    {"id": 8, "type": 46, "subtype": 0},
+                    {"id": 9, "type": 46, "subtype": 0},
+                ],
+            },
+            {
+                "mapFlag": 1,
+                "add_time": 1734283706,
+                "length": 5,
+                "name": "Foyer",
+                "bak_maps": [{"mapFlag": 5, "add_time": 1728184107}],
+                "rooms": [],
+                "furnitures": [],
+            },
+        ],
+    }
+    deserialized = MultiMapsList.from_dict(data)
+    assert isinstance(deserialized, MultiMapsList)
+    assert deserialized == snapshot

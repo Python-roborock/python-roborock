@@ -5,6 +5,8 @@ import enum
 import logging
 from collections.abc import Awaitable, Callable
 
+import aiohttp
+
 from roborock.code_mappings import RoborockCategory
 from roborock.containers import (
     HomeData,
@@ -22,7 +24,10 @@ from .cache import Cache, NoCache
 from .channel import Channel
 from .mqtt_channel import create_mqtt_channel
 from .traits.b01.props import B01PropsApi
+from .traits.clean_summary import CleanSummaryTrait
+from .traits.dnd import DoNotDisturbTrait
 from .traits.dyad import DyadApi
+from .traits.sound_volume import SoundVolumeTrait
 from .traits.status import StatusTrait
 from .traits.trait import Trait
 from .traits.zeo import ZeoApi
@@ -110,7 +115,9 @@ class DeviceManager:
         await asyncio.gather(*tasks)
 
 
-def create_home_data_api(email: str, user_data: UserData) -> HomeDataApi:
+def create_home_data_api(
+    email: str, user_data: UserData, base_url: str | None = None, session: aiohttp.ClientSession | None = None
+) -> HomeDataApi:
     """Create a home data API wrapper.
 
     This function creates a wrapper around the Roborock API client to fetch
@@ -119,7 +126,7 @@ def create_home_data_api(email: str, user_data: UserData) -> HomeDataApi:
 
     # Note: This will auto discover the API base URL. This can be improved
     # by caching this next to `UserData` if needed to avoid unnecessary API calls.
-    client = RoborockApiClient(email)
+    client = RoborockApiClient(username=email, base_url=base_url, session=session)
 
     async def home_data_api() -> HomeData:
         return await client.get_home_data_v3(user_data)
@@ -152,6 +159,9 @@ async def create_device_manager(
             case DeviceVersion.V1:
                 channel = create_v1_channel(user_data, mqtt_params, mqtt_session, device, cache)
                 traits.append(StatusTrait(product, channel.rpc_channel))
+                traits.append(DoNotDisturbTrait(channel.rpc_channel))
+                traits.append(CleanSummaryTrait(channel.rpc_channel))
+                traits.append(SoundVolumeTrait(channel.rpc_channel))
             case DeviceVersion.A01:
                 mqtt_channel = create_mqtt_channel(user_data, mqtt_params, mqtt_session, device)
                 match product.category:

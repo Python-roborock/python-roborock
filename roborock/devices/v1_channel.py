@@ -22,7 +22,7 @@ from .cache import Cache
 from .channel import Channel
 from .local_channel import LocalChannel, LocalSession, create_local_session
 from .mqtt_channel import MqttChannel
-from .v1_rpc_channel import V1RpcChannel, create_combined_rpc_channel, create_mqtt_rpc_channel
+from .v1_rpc_channel import PickFirstAvailable, V1RpcChannel, create_local_rpc_channel, create_mqtt_rpc_channel
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -60,7 +60,11 @@ class V1Channel(Channel):
         self._mqtt_rpc_channel = create_mqtt_rpc_channel(mqtt_channel, security_data)
         self._local_session = local_session
         self._local_channel: LocalChannel | None = None
-        self._combined_rpc_channel: V1RpcChannel | None = None
+        self._local_rpc_channel: V1RpcChannel | None = None
+        # Prefer local, fallback to MQTT
+        self._combined_rpc_channel = PickFirstAvailable(
+            [lambda: self._local_rpc_channel, lambda: self._mqtt_rpc_channel]
+        )
         self._mqtt_unsub: Callable[[], None] | None = None
         self._local_unsub: Callable[[], None] | None = None
         self._callback: Callable[[RoborockMessage], None] | None = None
@@ -84,7 +88,7 @@ class V1Channel(Channel):
     @property
     def rpc_channel(self) -> V1RpcChannel:
         """Return the combined RPC channel prefers local with a fallback to MQTT."""
-        return self._combined_rpc_channel or self._mqtt_rpc_channel
+        return self._combined_rpc_channel
 
     @property
     def mqtt_rpc_channel(self) -> V1RpcChannel:
@@ -160,7 +164,7 @@ class V1Channel(Channel):
         except RoborockException as e:
             self._local_channel = None
             raise RoborockException(f"Error connecting to local device {self._device_uid}: {e}") from e
-        self._combined_rpc_channel = create_combined_rpc_channel(self._local_channel, self._mqtt_rpc_channel)
+        self._local_rpc_channel = create_local_rpc_channel(self._local_channel)
         return await self._local_channel.subscribe(self._on_local_message)
 
     def _on_mqtt_message(self, message: RoborockMessage) -> None:
