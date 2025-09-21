@@ -227,7 +227,7 @@ class RoborockApiClient:
             else:
                 raise RoborockException(f"{code_response.get('msg')} - response code: {code_response.get('code')}")
 
-    async def sign_key_v3(self, s: str) -> str:
+    async def _sign_key_v3(self, s: str) -> str:
         """Sign a randomly generated string."""
         base_url = await self._get_base_url()
         header_clientid = self._get_header_client_id()
@@ -259,7 +259,7 @@ class RoborockApiClient:
         base_url = await self._get_base_url()
         header_clientid = self._get_header_client_id()
         x_mercy_ks = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(16))
-        x_mercy_k = await self.sign_key_v3(x_mercy_ks)
+        x_mercy_k = await self._sign_key_v3(x_mercy_ks)
         login_request = PreparedRequest(
             base_url,
             self.session,
