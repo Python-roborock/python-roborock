@@ -114,7 +114,7 @@ class RoborockMqttClient(RoborockClient, ABC):
             connection_queue.set_result(True)
 
     def _mqtt_on_message(self, *args, **kwargs):
-        self.received_message_since_last_disconnect = False
+        self.received_message_since_last_disconnect = True
         client, __, msg = args
         try:
             messages = self._decoder(msg.payload)
@@ -238,13 +238,13 @@ class RoborockMqttClient(RoborockClient, ABC):
         # If we should no longer keep the current connection alive...
         if not self.should_keepalive():
             self._logger.info("Resetting Roborock connection due to keepalive timeout")
-            if self.received_message_since_last_disconnect:
+            if not self.received_message_since_last_disconnect:
                 # If we have already tried to unsub and resub, and we are still in this state,
                 # we should try to reconnect.
                 return await self._reconnect()
             try:
                 # Mark that we have tried to unsubscribe and resubscribe
-                self.received_message_since_last_disconnect = True
+                self.received_message_since_last_disconnect = False
                 if await self._unsubscribe() != 0:
                     # If we fail to unsubscribe, reconnect to the broker
                     return await self._reconnect()
