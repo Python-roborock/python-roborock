@@ -49,24 +49,28 @@ async def test_get_base_url_no_url():
     rc = RoborockApiClient("sample@gmail.com")
     with patch("roborock.web_api.PreparedRequest.request") as mock_request:
         mock_request.return_value = BASE_URL_REQUEST
-        await rc._get_base_url()
-    assert rc.base_url == "https://sample.com"
+        await rc._get_iot_login_info()
+    assert await rc.base_url == "https://sample.com"
 
 
 async def test_request_code():
     rc = RoborockApiClient("sample@gmail.com")
-    with patch("roborock.web_api.RoborockApiClient._get_base_url"), patch(
-        "roborock.web_api.RoborockApiClient._get_header_client_id"
-    ), patch("roborock.web_api.PreparedRequest.request") as mock_request:
+    with (
+        patch("roborock.web_api.RoborockApiClient._get_iot_login_info"),
+        patch("roborock.web_api.RoborockApiClient._get_header_client_id"),
+        patch("roborock.web_api.PreparedRequest.request") as mock_request,
+    ):
         mock_request.return_value = GET_CODE_RESPONSE
         await rc.request_code()
 
 
 async def test_get_home_data():
     rc = RoborockApiClient("sample@gmail.com")
-    with patch("roborock.web_api.RoborockApiClient._get_base_url"), patch(
-        "roborock.web_api.RoborockApiClient._get_header_client_id"
-    ), patch("roborock.web_api.PreparedRequest.request") as mock_prepared_request:
+    with (
+        patch("roborock.web_api.RoborockApiClient._get_iot_login_info"),
+        patch("roborock.web_api.RoborockApiClient._get_header_client_id"),
+        patch("roborock.web_api.PreparedRequest.request") as mock_prepared_request,
+    ):
         mock_prepared_request.side_effect = [
             {"code": 200, "msg": "success", "data": {"rrHomeId": 1}},
             {"code": 200, "success": True, "result": HOME_DATA_RAW},
@@ -117,10 +121,11 @@ async def test_get_prop():
     home_data = HomeData.from_dict(HOME_DATA_RAW)
     device_info = DeviceData(device=home_data.devices[0], model=home_data.products[0].model)
     rmc = RoborockMqttClientV1(UserData.from_dict(USER_DATA), device_info)
-    with patch("roborock.version_1_apis.roborock_mqtt_client_v1.RoborockMqttClientV1.get_status") as get_status, patch(
-        "roborock.version_1_apis.roborock_client_v1.RoborockClientV1.send_command"
-    ), patch("roborock.version_1_apis.roborock_client_v1.AttributeCache.async_value"), patch(
-        "roborock.version_1_apis.roborock_mqtt_client_v1.RoborockMqttClientV1.get_dust_collection_mode"
+    with (
+        patch("roborock.version_1_apis.roborock_mqtt_client_v1.RoborockMqttClientV1.get_status") as get_status,
+        patch("roborock.version_1_apis.roborock_client_v1.RoborockClientV1.send_command"),
+        patch("roborock.version_1_apis.roborock_client_v1.AttributeCache.async_value"),
+        patch("roborock.version_1_apis.roborock_mqtt_client_v1.RoborockMqttClientV1.get_dust_collection_mode"),
     ):
         status = S7MaxVStatus.from_dict(STATUS)
         status.dock_type = RoborockDockTypeCode.auto_empty_dock_pure
@@ -194,8 +199,9 @@ async def test_disconnect_failure(connected_mqtt_client: RoborockMqttClientV1) -
     assert connected_mqtt_client.is_connected()
 
     # Make the MQTT client returns with an error when disconnecting
-    with patch("roborock.cloud_api.mqtt.Client.disconnect", return_value=mqtt.MQTT_ERR_PROTOCOL), pytest.raises(
-        RoborockException, match="Failed to disconnect"
+    with (
+        patch("roborock.cloud_api.mqtt.Client.disconnect", return_value=mqtt.MQTT_ERR_PROTOCOL),
+        pytest.raises(RoborockException, match="Failed to disconnect"),
     ):
         await connected_mqtt_client.async_disconnect()
 
@@ -231,8 +237,9 @@ async def test_subscribe_failure(
 
     response_queue.put(mqtt_packet.gen_connack(rc=0, flags=2))
 
-    with patch("roborock.cloud_api.mqtt.Client.subscribe", return_value=(mqtt.MQTT_ERR_NO_CONN, None)), pytest.raises(
-        RoborockException, match="Failed to subscribe"
+    with (
+        patch("roborock.cloud_api.mqtt.Client.subscribe", return_value=(mqtt.MQTT_ERR_NO_CONN, None)),
+        pytest.raises(RoborockException, match="Failed to subscribe"),
     ):
         await mqtt_client.async_connect()
 
@@ -298,8 +305,9 @@ async def test_publish_failure(
 
     msg = mqtt.MQTTMessageInfo(0)
     msg.rc = mqtt.MQTT_ERR_PROTOCOL
-    with patch("roborock.cloud_api.mqtt.Client.publish", return_value=msg), pytest.raises(
-        RoborockException, match="Failed to publish"
+    with (
+        patch("roborock.cloud_api.mqtt.Client.publish", return_value=msg),
+        pytest.raises(RoborockException, match="Failed to publish"),
     ):
         await connected_mqtt_client.get_room_mapping()
 
@@ -308,7 +316,8 @@ async def test_future_timeout(
     connected_mqtt_client: RoborockMqttClientV1,
 ) -> None:
     """Test a timeout raised while waiting for an RPC response."""
-    with patch("roborock.roborock_future.async_timeout.timeout", side_effect=asyncio.TimeoutError), pytest.raises(
-        RoborockTimeout, match="Timeout after"
+    with (
+        patch("roborock.roborock_future.async_timeout.timeout", side_effect=asyncio.TimeoutError),
+        pytest.raises(RoborockTimeout, match="Timeout after"),
     ):
         await connected_mqtt_client.get_room_mapping()
