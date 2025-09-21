@@ -170,7 +170,7 @@ class RoborockApiClient:
 
         return add_device_response["result"]
 
-    async def get_country_code_and_country(self) -> dict:
+    async def get_country_code_and_country(self) -> dict[str, str]:
         """Get country and country code for user."""
 
         base_url = await self._get_base_url()
