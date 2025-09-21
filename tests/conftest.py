@@ -173,7 +173,7 @@ def mock_rest() -> aioresponses:
     with aioresponses() as mocked:
         # Match the base URL and allow any query params
         mocked.post(
-            re.compile(r"https://euiot\.roborock\.com/api/v1/getUrlByEmail.*"),
+            re.compile(r"https://.*iot\.roborock\.com/api/v1/getUrlByEmail.*"),
             status=200,
             payload={
                 "code": 200,
