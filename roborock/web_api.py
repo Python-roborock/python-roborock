@@ -57,32 +57,41 @@ class RoborockApiClient:
         self._device_identifier = secrets.token_urlsafe(16)
         self.session = session
 
+    async def _get_info_by_email(self, url: str) -> dict:
+        url_request = PreparedRequest(url, self.session)
+        response = await url_request.request(
+            "post",
+            "/api/v1/getUrlByEmail",
+            params={"email": self._username, "needtwostepauth": "false"},
+        )
+        if response is None:
+            raise RoborockUrlException("Get url by email returned None")
+        response_code = response.get("code")
+        if response_code != 200:
+            _LOGGER.info("Get base url failed for %s with the following context: %s", self._username, response)
+            if response_code == 2003:
+                raise RoborockInvalidEmail("Your email was incorrectly formatted.")
+            elif response_code == 1001:
+                raise RoborockMissingParameters(
+                    "You are missing parameters for this request, are you sure you entered your username?"
+                )
+            elif response_code == 9002:
+                raise RoborockTooManyRequest("Please temporarily disable making requests and try again later.")
+            raise RoborockUrlException(f"error code: {response_code} msg: {response.get('error')}")
+        response_data = response.get("data")
+        if response_data is None:
+            raise RoborockUrlException("response does not have 'data'")
+
+        return {
+            "base_url": response_data.get("url"),
+            "country": response_data.get("country"),
+            "countrycode": response_data.get("countrycode"),
+        }
+
     async def _get_base_url(self) -> str:
         if not self.base_url:
-            url_request = PreparedRequest(self._default_url, self.session)
-            response = await url_request.request(
-                "post",
-                "/api/v1/getUrlByEmail",
-                params={"email": self._username, "needtwostepauth": "false"},
-            )
-            if response is None:
-                raise RoborockUrlException("get url by email returned None")
-            response_code = response.get("code")
-            if response_code != 200:
-                _LOGGER.info("Get base url failed for %s with the following context: %s", self._username, response)
-                if response_code == 2003:
-                    raise RoborockInvalidEmail("Your email was incorrectly formatted.")
-                elif response_code == 1001:
-                    raise RoborockMissingParameters(
-                        "You are missing parameters for this request, are you sure you entered your username?"
-                    )
-                elif response_code == 9002:
-                    raise RoborockTooManyRequest("Please temporarily disable making requests and try again later.")
-                raise RoborockUrlException(f"error code: {response_code} msg: {response.get('error')}")
-            response_data = response.get("data")
-            if response_data is None:
-                raise RoborockUrlException("response does not have 'data'")
-            self.base_url = response_data.get("url")
+            data = await self._get_info_by_email(self._default_url)
+            self.base_url = data["base_url"]
         return self.base_url
 
     def _get_header_client_id(self):
@@ -160,6 +169,14 @@ class RoborockApiClient:
             )
 
         return add_device_response["result"]
+
+    async def get_country_code_and_country(self) -> dict:
+        """Get country and country code for user."""
+
+        base_url = await self._get_base_url()
+        data = await self._get_info_by_email(base_url)
+
+        return {"country": data["country"], "countrycode": data["countrycode"]}
 
     async def request_code(self) -> None:
         try:

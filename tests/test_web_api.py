@@ -71,3 +71,10 @@ async def test_code_login_v4_flow(mock_rest) -> None:
     await api.request_code_v4()
     ud = await api.code_login_v4(4123, "US", 1)
     assert ud == UserData.from_dict(USER_DATA)
+
+
+async def test_get_country_code_and_country(mock_rest) -> None:
+    """Test that we can login with a code and we get back the correct userdata object."""
+    api = RoborockApiClient(username="test_user@gmail.com", base_url="https://euiot.roborock.com")
+    res = await api.get_country_code_and_country()
+    assert res == {"country": USER_DATA["country"], "countrycode": USER_DATA["countrycode"]}
