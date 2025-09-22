@@ -432,7 +432,7 @@ class Status(RoborockBase):
     def current_map(self) -> int | None:
         """Returns the current map ID if the map is present."""
         if self.map_status is not None:
-            return (self.map_status - 3) // 4
+            return self.map_status >> 2
         return None
 
 
