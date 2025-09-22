@@ -13,3 +13,9 @@ docs/_build/
 /site
 /docs/build/
 .DS_Store
+
+# gemini-cli settings
+.gemini/
+
+# GitHub App credentials
+gha-creds-*.json
