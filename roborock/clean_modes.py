@@ -26,7 +26,7 @@ class CleanRoutes(RoborockModeEnum):
     CUSTOMIZED = ("custom", 302)
 
 
-class CleanModesOld(RoborockModeEnum):
+class VacuumModesOld(RoborockModeEnum):
     QUIET = ("quiet", 38)
     BALANCED = ("balanced", 60)
     TURBO = ("turbo", 75)
