@@ -33,7 +33,7 @@ MULTI_MAP_LIST_DATA = [
                 "mapFlag": 123,
                 "add_time": 1747132930,
                 "length": 0,
-                "name": "Map 1",
+                "name": "Map 2",
                 "bak_maps": [{"mapFlag": 4, "add_time": 1747132936}],
             },
         ],
@@ -58,18 +58,28 @@ def maps_trait(device: RoborockDevice) -> MapsTrait:
 async def test_refresh_maps_trait(
     maps_trait: MapsTrait,
     mock_rpc_channel: AsyncMock,
+    status_trait: StatusTrait,
 ) -> None:
     """Test successfully getting multi maps list."""
     # Setup mock to return the sample multi maps list
-    mock_rpc_channel.send_command.return_value = MULTI_MAP_LIST_DATA
+    mock_rpc_channel.send_command.side_effect = [
+        mock_data.STATUS,  # Initial status fetch
+        MULTI_MAP_LIST_DATA
+    ]
+    await status_trait.refresh()
+    # Populating the status information gives us the current map
+    # flag, but we have not loaded the rest of the information.
+    assert maps_trait.current_map == 0
+    assert maps_trait.current_map_info is None
 
-    # Call the method
+    # Load the maps information
     await maps_trait.refresh()
 
     assert maps_trait.max_multi_map == 1
     assert maps_trait.max_bak_map == 1
     assert maps_trait.multi_map_count == 1
     assert maps_trait.map_info
+
     assert len(maps_trait.map_info) == 2
     map_infos = maps_trait.map_info
     assert len(map_infos) == 2
@@ -77,12 +87,19 @@ async def test_refresh_maps_trait(
     assert map_infos[0].name == "Map 1"
     assert map_infos[0].add_time == 1747132930
     assert map_infos[1].map_flag == 123
-    assert map_infos[1].name == "Map 1"
+    assert map_infos[1].name == "Map 2"
     assert map_infos[1].add_time == 1747132930
 
-    # Verify the RPC call was made correctly
-    mock_rpc_channel.send_command.assert_called_once_with(RoborockCommand.GET_MULTI_MAPS_LIST)
+    assert maps_trait.current_map == 0
+    assert maps_trait.current_map_info is not None
+    assert maps_trait.current_map_info.map_flag == 0
+    assert maps_trait.current_map_info.name == "Map 1"
 
+    # Verify the RPC call was made correctly
+    assert mock_rpc_channel.send_command.call_count == 2
+    mock_rpc_channel.send_command.assert_any_call(RoborockCommand.GET_STATUS)
+    mock_rpc_channel.send_command.assert_any_call(RoborockCommand.GET_MULTI_MAPS_LIST)
+    
 
 async def test_set_current_map(
     status_trait: StatusTrait,
@@ -101,17 +118,28 @@ async def test_set_current_map(
     # First refresh to populate initial state
     await maps_trait.refresh()
 
+    # Verify current map
+
+    assert maps_trait.current_map == 0
+    assert maps_trait.current_map_info
+    assert maps_trait.current_map_info.map_flag == 0
+    assert maps_trait.current_map_info.name == "Map 1"
+
     # Call the method to set current map
     await maps_trait.set_current_map(123)
 
     # Verify the current map is updated
     assert maps_trait.current_map == 123
+    assert maps_trait.current_map_info
+    assert maps_trait.current_map_info.map_flag == 123
+    assert maps_trait.current_map_info.name == "Map 2"
 
-    # Verify the RPC call was made correctly to load the map
-    mock_rpc_channel.send_command.assert_any_call(RoborockCommand.LOAD_MULTI_MAP, params=[123])
-    # Command sent are:
+    # Verify the command sent are:
     # 1. GET_STATUS to get initial status
     # 2. GET_MULTI_MAPS_LIST to get the map list
     # 3. LOAD_MULTI_MAP to set the map
     # 4. GET_STATUS to refresh the current map in status
     assert mock_rpc_channel.send_command.call_count == 4
+    mock_rpc_channel.send_command.assert_any_call(RoborockCommand.GET_STATUS)
+    mock_rpc_channel.send_command.assert_any_call(RoborockCommand.GET_MULTI_MAPS_LIST)
+    mock_rpc_channel.send_command.assert_any_call(RoborockCommand.LOAD_MULTI_MAP, params=[123])
