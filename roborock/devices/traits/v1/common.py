@@ -4,7 +4,7 @@ This is an internal library and should not be used directly by consumers.
 """
 
 from abc import ABC
-from dataclasses import asdict, dataclass, fields
+from dataclasses import dataclass, fields
 from typing import ClassVar, Self
 
 from roborock.containers import RoborockBase
@@ -77,9 +77,11 @@ class V1TraitMixin(ABC):
         """Refresh the contents of this trait."""
         response = await self.rpc_channel.send_command(self.command)
         new_data = self._parse_response(response)
-        for k, v in asdict(new_data).items():
-            if v is not None:
-                setattr(self, k, v)
+        if not isinstance(new_data, RoborockBase):
+            raise ValueError(f"Internal error, unexpected response type: {new_data!r}")
+        for field in fields(new_data):
+            new_value = getattr(new_data, field.name, None)
+            setattr(self, field.name, new_value)
         return self
 
 
