@@ -16,6 +16,7 @@ from .status import StatusTrait
 _LOGGER = logging.getLogger(__name__)
 
 
+@common.mqtt_rpc_channel
 class MapsTrait(MultiMapsList, common.V1TraitMixin):
     """Trait for managing the maps of Roborock devices.
 

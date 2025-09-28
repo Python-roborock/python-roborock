@@ -58,15 +58,20 @@ def maps_trait(device: RoborockDevice) -> MapsTrait:
 async def test_refresh_maps_trait(
     maps_trait: MapsTrait,
     mock_rpc_channel: AsyncMock,
+    mock_mqtt_rpc_channel: AsyncMock,
     status_trait: StatusTrait,
 ) -> None:
     """Test successfully getting multi maps list."""
     # Setup mock to return the sample multi maps list
     mock_rpc_channel.send_command.side_effect = [
         mock_data.STATUS,  # Initial status fetch
+    ]
+    mock_mqtt_rpc_channel.send_command.side_effect = [
         MULTI_MAP_LIST_DATA,
     ]
     await status_trait.refresh()
+    assert status_trait.current_map == 0
+
     # Populating the status information gives us the current map
     # flag, but we have not loaded the rest of the information.
     assert maps_trait.current_map == 0
@@ -96,22 +101,27 @@ async def test_refresh_maps_trait(
     assert maps_trait.current_map_info.name == "Map 1"
 
     # Verify the RPC call was made correctly
-    assert mock_rpc_channel.send_command.call_count == 2
+    assert mock_rpc_channel.send_command.call_count == 1
     mock_rpc_channel.send_command.assert_any_call(RoborockCommand.GET_STATUS)
-    mock_rpc_channel.send_command.assert_any_call(RoborockCommand.GET_MULTI_MAPS_LIST)
+    assert mock_mqtt_rpc_channel.send_command.call_count == 1
+    mock_mqtt_rpc_channel.send_command.assert_any_call(RoborockCommand.GET_MULTI_MAPS_LIST)
 
 
 async def test_set_current_map(
     status_trait: StatusTrait,
     maps_trait: MapsTrait,
     mock_rpc_channel: AsyncMock,
+    mock_mqtt_rpc_channel: AsyncMock,
 ) -> None:
     """Test successfully setting the current map."""
+    assert hasattr(maps_trait, "mqtt_rpc_channel")
     mock_rpc_channel.send_command.side_effect = [
         mock_data.STATUS,  # Initial status fetch
+        UPDATED_STATUS,  # Response for refreshing status
+    ]
+    mock_mqtt_rpc_channel.send_command.side_effect = [
         MULTI_MAP_LIST_DATA,  # Response for LOAD_MULTI_MAP
         {},  # Response for setting the current map
-        UPDATED_STATUS,  # Response for refreshing status
     ]
     await status_trait.refresh()
 
@@ -139,7 +149,8 @@ async def test_set_current_map(
     # 2. GET_MULTI_MAPS_LIST to get the map list
     # 3. LOAD_MULTI_MAP to set the map
     # 4. GET_STATUS to refresh the current map in status
-    assert mock_rpc_channel.send_command.call_count == 4
+    assert mock_rpc_channel.send_command.call_count == 2
     mock_rpc_channel.send_command.assert_any_call(RoborockCommand.GET_STATUS)
-    mock_rpc_channel.send_command.assert_any_call(RoborockCommand.GET_MULTI_MAPS_LIST)
-    mock_rpc_channel.send_command.assert_any_call(RoborockCommand.LOAD_MULTI_MAP, params=[123])
+    assert mock_mqtt_rpc_channel.send_command.call_count == 2
+    mock_mqtt_rpc_channel.send_command.assert_any_call(RoborockCommand.GET_MULTI_MAPS_LIST)
+    mock_mqtt_rpc_channel.send_command.assert_any_call(RoborockCommand.LOAD_MULTI_MAP, params=[123])

@@ -5,11 +5,15 @@ This is an internal library and should not be used directly by consumers.
 
 from abc import ABC
 from dataclasses import dataclass, fields
+from functools import wraps
+import logging
 from typing import ClassVar, Self
 
 from roborock.containers import RoborockBase
 from roborock.devices.v1_rpc_channel import V1RpcChannel
 from roborock.roborock_typing import RoborockCommand
+
+_LOGGER = logging.getLogger(__name__)
 
 V1ResponseData = dict | list | int | str
 
@@ -115,3 +119,16 @@ class RoborockValueBase(V1TraitMixin, RoborockBase):
             raise ValueError(f"Unexpected response format: {response!r}")
         value_field = _get_value_field(cls)
         return cls(**{value_field: response})
+
+
+def mqtt_rpc_channel(cls):
+    """Decorator to mark a function as cloud only.
+    
+    Normally a trait uses an adaptive rpc channel that can use either local
+    or cloud communication depending on what is available. This will force
+    the trait to always use the cloud rpc channel.
+    """
+    def wrapper(*args, **kwargs):
+        return cls(*args, **kwargs)
+    cls.mqtt_rpc_channel = True  # type: ignore[attr-defined]
+    return wrapper

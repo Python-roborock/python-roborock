@@ -1,6 +1,7 @@
 """Create traits for V1 devices."""
 
 from dataclasses import dataclass, field, fields
+import logging
 
 from roborock.containers import HomeData, HomeDataProduct
 from roborock.devices.traits import Trait
@@ -12,6 +13,8 @@ from .do_not_disturb import DoNotDisturbTrait
 from .maps import MapsTrait
 from .status import StatusTrait
 from .volume import SoundVolumeTrait
+
+_LOGGER = logging.getLogger(__name__)
 
 __all__ = [
     "create",
@@ -40,10 +43,12 @@ class PropertiesApi(Trait):
 
     # In the future optional fields can be added below based on supported features
 
-    def __init__(self, product: HomeDataProduct, rpc_channel: V1RpcChannel) -> None:
+    def __init__(self, product: HomeDataProduct, rpc_channel: V1RpcChannel, mqtt_rpc_channel: V1RpcChannel) -> None:
         """Initialize the V1TraitProps with None values."""
         self.status = StatusTrait(product)
+        #self.status._rpc_channel = rpc_channel
         self.maps = MapsTrait(self.status)
+        #self.maps._rpc_channel = mqtt_rpc_channel
 
         # This is a hack to allow setting the rpc_channel on all traits. This is
         # used so we can preserve the dataclass behavior when the values in the
@@ -53,9 +58,12 @@ class PropertiesApi(Trait):
             if (trait := getattr(self, item.name, None)) is None:
                 trait = item.type()
                 setattr(self, item.name, trait)
-            trait._rpc_channel = rpc_channel
+            if hasattr(trait, "mqtt_rpc_channel"):  # @common.mqtt_rpc_channel
+                trait._rpc_channel = mqtt_rpc_channel
+            else:
+                trait._rpc_channel = rpc_channel
 
 
-def create(product: HomeDataProduct, rpc_channel: V1RpcChannel) -> PropertiesApi:
+def create(product: HomeDataProduct, rpc_channel: V1RpcChannel, mqtt_rpc_channel: V1RpcChannel) -> PropertiesApi:
     """Create traits for V1 devices."""
-    return PropertiesApi(product, rpc_channel)
+    return PropertiesApi(product, rpc_channel, mqtt_rpc_channel)

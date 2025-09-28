@@ -27,11 +27,17 @@ def rpc_channel_fixture() -> AsyncMock:
     return AsyncMock()
 
 
+
+@pytest.fixture(autouse=True, name="mock_mqtt_rpc_channel")
+def mqtt_rpc_channel_fixture() -> AsyncMock:
+    """Fixture to set up the channel for tests."""
+    return AsyncMock()
+
 @pytest.fixture(autouse=True, name="device")
-def device_fixture(channel: AsyncMock, mock_rpc_channel: AsyncMock) -> RoborockDevice:
+def device_fixture(channel: AsyncMock, mock_rpc_channel: AsyncMock, mock_mqtt_rpc_channel: AsyncMock) -> RoborockDevice:
     """Fixture to set up the device for tests."""
     return RoborockDevice(
         device_info=HOME_DATA.devices[0],
         channel=channel,
-        trait=v1.create(HOME_DATA.products[0], mock_rpc_channel),
+        trait=v1.create(HOME_DATA.products[0], mock_rpc_channel, mock_mqtt_rpc_channel),
     )
