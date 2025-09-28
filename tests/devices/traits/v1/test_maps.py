@@ -64,7 +64,7 @@ async def test_refresh_maps_trait(
     # Setup mock to return the sample multi maps list
     mock_rpc_channel.send_command.side_effect = [
         mock_data.STATUS,  # Initial status fetch
-        MULTI_MAP_LIST_DATA
+        MULTI_MAP_LIST_DATA,
     ]
     await status_trait.refresh()
     # Populating the status information gives us the current map
@@ -99,7 +99,7 @@ async def test_refresh_maps_trait(
     assert mock_rpc_channel.send_command.call_count == 2
     mock_rpc_channel.send_command.assert_any_call(RoborockCommand.GET_STATUS)
     mock_rpc_channel.send_command.assert_any_call(RoborockCommand.GET_MULTI_MAPS_LIST)
-    
+
 
 async def test_set_current_map(
     status_trait: StatusTrait,
