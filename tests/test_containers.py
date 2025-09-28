@@ -488,8 +488,8 @@ def test_accurate_map_flag() -> None:
     """Test that we parse the map flag accurately."""
     s = S7MaxVStatus.from_dict(STATUS)
     assert s.current_map == 0
-    status = copy.deepcopy(STATUS)
-    # 252 is a code for no map, it should end up being 63.
-    status["map_status"] = 252
-    s = S7MaxVStatus.from_dict(status)
+    s = S7MaxVStatus.from_dict({
+	        **STATUS,
+	        "map_status": 252,  # Code for no map
+	})
     assert s.current_map == 63
