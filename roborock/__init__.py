@@ -9,6 +9,20 @@ from roborock.containers import *
 from roborock.exceptions import *
 from roborock.roborock_typing import *
 
+from . import (
+    b01_containers,
+    clean_modes,
+    cloud_api,
+    code_mappings,
+    const,
+    containers,
+    exceptions,
+    roborock_typing,
+    version_1_apis,
+    version_a01_apis,
+    web_api,
+)
+
 __all__ = [
     "web_api",
     "version_1_apis",
@@ -21,6 +35,5 @@ __all__ = [
     "code_mappings",
     "roborock_typing",
     "exceptions",
-
-    # We'll add new APIs here in the future e.g. devices/
+    # Add new APIs here in the future when they are public e.g. devices/
 ]
