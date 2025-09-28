@@ -40,6 +40,7 @@ def mqtt_rpc_channel_fixture() -> AsyncMock:
     """Fixture to set up the channel for tests."""
     return AsyncMock()
 
+
 @pytest.fixture(autouse=True, name="device")
 def device_fixture(channel: AsyncMock, rpc_channel: AsyncMock, mqtt_rpc_channel: AsyncMock) -> RoborockDevice:
     """Fixture to set up the device for tests."""
