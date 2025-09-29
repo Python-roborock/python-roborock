@@ -1,6 +1,5 @@
 """Test cases for the containers module."""
 
-import copy
 from dataclasses import dataclass
 from typing import Any
 
@@ -488,8 +487,10 @@ def test_accurate_map_flag() -> None:
     """Test that we parse the map flag accurately."""
     s = S7MaxVStatus.from_dict(STATUS)
     assert s.current_map == 0
-    s = S7MaxVStatus.from_dict({
-	        **STATUS,
-	        "map_status": 252,  # Code for no map
-	})
-    assert s.current_map == 63
+    s = S7MaxVStatus.from_dict(
+        {
+            **STATUS,
+            "map_status": 252,  # Code for no map
+        }
+    )
+    assert s.current_map is None
