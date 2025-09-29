@@ -185,24 +185,29 @@ async def test_v1_channel_mqtt_disconnected(
     assert not mock_mqtt_channel.subscribers
 
 
-async def test_v1_channel_subscribe_both_connections_success(
+async def test_v1_channel_subscribe_local_success(
     v1_channel: V1Channel,
     mock_mqtt_channel: Mock,
     mock_local_channel: Mock,
+    mock_local_session: Mock,
 ) -> None:
-    """Test successful subscription with both MQTT and local connections."""
+    """Test successful subscription with local connections."""
     mock_mqtt_channel.response_queue.append(TEST_NETWORK_INFO_RESPONSE)
 
     # Mock network info retrieval
     callback = Mock()
     unsub = await v1_channel.subscribe(callback)
 
-    # Verify both connections established
-    assert mock_mqtt_channel.subscribers
+    # Verify local connection was attempted and succeeded
+    mock_local_session.assert_called_once_with(TEST_HOST)
+    mock_local_channel.connect.assert_called_once()
+
+    # Verify local connection established and not mqtt
+    assert not mock_mqtt_channel.subscribers
     assert mock_local_channel.subscribers
 
     # Verify properties
-    assert v1_channel.is_mqtt_connected
+    assert not v1_channel.is_mqtt_connected
     assert v1_channel.is_local_connected
 
     # Test unsubscribe cleans up both
@@ -219,7 +224,7 @@ async def test_v1_channel_subscribe_already_connected_error(v1_channel: V1Channe
     await v1_channel.subscribe(Mock())
 
     # Second subscription should fail
-    with pytest.raises(ValueError, match="Already connected to the device"):
+    with pytest.raises(ValueError, match="Only one subscription allowed at a time"):
         await v1_channel.subscribe(Mock())
 
 
@@ -237,9 +242,6 @@ async def test_v1_channel_local_connection_warning_logged(
 
     assert "Could not establish local connection for device abc123" in warning_caplog.text
     assert "Local connection failed" in warning_caplog.text
-
-
-# V1Channel command sending with fallback logic tests
 
 
 async def test_v1_channel_send_command_local_preferred(
@@ -343,9 +345,6 @@ async def test_v1_channel_send_decoded_command_with_params(
     assert decoded_payload["params"] == {"volume": 80}
 
 
-# V1Channel networking tests
-
-
 async def test_v1_channel_networking_info_retrieved_during_connection(
     v1_channel: V1Channel,
     mock_mqtt_channel: Mock,
@@ -359,8 +358,7 @@ async def test_v1_channel_networking_info_retrieved_during_connection(
     # Subscribe - this should trigger network info retrieval for local connection
     await v1_channel.subscribe(Mock())
 
-    # Verify both connections are established
-    assert v1_channel.is_mqtt_connected
+    # Verify local connection was esablished
     assert v1_channel.is_local_connected
 
     # Verify network info was requested via MQTT
@@ -397,8 +395,7 @@ async def test_v1_channel_networking_info_cached_during_connection(
     # Subscribe - should use cached network info
     await v1_channel.subscribe(Mock())
 
-    # Verify both connections are established
-    assert v1_channel.is_mqtt_connected
+    # Verify local connections are established
     assert v1_channel.is_local_connected
 
     # Verify network info was NOT requested via MQTT (cache hit)
@@ -455,83 +452,3 @@ async def test_v1_channel_command_encoding_validation(
     # But they should have different protocols
     assert mqtt_message.protocol == RoborockMessageProtocol.RPC_REQUEST
     assert local_message.protocol == RoborockMessageProtocol.GENERAL_REQUEST
-
-
-async def test_v1_channel_connection_state_properties(v1_channel: V1Channel) -> None:
-    """Test connection state properties work correctly."""
-    # Initially not connected
-    assert not v1_channel.is_mqtt_connected
-    assert not v1_channel.is_local_connected
-
-    # Set up MQTT connection
-    v1_channel._mqtt_unsub = Mock()
-    assert v1_channel.is_mqtt_connected
-    assert not v1_channel.is_local_connected
-
-    # Set up local connection
-    v1_channel._local_unsub = Mock()
-    assert v1_channel.is_mqtt_connected
-    assert v1_channel.is_local_connected
-
-    # Clear connections
-    v1_channel._mqtt_unsub = None
-    v1_channel._local_unsub = None
-    assert not v1_channel.is_mqtt_connected
-    assert not v1_channel.is_local_connected
-
-
-async def test_v1_channel_full_subscribe_and_command_flow(
-    mock_mqtt_channel: Mock,
-    mock_local_session: Mock,
-    mock_local_channel: Mock,
-) -> None:
-    """Test the complete flow from subscription to command execution."""
-    # Setup: successful connections and responses
-    mock_mqtt_channel.response_queue.append(TEST_NETWORK_INFO_RESPONSE)
-
-    # Create V1Channel and subscribe
-    v1_channel = V1Channel(
-        device_uid=TEST_DEVICE_UID,
-        security_data=TEST_SECURITY_DATA,
-        mqtt_channel=mock_mqtt_channel,
-        local_session=mock_local_session,
-        cache=InMemoryCache(),
-    )
-    # Get a handle to the V1RpcChannel. It may change which connection is
-    # active, but getting now to reproduce a bug where it doesn't change.
-    rpc_channel = v1_channel.rpc_channel
-
-    # Mock network info for local connection
-    callback = Mock()
-    unsub = await v1_channel.subscribe(callback)
-
-    # Verify both connections established
-    assert v1_channel.is_mqtt_connected
-    assert v1_channel.is_local_connected
-    assert mock_mqtt_channel.subscribers
-    assert mock_local_channel.subscribers
-
-    mock_mqtt_channel.published_messages.clear()
-
-    # Send a command (should use local)
-    mock_local_channel.response_queue.append(TEST_RESPONSE)
-    result = await rpc_channel.send_command(
-        RoborockCommand.GET_STATUS,
-        response_type=S5MaxStatus,
-    )
-
-    # Verify command was sent via local connection
-    assert mock_local_channel.published_messages
-    assert not mock_mqtt_channel.published_messages
-    assert result.state == RoborockStateCode.cleaning
-
-    # Test message callback
-    test_message = TEST_RESPONSE
-    v1_channel._callback = callback
-    v1_channel._on_local_message(test_message)
-    callback.assert_called_with(test_message)
-
-    # Clean up
-    unsub()
-    assert not mock_mqtt_channel.subscribers
-    assert not mock_local_channel.subscribers

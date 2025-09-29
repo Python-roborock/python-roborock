@@ -3,8 +3,8 @@
 import asyncio
 import json
 import logging
-from collections.abc import AsyncGenerator, Callable, Generator
-from unittest.mock import AsyncMock, Mock, patch
+from collections.abc import AsyncGenerator, Callable
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -48,11 +48,9 @@ DECODER = create_mqtt_decoder(TEST_LOCAL_KEY)
 
 
 @pytest.fixture(name="mqtt_session", autouse=True)
-def setup_mqtt_session() -> Generator[Mock, None, None]:
+def setup_mqtt_session() -> Mock:
     """Fixture to set up the MQTT session for the tests."""
-    mock_session = AsyncMock()
-    with patch("roborock.devices.device_manager.create_mqtt_session", return_value=mock_session):
-        yield mock_session
+    return AsyncMock()
 
 
 @pytest.fixture(name="mqtt_channel", autouse=True)

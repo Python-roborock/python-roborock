@@ -5,24 +5,16 @@ from unittest.mock import AsyncMock
 import pytest
 
 from roborock.containers import DnDTimer
-from roborock.devices.traits.dnd import DoNotDisturbTrait
-from roborock.devices.v1_rpc_channel import V1RpcChannel
+from roborock.devices.device import RoborockDevice
+from roborock.devices.traits.v1.do_not_disturb import DoNotDisturbTrait
 from roborock.roborock_typing import RoborockCommand
 
 
 @pytest.fixture
-def mock_rpc_channel() -> AsyncMock:
-    """Create a mock RPC channel."""
-    mock_channel = AsyncMock(spec=V1RpcChannel)
-    # Ensure send_command is an AsyncMock that returns awaitable coroutines
-    mock_channel.send_command = AsyncMock()
-    return mock_channel
-
-
-@pytest.fixture
-def dnd_trait(mock_rpc_channel: AsyncMock) -> DoNotDisturbTrait:
+def dnd_trait(device: RoborockDevice) -> DoNotDisturbTrait:
     """Create a DoNotDisturbTrait instance with mocked dependencies."""
-    return DoNotDisturbTrait(mock_rpc_channel)
+    assert device.v1_properties
+    return device.v1_properties.dnd
 
 
 @pytest.fixture
@@ -37,31 +29,25 @@ def sample_dnd_timer() -> DnDTimer:
     )
 
 
-def test_trait_name(dnd_trait: DoNotDisturbTrait) -> None:
-    """Test that the trait has the correct name."""
-    assert dnd_trait.name == "do_not_disturb"
-
-
 async def test_get_dnd_timer_success(
     dnd_trait: DoNotDisturbTrait, mock_rpc_channel: AsyncMock, sample_dnd_timer: DnDTimer
 ) -> None:
     """Test successfully getting DnD timer settings."""
     # Setup mock to return the sample DnD timer
-    mock_rpc_channel.send_command.return_value = sample_dnd_timer
+    mock_rpc_channel.send_command.return_value = sample_dnd_timer.as_dict()
 
     # Call the method
-    result = await dnd_trait.get_dnd_timer()
+    await dnd_trait.refresh()
 
     # Verify the result
-    assert result == sample_dnd_timer
-    assert result.start_hour == 22
-    assert result.start_minute == 0
-    assert result.end_hour == 8
-    assert result.end_minute == 0
-    assert result.enabled == 1
+    assert dnd_trait.start_hour == 22
+    assert dnd_trait.start_minute == 0
+    assert dnd_trait.end_hour == 8
+    assert dnd_trait.end_minute == 0
+    assert dnd_trait.enabled == 1
 
     # Verify the RPC call was made correctly
-    mock_rpc_channel.send_command.assert_called_once_with(RoborockCommand.GET_DND_TIMER, response_type=DnDTimer)
+    mock_rpc_channel.send_command.assert_called_once_with(RoborockCommand.GET_DND_TIMER)
 
 
 async def test_get_dnd_timer_disabled(dnd_trait: DoNotDisturbTrait, mock_rpc_channel: AsyncMock) -> None:
@@ -73,12 +59,12 @@ async def test_get_dnd_timer_disabled(dnd_trait: DoNotDisturbTrait, mock_rpc_cha
         end_minute=0,
         enabled=0,
     )
-    mock_rpc_channel.send_command.return_value = disabled_timer
+    mock_rpc_channel.send_command.return_value = disabled_timer.as_dict()
 
-    result = await dnd_trait.get_dnd_timer()
+    await dnd_trait.refresh()
 
-    assert result.enabled == 0
-    mock_rpc_channel.send_command.assert_called_once_with(RoborockCommand.GET_DND_TIMER, response_type=DnDTimer)
+    assert dnd_trait.enabled == 0
+    mock_rpc_channel.send_command.assert_called_once_with(RoborockCommand.GET_DND_TIMER)
 
 
 async def test_set_dnd_timer_success(
@@ -118,7 +104,7 @@ async def test_get_dnd_timer_propagates_exception(dnd_trait: DoNotDisturbTrait, 
 
     # Verify the exception is propagated
     with pytest.raises(RoborockException, match="Communication error"):
-        await dnd_trait.get_dnd_timer()
+        await dnd_trait.refresh()
 
 
 async def test_set_dnd_timer_propagates_exception(

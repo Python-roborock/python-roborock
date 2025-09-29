@@ -19,7 +19,7 @@ NETWORK_INFO = mock_data.NETWORK_INFO
 @pytest.fixture(autouse=True, name="mqtt_session")
 def setup_mqtt_session() -> Generator[Mock, None, None]:
     """Fixture to set up the MQTT session for the tests."""
-    with patch("roborock.devices.device_manager.create_mqtt_session") as mock_create_session:
+    with patch("roborock.devices.device_manager.create_lazy_mqtt_session") as mock_create_session:
         yield mock_create_session
 
 

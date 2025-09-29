@@ -27,6 +27,7 @@ import functools
 import json
 import logging
 import threading
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -43,6 +44,8 @@ from roborock.containers import DeviceData, HomeData, NetworkInfo, RoborockBase,
 from roborock.devices.cache import Cache, CacheData
 from roborock.devices.device import RoborockDevice
 from roborock.devices.device_manager import DeviceManager, create_device_manager, create_home_data_api
+from roborock.devices.traits import Trait
+from roborock.devices.traits.v1 import V1TraitMixin
 from roborock.protocol import MessageParser
 from roborock.version_1_apis.roborock_mqtt_client_v1 import RoborockMqttClientV1
 from roborock.web_api import RoborockApiClient
@@ -377,6 +380,22 @@ async def execute_scene(ctx, scene_id):
     await client.execute_scene(cache_data.user_data, scene_id)
 
 
+async def _v1_trait(context: RoborockContext, device_id: str, display_func: Callable[[], V1TraitMixin]) -> Trait:
+    device_manager = await context.get_device_manager()
+    device = await device_manager.get_device(device_id)
+    if device.v1_properties is None:
+        raise RoborockException(f"Device {device.name} does not support V1 protocol")
+
+    trait = display_func(device.v1_properties)
+    await trait.refresh()
+    return trait
+
+
+async def _display_v1_trait(context: RoborockContext, device_id: str, display_func: Callable[[], Trait]) -> None:
+    trait = await _v1_trait(context, device_id, display_func)
+    click.echo(dump_json(trait.as_dict()))
+
+
 @session.command()
 @click.option("--device_id", required=True)
 @click.pass_context
@@ -384,16 +403,7 @@ async def execute_scene(ctx, scene_id):
 async def status(ctx, device_id: str):
     """Get device status."""
     context: RoborockContext = ctx.obj
-
-    device_manager = await context.get_device_manager()
-    device = await device_manager.get_device(device_id)
-
-    if not (status_trait := device.traits.get("status")):
-        click.echo(f"Device {device.name} does not have a status trait")
-        return
-
-    status_result = await status_trait.get_status()
-    click.echo(dump_json(status_result.as_dict()))
+    await _display_v1_trait(context, device_id, lambda v1: v1.status)
 
 
 @session.command()
@@ -403,15 +413,7 @@ async def status(ctx, device_id: str):
 async def clean_summary(ctx, device_id: str):
     """Get device clean summary."""
     context: RoborockContext = ctx.obj
-
-    device_manager = await context.get_device_manager()
-    device = await device_manager.get_device(device_id)
-    if not (clean_summary_trait := device.traits.get("clean_summary")):
-        click.echo(f"Device {device.name} does not have a clean summary trait")
-        return
-
-    clean_summary_result = await clean_summary_trait.get_clean_summary()
-    click.echo(dump_json(clean_summary_result.as_dict()))
+    await _display_v1_trait(context, device_id, lambda v1: v1.clean_summary)
 
 
 @session.command()
@@ -421,17 +423,7 @@ async def clean_summary(ctx, device_id: str):
 async def volume(ctx, device_id: str):
     """Get device volume."""
     context: RoborockContext = ctx.obj
-
-    device_manager = await context.get_device_manager()
-    device = await device_manager.get_device(device_id)
-
-    if not (volume_trait := device.traits.get("sound_volume")):
-        click.echo(f"Device {device.name} does not have a volume trait")
-        return
-
-    volume_result = await volume_trait.get_volume()
-    click.echo(f"Device {device_id} volume:")
-    click.echo(volume_result)
+    await _display_v1_trait(context, device_id, lambda v1: v1.sound_volume)
 
 
 @session.command()
@@ -442,14 +434,7 @@ async def volume(ctx, device_id: str):
 async def set_volume(ctx, device_id: str, volume: int):
     """Set the devicevolume."""
     context: RoborockContext = ctx.obj
-
-    device_manager = await context.get_device_manager()
-    device = await device_manager.get_device(device_id)
-
-    if not (volume_trait := device.traits.get("sound_volume")):
-        click.echo(f"Device {device.name} does not have a volume trait")
-        return
-
+    volume_trait = await _v1_trait(context, device_id, lambda v1: v1.sound_volume)
     await volume_trait.set_volume(volume)
     click.echo(f"Set Device {device_id} volume to {volume}")
 

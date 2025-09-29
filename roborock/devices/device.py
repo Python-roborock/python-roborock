@@ -6,14 +6,14 @@ until the API is stable.
 
 import logging
 from abc import ABC
-from collections.abc import Callable, Mapping
-from types import MappingProxyType
+from collections.abc import Callable
 
 from roborock.containers import HomeDataDevice
 from roborock.roborock_message import RoborockMessage
 
 from .channel import Channel
-from .traits.trait import Trait
+from .traits import Trait
+from .traits.traits_mixin import TraitsMixin
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -22,19 +22,23 @@ __all__ = [
 ]
 
 
-class RoborockDevice(ABC):
+class RoborockDevice(ABC, TraitsMixin):
     """A generic channel for establishing a connection with a Roborock device.
 
     Individual channel implementations have their own methods for speaking to
     the device that hide some of the protocol specific complexity, but they
     are still specialized for the device type and protocol.
+
+    Attributes of the device are exposed through traits, which are mixed in
+    through the TraitsMixin class. Traits are optional and may not be present
+    on all devices.
     """
 
     def __init__(
         self,
         device_info: HomeDataDevice,
         channel: Channel,
-        traits: list[Trait],
+        trait: Trait,
     ) -> None:
         """Initialize the RoborockDevice.
 
@@ -42,13 +46,11 @@ class RoborockDevice(ABC):
         Use `connect()` to establish the connection, which will set up the appropriate
         protocol channel. Use `close()` to clean up all connections.
         """
+        TraitsMixin.__init__(self, trait)
         self._duid = device_info.duid
         self._name = device_info.name
         self._channel = channel
         self._unsub: Callable[[], None] | None = None
-        self._trait_map = {trait.name: trait for trait in traits}
-        if len(self._trait_map) != len(traits):
-            raise ValueError("Duplicate trait names found in traits list")
 
     @property
     def duid(self) -> str:
@@ -81,8 +83,3 @@ class RoborockDevice(ABC):
     def _on_message(self, message: RoborockMessage) -> None:
         """Handle incoming messages from the device."""
         _LOGGER.debug("Received message from device: %s", message)
-
-    @property
-    def traits(self) -> Mapping[str, Trait]:
-        """Return the traits of the device."""
-        return MappingProxyType(self._trait_map)

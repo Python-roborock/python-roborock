@@ -7,7 +7,6 @@ from collections.abc import Awaitable, Callable
 
 import aiohttp
 
-from roborock.code_mappings import RoborockCategory
 from roborock.containers import (
     HomeData,
     HomeDataDevice,
@@ -15,7 +14,7 @@ from roborock.containers import (
     UserData,
 )
 from roborock.devices.device import RoborockDevice
-from roborock.mqtt.roborock_session import create_mqtt_session
+from roborock.mqtt.roborock_session import create_lazy_mqtt_session
 from roborock.mqtt.session import MqttSession
 from roborock.protocol import create_mqtt_params
 from roborock.web_api import RoborockApiClient
@@ -23,14 +22,7 @@ from roborock.web_api import RoborockApiClient
 from .cache import Cache, NoCache
 from .channel import Channel
 from .mqtt_channel import create_mqtt_channel
-from .traits.b01.props import B01PropsApi
-from .traits.clean_summary import CleanSummaryTrait
-from .traits.dnd import DoNotDisturbTrait
-from .traits.dyad import DyadApi
-from .traits.sound_volume import SoundVolumeTrait
-from .traits.status import StatusTrait
-from .traits.trait import Trait
-from .traits.zeo import ZeoApi
+from .traits import Trait, a01, b01, v1
 from .v1_channel import create_v1_channel
 
 _LOGGER = logging.getLogger(__name__)
@@ -149,34 +141,24 @@ async def create_device_manager(
         cache = NoCache()
 
     mqtt_params = create_mqtt_params(user_data.rriot)
-    mqtt_session = await create_mqtt_session(mqtt_params)
+    mqtt_session = await create_lazy_mqtt_session(mqtt_params)
 
     def device_creator(device: HomeDataDevice, product: HomeDataProduct) -> RoborockDevice:
         channel: Channel
-        traits: list[Trait] = []
-        # TODO: Define a registration mechanism/factory for v1 traits
+        trait: Trait
         match device.pv:
             case DeviceVersion.V1:
                 channel = create_v1_channel(user_data, mqtt_params, mqtt_session, device, cache)
-                traits.append(StatusTrait(product, channel.rpc_channel))
-                traits.append(DoNotDisturbTrait(channel.rpc_channel))
-                traits.append(CleanSummaryTrait(channel.rpc_channel))
-                traits.append(SoundVolumeTrait(channel.rpc_channel))
+                trait = v1.create(product, channel.rpc_channel)
             case DeviceVersion.A01:
-                mqtt_channel = create_mqtt_channel(user_data, mqtt_params, mqtt_session, device)
-                match product.category:
-                    case RoborockCategory.WET_DRY_VAC:
-                        traits.append(DyadApi(mqtt_channel))
-                    case RoborockCategory.WASHING_MACHINE:
-                        traits.append(ZeoApi(mqtt_channel))
-                    case _:
-                        raise NotImplementedError(f"Device {device.name} has unsupported category {product.category}")
+                channel = create_mqtt_channel(user_data, mqtt_params, mqtt_session, device)
+                trait = a01.create(product, channel)
             case DeviceVersion.B01:
                 channel = create_mqtt_channel(user_data, mqtt_params, mqtt_session, device)
-                traits.append(B01PropsApi(channel))
+                trait = b01.create(channel)
             case _:
                 raise NotImplementedError(f"Device {device.name} has unsupported version {device.pv}")
-        return RoborockDevice(device, channel, traits)
+        return RoborockDevice(device, channel, trait)
 
     manager = DeviceManager(home_data_api, device_creator, mqtt_session=mqtt_session, cache=cache)
     await manager.discover_devices()

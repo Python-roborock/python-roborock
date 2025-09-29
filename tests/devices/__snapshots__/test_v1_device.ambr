@@ -1,21 +1,13 @@
 # serializer version: 1
-# name: test_device_trait_command_parsing[payload0-status-StatusTrait-get_status]
-  S7MaxVStatus(msg_ver=2, msg_seq=515, state=<RoborockStateCode.charging: 8>, battery=100, clean_time=5405, clean_area=91287500, square_meter_clean_area=91.3, error_code=<RoborockErrorCode.none: 0>, map_present=1, in_cleaning=<RoborockInCleaning.complete: 0>, in_returning=0, in_fresh_state=1, lab_status=1, water_box_status=0, back_type=None, wash_phase=None, wash_ready=None, fan_power=<RoborockFanSpeedS7MaxV.custom: 106>, dnd_enabled=1, map_status=3, is_locating=0, lock_status=0, water_box_mode=<RoborockMopIntensityS7.custom: 204>, water_box_carriage_status=0, mop_forbidden_enable=0, camera_status=None, is_exploring=None, home_sec_status=None, home_sec_enable_password=None, adbumper_status=None, water_shortage_status=None, dock_type=None, dust_collection_status=None, auto_dust_collection=None, avoid_count=None, mop_mode=None, debug_mode=None, collision_avoid_status=None, switch_map_mode=None, dock_error_status=None, charge_status=None, unsave_map_reason=4, unsave_map_flag=0, wash_status=None, distance_off=0, in_warmup=None, dry_status=None, rdt=None, clean_percent=None, rss=None, dss=None, common_status=None, corner_clean_mode=None, error_code_name='none', state_name='charging', water_box_mode_name='custom', fan_power_options=['off', 'quiet', 'balanced', 'turbo', 'max', 'custom', 'max_plus'], fan_power_name='custom', mop_mode_name=None)
+# name: test_device_trait_command_parsing[payload0-<lambda>]
+  StatusTrait(msg_ver=2, msg_seq=515, state=<RoborockStateCode.charging: 8>, battery=100, clean_time=5405, clean_area=91287500, square_meter_clean_area=91.3, error_code=<RoborockErrorCode.none: 0>, map_present=1, in_cleaning=<RoborockInCleaning.complete: 0>, in_returning=0, in_fresh_state=1, lab_status=1, water_box_status=0, back_type=None, wash_phase=None, wash_ready=None, fan_power=<RoborockFanSpeedS7MaxV.custom: 106>, dnd_enabled=1, map_status=3, is_locating=0, lock_status=0, water_box_mode=<RoborockMopIntensityS7.custom: 204>, water_box_carriage_status=0, mop_forbidden_enable=0, camera_status=None, is_exploring=None, home_sec_status=None, home_sec_enable_password=None, adbumper_status=None, water_shortage_status=None, dock_type=None, dust_collection_status=None, auto_dust_collection=None, avoid_count=None, mop_mode=None, debug_mode=None, collision_avoid_status=None, switch_map_mode=None, dock_error_status=None, charge_status=None, unsave_map_reason=4, unsave_map_flag=0, wash_status=None, distance_off=0, in_warmup=None, dry_status=None, rdt=None, clean_percent=None, rss=None, dss=None, common_status=None, corner_clean_mode=None, error_code_name='none', state_name='charging', water_box_mode_name='custom', fan_power_options=['off', 'quiet', 'balanced', 'turbo', 'max', 'custom', 'max_plus'], fan_power_name='custom', mop_mode_name=None)
 # ---
-# name: test_device_trait_command_parsing[payload1-do_not_disturb-DoNotDisturbTrait-get_dnd_timer]
-  list([
-    dict({
-      'enabled': 1,
-      'end_hour': 8,
-      'end_minute': 0,
-      'start_hour': 22,
-      'start_minute': 0,
-    }),
-  ])
+# name: test_device_trait_command_parsing[payload1-<lambda>]
+  DoNotDisturbTrait(start_hour=22, start_minute=0, end_hour=8, end_minute=0, enabled=1)
 # ---
-# name: test_device_trait_command_parsing[payload2-clean_summary-CleanSummaryTrait-get_clean_summary]
-  CleanSummary(clean_time=1442559, clean_area=24258125000, square_meter_clean_area=24258.1, clean_count=296, dust_collection_count=None, records=[1756848207, 1754930385, 1753203976, 1752183435, 1747427370, 1746204046, 1745601543, 1744387080, 1743528522, 1742489154, 1741022299, 1740433682, 1739902516, 1738875106, 1738864366, 1738620067, 1736873889, 1736197544, 1736121269, 1734458038], last_clean_t=None)
+# name: test_device_trait_command_parsing[payload2-<lambda>]
+  CleanSummaryTrait(clean_time=1442559, clean_area=24258125000, square_meter_clean_area=24258.1, clean_count=296, dust_collection_count=None, records=[1756848207, 1754930385, 1753203976, 1752183435, 1747427370, 1746204046, 1745601543, 1744387080, 1743528522, 1742489154, 1741022299, 1740433682, 1739902516, 1738875106, 1738864366, 1738620067, 1736873889, 1736197544, 1736121269, 1734458038], last_clean_t=None)
 # ---
-# name: test_device_trait_command_parsing[payload3-sound_volume-SoundVolumeTrait-get_volume]
-  90
+# name: test_device_trait_command_parsing[payload3-<lambda>]
+  SoundVolumeTrait(volume=90)
 # ---

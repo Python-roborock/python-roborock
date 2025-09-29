@@ -1,7 +1,7 @@
 """Tests for the Device class."""
 
 import pathlib
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -9,11 +9,8 @@ from syrupy import SnapshotAssertion
 
 from roborock.containers import HomeData, S7MaxVStatus, UserData
 from roborock.devices.device import RoborockDevice
-from roborock.devices.traits.clean_summary import CleanSummaryTrait
-from roborock.devices.traits.dnd import DoNotDisturbTrait
-from roborock.devices.traits.sound_volume import SoundVolumeTrait
-from roborock.devices.traits.status import StatusTrait
-from roborock.devices.traits.trait import Trait
+from roborock.devices.traits import v1
+from roborock.devices.traits.v1.common import V1TraitMixin
 from roborock.devices.v1_rpc_channel import decode_rpc_response
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 
@@ -39,27 +36,13 @@ def rpc_channel_fixture() -> AsyncMock:
 
 
 @pytest.fixture(autouse=True, name="device")
-def device_fixture(channel: AsyncMock, traits: list[Trait]) -> RoborockDevice:
+def device_fixture(channel: AsyncMock, rpc_channel: AsyncMock) -> RoborockDevice:
     """Fixture to set up the device for tests."""
     return RoborockDevice(
         device_info=HOME_DATA.devices[0],
         channel=channel,
-        traits=traits,
+        trait=v1.create(HOME_DATA.products[0], rpc_channel),
     )
-
-
-@pytest.fixture(autouse=True, name="traits")
-def traits_fixture(rpc_channel: AsyncMock) -> list[Trait]:
-    """Fixture to set up the V1 API for tests."""
-    return [
-        StatusTrait(
-            product_info=HOME_DATA.products[0],
-            rpc_channel=rpc_channel,
-        ),
-        CleanSummaryTrait(rpc_channel=rpc_channel),
-        DoNotDisturbTrait(rpc_channel=rpc_channel),
-        SoundVolumeTrait(rpc_channel=rpc_channel),
-    ]
 
 
 async def test_device_connection(device: RoborockDevice, channel: AsyncMock) -> None:
@@ -101,27 +84,26 @@ def setup_rpc_channel_fixture(rpc_channel: AsyncMock, payload: pathlib.Path) -> 
 
 
 @pytest.mark.parametrize(
-    ("payload", "trait_name", "trait_type", "trait_method"),
+    ("payload", "property_method"),
     [
-        (TESTDATA / "get_status.json", "status", StatusTrait, StatusTrait.get_status),
-        (TESTDATA / "get_dnd.json", "do_not_disturb", DoNotDisturbTrait, DoNotDisturbTrait.get_dnd_timer),
-        (TESTDATA / "get_clean_summary.json", "clean_summary", CleanSummaryTrait, CleanSummaryTrait.get_clean_summary),
-        (TESTDATA / "get_volume.json", "sound_volume", SoundVolumeTrait, SoundVolumeTrait.get_volume),
+        (TESTDATA / "get_status.json", lambda x: x.status),
+        (TESTDATA / "get_dnd.json", lambda x: x.dnd),
+        (TESTDATA / "get_clean_summary.json", lambda x: x.clean_summary),
+        (TESTDATA / "get_volume.json", lambda x: x.sound_volume),
     ],
 )
 async def test_device_trait_command_parsing(
     device: RoborockDevice,
     setup_rpc_channel: AsyncMock,
     snapshot: SnapshotAssertion,
-    trait_name: str,
-    trait_type: type[Trait],
-    trait_method: Callable[..., Awaitable[object]],
+    property_method: Callable[..., V1TraitMixin],
+    payload: str,
 ) -> None:
     """Test the device trait command."""
-    trait = device.traits[trait_name]
+    trait = property_method(device.v1_properties)
     assert trait
-    assert isinstance(trait, trait_type)
-    result = await trait_method(trait)
+    assert isinstance(trait, V1TraitMixin)
+    await trait.refresh()
     assert setup_rpc_channel.send_command.called
 
-    assert result == snapshot
+    assert trait == snapshot

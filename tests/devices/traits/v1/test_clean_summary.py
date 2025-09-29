@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock
 import pytest
 
 from roborock.containers import CleanSummary
-from roborock.devices.traits.clean_summary import CleanSummaryTrait
-from roborock.devices.v1_rpc_channel import V1RpcChannel
+from roborock.devices.device import RoborockDevice
+from roborock.devices.traits.v1.clean_summary import CleanSummaryTrait
 from roborock.exceptions import RoborockException
 from roborock.roborock_typing import RoborockCommand
 
@@ -40,18 +40,10 @@ CLEAN_SUMMARY_DATA = [
 
 
 @pytest.fixture
-def mock_rpc_channel() -> AsyncMock:
-    """Create a mock RPC channel."""
-    mock_channel = AsyncMock(spec=V1RpcChannel)
-    # Ensure send_command is an AsyncMock that returns awaitable coroutines
-    mock_channel.send_command = AsyncMock()
-    return mock_channel
-
-
-@pytest.fixture
-def clean_summary_trait(mock_rpc_channel: AsyncMock) -> CleanSummaryTrait:
-    """Create a CleanSummaryTrait instance with mocked dependencies."""
-    return CleanSummaryTrait(mock_rpc_channel)
+def clean_summary_trait(device: RoborockDevice) -> CleanSummaryTrait:
+    """Create a DoNotDisturbTrait instance with mocked dependencies."""
+    assert device.v1_properties
+    return device.v1_properties.clean_summary
 
 
 @pytest.fixture
@@ -63,11 +55,6 @@ def sample_clean_summary() -> CleanSummary:
     )
 
 
-def test_trait_name(clean_summary_trait: CleanSummaryTrait) -> None:
-    """Test that the trait has the correct name."""
-    assert clean_summary_trait.name == "clean_summary"
-
-
 async def test_get_clean_summary_success(
     clean_summary_trait: CleanSummaryTrait, mock_rpc_channel: AsyncMock, sample_clean_summary: CleanSummary
 ) -> None:
@@ -76,16 +63,16 @@ async def test_get_clean_summary_success(
     mock_rpc_channel.send_command.return_value = CLEAN_SUMMARY_DATA
 
     # Call the method
-    result = await clean_summary_trait.get_clean_summary()
+    await clean_summary_trait.refresh()
 
     # Verify the result
-    assert result.clean_area == 24258125000
-    assert result.clean_time == 1442559
-    assert result.square_meter_clean_area == 24258.1
-    assert result.clean_count == 296
-    assert result.records
-    assert len(result.records) == 20
-    assert result.records[0] == 1756848207
+    assert clean_summary_trait.clean_area == 24258125000
+    assert clean_summary_trait.clean_time == 1442559
+    assert clean_summary_trait.square_meter_clean_area == 24258.1
+    assert clean_summary_trait.clean_count == 296
+    assert clean_summary_trait.records
+    assert len(clean_summary_trait.records) == 20
+    assert clean_summary_trait.records[0] == 1756848207
 
     # Verify the RPC call was made correctly
     mock_rpc_channel.send_command.assert_called_once_with(RoborockCommand.GET_CLEAN_SUMMARY)
@@ -99,14 +86,14 @@ async def test_get_clean_summary_clean_time_only(
     mock_rpc_channel.send_command.return_value = [1442559]
 
     # Call the method
-    result = await clean_summary_trait.get_clean_summary()
+    await clean_summary_trait.refresh()
 
     # Verify the result
-    assert result.clean_area is None
-    assert result.clean_time == 1442559
-    assert result.square_meter_clean_area is None
-    assert result.clean_count is None
-    assert not result.records
+    assert clean_summary_trait.clean_area is None
+    assert clean_summary_trait.clean_time == 1442559
+    assert clean_summary_trait.square_meter_clean_area is None
+    assert clean_summary_trait.clean_count is None
+    assert not clean_summary_trait.records
 
     # Verify the RPC call was made correctly
     mock_rpc_channel.send_command.assert_called_once_with(RoborockCommand.GET_CLEAN_SUMMARY)
@@ -122,4 +109,4 @@ async def test_get_clean_summary_propagates_exception(
 
     # Verify the exception is propagated
     with pytest.raises(RoborockException, match="Communication error"):
-        await clean_summary_trait.get_clean_summary()
+        await clean_summary_trait.refresh()

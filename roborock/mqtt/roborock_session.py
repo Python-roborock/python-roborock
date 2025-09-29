@@ -220,6 +220,57 @@ class RoborockMqttSession(MqttSession):
             raise MqttSessionException(f"Error publishing message: {err}") from err
 
 
+class LazyMqttSession(MqttSession):
+    """An MQTT session that is started on first attempt to subscribe.
+
+    This is a wrapper around an existing MqttSession that will only start
+    the underlying session when the first attempt to subscribe or publish
+    is made.
+    """
+
+    def __init__(self, session: RoborockMqttSession) -> None:
+        """Initialize the lazy session with an existing session."""
+        self._lock = asyncio.Lock()
+        self._started = False
+        self._session = session
+
+    @property
+    def connected(self) -> bool:
+        """True if the session is connected to the broker."""
+        return self._session.connected
+
+    async def _maybe_start(self) -> None:
+        """Start the MQTT session if not already started."""
+        async with self._lock:
+            if not self._started:
+                await self._session.start()
+                self._started = True
+
+    async def subscribe(self, device_id: str, callback: Callable[[bytes], None]) -> Callable[[], None]:
+        """Invoke the callback when messages are received on the topic.
+
+        The returned callable unsubscribes from the topic when called.
+        """
+        await self._maybe_start()
+        return await self._session.subscribe(device_id, callback)
+
+    async def publish(self, topic: str, message: bytes) -> None:
+        """Publish a message on the specified topic.
+
+        This will raise an exception if the message could not be sent.
+        """
+        await self._maybe_start()
+        return await self._session.publish(topic, message)
+
+    async def close(self) -> None:
+        """Cancels the mqtt loop.
+
+        This will close the underlying session and will not allow it to be
+        restarted again.
+        """
+        await self._session.close()
+
+
 async def create_mqtt_session(params: MqttParams) -> MqttSession:
     """Create an MQTT session.
 
@@ -230,3 +281,12 @@ async def create_mqtt_session(params: MqttParams) -> MqttSession:
     session = RoborockMqttSession(params)
     await session.start()
     return session
+
+
+async def create_lazy_mqtt_session(params: MqttParams) -> MqttSession:
+    """Create a lazy MQTT session.
+
+    This function is a factory for creating an MQTT session that will
+    only connect when the first attempt to subscribe or publish is made.
+    """
+    return LazyMqttSession(RoborockMqttSession(params))
