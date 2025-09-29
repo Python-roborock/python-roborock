@@ -205,7 +205,7 @@ _BASE_PRODUCT_FEATURE_MAP: dict[RoborockProductNickname, list[ProductFeatures]] 
     RoborockProductNickname.RUBYSLITE: [ProductFeatures.MOP_ELECTRONIC_MODULE],
 }
 
-product_feature_map: dict[RoborockProductNickname, list[ProductFeatures]] = {
+PRODUCT_FEATURE_MAP: dict[RoborockProductNickname, list[ProductFeatures]] = {
     product: (
         features
         + ([ProductFeatures.DEFAULT_CLEANMODECUSTOM] if product not in PRODUCTS_WITHOUT_CUSTOM_CLEAN else [])
@@ -538,7 +538,7 @@ class DeviceFeatures:
                     kwargs[f.name] = product_nickname not in blacklist
             elif (product_features := f.metadata.get("product_features")) is not None:
                 if product_nickname is not None:
-                    available_features = product_feature_map.get(product_nickname, [])
+                    available_features = PRODUCT_FEATURE_MAP.get(product_nickname, [])
                     if any(feat in available_features for feat in product_features):  # type: ignore
                         kwargs[f.name] = True
 
