@@ -30,6 +30,12 @@ from roborock.exceptions import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+BASE_URLS = [
+    "https://usiot.roborock.com",
+    "https://euiot.roborock.com",
+    "https://cniot.roborock.com",
+    "https://ruiot.roborock.com",
+]
 
 
 @dataclass
@@ -70,16 +76,7 @@ class RoborockApiClient:
 
     async def _get_iot_login_info(self) -> IotLoginInfo:
         if self._iot_login_info is None:
-            valid_urls = (
-                [
-                    "https://usiot.roborock.com",
-                    "https://euiot.roborock.com",
-                    "https://cniot.roborock.com",
-                    "https://ruiot.roborock.com",
-                ]
-                if self._base_url is None
-                else [self._base_url]
-            )
+            valid_urls = BASE_URLS if self._base_url is None else [self._base_url]
             for iot_url in valid_urls:
                 url_request = PreparedRequest(iot_url, self.session)
                 response = await url_request.request(
@@ -98,9 +95,7 @@ class RoborockApiClient:
                             "You are missing parameters for this request, are you sure you entered your username?"
                         )
                     else:
-                        _LOGGER.warning(
-                            "Failed to get base url for %s with the following context: %s", self._username, response
-                        )
+                        raise RoborockException(f"{response.get('msg')} - response code: {response_code}")
                 if response["data"]["countrycode"] is not None:
                     self._iot_login_info = IotLoginInfo(
                         base_url=response["data"]["url"],
