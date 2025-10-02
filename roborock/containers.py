@@ -10,6 +10,15 @@ from enum import Enum
 from functools import cached_property
 from typing import Any, NamedTuple, get_args, get_origin
 
+from .clean_modes import (
+    CleanRoutes,
+    VacuumModes,
+    VacuumModesOld,
+    WaterModes,
+    get_clean_modes,
+    get_clean_routes,
+    get_water_modes,
+)
 from .code_mappings import (
     SHORT_MODEL_TO_ENUM,
     RoborockCategory,
@@ -19,7 +28,6 @@ from .code_mappings import (
     RoborockDockTypeCode,
     RoborockDockWashTowelModeCode,
     RoborockErrorCode,
-    RoborockFanPowerCode,
     RoborockFanSpeedP10,
     RoborockFanSpeedQ7Max,
     RoborockFanSpeedQRevoCurv,
@@ -34,7 +42,6 @@ from .code_mappings import (
     RoborockFinishReason,
     RoborockInCleaning,
     RoborockModeEnum,
-    RoborockMopIntensityCode,
     RoborockMopIntensityP10,
     RoborockMopIntensityQ7Max,
     RoborockMopIntensityQRevoCurv,
@@ -46,7 +53,6 @@ from .code_mappings import (
     RoborockMopIntensityS8MaxVUltra,
     RoborockMopIntensitySaros10,
     RoborockMopIntensitySaros10R,
-    RoborockMopModeCode,
     RoborockMopModeQRevoCurv,
     RoborockMopModeQRevoMaster,
     RoborockMopModeQRevoMaxV,
@@ -92,7 +98,6 @@ from .const import (
     ROBOROCK_G20S_Ultra,
 )
 from .device_features import DeviceFeatures
-from .exceptions import RoborockException
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -357,12 +362,12 @@ class Status(RoborockBase):
     back_type: int | None = None
     wash_phase: int | None = None
     wash_ready: int | None = None
-    fan_power: RoborockFanPowerCode | None = None
+    fan_power: int | None = None
     dnd_enabled: int | None = None
     map_status: int | None = None
     is_locating: int | None = None
     lock_status: int | None = None
-    water_box_mode: RoborockMopIntensityCode | None = None
+    water_box_mode: int | None = None
     water_box_carriage_status: int | None = None
     mop_forbidden_enable: int | None = None
     camera_status: int | None = None
@@ -375,7 +380,7 @@ class Status(RoborockBase):
     dust_collection_status: int | None = None
     auto_dust_collection: int | None = None
     avoid_count: int | None = None
-    mop_mode: RoborockMopModeCode | None = None
+    mop_mode: int | None = None
     debug_mode: int | None = None
     collision_avoid_status: int | None = None
     switch_map_mode: int | None = None
@@ -406,28 +411,6 @@ class Status(RoborockBase):
             self.error_code_name = self.error_code.name
         if self.state is not None:
             self.state_name = self.state.name
-        if self.water_box_mode is not None:
-            self.water_box_mode_name = self.water_box_mode.name
-        if self.fan_power is not None:
-            self.fan_power_options = self.fan_power.keys()
-            self.fan_power_name = self.fan_power.name
-        if self.mop_mode is not None:
-            self.mop_mode_name = self.mop_mode.name
-
-    def get_fan_speed_code(self, fan_speed: str) -> int:
-        if self.fan_power is None:
-            raise RoborockException("Attempted to get fan speed before status has been updated.")
-        return self.fan_power.as_dict().get(fan_speed)
-
-    def get_mop_intensity_code(self, mop_intensity: str) -> int:
-        if self.water_box_mode is None:
-            raise RoborockException("Attempted to get mop_intensity before status has been updated.")
-        return self.water_box_mode.as_dict().get(mop_intensity)
-
-    def get_mop_mode_code(self, mop_mode: str) -> int:
-        if self.mop_mode is None:
-            raise RoborockException("Attempted to get mop_mode before status has been updated.")
-        return self.mop_mode.as_dict().get(mop_mode)
 
     @property
     def current_map(self) -> int | None:
@@ -572,6 +555,34 @@ ModelStatus: dict[str, type[Status]] = {
     ROBOROCK_SAROS_10R: Saros10RStatus,
     ROBOROCK_SAROS_10: Saros10Status,
 }
+
+
+def get_custom_status(features: DeviceFeatures, region: str) -> "DeviceStatus":
+    _available_fan_speeds = get_clean_modes(features)
+    _available_fan_speed_mapping = {fan.code: fan.name for fan in _available_fan_speeds}
+    _available_water_modes = get_water_modes(features)
+    _available_water_modes_mapping = {mop.code: mop.name for mop in _available_water_modes}
+    _available_mop_routes = get_clean_routes(features, region)
+    _available_mop_routes_mapping = {route.code: route.name for route in _available_mop_routes}
+
+    class DeviceStatus(Status):
+        available_fan_speeds: list[VacuumModes] | list[VacuumModesOld] = _available_fan_speeds
+        available_water_modes: list[WaterModes] = _available_water_modes
+        available_mop_routes: list[CleanRoutes] = _available_mop_routes
+
+        @property
+        def fan_speed(self) -> VacuumModes | None:
+            return _available_fan_speed_mapping.get(self.fan_power)
+
+        @property
+        def water_mode(self) -> WaterModes | None:
+            return _available_water_modes_mapping.get(self.water_box_mode)
+
+        @property
+        def mop_route(self) -> CleanRoutes | None:
+            return _available_mop_routes_mapping.get(self.mop_mode)
+
+    return DeviceStatus
 
 
 @dataclass
@@ -762,6 +773,7 @@ class DeviceData(RoborockBase):
     host: str | None = None
     product_nickname: RoborockProductNickname | None = None
     device_features: DeviceFeatures | None = None
+    region: str | None = None
 
     def __post_init__(self):
         self.product_nickname = SHORT_MODEL_TO_ENUM.get(self.model.split(".")[-1], RoborockProductNickname.PEARLPLUS)

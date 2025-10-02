@@ -552,7 +552,7 @@ class RoborockApiClient:
         product_request = PreparedRequest(base_url, self.session, {"header_clientid": header_clientid})
         product_response = await product_request.request(
             "get",
-            "/api/v4/product",
+            "/api/v5/product",
             headers={"Authorization": user_data.token},
         )
         if product_response is None:
@@ -568,7 +568,7 @@ class RoborockApiClient:
         base_url = await self._get_base_url()
         header_clientid = self._get_header_client_id()
         product_request = PreparedRequest(base_url, self.session, {"header_clientid": header_clientid})
-        request = {"apilevel": 99999, "productids": [product_id], "type": 2}
+        request = {"apilevel": 10040, "productids": [product_id], "type": 2}
         response = await product_request.request(
             "post",
             "/api/v1/appplugin",

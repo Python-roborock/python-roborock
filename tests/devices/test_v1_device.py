@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from syrupy import SnapshotAssertion
 
-from roborock.containers import HomeData, S7MaxVStatus, UserData
+from roborock.containers import HomeData, UserData
 from roborock.devices.device import RoborockDevice
 from roborock.devices.traits import v1
 from roborock.devices.traits.v1.common import V1TraitMixin
@@ -18,7 +18,6 @@ from .. import mock_data
 
 USER_DATA = UserData.from_dict(mock_data.USER_DATA)
 HOME_DATA = HomeData.from_dict(mock_data.HOME_DATA_RAW)
-STATUS = S7MaxVStatus.from_dict(mock_data.STATUS)
 
 TESTDATA = pathlib.Path("tests/protocols/testdata/v1_protocol/")
 

@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 from aioresponses import aioresponses
 
-from roborock import HomeData, UserData
+from roborock import SHORT_MODEL_TO_ENUM, DeviceFeatures, HomeData, UserData
 from roborock.containers import DeviceData
 from roborock.roborock_message import RoborockMessage
 from roborock.version_1_apis.roborock_local_client_v1 import RoborockLocalClientV1
@@ -389,3 +389,27 @@ class FakeChannel:
         """Simulate subscribing to messages."""
         self.subscribers.append(callback)
         return lambda: self.subscribers.remove(callback)
+
+
+@pytest.fixture(name="s7_device_features")
+def s7_device_features_fixture() -> DeviceFeatures:
+    model = "roborock.vacuum.a15"
+    product_nickname = SHORT_MODEL_TO_ENUM.get(model.split(".")[-1])
+    return DeviceFeatures.from_feature_flags(
+        new_feature_info=636084721975295,
+        new_feature_info_str="0000000000002000",
+        feature_info=[111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 122, 123, 124, 125],
+        product_nickname=product_nickname,
+    )
+
+
+@pytest.fixture(name="qrevo_maxv_device_features")
+def qrevo_maxv_device_features_fixture() -> DeviceFeatures:
+    model = "roborock.vacuum.a87"
+    product_nickname = SHORT_MODEL_TO_ENUM.get(model.split(".")[-1])
+    return DeviceFeatures.from_feature_flags(
+        new_feature_info=4499197267967999,
+        new_feature_info_str="508A977F7EFEFFFF",
+        feature_info=[111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125],
+        product_nickname=product_nickname,
+    )
