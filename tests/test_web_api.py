@@ -92,7 +92,7 @@ async def test_url_cycling(mock_rest) -> None:
         },
     )
 
-    # 2. Mock EU URL to return a server-side error code
+    # 2. Mock EU URL to return valid status but None for countrycode
     mock_rest.post(
         re.compile("https://euiot.roborock.com/api/v1/getUrlByEmail.*"),
         status=200,
