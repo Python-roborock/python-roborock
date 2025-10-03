@@ -439,6 +439,16 @@ async def set_volume(ctx, device_id: str, volume: int):
     click.echo(f"Set Device {device_id} volume to {volume}")
 
 
+@session.command()
+@click.option("--device_id", required=True)
+@click.pass_context
+@async_command
+async def maps(ctx, device_id: str):
+    """Get device maps info."""
+    context: RoborockContext = ctx.obj
+    await _display_v1_trait(context, device_id, lambda v1: v1.maps)
+
+
 @click.command()
 @click.option("--device_id", required=True)
 @click.option("--cmd", required=True)
@@ -680,6 +690,7 @@ cli.add_command(update_docs)
 cli.add_command(clean_summary)
 cli.add_command(volume)
 cli.add_command(set_volume)
+cli.add_command(maps)
 
 
 def main():
