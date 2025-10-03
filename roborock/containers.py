@@ -399,6 +399,11 @@ class Status(RoborockBase):
     fan_power_options: list[str] = field(default_factory=list)
     fan_power_name: str | None = None
     mop_mode_name: str | None = None
+    last_clean_t: int | None = None
+    replenish_mode: int | None = None
+    repeat: int | None = None
+    kct: int | None = None
+    subdivision_sets: int | None = None
 
     def __post_init__(self) -> None:
         self.square_meter_clean_area = round(self.clean_area / 1000000, 1) if self.clean_area is not None else None
@@ -436,6 +441,48 @@ class Status(RoborockBase):
             map_flag = self.map_status >> 2
             if map_flag != NO_MAP:
                 return map_flag
+        return None
+
+    @property
+    def clear_water_box_status(self) -> int | None:
+        if self.dss:
+            return (self.dss >> 2) & 3
+        return None
+
+    @property
+    def dirty_water_box_status(self) -> int | None:
+        if self.dss:
+            return (self.dss >> 4) & 3
+        return None
+
+    @property
+    def dust_bag_status(self) -> int | None:
+        if self.dss:
+            return (self.dss >> 6) & 3
+        return None
+
+    @property
+    def water_box_filter_status(self) -> int | None:
+        if self.dss:
+            return (self.dss >> 8) & 3
+        return None
+
+    @property
+    def clean_fluid_status(self) -> int | None:
+        if self.dss:
+            return (self.dss >> 10) & 3
+        return None
+
+    @property
+    def hatch_door_status(self) -> int | None:
+        if self.dss:
+            return (self.dss >> 12) & 7
+        return None
+
+    @property
+    def dock_cool_fan_status(self) -> int | None:
+        if self.dss:
+            return (self.dss >> 15) & 3
         return None
 
 
