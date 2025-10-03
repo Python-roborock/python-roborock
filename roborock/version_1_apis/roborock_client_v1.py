@@ -4,10 +4,12 @@ import json
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Coroutine
+from functools import cached_property
 from typing import Any, TypeVar, final
 
 from roborock import (
     AppInitStatus,
+    DeviceFeatures,
     DeviceProp,
     DockSummary,
     RoborockCommand,
@@ -33,17 +35,16 @@ from roborock.containers import (
     DnDTimer,
     DustCollectionMode,
     FlowLedStatus,
-    ModelStatus,
     MultiMapsList,
     NetworkInfo,
     RoborockBase,
     RoomMapping,
-    S7MaxVStatus,
     ServerTimer,
     SmartWashParams,
     Status,
     ValleyElectricityTimer,
     WashTowelMode,
+    get_custom_status,
 )
 from roborock.protocols.v1_protocol import MapResponse, SecurityData, create_map_response_decoder
 from roborock.roborock_message import (
@@ -159,7 +160,7 @@ class RoborockClientV1(RoborockClient, ABC):
             self._diagnostic_data.update({"misc_info": security_data.to_diagnostic_data()})
             self._map_response_decoder = create_map_response_decoder(security_data)
 
-        self._status_type: type[Status] = ModelStatus.get(device_info.model, S7MaxVStatus)
+        self._status_type: Status | None = None
         self.cache: dict[CacheableAttribute, AttributeCache] = {
             cacheable_attribute: AttributeCache(attr, self._send_command)
             for cacheable_attribute, attr in get_cache_map().items()
@@ -172,15 +173,17 @@ class RoborockClientV1(RoborockClient, ABC):
         await super().async_release()
         [item.stop() for item in self.cache.values()]
 
-    @property
+    @cached_property
     def status_type(self) -> type[Status]:
         """Gets the status type for this device"""
-        return self._status_type
+        if self.device_info.device_features is None or self.device_info.region is None:
+            raise RoborockException("Device features and region are required to get status type")
+        return get_custom_status(self.device_info.device_features, self.device_info.region)
 
     async def get_status(self) -> Status:
-        data = self._status_type.from_dict(await self.cache[CacheableAttribute.status].async_value(force=True))
+        data = self.status_type.from_dict(await self.cache[CacheableAttribute.status].async_value(force=True))
         if data is None:
-            return self._status_type()
+            return self.status_type()
         return data
 
     async def get_dnd_timer(self) -> DnDTimer | None:
@@ -345,7 +348,14 @@ class RoborockClientV1(RoborockClient, ABC):
 
     async def get_app_init_status(self) -> AppInitStatus:
         """Gets the app init status (needed for determining vacuum capabilities)."""
-        return await self.send_command(RoborockCommand.APP_GET_INIT_STATUS, return_type=AppInitStatus)
+        init_status = await self.send_command(RoborockCommand.APP_GET_INIT_STATUS, return_type=AppInitStatus)
+        self.device_info.device_features = DeviceFeatures.from_feature_flags(
+            init_status.new_feature_info,
+            init_status.new_feature_info_str,
+            init_status.feature_info,
+            self.device_info.product_nickname,
+        )
+        return init_status
 
     @abstractmethod
     async def _send_command(

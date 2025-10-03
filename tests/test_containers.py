@@ -5,7 +5,7 @@ from typing import Any
 
 from syrupy import SnapshotAssertion
 
-from roborock import CleanRecord, CleanSummary, Consumable, DnDTimer, HomeData, S7MaxVStatus, UserData
+from roborock import CleanRecord, CleanSummary, Consumable, DnDTimer, HomeData, UserData
 from roborock.b01_containers import (
     B01Fault,
     B01Props,
@@ -17,12 +17,9 @@ from roborock.code_mappings import (
     RoborockDockErrorCode,
     RoborockDockTypeCode,
     RoborockErrorCode,
-    RoborockFanSpeedS7MaxV,
-    RoborockMopIntensityS7,
-    RoborockMopModeS7,
     RoborockStateCode,
 )
-from roborock.containers import MultiMapsList, RoborockBase
+from roborock.containers import MultiMapsList, RoborockBase, get_custom_status
 
 from .mock_data import (
     CLEAN_RECORD,
@@ -221,8 +218,12 @@ def test_consumable():
     assert c.cleaning_brush_work_times == 66
 
 
-def test_status():
-    s = S7MaxVStatus.from_dict(STATUS)
+def test_status(s7_device_features):
+    status = get_custom_status(
+        s7_device_features,
+        "US",
+    )
+    s = status.from_dict(STATUS)
     assert s.msg_ver == 2
     assert s.msg_seq == 458
     assert s.state == RoborockStateCode.charging
@@ -267,14 +268,19 @@ def test_status():
     assert s.charge_status == 1
     assert s.unsave_map_reason == 0
     assert s.unsave_map_flag == 0
-    assert s.fan_power == RoborockFanSpeedS7MaxV.balanced
-    assert s.mop_mode == RoborockMopModeS7.standard
-    assert s.water_box_mode == RoborockMopIntensityS7.intense
+    assert s.fan_power == 102
+    assert s.fan_speed == "BALANCED"
+    assert s.mop_route == "STANDARD"
+    assert s.water_mode == "INTENSE"
 
 
-def test_current_map() -> None:
+def test_current_map(s7_device_features) -> None:
     """Test the current map logic based on map status."""
-    s = S7MaxVStatus.from_dict(STATUS)
+    status = get_custom_status(
+        s7_device_features,
+        "US",
+    )
+    s = status.from_dict(STATUS)
     assert s.map_status == 3
     assert s.current_map == 0
 
@@ -327,10 +333,15 @@ def test_clean_record():
     assert cr.map_flag == 0
 
 
-def test_no_value():
+def test_no_value(s7_device_features):
     modified_status = STATUS.copy()
     modified_status["dock_type"] = 9999
-    s = S7MaxVStatus.from_dict(modified_status)
+    status = get_custom_status(
+        s7_device_features,
+        "US",
+    )
+
+    s = status.from_dict(modified_status)
     assert s.dock_type == RoborockDockTypeCode.unknown
     assert -9999 not in RoborockDockTypeCode.keys()
     assert "missing" not in RoborockDockTypeCode.values()
@@ -483,11 +494,15 @@ def test_multi_maps_list_info(snapshot: SnapshotAssertion) -> None:
     assert deserialized == snapshot
 
 
-def test_accurate_map_flag() -> None:
+def test_accurate_map_flag(s7_device_features) -> None:
     """Test that we parse the map flag accurately."""
-    s = S7MaxVStatus.from_dict(STATUS)
+    status = get_custom_status(
+        s7_device_features,
+        "US",
+    )
+    s = status.from_dict(STATUS)
     assert s.current_map == 0
-    s = S7MaxVStatus.from_dict(
+    s = status.from_dict(
         {
             **STATUS,
             "map_status": 252,  # Code for no map
