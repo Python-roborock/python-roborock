@@ -49,6 +49,34 @@
   ]
   '''
 # ---
+# name: test_decode_rpc_payload[get_multi_maps_list]
+  20001
+# ---
+# name: test_decode_rpc_payload[get_multi_maps_list].1
+  '''
+  [
+    {
+      "max_multi_map": 1,
+      "max_bak_map": 1,
+      "multi_map_count": 1,
+      "map_info": [
+        {
+          "mapFlag": 0,
+          "add_time": 1747132930,
+          "length": 0,
+          "name": "",
+          "bak_maps": [
+            {
+              "mapFlag": 4,
+              "add_time": 1747132936
+            }
+          ]
+        }
+      ]
+    }
+  ]
+  '''
+# ---
 # name: test_decode_rpc_payload[get_status]
   20001
 # ---

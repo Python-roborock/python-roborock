@@ -65,6 +65,7 @@ from .const import (
     FILTER_REPLACE_TIME,
     MAIN_BRUSH_REPLACE_TIME,
     MOP_ROLLER_REPLACE_TIME,
+    NO_MAP,
     ROBOROCK_G10S_PRO,
     ROBOROCK_P10,
     ROBOROCK_Q7_MAX,
@@ -432,7 +433,9 @@ class Status(RoborockBase):
     def current_map(self) -> int | None:
         """Returns the current map ID if the map is present."""
         if self.map_status is not None:
-            return (self.map_status - 3) // 4
+            map_flag = self.map_status >> 2
+            if map_flag != NO_MAP:
+                return map_flag
         return None
 
 

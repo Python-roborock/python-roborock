@@ -481,3 +481,16 @@ def test_multi_maps_list_info(snapshot: SnapshotAssertion) -> None:
     deserialized = MultiMapsList.from_dict(data)
     assert isinstance(deserialized, MultiMapsList)
     assert deserialized == snapshot
+
+
+def test_accurate_map_flag() -> None:
+    """Test that we parse the map flag accurately."""
+    s = S7MaxVStatus.from_dict(STATUS)
+    assert s.current_map == 0
+    s = S7MaxVStatus.from_dict(
+        {
+            **STATUS,
+            "map_status": 252,  # Code for no map
+        }
+    )
+    assert s.current_map is None
