@@ -160,7 +160,6 @@ class PayloadEncodedV1RpcChannel(BaseV1RpcChannel):
                 else:
                     future.set_result(decoded.data)
 
-        message = self._payload_encoder(request_message)
         unsub = await self._channel.subscribe(find_response)
         try:
             await self._channel.publish(message)
