@@ -6,6 +6,7 @@ a simple interface for sending commands and receiving responses over both MQTT
 and local connections, preferring local when available.
 """
 
+
 import asyncio
 import logging
 from collections.abc import Callable
@@ -15,14 +16,14 @@ from roborock.containers import RoborockBase
 from roborock.exceptions import RoborockException
 from roborock.protocols.v1_protocol import (
     CommandType,
+    MapResponse,
     ParamsType,
     RequestMessage,
     ResponseData,
+    ResponseMessage,
     SecurityData,
     create_map_response_decoder,
     decode_rpc_response,
-    MapResponse,
-    ResponseMessage,
 )
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 
@@ -124,7 +125,7 @@ class PayloadEncodedV1RpcChannel(BaseV1RpcChannel):
         name: str,
         channel: MqttChannel | LocalChannel,
         payload_encoder: Callable[[RequestMessage], RoborockMessage],
-        decoder: Callable[[RoborockMessage], ResponseMessage | MapResponse] | None = None,
+        decoder: Callable[[RoborockMessage], ResponseMessage] | Callable[[RoborockMessage], MapResponse | None],
     ) -> None:
         """Initialize the channel with a raw channel and an encoder function."""
         self._name = name
@@ -153,6 +154,8 @@ class PayloadEncodedV1RpcChannel(BaseV1RpcChannel):
             except RoborockException as ex:
                 _LOGGER.debug("Exception while decoding message (%s): %s", response_message, ex)
                 return
+            if decoded is None:
+                return
             _LOGGER.debug("Received response (%s, request_id=%s)", self._name, decoded.request_id)
             if decoded.request_id == request_message.request_id:
                 if isinstance(decoded, ResponseMessage) and decoded.api_error:
@@ -169,6 +172,7 @@ class PayloadEncodedV1RpcChannel(BaseV1RpcChannel):
             raise RoborockException(f"Command timed out after {_TIMEOUT}s") from ex
         finally:
             unsub()
+
 
 def create_mqtt_rpc_channel(mqtt_channel: MqttChannel, security_data: SecurityData) -> V1RpcChannel:
     """Create a V1 RPC channel using an MQTT channel."""
