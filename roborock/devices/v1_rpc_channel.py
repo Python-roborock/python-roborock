@@ -19,6 +19,7 @@ from roborock.protocols.v1_protocol import (
     RequestMessage,
     ResponseData,
     SecurityData,
+    create_map_response_decoder,
     decode_rpc_response,
 )
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
@@ -31,6 +32,7 @@ _TIMEOUT = 10.0
 
 
 _T = TypeVar("_T", bound=RoborockBase)
+_V = TypeVar("_V")
 
 
 class V1RpcChannel(Protocol):
@@ -112,8 +114,8 @@ class PickFirstAvailable(BaseV1RpcChannel):
         raise RoborockException("No available connection to send command")
 
 
-class PayloadEncodedV1RpcChannel(BaseV1RpcChannel):
-    """Protocol for V1 channels that send encoded commands."""
+class RpcPublisher:
+    """Helper to create send and receive messages on a channel."""
 
     def __init__(
         self,
@@ -121,39 +123,31 @@ class PayloadEncodedV1RpcChannel(BaseV1RpcChannel):
         channel: MqttChannel | LocalChannel,
         payload_encoder: Callable[[RequestMessage], RoborockMessage],
     ) -> None:
-        """Initialize the channel with a raw channel and an encoder function."""
+        """Initialize the RPC publisher."""
         self._name = name
         self._channel = channel
         self._payload_encoder = payload_encoder
 
-    async def _send_raw_command(
+    async def publish_and_wait(
         self,
-        method: CommandType,
-        *,
-        params: ParamsType = None,
-    ) -> ResponseData:
-        """Send a command and return a parsed response RoborockBase type."""
-        request_message = RequestMessage(method, params=params)
+        request_message: RequestMessage,
+        find_response: Callable[[RoborockMessage], None],
+        future: asyncio.Future[_V],
+    ) -> _V:
+        """Helper to send a message and wait for a future to complete.
+
+        The find_response function will be called for each incoming message. The
+        function should check the message and call future.set_result or
+        future.set_exception as appropriate when the response is found.
+        """
         _LOGGER.debug(
-            "Sending command (%s, request_id=%s): %s, params=%s", self._name, request_message.request_id, method, params
+            "Sending command (%s, request_id=%s): %s, params=%s",
+            self._name,
+            request_message.request_id,
+            request_message.method,
+            request_message.params,
         )
         message = self._payload_encoder(request_message)
-
-        future: asyncio.Future[ResponseData] = asyncio.Future()
-
-        def find_response(response_message: RoborockMessage) -> None:
-            try:
-                decoded = decode_rpc_response(response_message)
-            except RoborockException as ex:
-                _LOGGER.debug("Exception while decoding message (%s): %s", response_message, ex)
-                return
-            _LOGGER.debug("Received response (request_id=%s): %s", self._name, decoded.request_id)
-            if decoded.request_id == request_message.request_id:
-                if decoded.api_error:
-                    future.set_exception(decoded.api_error)
-                else:
-                    future.set_result(decoded.data)
-
         unsub = await self._channel.subscribe(find_response)
         try:
             await self._channel.publish(message)
@@ -165,19 +159,110 @@ class PayloadEncodedV1RpcChannel(BaseV1RpcChannel):
             unsub()
 
 
+class PayloadEncodedV1RpcChannel(BaseV1RpcChannel):
+    """Protocol for V1 channels that send encoded commands."""
+
+    def __init__(self, publisher: RpcPublisher) -> None:
+        """Initialize the channel with a raw channel and an encoder function."""
+        self._name = publisher._name
+        self._publisher = publisher
+
+    async def _send_raw_command(
+        self,
+        method: CommandType,
+        *,
+        params: ParamsType = None,
+    ) -> ResponseData:
+        """Send a command and return a parsed response RoborockBase type."""
+        request_message = RequestMessage(method, params=params)
+
+        future: asyncio.Future[ResponseData] = asyncio.Future()
+
+        def find_response(response_message: RoborockMessage) -> None:
+            try:
+                decoded = decode_rpc_response(response_message)
+            except RoborockException as ex:
+                _LOGGER.debug("Exception while decoding message (%s): %s", response_message, ex)
+                return
+            _LOGGER.debug("Received response (%s, request_id=%s)", self._name, decoded.request_id)
+            if decoded.request_id == request_message.request_id:
+                if decoded.api_error:
+                    future.set_exception(decoded.api_error)
+                else:
+                    future.set_result(decoded.data)
+
+        return await self._publisher.publish_and_wait(request_message, find_response, future)
+
+
+class MapRpcChannel(BaseV1RpcChannel):
+    """A V1 RPC channel that fetches and decodes map data."""
+
+    def __init__(
+        self,
+        publisher: RpcPublisher,
+        security_data: SecurityData,
+    ) -> None:
+        """Initialize the map RPC channel."""
+        self._publisher = publisher
+        self._decoder = create_map_response_decoder(security_data=security_data)
+
+    async def _send_raw_command(
+        self,
+        method: CommandType,
+        *,
+        params: ParamsType = None,
+    ) -> Any:
+        """Send a command and return a parsed response RoborockBase type."""
+        request_message = RequestMessage(method, params=params)
+
+        future: asyncio.Future[bytes] = asyncio.Future()
+
+        def find_response(response_message: RoborockMessage) -> None:
+            try:
+                decoded = self._decoder(response_message)
+            except RoborockException as ex:
+                _LOGGER.debug("Exception while decoding message (%s): %s", response_message, ex)
+                return
+            if decoded is None:
+                return
+            _LOGGER.debug("Received response (map), request_id=%s)", decoded.request_id)
+            if decoded.request_id == request_message.request_id:
+                future.set_result(decoded.data)
+
+        return await self._publisher.publish_and_wait(request_message, find_response, future)
+
+
 def create_mqtt_rpc_channel(mqtt_channel: MqttChannel, security_data: SecurityData) -> V1RpcChannel:
     """Create a V1 RPC channel using an MQTT channel."""
-    return PayloadEncodedV1RpcChannel(
+    publisher = RpcPublisher(
         "mqtt",
         mqtt_channel,
         lambda x: x.encode_message(RoborockMessageProtocol.RPC_REQUEST, security_data=security_data),
     )
+    return PayloadEncodedV1RpcChannel(publisher)
 
 
 def create_local_rpc_channel(local_channel: LocalChannel) -> V1RpcChannel:
     """Create a V1 RPC channel using a local channel."""
-    return PayloadEncodedV1RpcChannel(
-        "local",
-        local_channel,
-        lambda x: x.encode_message(RoborockMessageProtocol.GENERAL_REQUEST),
+    publisher = RpcPublisher(
+        "local", local_channel, lambda x: x.encode_message(RoborockMessageProtocol.GENERAL_REQUEST)
     )
+    return PayloadEncodedV1RpcChannel(publisher)
+
+
+def create_map_rpc_channel(
+    mqtt_channel: MqttChannel,
+    security_data: SecurityData,
+) -> MapRpcChannel:
+    """Create a V1 RPC channel that fetches map data.
+
+    This will prefer local channels when available, falling back to MQTT
+    channels if not. If neither is available, an exception will be raised
+    when trying to send a command.
+    """
+    publisher = RpcPublisher(
+        "map",
+        mqtt_channel,
+        lambda x: x.encode_message(RoborockMessageProtocol.RPC_REQUEST, security_data=security_data),
+    )
+    return MapRpcChannel(publisher, security_data)

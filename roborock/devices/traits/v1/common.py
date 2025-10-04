@@ -38,7 +38,7 @@ class V1TraitMixin(ABC):
     command: ClassVar[RoborockCommand]
 
     @classmethod
-    def _parse_type_response(cls, response: V1ResponseData) -> Self:
+    def _parse_type_response(cls, response: V1ResponseData) -> RoborockBase:
         """Parse the response from the device into a a RoborockBase.
 
         Subclasses should override this method to implement custom parsing
@@ -53,7 +53,7 @@ class V1TraitMixin(ABC):
             raise ValueError(f"Unexpected {cls} response format: {response!r}")
         return cls.from_dict(response)
 
-    def _parse_response(self, response: V1ResponseData) -> Self:
+    def _parse_response(self, response: V1ResponseData) -> RoborockBase:
         """Parse the response from the device into a a RoborockBase.
 
         This is used by subclasses that want to override the class
@@ -132,4 +132,14 @@ def mqtt_rpc_channel(cls):
         return cls(*args, **kwargs)
 
     cls.mqtt_rpc_channel = True  # type: ignore[attr-defined]
+    return wrapper
+
+
+def map_rpc_channel(cls):
+    """Decorator to mark a function as cloud only using the map rpc format."""
+
+    def wrapper(*args, **kwargs):
+        return cls(*args, **kwargs)
+
+    cls.map_rpc_channel = True  # type: ignore[attr-defined]
     return wrapper

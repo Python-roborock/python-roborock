@@ -14,6 +14,7 @@ from roborock.containers import (
     UserData,
 )
 from roborock.devices.device import RoborockDevice
+from roborock.map.map_parser import MapParserConfig
 from roborock.mqtt.roborock_session import create_lazy_mqtt_session
 from roborock.mqtt.session import MqttSession
 from roborock.protocol import create_mqtt_params
@@ -130,6 +131,7 @@ async def create_device_manager(
     user_data: UserData,
     home_data_api: HomeDataApi,
     cache: Cache | None = None,
+    map_parser_config: MapParserConfig | None = None,
 ) -> DeviceManager:
     """Convenience function to create and initialize a DeviceManager.
 
@@ -149,7 +151,13 @@ async def create_device_manager(
         match device.pv:
             case DeviceVersion.V1:
                 channel = create_v1_channel(user_data, mqtt_params, mqtt_session, device, cache)
-                trait = v1.create(product, channel.rpc_channel, channel.mqtt_rpc_channel)
+                trait = v1.create(
+                    product,
+                    channel.rpc_channel,
+                    channel.mqtt_rpc_channel,
+                    channel.map_rpc_channel,
+                    map_parser_config=map_parser_config,
+                )
             case DeviceVersion.A01:
                 channel = create_mqtt_channel(user_data, mqtt_params, mqtt_session, device)
                 trait = a01.create(product, channel)
