@@ -39,5 +39,5 @@ def device_fixture(channel: AsyncMock, mock_rpc_channel: AsyncMock, mock_mqtt_rp
     return RoborockDevice(
         device_info=HOME_DATA.devices[0],
         channel=channel,
-        trait=v1.create(HOME_DATA.products[0], mock_rpc_channel, mock_mqtt_rpc_channel),
+        trait=v1.create(HOME_DATA.products[0], HOME_DATA, mock_rpc_channel, mock_mqtt_rpc_channel),
     )

@@ -38,7 +38,7 @@ class V1TraitMixin(ABC):
     command: ClassVar[RoborockCommand]
 
     @classmethod
-    def _parse_type_response(cls, response: V1ResponseData) -> Self:
+    def _parse_type_response(cls, response: V1ResponseData) -> RoborockBase:
         """Parse the response from the device into a a RoborockBase.
 
         Subclasses should override this method to implement custom parsing
@@ -53,7 +53,7 @@ class V1TraitMixin(ABC):
             raise ValueError(f"Unexpected {cls} response format: {response!r}")
         return cls.from_dict(response)
 
-    def _parse_response(self, response: V1ResponseData) -> Self:
+    def _parse_response(self, response: V1ResponseData) -> RoborockBase:
         """Parse the response from the device into a a RoborockBase.
 
         This is used by subclasses that want to override the class

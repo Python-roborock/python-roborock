@@ -77,6 +77,27 @@
   ]
   '''
 # ---
+# name: test_decode_rpc_payload[get_room_mapping]
+  20001
+# ---
+# name: test_decode_rpc_payload[get_room_mapping].1
+  '''
+  [
+    [
+      16,
+      "3031886"
+    ],
+    [
+      17,
+      "3031880"
+    ],
+    [
+      18,
+      "3031883"
+    ]
+  ]
+  '''
+# ---
 # name: test_decode_rpc_payload[get_status]
   20001
 # ---
