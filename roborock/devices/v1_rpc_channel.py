@@ -6,6 +6,7 @@ a simple interface for sending commands and receiving responses over both MQTT
 and local connections, preferring local when available.
 """
 
+
 import asyncio
 import logging
 from collections.abc import Callable
@@ -15,10 +16,13 @@ from roborock.containers import RoborockBase
 from roborock.exceptions import RoborockException
 from roborock.protocols.v1_protocol import (
     CommandType,
+    MapResponse,
     ParamsType,
     RequestMessage,
     ResponseData,
+    ResponseMessage,
     SecurityData,
+    create_map_response_decoder,
     decode_rpc_response,
 )
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
@@ -31,6 +35,7 @@ _TIMEOUT = 10.0
 
 
 _T = TypeVar("_T", bound=RoborockBase)
+_V = TypeVar("_V")
 
 
 class V1RpcChannel(Protocol):
@@ -120,18 +125,20 @@ class PayloadEncodedV1RpcChannel(BaseV1RpcChannel):
         name: str,
         channel: MqttChannel | LocalChannel,
         payload_encoder: Callable[[RequestMessage], RoborockMessage],
+        decoder: Callable[[RoborockMessage], ResponseMessage] | Callable[[RoborockMessage], MapResponse | None],
     ) -> None:
         """Initialize the channel with a raw channel and an encoder function."""
         self._name = name
         self._channel = channel
         self._payload_encoder = payload_encoder
+        self._decoder = decoder
 
     async def _send_raw_command(
         self,
         method: CommandType,
         *,
         params: ParamsType = None,
-    ) -> ResponseData:
+    ) -> ResponseData | bytes:
         """Send a command and return a parsed response RoborockBase type."""
         request_message = RequestMessage(method, params=params)
         _LOGGER.debug(
@@ -139,17 +146,19 @@ class PayloadEncodedV1RpcChannel(BaseV1RpcChannel):
         )
         message = self._payload_encoder(request_message)
 
-        future: asyncio.Future[ResponseData] = asyncio.Future()
+        future: asyncio.Future[ResponseData | bytes] = asyncio.Future()
 
         def find_response(response_message: RoborockMessage) -> None:
             try:
-                decoded = decode_rpc_response(response_message)
+                decoded = self._decoder(response_message)
             except RoborockException as ex:
                 _LOGGER.debug("Exception while decoding message (%s): %s", response_message, ex)
                 return
-            _LOGGER.debug("Received response (request_id=%s): %s", self._name, decoded.request_id)
+            if decoded is None:
+                return
+            _LOGGER.debug("Received response (%s, request_id=%s)", self._name, decoded.request_id)
             if decoded.request_id == request_message.request_id:
-                if decoded.api_error:
+                if isinstance(decoded, ResponseMessage) and decoded.api_error:
                     future.set_exception(decoded.api_error)
                 else:
                     future.set_result(decoded.data)
@@ -171,6 +180,7 @@ def create_mqtt_rpc_channel(mqtt_channel: MqttChannel, security_data: SecurityDa
         "mqtt",
         mqtt_channel,
         lambda x: x.encode_message(RoborockMessageProtocol.RPC_REQUEST, security_data=security_data),
+        decode_rpc_response,
     )
 
 
@@ -180,4 +190,23 @@ def create_local_rpc_channel(local_channel: LocalChannel) -> V1RpcChannel:
         "local",
         local_channel,
         lambda x: x.encode_message(RoborockMessageProtocol.GENERAL_REQUEST),
+        decode_rpc_response,
+    )
+
+
+def create_map_rpc_channel(
+    mqtt_channel: MqttChannel,
+    security_data: SecurityData,
+) -> V1RpcChannel:
+    """Create a V1 RPC channel that fetches map data.
+
+    This will prefer local channels when available, falling back to MQTT
+    channels if not. If neither is available, an exception will be raised
+    when trying to send a command.
+    """
+    return PayloadEncodedV1RpcChannel(
+        "map",
+        mqtt_channel,
+        lambda x: x.encode_message(RoborockMessageProtocol.RPC_REQUEST, security_data=security_data),
+        create_map_response_decoder(security_data=security_data),
     )
