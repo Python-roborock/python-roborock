@@ -9,6 +9,7 @@ from roborock.devices.v1_rpc_channel import V1RpcChannel
 
 from .clean_summary import CleanSummaryTrait
 from .common import V1TraitMixin
+from .consumeable import ConsumableTrait
 from .do_not_disturb import DoNotDisturbTrait
 from .maps import MapsTrait
 from .status import StatusTrait
@@ -24,6 +25,7 @@ __all__ = [
     "CleanSummaryTrait",
     "SoundVolumeTrait",
     "MapsTrait",
+    "ConsumableTrait",
 ]
 
 
@@ -40,6 +42,7 @@ class PropertiesApi(Trait):
     clean_summary: CleanSummaryTrait
     sound_volume: SoundVolumeTrait
     maps: MapsTrait
+    consumables: ConsumableTrait
 
     # In the future optional fields can be added below based on supported features
 

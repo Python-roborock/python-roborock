@@ -21,6 +21,7 @@ roborock> list-devices
 roborock> status --device_id <device_id>
 ```
 """
+
 import asyncio
 import datetime
 import functools
@@ -46,6 +47,7 @@ from roborock.devices.device import RoborockDevice
 from roborock.devices.device_manager import DeviceManager, create_device_manager, create_home_data_api
 from roborock.devices.traits import Trait
 from roborock.devices.traits.v1 import V1TraitMixin
+from roborock.devices.traits.v1.consumeable import ConsumableAttribute
 from roborock.protocol import MessageParser
 from roborock.version_1_apis.roborock_mqtt_client_v1 import RoborockMqttClientV1
 from roborock.web_api import RoborockApiClient
@@ -449,6 +451,30 @@ async def maps(ctx, device_id: str):
     await _display_v1_trait(context, device_id, lambda v1: v1.maps)
 
 
+@session.command()
+@click.option("--device_id", required=True)
+@click.pass_context
+@async_command
+async def consumables(ctx, device_id: str):
+    """Get device consumables."""
+    context: RoborockContext = ctx.obj
+    await _display_v1_trait(context, device_id, lambda v1: v1.consumables)
+
+
+@session.command()
+@click.option("--device_id", required=True)
+@click.option("--consumable", required=True, type=click.Choice([e.value for e in ConsumableAttribute]))
+@click.pass_context
+@async_command
+async def reset_consumable(ctx, device_id: str, consumable: str):
+    """Reset a specific consumable attribute."""
+    context: RoborockContext = ctx.obj
+    trait = await _v1_trait(context, device_id, lambda v1: v1.consumables)
+    attribute = ConsumableAttribute.from_str(consumable)
+    await trait.reset_consumable(attribute)
+    click.echo(f"Reset {consumable} for device {device_id}")
+
+
 @click.command()
 @click.option("--device_id", required=True)
 @click.option("--cmd", required=True)
@@ -691,6 +717,8 @@ cli.add_command(clean_summary)
 cli.add_command(volume)
 cli.add_command(set_volume)
 cli.add_command(maps)
+cli.add_command(consumables)
+cli.add_command(reset_consumable)
 
 
 def main():
