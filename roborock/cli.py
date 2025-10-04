@@ -449,6 +449,16 @@ async def maps(ctx, device_id: str):
     await _display_v1_trait(context, device_id, lambda v1: v1.maps)
 
 
+@session.command()
+@click.option("--device_id", required=True)
+@click.pass_context
+@async_command
+async def rooms(ctx, device_id: str):
+    """Get device room mapping info."""
+    context: RoborockContext = ctx.obj
+    await _display_v1_trait(context, device_id, lambda v1: v1.rooms)
+
+
 @click.command()
 @click.option("--device_id", required=True)
 @click.option("--cmd", required=True)
@@ -691,6 +701,7 @@ cli.add_command(clean_summary)
 cli.add_command(volume)
 cli.add_command(set_volume)
 cli.add_command(maps)
+cli.add_command(rooms)
 
 
 def main():

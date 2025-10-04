@@ -11,6 +11,7 @@ from .clean_summary import CleanSummaryTrait
 from .common import V1TraitMixin
 from .do_not_disturb import DoNotDisturbTrait
 from .maps import MapsTrait
+from .rooms import RoomsTrait
 from .status import StatusTrait
 from .volume import SoundVolumeTrait
 
@@ -24,6 +25,7 @@ __all__ = [
     "CleanSummaryTrait",
     "SoundVolumeTrait",
     "MapsTrait",
+    "RoomsTrait",
 ]
 
 
@@ -39,13 +41,17 @@ class PropertiesApi(Trait):
     dnd: DoNotDisturbTrait
     clean_summary: CleanSummaryTrait
     sound_volume: SoundVolumeTrait
+    rooms: RoomsTrait
     maps: MapsTrait
 
     # In the future optional fields can be added below based on supported features
 
-    def __init__(self, product: HomeDataProduct, rpc_channel: V1RpcChannel, mqtt_rpc_channel: V1RpcChannel) -> None:
-        """Initialize the V1TraitProps with None values."""
+    def __init__(
+        self, product: HomeDataProduct, home_data: HomeData, rpc_channel: V1RpcChannel, mqtt_rpc_channel: V1RpcChannel
+    ) -> None:
+        """Initialize the V1TraitProps."""
         self.status = StatusTrait(product)
+        self.rooms = RoomsTrait(home_data)
         self.maps = MapsTrait(self.status)
 
         # This is a hack to allow setting the rpc_channel on all traits. This is
@@ -64,6 +70,8 @@ class PropertiesApi(Trait):
                 trait._rpc_channel = rpc_channel
 
 
-def create(product: HomeDataProduct, rpc_channel: V1RpcChannel, mqtt_rpc_channel: V1RpcChannel) -> PropertiesApi:
+def create(
+    product: HomeDataProduct, home_data: HomeData, rpc_channel: V1RpcChannel, mqtt_rpc_channel: V1RpcChannel
+) -> PropertiesApi:
     """Create traits for V1 devices."""
-    return PropertiesApi(product, rpc_channel, mqtt_rpc_channel)
+    return PropertiesApi(product, home_data, rpc_channel, mqtt_rpc_channel)
