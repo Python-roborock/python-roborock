@@ -33,11 +33,10 @@ def rooms_trait(device: RoborockDevice) -> RoomsTrait:
 async def test_refresh_rooms_trait(
     rooms_trait: RoomsTrait,
     mock_rpc_channel: AsyncMock,
-    mock_mqtt_rpc_channel: AsyncMock,
 ) -> None:
     """Test successfully getting room mapping."""
     # Setup mock to return the sample room mapping
-    mock_mqtt_rpc_channel.send_command.side_effect = [
+    mock_rpc_channel.send_command.side_effect = [
         ROOM_MAPPING_DATA,
     ]
     # Before refresh, rooms should be empty
@@ -64,5 +63,5 @@ async def test_refresh_rooms_trait(
     assert rooms[2].iot_id == "2362041"
 
     # Verify the RPC call was made correctly
-    assert mock_mqtt_rpc_channel.send_command.call_count == 1
-    mock_mqtt_rpc_channel.send_command.assert_any_call(RoborockCommand.GET_ROOM_MAPPING)
+    assert mock_rpc_channel.send_command.call_count == 1
+    mock_rpc_channel.send_command.assert_any_call(RoborockCommand.GET_ROOM_MAPPING)

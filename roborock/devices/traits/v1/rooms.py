@@ -39,7 +39,6 @@ class Rooms(RoborockBase):
         return {room.segment_id: room for room in self.rooms}
 
 
-@common.mqtt_rpc_channel
 class RoomsTrait(Rooms, common.V1TraitMixin):
     """Trait for managing the room mappings of Roborock devices."""
 
