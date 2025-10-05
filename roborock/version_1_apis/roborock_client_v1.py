@@ -228,7 +228,8 @@ class RoborockClientV1(RoborockClient, ABC):
                         final_record.square_meter_area += (
                             rec.square_meter_area if rec.square_meter_area is not None else 0
                         )
-                finally:
+                except Exception:
+                    # Return final record when an exception occurred
                     return final_record
             # There are still a few unknown variables in this.
             begin, end, duration, area = unpack_list(record, 4)
