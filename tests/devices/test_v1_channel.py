@@ -174,7 +174,7 @@ async def test_v1_channel_mqtt_disconnected(
     mock_local_channel.connect.assert_called_once()
 
     # Simulate an MQTT disconnection where the channel is not healthy
-    await mock_mqtt_channel.close()
+    mock_mqtt_channel.close()
 
     # Verify properties
     assert not v1_channel.is_mqtt_connected
