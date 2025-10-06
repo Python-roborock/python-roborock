@@ -6,7 +6,7 @@ from asyncio import Protocol
 from collections.abc import AsyncGenerator, Callable, Generator
 from queue import Queue
 from typing import Any
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from aioresponses import aioresponses
@@ -173,7 +173,7 @@ def mock_rest() -> aioresponses:
     with aioresponses() as mocked:
         # Match the base URL and allow any query params
         mocked.post(
-            re.compile(r"https://euiot\.roborock\.com/api/v1/getUrlByEmail.*"),
+            re.compile(r"https://.*iot\.roborock\.com/api/v1/getUrlByEmail.*"),
             status=200,
             payload={
                 "code": 200,
@@ -360,12 +360,12 @@ class FakeChannel:
         self.publish = AsyncMock(side_effect=self._publish)
         self.subscribe = AsyncMock(side_effect=self._subscribe)
         self.connect = AsyncMock(side_effect=self._connect)
-        self.close = AsyncMock(side_effect=self._close)
+        self.close = MagicMock(side_effect=self._close)
 
     async def _connect(self) -> None:
         self._is_connected = True
 
-    async def _close(self) -> None:
+    def _close(self) -> None:
         self._is_connected = False
 
     @property

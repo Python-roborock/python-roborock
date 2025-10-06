@@ -6,7 +6,7 @@
   DoNotDisturbTrait(start_hour=22, start_minute=0, end_hour=8, end_minute=0, enabled=1)
 # ---
 # name: test_device_trait_command_parsing[payload2-<lambda>]
-  CleanSummaryTrait(clean_time=1442559, clean_area=24258125000, square_meter_clean_area=24258.1, clean_count=296, dust_collection_count=None, records=[1756848207, 1754930385, 1753203976, 1752183435, 1747427370, 1746204046, 1745601543, 1744387080, 1743528522, 1742489154, 1741022299, 1740433682, 1739902516, 1738875106, 1738864366, 1738620067, 1736873889, 1736197544, 1736121269, 1734458038], last_clean_t=None)
+  CleanSummaryTrait(clean_area=24258125000, clean_count=296, clean_time=1442559, command=<RoborockCommand.GET_CLEAN_SUMMARY: 'get_clean_summary'>, dust_collection_count=None, last_clean_t=None, records=[1756848207, 1754930385, 1753203976, 1752183435, 1747427370, 1746204046, 1745601543, 1744387080, 1743528522, 1742489154, 1741022299, 1740433682, 1739902516, 1738875106, 1738864366, 1738620067, 1736873889, 1736197544, 1736121269, 1734458038], square_meter_clean_area=24258.1)
 # ---
 # name: test_device_trait_command_parsing[payload3-<lambda>]
   SoundVolumeTrait(volume=90)

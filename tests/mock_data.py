@@ -766,7 +766,7 @@ STATUS = {
 BASE_URL_REQUEST = {
     "code": 200,
     "msg": "success",
-    "data": {"url": "https://sample.com"},
+    "data": {"url": "https://sample.com", "countrycode": 1, "country": "US"},
 }
 
 GET_CODE_RESPONSE = {"code": 200, "msg": "success", "data": None}

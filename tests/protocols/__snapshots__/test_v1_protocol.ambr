@@ -33,6 +33,22 @@
   ]
   '''
 # ---
+# name: test_decode_rpc_payload[get_consumeables]
+  20001
+# ---
+# name: test_decode_rpc_payload[get_consumeables].1
+  '''
+  [
+    {
+      "main_brush_work_time": 879348,
+      "side_brush_work_time": 707618,
+      "filter_work_time": 738722,
+      "filter_element_work_time": 0,
+      "sensor_dirty_time": 455517
+    }
+  ]
+  '''
+# ---
 # name: test_decode_rpc_payload[get_dnd]
   20002
 # ---
@@ -46,6 +62,99 @@
       "end_minute": 0,
       "enabled": 1
     }
+  ]
+  '''
+# ---
+# name: test_decode_rpc_payload[get_multi_maps_list]
+  20001
+# ---
+# name: test_decode_rpc_payload[get_multi_maps_list].1
+  '''
+  [
+    {
+      "max_multi_map": 1,
+      "max_bak_map": 1,
+      "multi_map_count": 1,
+      "map_info": [
+        {
+          "mapFlag": 0,
+          "add_time": 1747132930,
+          "length": 0,
+          "name": "",
+          "bak_maps": [
+            {
+              "mapFlag": 4,
+              "add_time": 1747132936
+            }
+          ]
+        }
+      ]
+    }
+  ]
+  '''
+# ---
+# name: test_decode_rpc_payload[get_room_mapping2]
+  20001
+# ---
+# name: test_decode_rpc_payload[get_room_mapping2].1
+  '''
+  [
+    [
+      16,
+      "2537178",
+      6
+    ],
+    [
+      17,
+      "2537175",
+      14
+    ],
+    [
+      18,
+      "2537174",
+      13
+    ],
+    [
+      19,
+      "2537176",
+      14
+    ],
+    [
+      20,
+      "10655627",
+      12
+    ],
+    [
+      21,
+      "2537145",
+      2
+    ],
+    [
+      22,
+      "2537147",
+      12
+    ]
+  ]
+  '''
+# ---
+# name: test_decode_rpc_payload[get_room_mapping]
+  20001
+# ---
+# name: test_decode_rpc_payload[get_room_mapping].1
+  '''
+  [
+    [
+      16,
+      "3031886"
+    ],
+    [
+      17,
+      "3031880"
+    ],
+    [
+      18,
+      "3031883"
+    ]
   ]
   '''
 # ---

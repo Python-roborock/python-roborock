@@ -14,6 +14,7 @@ from roborock.containers import (
     UserData,
 )
 from roborock.devices.device import RoborockDevice
+from roborock.map.map_parser import MapParserConfig
 from roborock.mqtt.roborock_session import create_lazy_mqtt_session
 from roborock.mqtt.session import MqttSession
 from roborock.protocol import create_mqtt_params
@@ -35,7 +36,7 @@ __all__ = [
 
 
 HomeDataApi = Callable[[], Awaitable[HomeData]]
-DeviceCreator = Callable[[HomeDataDevice, HomeDataProduct], RoborockDevice]
+DeviceCreator = Callable[[HomeData, HomeDataDevice, HomeDataProduct], RoborockDevice]
 
 
 class DeviceVersion(enum.StrEnum):
@@ -84,7 +85,7 @@ class DeviceManager:
         for duid, (device, product) in device_products.items():
             if duid in self._devices:
                 continue
-            new_device = self._device_creator(device, product)
+            new_device = self._device_creator(home_data, device, product)
             await new_device.connect()
             new_devices[duid] = new_device
 
@@ -130,6 +131,7 @@ async def create_device_manager(
     user_data: UserData,
     home_data_api: HomeDataApi,
     cache: Cache | None = None,
+    map_parser_config: MapParserConfig | None = None,
 ) -> DeviceManager:
     """Convenience function to create and initialize a DeviceManager.
 
@@ -143,13 +145,20 @@ async def create_device_manager(
     mqtt_params = create_mqtt_params(user_data.rriot)
     mqtt_session = await create_lazy_mqtt_session(mqtt_params)
 
-    def device_creator(device: HomeDataDevice, product: HomeDataProduct) -> RoborockDevice:
+    def device_creator(home_data: HomeData, device: HomeDataDevice, product: HomeDataProduct) -> RoborockDevice:
         channel: Channel
         trait: Trait
         match device.pv:
             case DeviceVersion.V1:
                 channel = create_v1_channel(user_data, mqtt_params, mqtt_session, device, cache)
-                trait = v1.create(product, channel.rpc_channel)
+                trait = v1.create(
+                    product,
+                    home_data,
+                    channel.rpc_channel,
+                    channel.mqtt_rpc_channel,
+                    channel.map_rpc_channel,
+                    map_parser_config=map_parser_config,
+                )
             case DeviceVersion.A01:
                 channel = create_mqtt_channel(user_data, mqtt_params, mqtt_session, device)
                 trait = a01.create(product, channel)

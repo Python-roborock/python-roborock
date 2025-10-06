@@ -21,11 +21,13 @@ roborock> list-devices
 roborock> status --device_id <device_id>
 ```
 """
+
 import asyncio
 import datetime
 import functools
 import json
 import logging
+import sys
 import threading
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
@@ -46,11 +48,16 @@ from roborock.devices.device import RoborockDevice
 from roborock.devices.device_manager import DeviceManager, create_device_manager, create_home_data_api
 from roborock.devices.traits import Trait
 from roborock.devices.traits.v1 import V1TraitMixin
+from roborock.devices.traits.v1.consumeable import ConsumableAttribute
+from roborock.devices.traits.v1.map_content import MapContentTrait
 from roborock.protocol import MessageParser
 from roborock.version_1_apis.roborock_mqtt_client_v1 import RoborockMqttClientV1
 from roborock.web_api import RoborockApiClient
 
 _LOGGER = logging.getLogger(__name__)
+
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 
 def dump_json(obj: Any) -> Any:
@@ -439,6 +446,93 @@ async def set_volume(ctx, device_id: str, volume: int):
     click.echo(f"Set Device {device_id} volume to {volume}")
 
 
+@session.command()
+@click.option("--device_id", required=True)
+@click.pass_context
+@async_command
+async def maps(ctx, device_id: str):
+    """Get device maps info."""
+    context: RoborockContext = ctx.obj
+    await _display_v1_trait(context, device_id, lambda v1: v1.maps)
+
+
+@session.command()
+@click.option("--device_id", required=True)
+@click.option("--output-file", required=True, help="Path to save the map image.")
+@click.pass_context
+@async_command
+async def map_image(ctx, device_id: str, output_file: str):
+    """Get device map image and save it to a file."""
+    context: RoborockContext = ctx.obj
+    trait: MapContentTrait = await _v1_trait(context, device_id, lambda v1: v1.map_content)
+    if trait.image_content:
+        with open(output_file, "wb") as f:
+            f.write(trait.image_content)
+        click.echo(f"Map image saved to {output_file}")
+    else:
+        click.echo("No map image content available.")
+
+
+@session.command()
+@click.option("--device_id", required=True)
+@click.option("--include_path", is_flag=True, default=False, help="Include path data in the output.")
+@click.pass_context
+@async_command
+async def map_data(ctx, device_id: str, include_path: bool):
+    """Get parsed map data as JSON."""
+    context: RoborockContext = ctx.obj
+    trait: MapContentTrait = await _v1_trait(context, device_id, lambda v1: v1.map_content)
+    if not trait.map_data:
+        click.echo("No parsed map data available.")
+        return
+
+    # Pick some parts of the map data to display.
+    data_summary = {
+        "charger": trait.map_data.charger.as_dict() if trait.map_data.charger else None,
+        "image_size": trait.map_data.image.data.size if trait.map_data.image else None,
+        "vacuum_position": trait.map_data.vacuum_position.as_dict() if trait.map_data.vacuum_position else None,
+        "calibration": trait.map_data.calibration(),
+        "zones": [z.as_dict() for z in trait.map_data.zones or ()],
+    }
+    if include_path and trait.map_data.path:
+        data_summary["path"] = trait.map_data.path.as_dict()
+    click.echo(dump_json(data_summary))
+
+
+@session.command()
+@click.option("--device_id", required=True)
+@click.pass_context
+@async_command
+async def consumables(ctx, device_id: str):
+    """Get device consumables."""
+    context: RoborockContext = ctx.obj
+    await _display_v1_trait(context, device_id, lambda v1: v1.consumables)
+
+
+@session.command()
+@click.option("--device_id", required=True)
+@click.option("--consumable", required=True, type=click.Choice([e.value for e in ConsumableAttribute]))
+@click.pass_context
+@async_command
+async def reset_consumable(ctx, device_id: str, consumable: str):
+    """Reset a specific consumable attribute."""
+    context: RoborockContext = ctx.obj
+    trait = await _v1_trait(context, device_id, lambda v1: v1.consumables)
+    attribute = ConsumableAttribute.from_str(consumable)
+    await trait.reset_consumable(attribute)
+    click.echo(f"Reset {consumable} for device {device_id}")
+
+
+@session.command()
+@click.option("--device_id", required=True)
+@click.pass_context
+@async_command
+async def rooms(ctx, device_id: str):
+    """Get device room mapping info."""
+    context: RoborockContext = ctx.obj
+    await _display_v1_trait(context, device_id, lambda v1: v1.rooms)
+
+
 @click.command()
 @click.option("--device_id", required=True)
 @click.option("--cmd", required=True)
@@ -680,6 +774,12 @@ cli.add_command(update_docs)
 cli.add_command(clean_summary)
 cli.add_command(volume)
 cli.add_command(set_volume)
+cli.add_command(maps)
+cli.add_command(map_image)
+cli.add_command(map_data)
+cli.add_command(consumables)
+cli.add_command(reset_consumable)
+cli.add_command(rooms)
 
 
 def main():

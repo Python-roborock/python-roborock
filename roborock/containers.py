@@ -108,8 +108,32 @@ def _decamelize(s: str):
     return re.sub("([A-Z]+)", "_\\1", s).lower()
 
 
-@dataclass
+def _attr_repr(obj: Any) -> str:
+    """Return a string representation of the object including specified attributes.
+
+    This reproduces the default repr behavior of dataclasses, but also includes
+    properties. This must be called by the child class's __repr__ method since
+    the parent RoborockBase class does not know about the child class's attributes.
+    """
+    # Reproduce default repr behavior
+    parts = []
+    for k in dir(obj):
+        if k.startswith("_"):
+            continue
+        try:
+            v = getattr(obj, k)
+        except (RuntimeError, Exception):
+            continue
+        if callable(v):
+            continue
+        parts.append(f"{k}={v!r}")
+    return f"{type(obj).__name__}({', '.join(parts)})"
+
+
+@dataclass(repr=False)
 class RoborockBase:
+    """Base class for all Roborock data classes."""
+
     @staticmethod
     def _convert_to_class_obj(class_type: type, value):
         if get_origin(class_type) is list:
@@ -193,6 +217,9 @@ class RoborockBaseTimer(RoborockBase):
             if self.end_hour is not None and self.end_minute is not None
             else None
         )
+
+    def __repr__(self) -> str:
+        return _attr_repr(self)
 
 
 @dataclass
@@ -346,7 +373,6 @@ class Status(RoborockBase):
     battery: int | None = None
     clean_time: int | None = None
     clean_area: int | None = None
-    square_meter_clean_area: float | None = None
     error_code: RoborockErrorCode | None = None
     map_present: int | None = None
     in_cleaning: RoborockInCleaning | None = None
@@ -405,19 +431,35 @@ class Status(RoborockBase):
     kct: int | None = None
     subdivision_sets: int | None = None
 
-    def __post_init__(self) -> None:
-        self.square_meter_clean_area = round(self.clean_area / 1000000, 1) if self.clean_area is not None else None
-        if self.error_code is not None:
-            self.error_code_name = self.error_code.name
-        if self.state is not None:
-            self.state_name = self.state.name
-        if self.water_box_mode is not None:
-            self.water_box_mode_name = self.water_box_mode.name
-        if self.fan_power is not None:
-            self.fan_power_options = self.fan_power.keys()
-            self.fan_power_name = self.fan_power.name
-        if self.mop_mode is not None:
-            self.mop_mode_name = self.mop_mode.name
+    @property
+    def square_meter_clean_area(self) -> float | None:
+        return round(self.clean_area / 1000000, 1) if self.clean_area is not None else None
+
+    @property
+    def error_code_name(self) -> str | None:
+        return self.error_code.name if self.error_code else None
+
+    @property
+    def state_name(self) -> str | None:
+        return self.state.name if self.state else None
+
+    @property
+    def water_box_mode_name(self) -> str | None:
+        return self.water_box_mode.name if self.water_box_mode else None
+
+    @property
+    def fan_power_options(self) -> list[str]:
+        if self.fan_power is None:
+            return []
+        return list(self.fan_power.keys())
+
+    @property
+    def fan_power_name(self) -> str | None:
+        return self.fan_power.name if self.fan_power else None
+
+    @property
+    def mop_mode_name(self) -> str | None:
+        return self.mop_mode.name if self.mop_mode else None
 
     def get_fan_speed_code(self, fan_speed: str) -> int:
         if self.fan_power is None:
@@ -484,6 +526,8 @@ class Status(RoborockBase):
         if self.dss:
             return (self.dss >> 15) & 3
         return None
+    def __repr__(self) -> str:
+        return _attr_repr(self)
 
 
 @dataclass
@@ -635,28 +679,30 @@ class ValleyElectricityTimer(RoborockBaseTimer):
 class CleanSummary(RoborockBase):
     clean_time: int | None = None
     clean_area: int | None = None
-    square_meter_clean_area: float | None = None
     clean_count: int | None = None
     dust_collection_count: int | None = None
     records: list[int] | None = None
     last_clean_t: int | None = None
 
-    def __post_init__(self) -> None:
+    @property
+    def square_meter_clean_area(self) -> float | None:
+        """Returns the clean area in square meters."""
         if isinstance(self.clean_area, list | str):
             _LOGGER.warning(f"Clean area is a unexpected type! Please give the following in a issue: {self.clean_area}")
-        else:
-            self.square_meter_clean_area = round(self.clean_area / 1000000, 1) if self.clean_area is not None else None
+            return None
+        return round(self.clean_area / 1000000, 1) if self.clean_area is not None else None
+
+    def __repr__(self) -> str:
+        """Return a string representation of the object including all attributes."""
+        return _attr_repr(self)
 
 
 @dataclass
 class CleanRecord(RoborockBase):
     begin: int | None = None
-    begin_datetime: datetime.datetime | None = None
     end: int | None = None
-    end_datetime: datetime.datetime | None = None
     duration: int | None = None
     area: int | None = None
-    square_meter_area: float | None = None
     error: int | None = None
     complete: int | None = None
     start_type: RoborockStartType | None = None
@@ -667,12 +713,20 @@ class CleanRecord(RoborockBase):
     wash_count: int | None = None
     map_flag: int | None = None
 
-    def __post_init__(self) -> None:
-        self.square_meter_area = round(self.area / 1000000, 1) if self.area is not None else None
-        self.begin_datetime = (
-            datetime.datetime.fromtimestamp(self.begin).astimezone(timezone.utc) if self.begin else None
-        )
-        self.end_datetime = datetime.datetime.fromtimestamp(self.end).astimezone(timezone.utc) if self.end else None
+    @property
+    def square_meter_area(self) -> float | None:
+        return round(self.area / 1000000, 1) if self.area is not None else None
+
+    @property
+    def begin_datetime(self) -> datetime.datetime | None:
+        return datetime.datetime.fromtimestamp(self.begin).astimezone(timezone.utc) if self.begin else None
+
+    @property
+    def end_datetime(self) -> datetime.datetime | None:
+        return datetime.datetime.fromtimestamp(self.end).astimezone(timezone.utc) if self.end else None
+
+    def __repr__(self) -> str:
+        return _attr_repr(self)
 
 
 @dataclass
@@ -686,44 +740,49 @@ class Consumable(RoborockBase):
     dust_collection_work_times: int | None = None
     cleaning_brush_work_times: int | None = None
     moproller_work_time: int | None = None
-    main_brush_time_left: int | None = None
-    side_brush_time_left: int | None = None
-    filter_time_left: int | None = None
-    sensor_time_left: int | None = None
-    strainer_time_left: int | None = None
-    dust_collection_time_left: int | None = None
-    cleaning_brush_time_left: int | None = None
-    mop_roller_time_left: int | None = None
 
-    def __post_init__(self) -> None:
-        self.main_brush_time_left = (
-            MAIN_BRUSH_REPLACE_TIME - self.main_brush_work_time if self.main_brush_work_time is not None else None
-        )
-        self.side_brush_time_left = (
-            SIDE_BRUSH_REPLACE_TIME - self.side_brush_work_time if self.side_brush_work_time is not None else None
-        )
-        self.filter_time_left = (
-            FILTER_REPLACE_TIME - self.filter_work_time if self.filter_work_time is not None else None
-        )
-        self.sensor_time_left = (
-            SENSOR_DIRTY_REPLACE_TIME - self.sensor_dirty_time if self.sensor_dirty_time is not None else None
-        )
-        self.strainer_time_left = (
-            STRAINER_REPLACE_TIME - self.strainer_work_times if self.strainer_work_times is not None else None
-        )
-        self.dust_collection_time_left = (
+    @property
+    def main_brush_time_left(self) -> int | None:
+        return MAIN_BRUSH_REPLACE_TIME - self.main_brush_work_time if self.main_brush_work_time is not None else None
+
+    @property
+    def side_brush_time_left(self) -> int | None:
+        return SIDE_BRUSH_REPLACE_TIME - self.side_brush_work_time if self.side_brush_work_time is not None else None
+
+    @property
+    def filter_time_left(self) -> int | None:
+        return FILTER_REPLACE_TIME - self.filter_work_time if self.filter_work_time is not None else None
+
+    @property
+    def sensor_time_left(self) -> int | None:
+        return SENSOR_DIRTY_REPLACE_TIME - self.sensor_dirty_time if self.sensor_dirty_time is not None else None
+
+    @property
+    def strainer_time_left(self) -> int | None:
+        return STRAINER_REPLACE_TIME - self.strainer_work_times if self.strainer_work_times is not None else None
+
+    @property
+    def dust_collection_time_left(self) -> int | None:
+        return (
             DUST_COLLECTION_REPLACE_TIME - self.dust_collection_work_times
             if self.dust_collection_work_times is not None
             else None
         )
-        self.cleaning_brush_time_left = (
+
+    @property
+    def cleaning_brush_time_left(self) -> int | None:
+        return (
             CLEANING_BRUSH_REPLACE_TIME - self.cleaning_brush_work_times
             if self.cleaning_brush_work_times is not None
             else None
         )
-        self.mop_roller_time_left = (
-            MOP_ROLLER_REPLACE_TIME - self.moproller_work_time if self.moproller_work_time is not None else None
-        )
+
+    @property
+    def mop_roller_time_left(self) -> int | None:
+        return MOP_ROLLER_REPLACE_TIME - self.moproller_work_time if self.moproller_work_time is not None else None
+
+    def __repr__(self) -> str:
+        return _attr_repr(self)
 
 
 @dataclass
@@ -807,11 +866,14 @@ class DeviceData(RoborockBase):
     device: HomeDataDevice
     model: str
     host: str | None = None
-    product_nickname: RoborockProductNickname | None = None
     device_features: DeviceFeatures | None = None
 
-    def __post_init__(self):
-        self.product_nickname = SHORT_MODEL_TO_ENUM.get(self.model.split(".")[-1], RoborockProductNickname.PEARLPLUS)
+    @property
+    def product_nickname(self) -> RoborockProductNickname:
+        return SHORT_MODEL_TO_ENUM.get(self.model.split(".")[-1], RoborockProductNickname.PEARLPLUS)
+
+    def __repr__(self) -> str:
+        return _attr_repr(self)
 
 
 @dataclass
@@ -896,11 +958,15 @@ class RoborockProduct(RoborockBase):
     agreements: list | None = None
     cardspec: str | None = None
     plugin_pic_url: str | None = None
-    products_specification: RoborockProductSpec | None = None
 
-    def __post_init__(self):
+    @property
+    def product_nickname(self) -> RoborockProductNickname | None:
         if self.cardspec:
-            self.products_specification = RoborockProductSpec.from_dict(json.loads(self.cardspec).get("data"))
+            return RoborockProductSpec.from_dict(json.loads(self.cardspec).get("data"))
+        return None
+
+    def __repr__(self) -> str:
+        return _attr_repr(self)
 
 
 @dataclass

@@ -16,8 +16,13 @@ from roborock.devices.cache import CacheData, InMemoryCache
 from roborock.devices.local_channel import LocalSession
 from roborock.devices.v1_channel import V1Channel
 from roborock.exceptions import RoborockException
-from roborock.protocol import create_local_decoder, create_local_encoder, create_mqtt_decoder, create_mqtt_encoder
-from roborock.protocols.v1_protocol import SecurityData
+from roborock.protocol import (
+    create_local_decoder,
+    create_local_encoder,
+    create_mqtt_decoder,
+    create_mqtt_encoder,
+)
+from roborock.protocols.v1_protocol import MapResponse, SecurityData
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 from roborock.roborock_typing import RoborockCommand
 
@@ -100,10 +105,18 @@ def setup_mock_request_id() -> Iterator[None]:
         yield
 
 
+@pytest.fixture(name="mock_create_map_response_decoder")
+def setup_mock_map_decoder() -> Iterator[Mock]:
+    """Mock the map response decoder to control its behavior in tests."""
+    with patch("roborock.devices.v1_rpc_channel.create_map_response_decoder") as mock_create_decoder:
+        yield mock_create_decoder
+
+
 @pytest.fixture(name="v1_channel")
 def setup_v1_channel(
     mock_mqtt_channel: Mock,
     mock_local_session: Mock,
+    mock_create_map_response_decoder: Mock,
 ) -> V1Channel:
     """Fixture to set up the V1 channel for tests."""
     return V1Channel(
@@ -174,7 +187,7 @@ async def test_v1_channel_mqtt_disconnected(
     mock_local_channel.connect.assert_called_once()
 
     # Simulate an MQTT disconnection where the channel is not healthy
-    await mock_mqtt_channel.close()
+    mock_mqtt_channel.close()
 
     # Verify properties
     assert not v1_channel.is_mqtt_connected
@@ -452,3 +465,37 @@ async def test_v1_channel_command_encoding_validation(
     # But they should have different protocols
     assert mqtt_message.protocol == RoborockMessageProtocol.RPC_REQUEST
     assert local_message.protocol == RoborockMessageProtocol.GENERAL_REQUEST
+
+
+@patch("roborock.devices.v1_rpc_channel.create_map_response_decoder")
+async def test_v1_channel_send_map_command(
+    mock_create_decoder: Mock,
+    v1_channel: V1Channel,
+    mock_mqtt_channel: Mock,
+    mock_create_map_response_decoder: Mock,
+) -> None:
+    """Test that the map channel can correctly decode a map response."""
+    # Establish connections
+    mock_mqtt_channel.response_queue.append(TEST_NETWORK_INFO_RESPONSE)
+    await v1_channel.subscribe(Mock())
+
+    # Prepare a mock map response
+    decompressed_map_data = b"this is the decompressed map data"
+    request_id = 12346  # from the mock_request_id fixture
+
+    # Mock the decoder to return a known response
+    map_response = MapResponse(request_id=request_id, data=decompressed_map_data)
+    mock_create_map_response_decoder.return_value.return_value = map_response
+
+    # The actual message content doesn't matter as much since the decoder is mocked
+    map_response_message = RoborockMessage(
+        protocol=RoborockMessageProtocol.MAP_RESPONSE,
+        payload=b"dummy_payload",
+    )
+    mock_mqtt_channel.response_queue.append(map_response_message)
+
+    # Send the command and get the result
+    result = await v1_channel.map_rpc_channel.send_command(RoborockCommand.GET_MAP_V1)
+
+    # Verify the result is the data from our mocked decoder
+    assert result == decompressed_map_data

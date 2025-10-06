@@ -209,7 +209,7 @@ def test_create_map_response_decoder_invalid_endpoint(caplog: pytest.LogCaptureF
 
     decoder = create_map_response_decoder(SECURITY_DATA)
     assert decoder(message) is None
-    assert "Received map response requested not made by this device, ignoring." in caplog.text
+    assert "Received map response not requested by this device, ignoring." in caplog.text
 
 
 def test_create_map_response_decoder_invalid_payload():

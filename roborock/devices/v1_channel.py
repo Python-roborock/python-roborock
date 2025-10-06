@@ -27,6 +27,7 @@ from .v1_rpc_channel import (
     PickFirstAvailable,
     V1RpcChannel,
     create_local_rpc_channel,
+    create_map_rpc_channel,
     create_mqtt_rpc_channel,
 )
 
@@ -80,6 +81,7 @@ class V1Channel(Channel):
         self._combined_rpc_channel = PickFirstAvailable(
             [lambda: self._local_rpc_channel, lambda: self._mqtt_rpc_channel]
         )
+        self._map_rpc_channel = create_map_rpc_channel(mqtt_channel, security_data)
         self._mqtt_unsub: Callable[[], None] | None = None
         self._local_unsub: Callable[[], None] | None = None
         self._callback: Callable[[RoborockMessage], None] | None = None
@@ -112,6 +114,11 @@ class V1Channel(Channel):
         """Return the MQTT RPC channel."""
         return self._mqtt_rpc_channel
 
+    @property
+    def map_rpc_channel(self) -> V1RpcChannel:
+        """Return the map RPC channel used for fetching map content."""
+        return self._map_rpc_channel
+
     async def subscribe(self, callback: Callable[[RoborockMessage], None]) -> Callable[[], None]:
         """Subscribe to all messages from the device.
 
@@ -132,7 +139,6 @@ class V1Channel(Channel):
 
         # Start a background task to manage the local connection health. This
         # happens independent of whether we were able to connect locally now.
-        _LOGGER.info("self._reconnect_task=%s", self._reconnect_task)
         if self._reconnect_task is None:
             loop = asyncio.get_running_loop()
             self._reconnect_task = loop.create_task(self._background_reconnect())
