@@ -57,6 +57,35 @@ class NewFeatureStrBit(IntEnum):
     MIDWAY_BACK_TO_DOCK = 85
     SUPPORT_MAIN_BRUSH_UP_DOWN = 86
     EGG_DANCE_MODE = 87
+    MECHANICAL_ARM_MODE = 89
+    TIDYUP_ZONES = MECHANICAL_ARM_MODE
+    CLEAN_TIME_LINE = 91
+    CLEAN_THEN_MOP_MODE = 93
+    TYPE_IDENTIFY = 94
+    SUPPORT_GET_PARTICULAR_STATUS = 96
+    THREE_D_MAPPING_INNER_TEST = 97
+    SYNC_SERVER_NAME = 98
+    SHOULD_SHOW_ARM_OVER_LOAD = 99
+    COLLECT_DUST_COUNT_SHOW = 100
+    SUPPORT_API_APP_STOP_GRASP = 101
+    CTM_WITH_REPEAT = 102
+    SIDE_BRUSH_LIFT_CARPET = 104
+    DETECT_WIRE_CARPET = 105
+    WATER_SLIDE_MODE = 106
+    SOAK_AND_WASH = 107
+    CLEAN_EFFICIENCY = 108
+    BACK_WASH_NEW_SMART = 109
+    DUAL_BAND_WI_FI = 110
+    PROGRAM_MODE = 111
+    CLEAN_FLUID_DELIVERY = 112
+    CARPET_LONG_HAIRED_EX = 113
+    OVER_SEA_CTM = 114
+    FULL_DUPLES_SWITCH = 115
+    LOW_AREA_ACCESS = 116
+    FOLLOW_LOW_OBS = 117
+    TWO_GEARS_NO_COLLISION = 118
+    CARPET_SHAPE_TYPE = 119
+    SR_MAP = 120
 
 
 class ProductFeatures(StrEnum):
@@ -391,6 +420,59 @@ class DeviceFeatures:
         metadata={"new_feature_str_bit": NewFeatureStrBit.SUPPORT_MAIN_BRUSH_UP_DOWN}
     )
     is_egg_dance_mode_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.EGG_DANCE_MODE})
+    is_mechanical_arm_mode_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.MECHANICAL_ARM_MODE}
+    )
+    is_tidyup_zones_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.TIDYUP_ZONES})
+    is_clean_time_line_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.CLEAN_TIME_LINE})
+    is_clean_then_mop_mode_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.CLEAN_THEN_MOP_MODE}
+    )
+    is_type_identify_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.TYPE_IDENTIFY})
+    is_support_get_particular_status_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.SUPPORT_GET_PARTICULAR_STATUS}
+    )
+    is_three_d_mapping_inner_test_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.THREE_D_MAPPING_INNER_TEST}
+    )
+    is_sync_server_name_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.SYNC_SERVER_NAME})
+    is_should_show_arm_over_load_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.SHOULD_SHOW_ARM_OVER_LOAD}
+    )
+    is_collect_dust_count_show_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.COLLECT_DUST_COUNT_SHOW}
+    )
+    is_support_api_app_stop_grasp_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.SUPPORT_API_APP_STOP_GRASP}
+    )
+    is_ctm_with_repeat_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.CTM_WITH_REPEAT})
+    is_side_brush_lift_carpet_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.SIDE_BRUSH_LIFT_CARPET}
+    )
+    is_detect_wire_carpet_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.DETECT_WIRE_CARPET})
+    is_water_slide_mode_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.WATER_SLIDE_MODE})
+    is_soak_and_wash_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.SOAK_AND_WASH})
+    is_clean_efficiency_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.CLEAN_EFFICIENCY})
+    is_back_wash_new_smart_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.BACK_WASH_NEW_SMART}
+    )
+    is_dual_band_wi_fi_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.DUAL_BAND_WI_FI})
+    is_program_mode_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.PROGRAM_MODE})
+    is_clean_fluid_delivery_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.CLEAN_FLUID_DELIVERY}
+    )
+    is_carpet_long_haired_ex_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.CARPET_LONG_HAIRED_EX}
+    )
+    is_over_sea_ctm_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.OVER_SEA_CTM})
+    is_full_duples_switch_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.FULL_DUPLES_SWITCH})
+    is_low_area_access_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.LOW_AREA_ACCESS})
+    is_follow_low_obs_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.FOLLOW_LOW_OBS})
+    is_two_gears_no_collision_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.TWO_GEARS_NO_COLLISION}
+    )
+    is_carpet_shape_type_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.CARPET_SHAPE_TYPE})
+    is_sr_map_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.SR_MAP})
 
     # Features from feature_info list
     is_led_status_switch_supported: bool = field(metadata={"robot_features": 119})

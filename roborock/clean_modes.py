@@ -45,6 +45,12 @@ class WaterModes(RoborockModeEnum):
     CUSTOM = ("custom_water_flow", 207)
     EXTREME = ("extreme", 208)
     SMART_MODE = ("smart_mode", 209)
+    PURE_WATER_FLOW_START = ("slight", 221)
+    PURE_WATER_FLOW_SMALL = ("low", 225)
+    PURE_WATER_FLOW_MIDDLE = ("medium", 235)
+    PURE_WATER_FLOW_LARGE = ("moderate", 245)
+    PURE_WATER_SUPER_BEGIN = ("high", 248)
+    PURE_WATER_FLOW_END = ("extreme", 250)
 
 
 class WashTowelModes(RoborockModeEnum):
@@ -112,6 +118,18 @@ def get_clean_routes(features: DeviceFeatures, region: str) -> list[CleanRoutes]
 
 def get_water_modes(features: DeviceFeatures) -> list[WaterModes]:
     """Get the valid water modes for the device - also known as 'water flow' or 'water level'"""
+    # If the device supports water slide mode, it uses a completely different set of modes. Technically, it can even
+    # support values in between. But for now we will just support the main values.
+    if features.is_water_slide_mode_supported:
+        return [
+            WaterModes.PURE_WATER_FLOW_START,
+            WaterModes.PURE_WATER_FLOW_SMALL,
+            WaterModes.PURE_WATER_FLOW_MIDDLE,
+            WaterModes.PURE_WATER_FLOW_LARGE,
+            WaterModes.PURE_WATER_SUPER_BEGIN,
+            WaterModes.PURE_WATER_FLOW_END,
+        ]
+
     supported_modes = [WaterModes.OFF]
     if features.is_mop_shake_module_supported:
         # For mops that have the vibrating mop pad, they do mild standard intense
@@ -129,6 +147,15 @@ def get_water_modes(features: DeviceFeatures) -> list[WaterModes]:
         supported_modes.append(WaterModes.CUSTOMIZED)
 
     return supported_modes
+
+
+def is_mode_customized(clean_mode: VacuumModes, water_mode: WaterModes, mop_mode: CleanRoutes) -> bool:
+    """Check if any of the cleaning modes are set to a custom value."""
+    return (
+        clean_mode == VacuumModes.CUSTOMIZED
+        or water_mode == WaterModes.CUSTOMIZED
+        or mop_mode == CleanRoutes.CUSTOMIZED
+    )
 
 
 def is_smart_mode_set(water_mode: WaterModes, clean_mode: VacuumModes, mop_mode: CleanRoutes) -> bool:
