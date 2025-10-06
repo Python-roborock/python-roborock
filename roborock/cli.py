@@ -27,6 +27,7 @@ import datetime
 import functools
 import json
 import logging
+import sys
 import threading
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
@@ -54,6 +55,9 @@ from roborock.version_1_apis.roborock_mqtt_client_v1 import RoborockMqttClientV1
 from roborock.web_api import RoborockApiClient
 
 _LOGGER = logging.getLogger(__name__)
+
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 
 def dump_json(obj: Any) -> Any:
