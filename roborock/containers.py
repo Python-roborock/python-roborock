@@ -419,12 +419,6 @@ class Status(RoborockBase):
     dss: int | None = None
     common_status: int | None = None
     corner_clean_mode: int | None = None
-    error_code_name: str | None = None
-    state_name: str | None = None
-    water_box_mode_name: str | None = None
-    fan_power_options: list[str] = field(default_factory=list)
-    fan_power_name: str | None = None
-    mop_mode_name: str | None = None
     last_clean_t: int | None = None
     replenish_mode: int | None = None
     repeat: int | None = None
@@ -526,6 +520,7 @@ class Status(RoborockBase):
         if self.dss:
             return (self.dss >> 15) & 3
         return None
+
     def __repr__(self) -> str:
         return _attr_repr(self)
 
