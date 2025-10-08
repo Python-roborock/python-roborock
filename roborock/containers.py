@@ -12,6 +12,9 @@ from typing import Any, NamedTuple, get_args, get_origin
 
 from .code_mappings import (
     SHORT_MODEL_TO_ENUM,
+    ClearWaterBoxStatus,
+    DirtyWaterBoxStatus,
+    DustBagStatus,
     RoborockCategory,
     RoborockCleanType,
     RoborockDockDustCollectionModeCode,
@@ -480,21 +483,21 @@ class Status(RoborockBase):
         return None
 
     @property
-    def clear_water_box_status(self) -> int | None:
+    def clear_water_box_status(self) -> ClearWaterBoxStatus | None:
         if self.dss:
-            return (self.dss >> 2) & 3
+            return ClearWaterBoxStatus((self.dss >> 2) & 3)
         return None
 
     @property
-    def dirty_water_box_status(self) -> int | None:
+    def dirty_water_box_status(self) -> DirtyWaterBoxStatus | None:
         if self.dss:
-            return (self.dss >> 4) & 3
+            return DirtyWaterBoxStatus((self.dss >> 4) & 3)
         return None
 
     @property
-    def dust_bag_status(self) -> int | None:
+    def dust_bag_status(self) -> DustBagStatus | None:
         if self.dss:
-            return (self.dss >> 6) & 3
+            return DustBagStatus((self.dss >> 6) & 3)
         return None
 
     @property

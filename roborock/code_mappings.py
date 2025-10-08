@@ -768,6 +768,40 @@ class RoborockStartType(RoborockEnum):
     smart_watch = 821
 
 
+class RoborockDssCodes(RoborockEnum):
+    @classmethod
+    def _missing_(cls: type[RoborockEnum], key) -> RoborockEnum:
+        # If the calculated value is not provided, then it should be viewed as okay.
+        # As the math will sometimes result in you getting numbers that don't matter.
+        return cls.okay  # type: ignore
+
+
+class ClearWaterBoxStatus(RoborockDssCodes):
+    """Status of the clear water box."""
+
+    okay = 0
+    out_of_water = 1
+    out_of_water_2 = 38
+    refill_error = 48
+
+
+class DirtyWaterBoxStatus(RoborockDssCodes):
+    """Status of the dirty water box."""
+
+    okay = 0
+    full_not_installed = 1
+    full_not_installed_2 = 39
+    drain_error = 49
+
+
+class DustBagStatus(RoborockDssCodes):
+    """Status of the dust bag."""
+
+    okay = 0
+    not_installed = 1
+    full = 34
+
+
 class DyadSelfCleanMode(RoborockEnum):
     self_clean = 1
     self_clean_and_dry = 2
