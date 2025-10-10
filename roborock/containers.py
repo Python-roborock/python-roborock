@@ -5,7 +5,6 @@ import logging
 import re
 import types
 from dataclasses import asdict, dataclass, field
-from datetime import timezone
 from enum import Enum
 from functools import cached_property
 from typing import Any, NamedTuple, get_args, get_origin
@@ -717,11 +716,11 @@ class CleanRecord(RoborockBase):
 
     @property
     def begin_datetime(self) -> datetime.datetime | None:
-        return datetime.datetime.fromtimestamp(self.begin).astimezone(timezone.utc) if self.begin else None
+        return datetime.datetime.fromtimestamp(self.begin).astimezone(datetime.UTC) if self.begin else None
 
     @property
     def end_datetime(self) -> datetime.datetime | None:
-        return datetime.datetime.fromtimestamp(self.end).astimezone(timezone.utc) if self.end else None
+        return datetime.datetime.fromtimestamp(self.end).astimezone(datetime.UTC) if self.end else None
 
     def __repr__(self) -> str:
         return _attr_repr(self)

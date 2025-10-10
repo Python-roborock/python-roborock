@@ -157,7 +157,7 @@ def decode_rpc_response(message: RoborockMessage) -> ResponseMessage:
             elif result != "ok":
                 exc = RoborockException(f"Unexpected API Result: {result}")
             result = {}
-        if not isinstance(result, (dict, list, int)):
+        if not isinstance(result, dict | list | int):
             raise RoborockException(
                 f"Invalid V1 message format: 'result' was unexpected type {type(result)}. {message.payload!r}"
             )
