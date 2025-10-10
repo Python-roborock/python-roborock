@@ -46,9 +46,9 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           activate-environment: true
-
+      - run: uv pip install pip
       - name: Test with Pytest
-        run: uv run --frozen pytest --log-cli-level=DEBUG -vv -s
+        run:  pytest --log-cli-level=DEBUG -vv -s
         shell: bash
   release:
     runs-on: ubuntu-latest
