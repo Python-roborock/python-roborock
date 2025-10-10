@@ -45,11 +45,10 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install Dependencies
-        run: uv pip sync --all-extras
-        shell: bash
+          activate-environment: true
+
       - name: Test with Pytest
-        run: pytest --log-cli-level=DEBUG -vv -s
+        run: uv run --frozen pytest --log-cli-level=DEBUG -vv -s
         shell: bash
   release:
     runs-on: ubuntu-latest

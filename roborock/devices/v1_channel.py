@@ -3,6 +3,7 @@
 This module provides a unified channel interface for V1 protocol devices,
 handling both MQTT and local connections with automatic fallback.
 """
+
 import asyncio
 import datetime
 import logging
@@ -182,7 +183,7 @@ class V1Channel(Channel):
         except RoborockException as e:
             raise RoborockException(f"Network info failed for device {self._device_uid}") from e
         _LOGGER.debug("Network info for device %s: %s", self._device_uid, network_info)
-        self._last_network_info_refresh = datetime.datetime.now(datetime.timezone.utc)
+        self._last_network_info_refresh = datetime.datetime.now(datetime.UTC)
         cache_data.network_info[self._device_uid] = network_info
         await self._cache.set(cache_data)
         return network_info
@@ -252,8 +253,7 @@ class V1Channel(Channel):
         if local_connect_failures == 1:
             return False
         elif self._last_network_info_refresh and (
-            datetime.datetime.now(datetime.timezone.utc) - self._last_network_info_refresh
-            > NETWORK_INFO_REFRESH_INTERVAL
+            datetime.datetime.now(datetime.UTC) - self._last_network_info_refresh > NETWORK_INFO_REFRESH_INTERVAL
         ):
             return False
         return True

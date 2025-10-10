@@ -45,7 +45,7 @@ dev = [
     "pytest",
     "pre-commit>=3.5,<5.0",
     "mypy",
-    "ruff",
+    "ruff==0.14.0",
     "codespell",
     "pyshark>=0.6,<0.7",
     "aioresponses>=0.7.7,<0.8",
@@ -81,9 +81,9 @@ allowed_tags = [
 major_tags= ["refactor"]
 
 [tool.ruff]
-ignore = ["F403", "E741"]
+lint.ignore = ["F403", "E741"]
 line-length = 120
-select=["E", "F", "UP", "I"]
+lint.select=["E", "F", "UP", "I"]
 
 [tool.ruff.lint.per-file-ignores]
 "*/__init__.py" = ["F401"]
