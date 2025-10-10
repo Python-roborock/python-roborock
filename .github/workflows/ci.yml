@@ -48,7 +48,7 @@ jobs:
           activate-environment: true
       - run: uv pip install pip
       - name: Test with Pytest
-        run:  pytest --log-cli-level=DEBUG -vv -s
+        run:  uv run pytest --log-cli-level=DEBUG -vv -s
         shell: bash
   release:
     runs-on: ubuntu-latest
