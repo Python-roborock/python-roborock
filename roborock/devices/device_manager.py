@@ -157,6 +157,7 @@ async def create_device_manager(
                     channel.rpc_channel,
                     channel.mqtt_rpc_channel,
                     channel.map_rpc_channel,
+                    cache,
                     map_parser_config=map_parser_config,
                 )
             case DeviceVersion.A01:

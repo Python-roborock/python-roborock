@@ -8,7 +8,7 @@ this interface to provide their own caching mechanism.
 from dataclasses import dataclass, field
 from typing import Protocol
 
-from roborock.containers import HomeData, NetworkInfo
+from roborock.containers import CombinedMapInfo, HomeData, NetworkInfo
 
 
 @dataclass
@@ -20,6 +20,9 @@ class CacheData:
 
     network_info: dict[str, NetworkInfo] = field(default_factory=dict)
     """Network information indexed by device DUID."""
+
+    home_cache: dict[int, CombinedMapInfo] = field(default_factory=dict)
+    """Home cache information indexed by map_flag."""
 
 
 class Cache(Protocol):

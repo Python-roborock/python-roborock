@@ -881,6 +881,36 @@ class RoomMapping(RoborockBase):
 
 
 @dataclass
+class NamedRoomMapping(RoomMapping):
+    """Dataclass representing a mapping of a room segment to a name.
+
+    The name information is not provided by the device directly, but is provided
+    from the HomeData based on the iot_id from the room.
+    """
+
+    name: str
+    """The human-readable name of the room, if available."""
+
+
+@dataclass
+class CombinedMapInfo(RoborockBase):
+    """Data structure for caching home information.
+
+    This is not provided directly by the API, but is a combination of map data
+    and room data to provide a more useful structure.
+    """
+
+    map_flag: int
+    """The map identifier."""
+
+    name: str
+    """The name of the map from MultiMapsListMapInfo."""
+
+    rooms: list[NamedRoomMapping]
+    """The list of rooms in the map."""
+
+
+@dataclass
 class ChildLockStatus(RoborockBase):
     lock_status: int
 

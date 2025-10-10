@@ -22,6 +22,14 @@ class MapsTrait(MultiMapsList, common.V1TraitMixin):
 
     A device may have multiple maps, each identified by a unique map_flag.
     Each map can have multiple rooms associated with it, in a `RoomMapping`.
+
+    The MapsTrait depends on the StatusTrait to determine the currently active
+    map. It is the responsibility of the caller to ensure that the StatusTrait
+    is up to date before using this trait. However, there is a possibility of
+    races if another client changes the current map between the time the
+    StatusTrait is refreshed and when the MapsTrait is used. This is mitigated
+    by the fact that the map list is unlikely to change frequently, and the
+    current map is only changed when the user explicitly switches maps.
     """
 
     command = RoborockCommand.GET_MULTI_MAPS_LIST

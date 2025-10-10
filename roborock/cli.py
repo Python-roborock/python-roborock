@@ -42,7 +42,7 @@ from pyshark.capture.live_capture import LiveCapture, UnknownInterfaceException 
 from pyshark.packet.packet import Packet  # type: ignore
 
 from roborock import SHORT_MODEL_TO_ENUM, DeviceFeatures, RoborockCommand, RoborockException
-from roborock.containers import DeviceData, HomeData, NetworkInfo, RoborockBase, UserData
+from roborock.containers import CombinedMapInfo, DeviceData, HomeData, NetworkInfo, RoborockBase, UserData
 from roborock.devices.cache import Cache, CacheData
 from roborock.devices.device import RoborockDevice
 from roborock.devices.device_manager import DeviceManager, create_device_manager, create_home_data_api
@@ -116,6 +116,7 @@ class ConnectionCache(RoborockBase):
     email: str
     home_data: HomeData | None = None
     network_info: dict[str, NetworkInfo] | None = None
+    home_cache: dict[int, CombinedMapInfo] | None = None
 
 
 class DeviceConnectionManager:
@@ -258,14 +259,21 @@ class RoborockContext(Cache):
 
     async def get(self) -> CacheData:
         """Get cached value."""
+        _LOGGER.debug("Getting cache data")
         connection_cache = self.cache_data()
-        return CacheData(home_data=connection_cache.home_data, network_info=connection_cache.network_info or {})
+        return CacheData(
+            home_data=connection_cache.home_data,
+            network_info=connection_cache.network_info or {},
+            home_cache=connection_cache.home_cache,
+        )
 
     async def set(self, value: CacheData) -> None:
         """Set value in the cache."""
+        _LOGGER.debug("Setting cache data")
         connection_cache = self.cache_data()
         connection_cache.home_data = value.home_data
         connection_cache.network_info = value.network_info
+        connection_cache.home_cache = value.home_cache
         self.update(connection_cache)
 
 
@@ -533,6 +541,42 @@ async def rooms(ctx, device_id: str):
     await _display_v1_trait(context, device_id, lambda v1: v1.rooms)
 
 
+@session.command()
+@click.option("--device_id", required=True)
+@click.option("--refresh", is_flag=True, default=False, help="Refresh status before discovery.")
+@click.pass_context
+@async_command
+async def home(ctx, device_id: str, refresh: bool):
+    """Discover and cache home layout (maps and rooms)."""
+    context: RoborockContext = ctx.obj
+    device_manager = await context.get_device_manager()
+    device = await device_manager.get_device(device_id)
+    if device.v1_properties is None:
+        raise RoborockException(f"Device {device.name} does not support V1 protocol")
+
+    # Ensure we have the latest status before discovery
+    await device.v1_properties.status.refresh()
+
+    home_trait = device.v1_properties.home
+    await home_trait.discover_home()
+    if refresh:
+        await home_trait.refresh()
+
+    # Display the discovered home cache
+    if home_trait.home_cache:
+        cache_summary = {
+            map_flag: {
+                "name": map_data.name,
+                "room_count": len(map_data.rooms),
+                "rooms": [{"segment_id": room.segment_id, "name": room.name} for room in map_data.rooms],
+            }
+            for map_flag, map_data in home_trait.home_cache.items()
+        }
+        click.echo(dump_json(cache_summary))
+    else:
+        click.echo("No maps discovered")
+
+
 @click.command()
 @click.option("--device_id", required=True)
 @click.option("--cmd", required=True)
@@ -780,6 +824,7 @@ cli.add_command(map_data)
 cli.add_command(consumables)
 cli.add_command(reset_consumable)
 cli.add_command(rooms)
+cli.add_command(home)
 
 
 def main():

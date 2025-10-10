@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from roborock.containers import HomeData, S7MaxVStatus, UserData
+from roborock.devices.cache import NoCache
 from roborock.devices.device import RoborockDevice
 from roborock.devices.traits import v1
 
@@ -53,5 +54,6 @@ def device_fixture(
             mock_rpc_channel,
             mock_mqtt_rpc_channel,
             mock_map_rpc_channel,
+            NoCache(),
         ),
     )

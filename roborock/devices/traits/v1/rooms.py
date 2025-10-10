@@ -3,25 +3,13 @@
 import logging
 from dataclasses import dataclass
 
-from roborock.containers import HomeData, RoborockBase, RoomMapping
+from roborock.containers import HomeData, NamedRoomMapping, RoborockBase
 from roborock.devices.traits.v1 import common
 from roborock.roborock_typing import RoborockCommand
 
 _LOGGER = logging.getLogger(__name__)
 
 _DEFAULT_NAME = "Unknown"
-
-
-@dataclass
-class NamedRoomMapping(RoomMapping):
-    """Dataclass representing a mapping of a room segment to a name.
-
-    The name information is not provided by the device directly, but is provided
-    from the HomeData based on the iot_id from the room.
-    """
-
-    name: str
-    """The human-readable name of the room, if available."""
 
 
 @dataclass

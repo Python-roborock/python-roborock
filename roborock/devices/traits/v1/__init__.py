@@ -4,6 +4,7 @@ import logging
 from dataclasses import dataclass, field, fields
 
 from roborock.containers import HomeData, HomeDataProduct
+from roborock.devices.cache import Cache
 from roborock.devices.traits import Trait
 from roborock.devices.v1_rpc_channel import V1RpcChannel
 from roborock.map.map_parser import MapParserConfig
@@ -12,6 +13,7 @@ from .clean_summary import CleanSummaryTrait
 from .common import V1TraitMixin
 from .consumeable import ConsumableTrait
 from .do_not_disturb import DoNotDisturbTrait
+from .home import HomeTrait
 from .map_content import MapContentTrait
 from .maps import MapsTrait
 from .rooms import RoomsTrait
@@ -30,6 +32,7 @@ __all__ = [
     "MapsTrait",
     "MapContentTrait",
     "ConsumableTrait",
+    "HomeTrait",
 ]
 
 
@@ -49,6 +52,7 @@ class PropertiesApi(Trait):
     maps: MapsTrait
     map_content: MapContentTrait
     consumables: ConsumableTrait
+    home: HomeTrait
 
     # In the future optional fields can be added below based on supported features
 
@@ -59,6 +63,7 @@ class PropertiesApi(Trait):
         rpc_channel: V1RpcChannel,
         mqtt_rpc_channel: V1RpcChannel,
         map_rpc_channel: V1RpcChannel,
+        cache: Cache,
         map_parser_config: MapParserConfig | None = None,
     ) -> None:
         """Initialize the V1TraitProps."""
@@ -66,6 +71,7 @@ class PropertiesApi(Trait):
         self.rooms = RoomsTrait(home_data)
         self.maps = MapsTrait(self.status)
         self.map_content = MapContentTrait(map_parser_config)
+        self.home = HomeTrait(self.maps, self.rooms, cache)
         # This is a hack to allow setting the rpc_channel on all traits. This is
         # used so we can preserve the dataclass behavior when the values in the
         # traits are updated, but still want to allow them to have a reference
@@ -90,7 +96,8 @@ def create(
     rpc_channel: V1RpcChannel,
     mqtt_rpc_channel: V1RpcChannel,
     map_rpc_channel: V1RpcChannel,
+    cache: Cache,
     map_parser_config: MapParserConfig | None = None,
 ) -> PropertiesApi:
     """Create traits for V1 devices."""
-    return PropertiesApi(product, home_data, rpc_channel, mqtt_rpc_channel, map_rpc_channel, map_parser_config)
+    return PropertiesApi(product, home_data, rpc_channel, mqtt_rpc_channel, map_rpc_channel, cache, map_parser_config)
