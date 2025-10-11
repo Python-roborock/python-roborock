@@ -317,7 +317,7 @@ async def test_future_timeout(
 ) -> None:
     """Test a timeout raised while waiting for an RPC response."""
     with (
-        patch("roborock.roborock_future.async_timeout.timeout", side_effect=asyncio.TimeoutError),
+        patch("roborock.roborock_future.asyncio.timeout", side_effect=asyncio.TimeoutError),
         pytest.raises(RoborockTimeout, match="Timeout after"),
     ):
         await connected_mqtt_client.get_room_mapping()

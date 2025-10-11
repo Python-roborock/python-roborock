@@ -24,7 +24,6 @@ roborock = "roborock.cli:main"
 python = "^3.11"
 click = ">=8"
 aiohttp = "^3.8.2"
-async-timeout = "*"
 pycryptodome = "^3.18"
 pycryptodomex = {version = "^3.18", markers = "sys_platform == 'darwin'"}
 paho-mqtt = ">=1.6.1,<3.0.0"

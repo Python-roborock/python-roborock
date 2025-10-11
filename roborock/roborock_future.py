@@ -1,9 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 from asyncio import Future
 from typing import Any
-
-import async_timeout
 
 from .exceptions import VacuumError
 
@@ -30,7 +29,7 @@ class RoborockFuture:
 
     async def async_get(self, timeout: float | int) -> tuple[Any, VacuumError | None]:
         try:
-            async with async_timeout.timeout(timeout):
+            async with asyncio.timeout(timeout):
                 return await self.fut
         finally:
             self.fut.cancel()

@@ -5,8 +5,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
 
-import async_timeout
-
 from .. import CommandVacuumError, DeviceData, RoborockCommand
 from ..api import RoborockClient
 from ..exceptions import RoborockConnectionException, RoborockException, VacuumError
@@ -101,7 +99,7 @@ class RoborockLocalClientV1(RoborockClientV1, RoborockClient):
             try:
                 if not self.is_connected():
                     self._sync_disconnect()
-                    async with async_timeout.timeout(self.queue_timeout):
+                    async with asyncio.timeout(self.queue_timeout):
                         self._logger.debug(f"Connecting to {self.host}")
                         loop = get_running_loop()
                         self.transport, _ = await loop.create_connection(  # type: ignore

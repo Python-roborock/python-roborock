@@ -240,6 +240,6 @@ async def test_future_timeout(
     connected_a01_mqtt_client: RoborockMqttClientA01,
 ) -> None:
     """Test a timeout raised while waiting for an RPC response."""
-    with patch("roborock.roborock_future.async_timeout.timeout", side_effect=asyncio.TimeoutError):
+    with patch("roborock.roborock_future.asyncio.timeout", side_effect=asyncio.TimeoutError):
         data = await connected_a01_mqtt_client.update_values([RoborockZeoProtocol.STATE])
     assert data.get(RoborockZeoProtocol.STATE) is None
