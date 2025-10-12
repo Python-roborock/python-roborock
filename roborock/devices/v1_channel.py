@@ -3,6 +3,7 @@
 This module provides a unified channel interface for V1 protocol devices,
 handling both MQTT and local connections with automatic fallback.
 """
+
 import asyncio
 import datetime
 import logging
