@@ -83,7 +83,7 @@ class RoborockClient(ABC):
             if response == "unknown_method":
                 raise UnknownMethodError("Unknown method")
             return response
-        except (asyncio.TimeoutError, asyncio.CancelledError):
+        except (TimeoutError, asyncio.CancelledError):
             raise RoborockTimeout(f"id={request_id} Timeout after {self.queue_timeout} seconds") from None
         finally:
             self._waiting_queue.pop(request_id, None)
