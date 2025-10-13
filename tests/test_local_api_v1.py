@@ -114,7 +114,8 @@ async def test_retry_request(
     )
     response_queue.put(retry_message)
 
-    with patch("roborock.protocols.v1_protocol.get_next_int", return_value=test_request_id), pytest.raises(
-        RoborockException, match="Device is busy, try again later"
+    with (
+        patch("roborock.protocols.v1_protocol.get_next_int", return_value=test_request_id),
+        pytest.raises(RoborockException, match="Device is busy, try again later"),
     ):
         await connected_local_client.get_room_mapping()

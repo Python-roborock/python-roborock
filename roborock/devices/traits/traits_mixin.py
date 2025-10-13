@@ -42,7 +42,7 @@ class TraitsMixin:
         """
         for item in fields(self):
             trait_type = _get_trait_type(item)
-            if trait_type == type(trait):
+            if trait_type is type(trait):
                 setattr(self, item.name, trait)
                 break
 

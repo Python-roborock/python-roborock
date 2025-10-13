@@ -60,10 +60,12 @@ async def mock_client_fixture() -> AsyncGenerator[None, None]:
         task = event_loop.create_task(poll_sockets(client))
         return client
 
-    with patch("aiomqtt.client.Client._on_socket_open"), patch("aiomqtt.client.Client._on_socket_close"), patch(
-        "aiomqtt.client.Client._on_socket_register_write"
-    ), patch("aiomqtt.client.Client._on_socket_unregister_write"), patch(
-        "aiomqtt.client.mqtt.Client", side_effect=new_client
+    with (
+        patch("aiomqtt.client.Client._on_socket_open"),
+        patch("aiomqtt.client.Client._on_socket_close"),
+        patch("aiomqtt.client.Client._on_socket_register_write"),
+        patch("aiomqtt.client.Client._on_socket_unregister_write"),
+        patch("aiomqtt.client.mqtt.Client", side_effect=new_client),
     ):
         yield
         if task:

@@ -125,8 +125,9 @@ async def test_disconnect_failure(connected_a01_mqtt_client: RoborockMqttClientA
     assert connected_a01_mqtt_client.is_connected()
 
     # Make the MQTT client returns with an error when disconnecting
-    with patch("roborock.cloud_api.mqtt.Client.disconnect", return_value=mqtt.MQTT_ERR_PROTOCOL), pytest.raises(
-        RoborockException, match="Failed to disconnect"
+    with (
+        patch("roborock.cloud_api.mqtt.Client.disconnect", return_value=mqtt.MQTT_ERR_PROTOCOL),
+        pytest.raises(RoborockException, match="Failed to disconnect"),
     ):
         await connected_a01_mqtt_client.async_disconnect()
 
@@ -144,8 +145,9 @@ async def test_subscribe_failure(
 
     response_queue.put(mqtt_packet.gen_connack(rc=0, flags=2))
 
-    with patch("roborock.cloud_api.mqtt.Client.subscribe", return_value=(mqtt.MQTT_ERR_NO_CONN, None)), pytest.raises(
-        RoborockException, match="Failed to subscribe"
+    with (
+        patch("roborock.cloud_api.mqtt.Client.subscribe", return_value=(mqtt.MQTT_ERR_NO_CONN, None)),
+        pytest.raises(RoborockException, match="Failed to subscribe"),
     ):
         await a01_mqtt_client.async_connect()
 
@@ -230,8 +232,9 @@ async def test_publish_failure(
 
     msg = mqtt.MQTTMessageInfo(0)
     msg.rc = mqtt.MQTT_ERR_PROTOCOL
-    with patch("roborock.cloud_api.mqtt.Client.publish", return_value=msg), pytest.raises(
-        RoborockException, match="Failed to publish"
+    with (
+        patch("roborock.cloud_api.mqtt.Client.publish", return_value=msg),
+        pytest.raises(RoborockException, match="Failed to publish"),
     ):
         await connected_a01_mqtt_client.update_values([RoborockZeoProtocol.STATE])
 
@@ -240,6 +243,6 @@ async def test_future_timeout(
     connected_a01_mqtt_client: RoborockMqttClientA01,
 ) -> None:
     """Test a timeout raised while waiting for an RPC response."""
-    with patch("roborock.roborock_future.async_timeout.timeout", side_effect=asyncio.TimeoutError):
+    with patch("roborock.roborock_future.asyncio.timeout", side_effect=asyncio.TimeoutError):
         data = await connected_a01_mqtt_client.update_values([RoborockZeoProtocol.STATE])
     assert data.get(RoborockZeoProtocol.STATE) is None

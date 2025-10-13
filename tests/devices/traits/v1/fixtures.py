@@ -1,4 +1,4 @@
-""""Fixtures for V1 trait tests."""
+"""Fixtures for V1 trait tests."""
 
 from unittest.mock import AsyncMock
 

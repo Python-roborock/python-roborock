@@ -29,16 +29,14 @@ _ID_QUERY = int(RoborockDyadDataProtocol.ID_QUERY)
 async def send_decoded_command(
     mqtt_channel: MqttChannel,
     params: dict[RoborockDyadDataProtocol, Any],
-) -> dict[RoborockDyadDataProtocol, Any]:
-    ...
+) -> dict[RoborockDyadDataProtocol, Any]: ...
 
 
 @overload
 async def send_decoded_command(
     mqtt_channel: MqttChannel,
     params: dict[RoborockZeoProtocol, Any],
-) -> dict[RoborockZeoProtocol, Any]:
-    ...
+) -> dict[RoborockZeoProtocol, Any]: ...
 
 
 async def send_decoded_command(

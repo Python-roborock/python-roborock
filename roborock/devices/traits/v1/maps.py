@@ -4,6 +4,7 @@ New datatypes are introduced here to manage the additional information associate
 with maps and rooms, such as map names and room names. These override the
 base container datatypes to add additional fields.
 """
+
 import logging
 from typing import Self
 
