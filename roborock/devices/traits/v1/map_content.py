@@ -1,4 +1,5 @@
 """Trait for fetching the map content from Roborock devices."""
+
 import logging
 from dataclasses import dataclass
 

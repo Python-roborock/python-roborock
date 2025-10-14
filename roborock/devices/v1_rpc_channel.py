@@ -6,7 +6,6 @@ a simple interface for sending commands and receiving responses over both MQTT
 and local connections, preferring local when available.
 """
 
-
 import asyncio
 import logging
 from collections.abc import Callable
