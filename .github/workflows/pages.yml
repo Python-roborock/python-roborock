@@ -28,11 +28,13 @@ jobs:
       fail-fast: false
     steps:
       - uses: actions/checkout@v5
-      - uses: snok/install-poetry@v1.4.1
-      - name: Install Dependencies
-        run: poetry install
-        shell: bash
-      - run: poetry run pdoc ./roborock -o docs/pdoc
+      - uses: actions/checkout@v5
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+          activate-environment: true
+      - run: uv run pdoc ./roborock -o docs/pdoc
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
