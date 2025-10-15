@@ -6,7 +6,7 @@ from roborock.exceptions import VacuumError
 from roborock.roborock_future import RoborockFuture
 
 
-def test_can_create():
+async def test_can_create():
     RoborockFuture(1)
 
 
