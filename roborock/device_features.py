@@ -5,6 +5,7 @@ from enum import IntEnum, StrEnum
 from typing import Any
 
 from .code_mappings import RoborockProductNickname
+from .containers import RoborockBase
 
 
 class NewFeatureStrBit(IntEnum):
@@ -246,7 +247,7 @@ PRODUCT_FEATURE_MAP: dict[RoborockProductNickname, list[ProductFeatures]] = {
 
 
 @dataclass
-class DeviceFeatures:
+class DeviceFeatures(RoborockBase):
     """Represents the features supported by a Roborock device."""
 
     # Features from robot_new_features (lower 32 bits)

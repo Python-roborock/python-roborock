@@ -41,8 +41,9 @@ from pyshark import FileCapture  # type: ignore
 from pyshark.capture.live_capture import LiveCapture, UnknownInterfaceException  # type: ignore
 from pyshark.packet.packet import Packet  # type: ignore
 
-from roborock import SHORT_MODEL_TO_ENUM, DeviceFeatures, RoborockCommand, RoborockException
+from roborock import SHORT_MODEL_TO_ENUM, RoborockCommand, RoborockException
 from roborock.containers import CombinedMapInfo, DeviceData, HomeData, NetworkInfo, RoborockBase, UserData
+from roborock.device_features import DeviceFeatures
 from roborock.devices.cache import Cache, CacheData
 from roborock.devices.device import RoborockDevice
 from roborock.devices.device_manager import DeviceManager, create_device_manager, create_home_data_api
@@ -543,6 +544,16 @@ async def rooms(ctx, device_id: str):
 
 @session.command()
 @click.option("--device_id", required=True)
+@click.pass_context
+@async_command
+async def features(ctx, device_id: str):
+    """Get device room mapping info."""
+    context: RoborockContext = ctx.obj
+    await _display_v1_trait(context, device_id, lambda v1: v1.device_features)
+
+
+@session.command()
+@click.option("--device_id", required=True)
 @click.option("--refresh", is_flag=True, default=False, help="Refresh status before discovery.")
 @click.pass_context
 @async_command
@@ -825,6 +836,7 @@ cli.add_command(consumables)
 cli.add_command(reset_consumable)
 cli.add_command(rooms)
 cli.add_command(home)
+cli.add_command(features)
 
 
 def main():

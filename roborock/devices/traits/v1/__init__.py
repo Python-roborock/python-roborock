@@ -12,6 +12,7 @@ from roborock.map.map_parser import MapParserConfig
 from .clean_summary import CleanSummaryTrait
 from .common import V1TraitMixin
 from .consumeable import ConsumableTrait
+from .device_features import DeviceFeaturesTrait
 from .do_not_disturb import DoNotDisturbTrait
 from .home import HomeTrait
 from .map_content import MapContentTrait
@@ -33,6 +34,7 @@ __all__ = [
     "MapContentTrait",
     "ConsumableTrait",
     "HomeTrait",
+    "DeviceFeaturesTrait",
 ]
 
 
@@ -53,6 +55,7 @@ class PropertiesApi(Trait):
     map_content: MapContentTrait
     consumables: ConsumableTrait
     home: HomeTrait
+    device_features: DeviceFeaturesTrait
 
     # In the future optional fields can be added below based on supported features
 
@@ -72,6 +75,7 @@ class PropertiesApi(Trait):
         self.maps = MapsTrait(self.status)
         self.map_content = MapContentTrait(map_parser_config)
         self.home = HomeTrait(self.status, self.maps, self.rooms, cache)
+        self.device_features = DeviceFeaturesTrait(product.product_nickname)
         # This is a hack to allow setting the rpc_channel on all traits. This is
         # used so we can preserve the dataclass behavior when the values in the
         # traits are updated, but still want to allow them to have a reference

@@ -81,8 +81,8 @@ major_tags= ["refactor"]
 
 [tool.ruff]
 lint.ignore = ["F403", "E741"]
-line-length = 120
 lint.select=["E", "F", "UP", "I"]
+line-length = 120
 
 [tool.ruff.lint.per-file-ignores]
 "*/__init__.py" = ["F401"]
@@ -92,3 +92,9 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 timeout = 30
 log_format = "%(asctime)s.%(msecs)03d %(levelname)s (%(threadName)s) [%(name)s] %(message)s"
+
+[tool.uv]
+dev-dependencies = [
+    "pyyaml>=6.0.3",
+    "pyshark>=0.6",
+]

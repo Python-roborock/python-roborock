@@ -93,7 +93,6 @@ from .const import (
     STRAINER_REPLACE_TIME,
     ROBOROCK_G20S_Ultra,
 )
-from .device_features import DeviceFeatures
 from .exceptions import RoborockException
 
 _LOGGER = logging.getLogger(__name__)
@@ -279,6 +278,10 @@ class HomeDataProduct(RoborockBase):
     attribute: Any | None = None
     capability: int | None = None
     schema: list[HomeDataProductSchema] | None = None
+
+    @property
+    def product_nickname(self) -> RoborockProductNickname:
+        return SHORT_MODEL_TO_ENUM.get(self.model.split(".")[-1], RoborockProductNickname.PEARLPLUS)
 
 
 @dataclass
@@ -863,7 +866,6 @@ class DeviceData(RoborockBase):
     device: HomeDataDevice
     model: str
     host: str | None = None
-    device_features: DeviceFeatures | None = None
 
     @property
     def product_nickname(self) -> RoborockProductNickname:
