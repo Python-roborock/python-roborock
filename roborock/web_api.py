@@ -96,12 +96,15 @@ class RoborockApiClient:
                         )
                     else:
                         raise RoborockException(f"{response.get('msg')} - response code: {response_code}")
-                if response["data"]["countrycode"] is not None:
+                country_code = response["data"]["countrycode"]
+                country = response["data"]["country"]
+                if country_code is not None and country is not None:
                     self._iot_login_info = IotLoginInfo(
                         base_url=response["data"]["url"],
-                        country=response["data"]["country"],
-                        country_code=response["data"]["countrycode"],
+                        country=country,
+                        country_code=country_code,
                     )
+                    _LOGGER.debug("Country determined to be %s and code is %s", country, country_code)
                     return self._iot_login_info
             raise RoborockNoResponseFromBaseURL(
                 "No account was found for any base url we tried. Either your email is incorrect or we do not have a"
