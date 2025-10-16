@@ -33,7 +33,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           activate-environment: true
-      - run: uv pip install .
+      - run: uv pip install pdoc
       - run: pdoc ./roborock -o docs/pdoc
       - name: Setup Pages
         uses: actions/configure-pages@v5
