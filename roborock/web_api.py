@@ -98,7 +98,7 @@ class RoborockApiClient:
                         raise RoborockException(f"{response.get('msg')} - response code: {response_code}")
                 country_code = response["data"]["countrycode"]
                 country = response["data"]["country"]
-                if country_code is not None and country is not None:
+                if country_code is not None or country is not None:
                     self._iot_login_info = IotLoginInfo(
                         base_url=response["data"]["url"],
                         country=country,
@@ -240,6 +240,9 @@ class RoborockApiClient:
             _LOGGER.info(ex.meta_info)
             raise RoborockRateLimit("Reached maximum requests for login. Please try again later.") from ex
         base_url = await self.base_url
+        if await self.country_code is None or await self.country is None:
+            _LOGGER.info("No country code or country found, trying old version of request code.")
+            return await self.request_code()
         header_clientid = self._get_header_client_id()
         code_request = PreparedRequest(
             base_url,
@@ -304,6 +307,9 @@ class RoborockApiClient:
             country = await self.country
         if country_code is None:
             country_code = await self.country_code
+        if country_code is None or country is None:
+            _LOGGER.info("No country code or country found, trying old version of code login.")
+            return await self.code_login(code)
         header_clientid = self._get_header_client_id()
         x_mercy_ks = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(16))
         x_mercy_k = await self._sign_key_v3(x_mercy_ks)
