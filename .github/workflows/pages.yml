@@ -3,8 +3,8 @@ name: Deploy static content to Pages
 
 on:
   push:
-    branches:
-      - main
+#    branches:
+#      - main
 
   workflow_dispatch:
 
@@ -33,15 +33,15 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           activate-environment: true
-      - run: uv pip install pdoc
+      - run: uv pip install .[dev]
       - run: pdoc ./roborock -o docs/pdoc
       - name: Setup Pages
         uses: actions/configure-pages@v5
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v4
-        with:
-          # Upload pdoc output
-          path: 'docs/pdoc/'
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+#      - name: Upload artifact
+#        uses: actions/upload-pages-artifact@v4
+#        with:
+#          # Upload pdoc output
+#          path: 'docs/pdoc/'
+#      - name: Deploy to GitHub Pages
+#        id: deployment
+#        uses: actions/deploy-pages@v4
