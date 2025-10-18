@@ -170,3 +170,36 @@ async def test_url_cycling(mock_rest) -> None:
     )
     # Make sure we just have the three we tested for above.
     assert len(mock_rest.requests) == 3
+
+
+async def test_missing_country_login(mock_rest) -> None:
+    """Test that we cycle through the URLs correctly."""
+    mock_rest.clear()
+    # Make country None, but country code set.
+    mock_rest.post(
+        re.compile("https://usiot.roborock.com/api/v1/getUrlByEmail.*"),
+        status=200,
+        payload={
+            "code": 200,
+            "data": {"url": "https://usiot.roborock.com", "country": None, "countrycode": 1},
+            "msg": "Success",
+        },
+    )
+    # v4 is not mocked, so it would fail it were called.
+    mock_rest.post(
+        re.compile(r"https://.*iot\.roborock\.com/api/v1/loginWithCode.*"),
+        status=200,
+        payload={"code": 200, "data": USER_DATA, "msg": "success"},
+    )
+    mock_rest.post(
+        re.compile(r"https://.*iot\.roborock\.com/api/v1/sendEmailCode.*"),
+        status=200,
+        payload={"code": 200, "data": None, "msg": "success"},
+    )
+
+    client = RoborockApiClient("test@example.com")
+    await client.request_code_v4()
+    ud = await client.code_login_v4(4123)
+    assert ud is not None
+    # Ensure we have no surprise REST calls.
+    assert len(mock_rest.requests) == 3

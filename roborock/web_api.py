@@ -234,15 +234,15 @@ class RoborockApiClient:
 
     async def request_code_v4(self) -> None:
         """Request a code using the v4 endpoint."""
+        if await self.country_code is None or await self.country is None:
+            _LOGGER.info("No country code or country found, trying old version of request code.")
+            return await self.request_code()
         try:
             self._login_limiter.try_acquire("login")
         except BucketFullException as ex:
             _LOGGER.info(ex.meta_info)
             raise RoborockRateLimit("Reached maximum requests for login. Please try again later.") from ex
         base_url = await self.base_url
-        if await self.country_code is None or await self.country is None:
-            _LOGGER.info("No country code or country found, trying old version of request code.")
-            return await self.request_code()
         header_clientid = self._get_header_client_id()
         code_request = PreparedRequest(
             base_url,
