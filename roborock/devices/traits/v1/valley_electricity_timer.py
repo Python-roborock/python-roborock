@@ -11,6 +11,11 @@ class ValleyElectricityTimerTrait(ValleyElectricityTimer, common.V1TraitMixin):
     command = RoborockCommand.GET_VALLEY_ELECTRICITY_TIMER
     requires_feature = "is_supported_valley_electricity"
 
+    @property
+    def is_on(self) -> bool:
+        """Return whether the Valley Electricity Timer is enabled."""
+        return self.enabled == 1
+
     async def set_timer(self, timer: ValleyElectricityTimer) -> None:
         """Set the Valley Electricity Timer settings of the device."""
         await self.rpc_channel.send_command(RoborockCommand.SET_VALLEY_ELECTRICITY_TIMER, params=timer.as_dict())

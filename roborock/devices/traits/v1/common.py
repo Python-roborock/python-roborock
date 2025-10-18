@@ -4,7 +4,7 @@ This is an internal library and should not be used directly by consumers.
 """
 
 import logging
-from abc import ABC
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, fields
 from typing import ClassVar, Self
 
@@ -122,6 +122,23 @@ class RoborockValueBase(V1TraitMixin, RoborockBase):
             raise ValueError(f"Unexpected response format: {response!r}")
         value_field = _get_value_field(cls)
         return cls(**{value_field: response})
+
+
+class RoborockSwitchBase(ABC):
+    """Base class for traits that represent a boolean switch."""
+
+    @property
+    @abstractmethod
+    def is_on(self) -> bool:
+        """Return whether the switch is on."""
+
+    @abstractmethod
+    async def enable(self) -> None:
+        """Enable the switch."""
+
+    @abstractmethod
+    async def disable(self) -> None:
+        """Disable the switch."""
 
 
 def mqtt_rpc_channel(cls):

@@ -24,6 +24,7 @@ from .map_content import MapContentTrait
 from .maps import MapsTrait
 from .rooms import RoomsTrait
 from .status import StatusTrait
+from .valley_electricity_timer import ValleyElectricityTimerTrait
 from .volume import SoundVolumeTrait
 
 _LOGGER = logging.getLogger(__name__)
@@ -44,6 +45,7 @@ __all__ = [
     "ChildLockTrait",
     "FlowLedStatusTrait",
     "LedStatusTrait",
+    "ValleyElectricityTimerTrait",
 ]
 
 
@@ -71,6 +73,7 @@ class PropertiesApi(Trait):
     child_lock: ChildLockTrait | None = None
     led_status: LedStatusTrait | None = None
     flow_led_status: FlowLedStatusTrait | None = None
+    valley_electricity_timer: ValleyElectricityTimerTrait | None = None
 
     def __init__(
         self,

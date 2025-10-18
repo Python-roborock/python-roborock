@@ -5,10 +5,15 @@ from roborock.roborock_typing import RoborockCommand
 _ENABLED_PARAM = "enabled"
 
 
-class DoNotDisturbTrait(DnDTimer, common.V1TraitMixin):
+class DoNotDisturbTrait(DnDTimer, common.V1TraitMixin, common.RoborockSwitchBase):
     """Trait for managing Do Not Disturb (DND) settings on Roborock devices."""
 
     command = RoborockCommand.GET_DND_TIMER
+
+    @property
+    def is_on(self) -> bool:
+        """Return whether the Do Not Disturb (DND) timer is enabled."""
+        return self.enabled == 1
 
     async def set_dnd_timer(self, dnd_timer: DnDTimer) -> None:
         """Set the Do Not Disturb (DND) timer settings of the device."""

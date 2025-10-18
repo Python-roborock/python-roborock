@@ -5,11 +5,16 @@ from roborock.roborock_typing import RoborockCommand
 from .common import V1ResponseData
 
 
-class LedStatusTrait(LedStatus, common.V1TraitMixin):
+class LedStatusTrait(LedStatus, common.V1TraitMixin, common.RoborockSwitchBase):
     """Trait for controlling the LED status of a Roborock device."""
 
     command = RoborockCommand.GET_LED_STATUS
     requires_feature = "is_led_status_switch_supported"
+
+    @property
+    def is_on(self) -> bool:
+        """Return whether the LED status is enabled."""
+        return self.status == 1
 
     async def enable(self) -> None:
         """Enable the LED status."""

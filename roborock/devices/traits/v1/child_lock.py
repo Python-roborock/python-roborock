@@ -5,11 +5,16 @@ from roborock.roborock_typing import RoborockCommand
 _STATUS_PARAM = "lock_status"
 
 
-class ChildLockTrait(ChildLockStatus, common.V1TraitMixin):
+class ChildLockTrait(ChildLockStatus, common.V1TraitMixin, common.RoborockSwitchBase):
     """Trait for controlling the child lock of a Roborock device."""
 
     command = RoborockCommand.GET_CHILD_LOCK_STATUS
     requires_feature = "is_set_child_supported"
+
+    @property
+    def is_on(self) -> bool:
+        """Return whether the child lock is enabled."""
+        return self.lock_status == 1
 
     async def enable(self) -> None:
         """Enable the child lock."""

@@ -46,6 +46,7 @@ async def test_get_dnd_timer_success(
     assert dnd_trait.end_hour == 8
     assert dnd_trait.end_minute == 0
     assert dnd_trait.enabled == 1
+    assert dnd_trait.is_on
 
     # Verify the RPC call was made correctly
     mock_rpc_channel.send_command.assert_called_once_with(RoborockCommand.GET_DND_TIMER)
@@ -65,6 +66,7 @@ async def test_get_dnd_timer_disabled(dnd_trait: DoNotDisturbTrait, mock_rpc_cha
     await dnd_trait.refresh()
 
     assert dnd_trait.enabled == 0
+    assert not dnd_trait.is_on
     mock_rpc_channel.send_command.assert_called_once_with(RoborockCommand.GET_DND_TIMER)
 
 
