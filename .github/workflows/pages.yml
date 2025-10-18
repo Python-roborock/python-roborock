@@ -33,8 +33,8 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           activate-environment: true
-      - run: uv pip install .[dev]
-      - run: pdoc ./roborock -o docs/pdoc
+      - run: uv pip install .
+      - run: uv run pdoc ./roborock -o docs/pdoc
       - name: Setup Pages
         uses: actions/configure-pages@v5
 #      - name: Upload artifact
