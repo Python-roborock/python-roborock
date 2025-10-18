@@ -123,10 +123,18 @@ class V1Channel(Channel):
     async def subscribe(self, callback: Callable[[RoborockMessage], None]) -> Callable[[], None]:
         """Subscribe to all messages from the device.
 
-        This will establish MQTT connection first, and also attempt to set up
-        local connection if possible. Any failures to subscribe to MQTT will raise
-        a RoborockException. A local connection failure will not raise an exception,
-        since the local connection is optional.
+        This will first attempt to establish a local connection to the device
+        using cached network information if available. If that fails, it will
+        fall back to using the MQTT connection.
+
+        A background task will be started to monitor and maintain the local
+        connection, attempting to reconnect as needed.
+
+        Args:
+            callback: Callback to invoke for each received message.
+
+        Returns:
+            Unsubscribe function to stop receiving messages and clean up resources.
         """
         if self._callback is not None:
             raise ValueError("Only one subscription allowed at a time")
