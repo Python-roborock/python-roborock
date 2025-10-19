@@ -66,8 +66,8 @@ build-backend = "hatchling.build"
 
 [tool.semantic_release]
 branch = "main"
-version_toml = ["pyproject.toml:tool.poetry.version"]
-build_command = "pip install poetry && poetry build"
+version_toml = ["pyproject.toml:project.version"]
+build_command = "pip install uv && uv build"
 
 [tool.semantic_release.commit_parser_options]
 allowed_tags = [
