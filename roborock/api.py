@@ -8,7 +8,7 @@ import time
 from abc import ABC, abstractmethod
 from typing import Any
 
-from .containers import (
+from .data import (
     DeviceData,
 )
 from .exceptions import (

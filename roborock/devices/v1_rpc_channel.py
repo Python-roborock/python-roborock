@@ -11,7 +11,7 @@ import logging
 from collections.abc import Callable
 from typing import Any, Protocol, TypeVar, overload
 
-from roborock.containers import RoborockBase
+from roborock.data import RoborockBase
 from roborock.exceptions import RoborockException
 from roborock.protocols.v1_protocol import (
     CommandType,

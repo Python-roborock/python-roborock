@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from roborock.containers import NetworkInfo, RoborockStateCode, S5MaxStatus, UserData
+from roborock.data import NetworkInfo, RoborockStateCode, S5MaxStatus, UserData
 from roborock.devices.cache import CacheData, InMemoryCache
 from roborock.devices.local_channel import LocalSession
 from roborock.devices.v1_channel import V1Channel

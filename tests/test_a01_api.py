@@ -14,8 +14,7 @@ from roborock import (
     HomeData,
     UserData,
 )
-from roborock.code_mappings import ZeoState, ZeoTemperature
-from roborock.containers import DeviceData, RoborockCategory
+from roborock.data import DeviceData, RoborockCategory, ZeoState, ZeoTemperature
 from roborock.exceptions import RoborockException
 from roborock.protocol import MessageParser
 from roborock.roborock_message import (

@@ -6,7 +6,8 @@ from typing import Any
 
 from roborock import DeviceData
 from roborock.api import RoborockClient
-from roborock.code_mappings import (
+from roborock.data import DyadProductInfo, DyadSndState, RoborockCategory
+from roborock.data.dyad.dyad_code_mappings import (
     DyadBrushSpeed,
     DyadCleanMode,
     DyadError,
@@ -16,6 +17,8 @@ from roborock.code_mappings import (
     DyadWarmLevel,
     DyadWaterLevel,
     RoborockDyadStateCode,
+)
+from roborock.data.zeo.zeo_code_mappings import (
     ZeoDetergentType,
     ZeoDryingMode,
     ZeoError,
@@ -27,7 +30,6 @@ from roborock.code_mappings import (
     ZeoState,
     ZeoTemperature,
 )
-from roborock.containers import DyadProductInfo, DyadSndState, RoborockCategory
 from roborock.exceptions import RoborockException
 from roborock.protocols.a01_protocol import decode_rpc_response
 from roborock.roborock_message import (

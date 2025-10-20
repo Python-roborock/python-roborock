@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, call
 
 import pytest
 
-from roborock.code_mappings import RoborockDockDustCollectionModeCode, RoborockDockTypeCode
+from roborock.data import RoborockDockDustCollectionModeCode, RoborockDockTypeCode
 from roborock.devices.device import RoborockDevice
 from roborock.devices.traits.v1.dust_collection_mode import DustCollectionModeTrait
 from roborock.roborock_typing import RoborockCommand

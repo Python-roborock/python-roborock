@@ -34,8 +34,8 @@ import logging
 from dataclasses import dataclass, field, fields
 from typing import Any, get_args
 
-from roborock.code_mappings import RoborockDockTypeCode
-from roborock.containers import HomeData, HomeDataProduct
+from roborock.data.containers import HomeData, HomeDataProduct
+from roborock.data.v1.v1_code_mappings import RoborockDockTypeCode
 from roborock.devices.cache import Cache
 from roborock.devices.traits import Trait
 from roborock.devices.v1_rpc_channel import V1RpcChannel

@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from syrupy import SnapshotAssertion
 
-from roborock.containers import HomeData, S7MaxVStatus, UserData
+from roborock.data import HomeData, S7MaxVStatus, UserData
 from roborock.devices.cache import NoCache
 from roborock.devices.device import RoborockDevice
 from roborock.devices.traits import v1

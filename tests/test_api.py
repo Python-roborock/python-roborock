@@ -16,7 +16,7 @@ from roborock import (
     RoborockDockWashTowelModeCode,
     UserData,
 )
-from roborock.containers import DeviceData, RoomMapping, S7MaxVStatus
+from roborock.data import DeviceData, RoomMapping, S7MaxVStatus
 from roborock.exceptions import RoborockException, RoborockTimeout
 from roborock.protocol import MessageParser
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol

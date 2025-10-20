@@ -8,7 +8,7 @@ this interface to provide their own caching mechanism.
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from roborock.containers import CombinedMapInfo, HomeData, NetworkInfo
+from roborock.data import CombinedMapInfo, HomeData, NetworkInfo
 from roborock.device_features import DeviceFeatures
 
 

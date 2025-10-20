@@ -1,6 +1,6 @@
 from typing import Self
 
-from roborock.containers import HomeDataProduct, ModelStatus, S7MaxVStatus, Status
+from roborock.data import HomeDataProduct, ModelStatus, S7MaxVStatus, Status
 from roborock.devices.traits.v1 import common
 from roborock.roborock_typing import RoborockCommand
 

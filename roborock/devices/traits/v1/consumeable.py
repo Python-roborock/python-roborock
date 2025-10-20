@@ -7,7 +7,7 @@ periodically, such as filters, brushes, etc.
 from enum import StrEnum
 from typing import Self
 
-from roborock.containers import Consumable
+from roborock.data import Consumable
 from roborock.devices.traits.v1 import common
 from roborock.roborock_typing import RoborockCommand
 

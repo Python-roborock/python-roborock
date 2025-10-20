@@ -1,6 +1,6 @@
 """Trait for wash towel mode."""
 
-from roborock.containers import WashTowelMode
+from roborock.data import WashTowelMode
 from roborock.device_features import is_wash_n_fill_dock
 from roborock.devices.traits.v1 import common
 from roborock.roborock_typing import RoborockCommand

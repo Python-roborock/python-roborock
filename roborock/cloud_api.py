@@ -14,7 +14,7 @@ from paho.mqtt.enums import MQTTErrorCode
 from paho.mqtt.reasoncodes import ReasonCode  # type: ignore
 
 from .api import KEEPALIVE, RoborockClient
-from .containers import DeviceData, UserData
+from .data import DeviceData, UserData
 from .exceptions import RoborockException, VacuumError
 from .protocol import (
     Decoder,

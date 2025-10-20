@@ -1,6 +1,6 @@
 from typing import Any
 
-from roborock.containers import HomeDataProduct, RoborockCategory
+from roborock.data import HomeDataProduct, RoborockCategory
 from roborock.devices.a01_channel import send_decoded_command
 from roborock.devices.mqtt_channel import MqttChannel
 from roborock.devices.traits import Trait

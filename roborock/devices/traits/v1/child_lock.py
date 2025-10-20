@@ -1,4 +1,4 @@
-from roborock.containers import ChildLockStatus
+from roborock.data import ChildLockStatus
 from roborock.devices.traits.v1 import common
 from roborock.roborock_typing import RoborockCommand
 

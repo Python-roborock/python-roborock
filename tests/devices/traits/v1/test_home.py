@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from roborock.code_mappings import RoborockStateCode
-from roborock.containers import CombinedMapInfo
+from roborock.data.containers import CombinedMapInfo
+from roborock.data.v1.v1_code_mappings import RoborockStateCode
 from roborock.devices.cache import InMemoryCache
 from roborock.devices.device import RoborockDevice
 from roborock.devices.traits.v1.home import HomeTrait

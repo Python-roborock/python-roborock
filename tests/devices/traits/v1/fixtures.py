@@ -4,8 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from roborock.code_mappings import RoborockDockTypeCode
-from roborock.containers import HomeData, S7MaxVStatus, UserData
+from roborock.data import HomeData, RoborockDockTypeCode, S7MaxVStatus, UserData
 from roborock.devices.cache import Cache, InMemoryCache
 from roborock.devices.device import RoborockDevice
 from roborock.devices.traits import v1

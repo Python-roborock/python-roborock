@@ -6,14 +6,15 @@ from typing import Any
 from syrupy import SnapshotAssertion
 
 from roborock import CleanRecord, CleanSummary, Consumable, DnDTimer, HomeData, S7MaxVStatus, UserData
-from roborock.b01_containers import (
+from roborock.data import RoborockBase, RoborockCategory
+from roborock.data.b01_q7 import (
     B01Fault,
     B01Props,
     SCWindMapping,
     WorkStatusMapping,
 )
-from roborock.code_mappings import (
-    RoborockCategory,
+from roborock.data.v1 import (
+    MultiMapsList,
     RoborockDockErrorCode,
     RoborockDockTypeCode,
     RoborockErrorCode,
@@ -22,7 +23,6 @@ from roborock.code_mappings import (
     RoborockMopModeS7,
     RoborockStateCode,
 )
-from roborock.containers import MultiMapsList, RoborockBase
 
 from .mock_data import (
     CLEAN_RECORD,

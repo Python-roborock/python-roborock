@@ -1,6 +1,6 @@
 from typing import Self
 
-from roborock.containers import CleanSummary
+from roborock.data import CleanSummary
 from roborock.devices.traits.v1 import common
 from roborock.roborock_typing import RoborockCommand
 from roborock.util import unpack_list

@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from roborock.containers import HomeData, UserData
+from roborock.data import HomeData, UserData
 from roborock.devices.cache import CacheData, InMemoryCache
 from roborock.devices.device_manager import create_device_manager, create_home_data_api
 from roborock.exceptions import RoborockException

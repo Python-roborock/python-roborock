@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from .code_mappings import RoborockModeEnum
-from .device_features import DeviceFeatures
+from roborock.device_features import DeviceFeatures
+
+from ..code_mappings import RoborockModeEnum
 
 
 class VacuumModes(RoborockModeEnum):

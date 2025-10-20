@@ -3,7 +3,7 @@
 import logging
 from dataclasses import dataclass
 
-from roborock.containers import HomeData, NamedRoomMapping, RoborockBase
+from roborock.data import HomeData, NamedRoomMapping, RoborockBase
 from roborock.devices.traits.v1 import common
 from roborock.roborock_typing import RoborockCommand
 

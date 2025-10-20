@@ -10,7 +10,7 @@ import logging
 from collections.abc import Callable
 from typing import TypeVar
 
-from roborock.containers import HomeDataDevice, NetworkInfo, RoborockBase, UserData
+from roborock.data import HomeDataDevice, NetworkInfo, RoborockBase, UserData
 from roborock.exceptions import RoborockException
 from roborock.mqtt.session import MqttParams, MqttSession
 from roborock.protocols.v1_protocol import (

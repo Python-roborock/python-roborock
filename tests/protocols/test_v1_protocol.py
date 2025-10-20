@@ -10,7 +10,7 @@ import pytest
 from freezegun import freeze_time
 from syrupy import SnapshotAssertion
 
-from roborock.containers import RoborockBase, UserData
+from roborock.data.containers import RoborockBase, UserData
 from roborock.exceptions import RoborockException
 from roborock.protocol import Utils
 from roborock.protocols.v1_protocol import (

@@ -3,7 +3,7 @@
 import logging
 from typing import Self
 
-from roborock.containers import CleanRecord
+from roborock.data import CleanRecord
 from roborock.devices.traits.v1 import common
 from roborock.roborock_typing import RoborockCommand
 from roborock.util import unpack_list

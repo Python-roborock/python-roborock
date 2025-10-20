@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from vacuum_map_parser_base.map_data import MapData
 
-from roborock.containers import RoborockBase
+from roborock.data import RoborockBase
 from roborock.devices.traits.v1 import common
 from roborock.map.map_parser import MapParser, MapParserConfig
 from roborock.roborock_typing import RoborockCommand

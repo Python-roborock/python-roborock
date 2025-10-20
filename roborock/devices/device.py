@@ -8,7 +8,7 @@ import logging
 from abc import ABC
 from collections.abc import Callable
 
-from roborock.containers import HomeDataDevice, HomeDataProduct
+from roborock.data import HomeDataDevice, HomeDataProduct
 from roborock.roborock_message import RoborockMessage
 
 from .channel import Channel

@@ -1,6 +1,6 @@
 from typing import Self
 
-from roborock import AppInitStatus, RoborockProductNickname
+from roborock.data import AppInitStatus, RoborockProductNickname
 from roborock.device_features import DeviceFeatures
 from roborock.devices.cache import Cache
 from roborock.devices.traits.v1 import common

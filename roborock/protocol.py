@@ -28,7 +28,7 @@ from construct import (  # type: ignore
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 
-from roborock.containers import RRiot
+from roborock.data import RRiot
 from roborock.exceptions import RoborockException
 from roborock.mqtt.session import MqttParams
 from roborock.roborock_message import RoborockMessage

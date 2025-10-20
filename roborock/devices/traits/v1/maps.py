@@ -8,7 +8,7 @@ base container datatypes to add additional fields.
 import logging
 from typing import Self
 
-from roborock.containers import MultiMapsList, MultiMapsListMapInfo
+from roborock.data import MultiMapsList, MultiMapsListMapInfo
 from roborock.devices.traits.v1 import common
 from roborock.roborock_typing import RoborockCommand
 

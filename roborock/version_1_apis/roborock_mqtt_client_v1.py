@@ -7,7 +7,7 @@ from vacuum_map_parser_roborock.map_data_parser import RoborockMapDataParser
 
 from roborock.cloud_api import RoborockMqttClient
 
-from ..containers import DeviceData, UserData
+from ..data import DeviceData, UserData
 from ..exceptions import CommandVacuumError, RoborockException, VacuumError
 from ..protocols.v1_protocol import RequestMessage, create_security_data
 from ..roborock_message import (

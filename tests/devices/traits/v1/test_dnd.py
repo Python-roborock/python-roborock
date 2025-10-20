@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from roborock.containers import DnDTimer
+from roborock.data import DnDTimer
 from roborock.devices.device import RoborockDevice
 from roborock.devices.traits.v1.do_not_disturb import DoNotDisturbTrait
 from roborock.roborock_typing import RoborockCommand

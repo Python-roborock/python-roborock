@@ -12,7 +12,7 @@ import pytest
 from aioresponses import aioresponses
 
 from roborock import HomeData, UserData
-from roborock.containers import DeviceData
+from roborock.data import DeviceData
 from roborock.roborock_message import RoborockMessage
 from roborock.version_1_apis.roborock_local_client_v1 import RoborockLocalClientV1
 from roborock.version_1_apis.roborock_mqtt_client_v1 import RoborockMqttClientV1

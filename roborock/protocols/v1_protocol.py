@@ -13,7 +13,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from roborock.containers import RRiot
+from roborock.data import RRiot
 from roborock.exceptions import RoborockException, RoborockUnsupportedFeature
 from roborock.protocol import Utils
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol

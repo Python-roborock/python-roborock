@@ -4,8 +4,9 @@ from dataclasses import dataclass, field, fields
 from enum import IntEnum, StrEnum
 from typing import Any
 
-from .code_mappings import RoborockDockTypeCode, RoborockProductNickname
-from .containers import RoborockBase
+from roborock.data.code_mappings import RoborockProductNickname
+from roborock.data.containers import RoborockBase
+from roborock.data.v1 import RoborockDockTypeCode
 
 
 class NewFeatureStrBit(IntEnum):

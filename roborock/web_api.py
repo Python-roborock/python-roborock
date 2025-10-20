@@ -14,7 +14,7 @@ import aiohttp
 from aiohttp import ContentTypeError, FormData
 from pyrate_limiter import BucketFullException, Duration, Limiter, Rate
 
-from roborock.containers import HomeData, HomeDataRoom, HomeDataScene, ProductResponse, RRiot, UserData
+from roborock.data import HomeData, HomeDataRoom, HomeDataScene, ProductResponse, RRiot, UserData
 from roborock.exceptions import (
     RoborockAccountDoesNotExist,
     RoborockException,

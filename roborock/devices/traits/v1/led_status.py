@@ -1,4 +1,4 @@
-from roborock.containers import LedStatus
+from roborock.data import LedStatus
 from roborock.devices.traits.v1 import common
 from roborock.roborock_typing import RoborockCommand
 

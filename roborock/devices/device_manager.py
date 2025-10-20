@@ -7,7 +7,7 @@ from collections.abc import Awaitable, Callable
 
 import aiohttp
 
-from roborock.containers import (
+from roborock.data import (
     HomeData,
     HomeDataDevice,
     HomeDataProduct,

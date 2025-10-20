@@ -1,4 +1,4 @@
-from roborock.containers import FlowLedStatus
+from roborock.data import FlowLedStatus
 from roborock.devices.traits.v1 import common
 from roborock.roborock_typing import RoborockCommand
 

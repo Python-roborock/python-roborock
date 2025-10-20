@@ -13,8 +13,8 @@ import asyncio
 import logging
 from typing import Self
 
-from roborock.code_mappings import RoborockStateCode
-from roborock.containers import CombinedMapInfo, RoborockBase
+from roborock.data import CombinedMapInfo, RoborockBase
+from roborock.data.v1.v1_code_mappings import RoborockStateCode
 from roborock.devices.cache import Cache
 from roborock.devices.traits.v1 import common
 from roborock.exceptions import RoborockDeviceBusy, RoborockException

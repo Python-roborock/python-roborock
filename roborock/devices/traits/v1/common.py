@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, fields
 from typing import ClassVar, Self
 
-from roborock.containers import RoborockBase
+from roborock.data import RoborockBase
 from roborock.devices.v1_rpc_channel import V1RpcChannel
 from roborock.roborock_typing import RoborockCommand
 

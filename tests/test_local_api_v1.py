@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from roborock.containers import RoomMapping
+from roborock.data import RoomMapping
 from roborock.exceptions import RoborockException
 from roborock.protocol import MessageParser
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol

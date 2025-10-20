@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from roborock.containers import CleanSummary
+from roborock.data import CleanSummary
 from roborock.devices.device import RoborockDevice
 from roborock.devices.traits.v1.clean_summary import CleanSummaryTrait
 from roborock.exceptions import RoborockException

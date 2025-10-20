@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, call
 
 import pytest
 
-from roborock.code_mappings import RoborockDockTypeCode, RoborockDockWashTowelModeCode
+from roborock.data import RoborockDockTypeCode, RoborockDockWashTowelModeCode
 from roborock.devices.device import RoborockDevice
 from roborock.devices.traits.v1.wash_towel_mode import WashTowelModeTrait
 from roborock.roborock_typing import RoborockCommand

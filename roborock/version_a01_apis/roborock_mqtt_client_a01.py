@@ -7,7 +7,7 @@ from Crypto.Cipher import AES
 from Crypto.Util.Padding import unpad
 
 from roborock.cloud_api import RoborockMqttClient
-from roborock.containers import DeviceData, RoborockCategory, UserData
+from roborock.data import DeviceData, RoborockCategory, UserData
 from roborock.exceptions import RoborockException
 from roborock.protocols.a01_protocol import encode_mqtt_payload
 from roborock.roborock_message import (

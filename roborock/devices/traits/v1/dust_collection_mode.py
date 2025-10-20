@@ -1,6 +1,6 @@
 """Trait for dust collection mode."""
 
-from roborock.containers import DustCollectionMode
+from roborock.data import DustCollectionMode
 from roborock.device_features import is_valid_dock
 from roborock.devices.traits.v1 import common
 from roborock.roborock_typing import RoborockCommand

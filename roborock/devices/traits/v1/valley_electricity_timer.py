@@ -1,4 +1,4 @@
-from roborock.containers import ValleyElectricityTimer
+from roborock.data import ValleyElectricityTimer
 from roborock.devices.traits.v1 import common
 from roborock.roborock_typing import RoborockCommand
 

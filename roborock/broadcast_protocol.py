@@ -19,7 +19,7 @@ from construct import (  # type: ignore
 from Crypto.Cipher import AES
 
 from roborock import RoborockException
-from roborock.containers import BroadcastMessage
+from roborock.data import BroadcastMessage
 from roborock.protocol import EncryptionAdapter, Utils, _Parser
 
 _LOGGER = logging.getLogger(__name__)

@@ -1,6 +1,6 @@
 """Trait for smart wash parameters."""
 
-from roborock.containers import SmartWashParams
+from roborock.data import SmartWashParams
 from roborock.device_features import is_wash_n_fill_dock
 from roborock.devices.traits.v1 import common
 from roborock.roborock_typing import RoborockCommand
