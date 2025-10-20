@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-from roborock.device_features import DeviceFeatures
+import typing
 
 from ..code_mappings import RoborockModeEnum
+
+if typing.TYPE_CHECKING:
+    from roborock.device_features import DeviceFeatures
 
 
 class VacuumModes(RoborockModeEnum):
