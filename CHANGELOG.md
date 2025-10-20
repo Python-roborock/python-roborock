@@ -1,5 +1,40 @@
 # CHANGELOG
 
+<!-- version list -->
+
+## v3.0.0 (2025-10-20)
+
+### Features
+
+- Add data subpackage ([#551](https://github.com/Python-roborock/python-roborock/pull/551),
+  [`c4d3b86`](https://github.com/Python-roborock/python-roborock/commit/c4d3b86e9862847c0dd47add13e70542141ab214))
+
+
+## v2.61.0 (2025-10-19)
+
+### Bug Fixes
+
+- Remove DockSummary and make dust collection mode optional based on dock type
+  ([#550](https://github.com/Python-roborock/python-roborock/pull/550),
+  [`03d0f37`](https://github.com/Python-roborock/python-roborock/commit/03d0f37cfca41ed5943e81b6ac30e061d4f4bd3f))
+
+### Chores
+
+- Fix semantic release using poetry
+  ([#549](https://github.com/Python-roborock/python-roborock/pull/549),
+  [`4bf5396`](https://github.com/Python-roborock/python-roborock/commit/4bf5396ac270e864ed433d96baf1c6c5d613106b))
+
+### Features
+
+- Add clean record and dock related traits
+  ([#550](https://github.com/Python-roborock/python-roborock/pull/550),
+  [`03d0f37`](https://github.com/Python-roborock/python-roborock/commit/03d0f37cfca41ed5943e81b6ac30e061d4f4bd3f))
+
+- Add dock summary and clean record traits
+  ([#550](https://github.com/Python-roborock/python-roborock/pull/550),
+  [`03d0f37`](https://github.com/Python-roborock/python-roborock/commit/03d0f37cfca41ed5943e81b6ac30e061d4f4bd3f))
+
+
 ## v2.60.1 (2025-10-19)
 
 ### Bug Fixes
