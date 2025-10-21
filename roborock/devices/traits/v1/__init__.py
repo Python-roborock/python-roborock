@@ -42,7 +42,6 @@ from roborock.devices.v1_rpc_channel import V1RpcChannel
 from roborock.map.map_parser import MapParserConfig
 
 from .child_lock import ChildLockTrait
-from .clean_record import CleanRecordTrait
 from .clean_summary import CleanSummaryTrait
 from .command import CommandTrait
 from .common import V1TraitMixin
@@ -70,7 +69,6 @@ __all__ = [
     "StatusTrait",
     "DoNotDisturbTrait",
     "CleanSummaryTrait",
-    "CleanRecordTrait",
     "SoundVolumeTrait",
     "MapsTrait",
     "MapContentTrait",
@@ -100,7 +98,6 @@ class PropertiesApi(Trait):
     command: CommandTrait
     dnd: DoNotDisturbTrait
     clean_summary: CleanSummaryTrait
-    clean_record: CleanRecordTrait
     sound_volume: SoundVolumeTrait
     rooms: RoomsTrait
     maps: MapsTrait
@@ -135,8 +132,6 @@ class PropertiesApi(Trait):
         self._cache = cache
 
         self.status = StatusTrait(product)
-        self.clean_summary = CleanSummaryTrait()
-        self.clean_record = CleanRecordTrait(self.clean_summary)
         self.consumables = ConsumableTrait()
         self.rooms = RoomsTrait(home_data)
         self.maps = MapsTrait(self.status)

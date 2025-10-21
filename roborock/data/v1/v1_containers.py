@@ -449,6 +449,12 @@ class CleanRecord(RoborockBase):
         return _attr_repr(self)
 
 
+class CleanSummaryWithDetail(CleanSummary):
+    """CleanSummary with the last CleanRecord included."""
+
+    last_clean_record: CleanRecord | None = None
+
+
 @dataclass
 class Consumable(RoborockBase):
     main_brush_work_time: int | None = None
