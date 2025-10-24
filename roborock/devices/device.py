@@ -133,7 +133,7 @@ REDACT_KEYS = {"duid", "localKey", "mac", "bssid"}
 REDACTED = "**REDACTED**"
 
 
-def _redact_data(data: T) -> T | dict[str, Any] | list[Any]:
+def _redact_data(data: T) -> T | dict[str, Any]:
     """Redact sensitive data in a dict."""
     if not isinstance(data, (Mapping, list)):
         return data
