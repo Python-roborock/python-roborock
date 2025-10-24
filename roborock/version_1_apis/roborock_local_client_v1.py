@@ -3,25 +3,17 @@ import logging
 from asyncio import Lock, TimerHandle, Transport, get_running_loop
 from collections.abc import Callable
 from dataclasses import dataclass
-from enum import StrEnum
 
 from .. import CommandVacuumError, DeviceData, RoborockCommand
 from ..api import RoborockClient
 from ..exceptions import RoborockConnectionException, RoborockException, VacuumError
 from ..protocol import create_local_decoder, create_local_encoder
-from ..protocols.v1_protocol import RequestMessage
+from ..protocols.v1_protocol import LocalProtocolVersion, RequestMessage
 from ..roborock_message import RoborockMessage, RoborockMessageProtocol
 from ..util import RoborockLoggerAdapter, get_next_int
 from .roborock_client_v1 import CLOUD_REQUIRED, RoborockClientV1
 
 _LOGGER = logging.getLogger(__name__)
-
-
-class LocalProtocolVersion(StrEnum):
-    """Supported local protocol versions. Different from vacuum protocol versions."""
-
-    L01 = "L01"
-    V1 = "1.0"
 
 
 @dataclass

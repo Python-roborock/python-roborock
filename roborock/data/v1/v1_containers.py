@@ -578,7 +578,7 @@ class AppInitStatus(RoborockBase):
     new_feature_info_str: str
     new_feature_info_2: int | None = None
     carriage_type: int | None = None
-    dsp_version: int | None = None
+    dsp_version: str | None = None
 
 
 @dataclass

@@ -106,6 +106,7 @@ class RoborockMqttSession(MqttSession):
                     # Reset backoff once we've successfully connected
                     self._backoff = MIN_BACKOFF_INTERVAL
                     self._healthy = True
+                    _LOGGER.info("MQTT Session connected.")
                     if start_future:
                         start_future.set_result(None)
                         start_future = None

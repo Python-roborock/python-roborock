@@ -11,6 +11,7 @@ import struct
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from enum import StrEnum
 from typing import Any
 
 from roborock.data import RRiot
@@ -30,6 +31,13 @@ __all__ = [
 
 CommandType = RoborockCommand | str
 ParamsType = list | dict | int | None
+
+
+class LocalProtocolVersion(StrEnum):
+    """Supported local protocol versions. Different from vacuum protocol versions."""
+
+    L01 = "L01"
+    V1 = "1.0"
 
 
 @dataclass(frozen=True, kw_only=True)
