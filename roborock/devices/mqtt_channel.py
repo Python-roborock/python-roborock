@@ -28,6 +28,7 @@ class MqttChannel(Channel):
         self._local_key = local_key
         self._rriot = rriot
         self._mqtt_params = mqtt_params
+        self._security_data = create_security_data(rriot)
 
         self._decoder = create_mqtt_decoder(local_key)
         self._encoder = create_mqtt_encoder(local_key)

@@ -117,13 +117,13 @@ class RoborockDevice(ABC, TraitsMixin):
 
     def diagnostic_data(self) -> dict[str, Any]:
         """Return diagnostics information about the device."""
-        extra: dict[str, Any]= {}
+        extra: dict[str, Any] = {}
         if self.v1_properties:
             extra["traits"] = _redact_data(self.v1_properties.as_dict())
         return {
-                "device": _redact_data(self.device_info.as_dict()),
-                "product": _redact_data(self.product.as_dict()),
-                **extra,
+            "device": _redact_data(self.device_info.as_dict()),
+            "product": _redact_data(self.product.as_dict()),
+            **extra,
         }
 
 
