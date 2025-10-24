@@ -1,3 +1,4 @@
+from dataclasses import fields
 from typing import Self
 
 from roborock.data import AppInitStatus, RoborockProductNickname
@@ -16,6 +17,10 @@ class DeviceFeaturesTrait(DeviceFeatures, common.V1TraitMixin):
         """Initialize MapContentTrait."""
         self._nickname = product_nickname
         self._cache = cache
+        # All fields of DeviceFeatures are required. Initialize them to False
+        # so we have some known state.
+        for field in fields(self):
+            setattr(self, field.name, False)
 
     async def refresh(self) -> Self:
         """Refresh the contents of this trait.

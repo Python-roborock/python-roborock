@@ -34,7 +34,7 @@ import logging
 from dataclasses import dataclass, field, fields
 from typing import Any, get_args
 
-from roborock.data.containers import HomeData, HomeDataProduct
+from roborock.data.containers import HomeData, HomeDataProduct, RoborockBase
 from roborock.data.v1.v1_code_mappings import RoborockDockTypeCode
 from roborock.devices.cache import Cache
 from roborock.devices.traits import Trait
@@ -246,6 +246,16 @@ class PropertiesApi(Trait):
         cache_data.trait_data[name] = value
         _LOGGER.debug("Updating cached trait data: %s", cache_data.trait_data)
         await self._cache.set(cache_data)
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return the trait data as a dictionary."""
+        result: dict[str, Any] = {}
+        for item in fields(self):
+            trait = getattr(self, item.name, None)
+            if trait is None or not isinstance(trait, RoborockBase):
+                continue
+            result[item.name] = trait.as_dict()
+        return result
 
 
 def create(

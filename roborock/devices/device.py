@@ -6,7 +6,8 @@ until the API is stable.
 
 import logging
 from abc import ABC
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from typing import Any, TypeVar, cast
 
 from roborock.data import HomeDataDevice, HomeDataProduct
 from roborock.roborock_message import RoborockMessage
@@ -113,3 +114,41 @@ class RoborockDevice(ABC, TraitsMixin):
     def _on_message(self, message: RoborockMessage) -> None:
         """Handle incoming messages from the device."""
         _LOGGER.debug("Received message from device: %s", message)
+
+    def diagnostic_data(self) -> dict[str, Any]:
+        """Return diagnostics information about the device."""
+        extra: dict[str, Any]= {}
+        if self.v1_properties:
+            extra["traits"] = _redact_data(self.v1_properties.as_dict())
+        return {
+                "device": _redact_data(self.device_info.as_dict()),
+                "product": _redact_data(self.product.as_dict()),
+                **extra,
+        }
+
+
+T = TypeVar("T")
+
+REDACT_KEYS = {"duid", "localKey", "mac", "bssid"}
+REDACTED = "**REDACTED**"
+
+
+def _redact_data(data: T) -> T | dict[str, Any] | list[Any]:
+    """Redact sensitive data in a dict."""
+    if not isinstance(data, (Mapping, list)):
+        return data
+
+    if isinstance(data, list):
+        return cast(T, [_redact_data(item) for item in data])
+
+    redacted = {**data}
+
+    for key, value in redacted.items():
+        if key in REDACT_KEYS:
+            redacted[key] = REDACTED
+        elif isinstance(value, dict):
+            redacted[key] = _redact_data(value)
+        elif isinstance(value, list):
+            redacted[key] = [_redact_data(item) for item in value]
+
+    return redacted

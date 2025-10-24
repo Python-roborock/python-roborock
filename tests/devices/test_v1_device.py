@@ -135,6 +135,12 @@ def setup_rpc_channel_fixture(rpc_channel: AsyncMock, payload: pathlib.Path) -> 
         (TESTDATA / "get_clean_summary.json", lambda x: x.clean_summary),
         (TESTDATA / "get_volume.json", lambda x: x.sound_volume),
     ],
+    ids=[
+        "status",
+        "dnd",
+        "clean_summary",
+        "volume",
+    ],
 )
 async def test_device_trait_command_parsing(
     device: RoborockDevice,
@@ -151,3 +157,7 @@ async def test_device_trait_command_parsing(
     assert setup_rpc_channel.send_command.called
 
     assert trait == snapshot
+
+    assert device.v1_properties
+    device_dict = device.diagnostic_data()
+    assert device_dict == snapshot

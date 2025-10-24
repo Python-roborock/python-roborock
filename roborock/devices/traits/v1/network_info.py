@@ -29,6 +29,7 @@ class NetworkInfoTrait(NetworkInfo, common.V1TraitMixin):
         """Initialize the trait."""
         self._device_uid = device_uid
         self._cache = cache
+        self.ip = ""
 
     async def refresh(self) -> Self:
         """Refresh the network info from the cache."""
