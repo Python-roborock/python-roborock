@@ -157,7 +157,7 @@ def decode_rpc_response(message: RoborockMessage) -> ResponseMessage:
         exc = RoborockException(error)
     if "result" not in data_point_response:
         exc = RoborockException(f"Invalid V1 message format: missing 'result' in data point for {message.payload!r}")
-        result = None
+        result = {}
     else:
         result = data_point_response["result"]
         _LOGGER.debug("Decoded V1 message result: %s", result)
