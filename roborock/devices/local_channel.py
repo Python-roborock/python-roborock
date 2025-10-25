@@ -16,7 +16,7 @@ from .channel import Channel
 
 _LOGGER = logging.getLogger(__name__)
 _PORT = 58867
-_TIMEOUT = 10.0
+_TIMEOUT = 5.0
 
 
 @dataclass
@@ -114,7 +114,7 @@ class LocalChannel(Channel):
 
     async def _hello(self):
         """Send hello to the device to negotiate protocol."""
-        attempt_versions = [LocalProtocolVersion.V1, LocalProtocolVersion.L01]
+        attempt_versions = [LocalProtocolVersion.L01, LocalProtocolVersion.L01]
         if self._local_protocol_version:
             # Sort to try the preferred version first
             attempt_versions.sort(key=lambda v: v != self._local_protocol_version)
