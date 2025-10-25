@@ -2,6 +2,93 @@
 
 <!-- version list -->
 
+## v3.1.2 (2025-10-25)
+
+### Bug Fixes
+
+- Move semantic release build command
+  ([`8ed178d`](https://github.com/Python-roborock/python-roborock/commit/8ed178d9f75245bde3ffcebbf8ef18e171ba563d))
+
+
+## v3.1.1 (2025-10-25)
+
+### Bug Fixes
+
+- Explicitly pip install uv in release
+  ([`4409ee9`](https://github.com/Python-roborock/python-roborock/commit/4409ee90694e9b3389342692f30fbf3706f2f00c))
+
+### Chores
+
+- Add pre commit step for commitlint
+  ([#563](https://github.com/Python-roborock/python-roborock/pull/563),
+  [`14c811f`](https://github.com/Python-roborock/python-roborock/commit/14c811f30f0bb1f574be59e759aecab5ca61cd65))
+
+
+## v3.1.0 (2025-10-25)
+
+### Bug Fixes
+
+- Fix enum names to include `none` states
+  ([#561](https://github.com/Python-roborock/python-roborock/pull/561),
+  [`82f6dc2`](https://github.com/Python-roborock/python-roborock/commit/82f6dc29d55fd4f8565312af3cf60abf8abba56c))
+
+### Chores
+
+- Add a temp main branch for testing
+  ([#562](https://github.com/Python-roborock/python-roborock/pull/562),
+  [`7592255`](https://github.com/Python-roborock/python-roborock/commit/75922550bad8f5fc4ece1f2f4a6be74ebb3849c2))
+
+- Build system to make sure it doesn't break
+  ([#562](https://github.com/Python-roborock/python-roborock/pull/562),
+  [`7592255`](https://github.com/Python-roborock/python-roborock/commit/75922550bad8f5fc4ece1f2f4a6be74ebb3849c2))
+
+- Fix branches ([#562](https://github.com/Python-roborock/python-roborock/pull/562),
+  [`7592255`](https://github.com/Python-roborock/python-roborock/commit/75922550bad8f5fc4ece1f2f4a6be74ebb3849c2))
+
+- Fix changelog ([#552](https://github.com/Python-roborock/python-roborock/pull/552),
+  [`e2073ed`](https://github.com/Python-roborock/python-roborock/commit/e2073edc655c1a91caae5f05e1377aebfad2938e))
+
+- Fix test release ([#562](https://github.com/Python-roborock/python-roborock/pull/562),
+  [`7592255`](https://github.com/Python-roborock/python-roborock/commit/75922550bad8f5fc4ece1f2f4a6be74ebb3849c2))
+
+- Get uv release to work properly
+  ([#562](https://github.com/Python-roborock/python-roborock/pull/562),
+  [`7592255`](https://github.com/Python-roborock/python-roborock/commit/75922550bad8f5fc4ece1f2f4a6be74ebb3849c2))
+
+- Switch dependabot from pip to uv
+  ([#554](https://github.com/Python-roborock/python-roborock/pull/554),
+  [`9377e9a`](https://github.com/Python-roborock/python-roborock/commit/9377e9ac305f45339b022b5ef8f0c16b58732300))
+
+- Try running a test release on every PR
+  ([#562](https://github.com/Python-roborock/python-roborock/pull/562),
+  [`7592255`](https://github.com/Python-roborock/python-roborock/commit/75922550bad8f5fc4ece1f2f4a6be74ebb3849c2))
+
+- Update snapshot ([#555](https://github.com/Python-roborock/python-roborock/pull/555),
+  [`b45ad3c`](https://github.com/Python-roborock/python-roborock/commit/b45ad3c487b21639a1f2ba148fe69836b11024c4))
+
+- Update spelling from co-pilot suggestion
+  ([#555](https://github.com/Python-roborock/python-roborock/pull/555),
+  [`b45ad3c`](https://github.com/Python-roborock/python-roborock/commit/b45ad3c487b21639a1f2ba148fe69836b11024c4))
+
+- Update test assertion for network info
+  ([#558](https://github.com/Python-roborock/python-roborock/pull/558),
+  [`b34abde`](https://github.com/Python-roborock/python-roborock/commit/b34abde2e3401c463e7fb821bae1cf20a325ec6d))
+
+- **deps**: Bump ruff from 0.14.0 to 0.14.1
+  ([#553](https://github.com/Python-roborock/python-roborock/pull/553),
+  [`df438f7`](https://github.com/Python-roborock/python-roborock/commit/df438f7a293fb0c1f1b3cfaf3691eafaa8a3fd8b))
+
+### Features
+
+- Add a trait for reading NetworkInfo from the device
+  ([#558](https://github.com/Python-roborock/python-roborock/pull/558),
+  [`b34abde`](https://github.com/Python-roborock/python-roborock/commit/b34abde2e3401c463e7fb821bae1cf20a325ec6d))
+
+- Combine the clean record trait with the clean summary
+  ([#555](https://github.com/Python-roborock/python-roborock/pull/555),
+  [`b45ad3c`](https://github.com/Python-roborock/python-roborock/commit/b45ad3c487b21639a1f2ba148fe69836b11024c4))
+
+
 ## v3.0.0 (2025-10-20)
 
 ### Features

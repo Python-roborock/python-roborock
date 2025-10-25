@@ -731,6 +731,16 @@ async def home(ctx, device_id: str, refresh: bool):
         click.echo("No maps discovered")
 
 
+@session.command()
+@click.option("--device_id", required=True)
+@click.pass_context
+@async_command
+async def network_info(ctx, device_id: str):
+    """Get device network information."""
+    context: RoborockContext = ctx.obj
+    await _display_v1_trait(context, device_id, lambda v1: v1.network_info)
+
+
 @click.command()
 @click.option("--device_id", required=True)
 @click.option("--cmd", required=True)
@@ -979,6 +989,7 @@ cli.add_command(child_lock)
 cli.add_command(dnd)
 cli.add_command(flow_led_status)
 cli.add_command(led_status)
+cli.add_command(network_info)
 
 
 def main():

@@ -60,6 +60,7 @@ def device_fixture(
         product=HOME_DATA.products[0],
         channel=channel,
         trait=v1.create(
+            HOME_DATA.devices[0].duid,
             HOME_DATA.products[0],
             HOME_DATA,
             mock_rpc_channel,

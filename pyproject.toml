@@ -1,6 +1,6 @@
 [project]
 name = "python-roborock"
-version = "3.0.0"
+version = "3.1.2"
 description = "A package to control Roborock vacuums."
 authors = [{ name = "humbertogontijo", email = "humbertogontijo@users.noreply.github.com" }, {name="Lash-L"}, {name="allenporter"}]
 requires-python = ">=3.11, <4"
@@ -69,14 +69,17 @@ build-backend = "hatchling.build"
 [tool.semantic_release]
 branch = "main"
 version_toml = ["pyproject.toml:project.version"]
-build_command = """
-    python -m pip install -e '.[build]'
-    uv lock --upgrade-package "$PACKAGE_NAME"
-    git add uv.lock
-    uv build
-"""
+build_command = "pip install uv && uv lock --upgrade-package python-roborock && git add uv.lock && uv build"
 changelog_file = 'CHANGELOG.md'
 commit = true
+
+[tool.semantic_release.branches.main]
+match = "main"
+prerelease = false
+
+[tool.semantic_release.branches.temp-main-branch]
+match = "temp-main-branch"
+prerelease = false
 
 
 [tool.semantic_release.commit_parser_options]

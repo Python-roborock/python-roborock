@@ -207,7 +207,7 @@ class RoborockClientV1(RoborockClient, ABC):
                 records = [CleanRecord.from_dict(rec) for rec in record]
                 final_record = records[-1]
                 try:
-                    # This code is semi-presumptions - so it is put in a try finally to be safe.
+                    # This code is semi-presumptuous - so it is put in a try finally to be safe.
                     final_record.begin = records[0].begin
                     final_record.begin_datetime = records[0].begin_datetime
                     final_record.start_type = records[0].start_type

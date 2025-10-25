@@ -157,6 +157,7 @@ async def create_device_manager(
             case DeviceVersion.V1:
                 channel = create_v1_channel(user_data, mqtt_params, mqtt_session, device, cache)
                 trait = v1.create(
+                    device.duid,
                     product,
                     home_data,
                     channel.rpc_channel,
