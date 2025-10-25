@@ -3,7 +3,7 @@ name = "python-roborock"
 version = "3.3.2"
 description = "A package to control Roborock vacuums."
 authors = [{ name = "humbertogontijo", email = "humbertogontijo@users.noreply.github.com" }, {name="Lash-L"}, {name="allenporter"}]
-requires-python = ">=3.11, <4"
+requires-python = ">=3.12, <4"
 readme = "README.md"
 license = "GPL-3.0-only"
 keywords = [
