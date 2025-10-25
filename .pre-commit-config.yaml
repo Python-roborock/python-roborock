@@ -39,3 +39,9 @@ repos:
             -   id: mypy
                 exclude: cli.py
                 additional_dependencies: [ "types-paho-mqtt" ]
+    -   repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
+        rev: v9.23.0
+        hooks:
+            -   id: commitlint
+                stages: [commit-msg]
+                additional_dependencies: ['@commitlint/config-conventional']
