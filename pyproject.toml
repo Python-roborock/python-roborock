@@ -68,6 +68,7 @@ build-backend = "hatchling.build"
 
 [tool.semantic_release]
 branch = "main"
+branches = ["main", "temp-main-branch"]
 version_toml = ["pyproject.toml:project.version"]
 build_command = """
     uv lock --upgrade-package "$PACKAGE_NAME"
