@@ -32,7 +32,7 @@
       'roomId': 2362003,
       'share': False,
       'silentOtaSwitch': True,
-      'sn': 'abc123',
+      'sn': '**REDACTED**',
       'timeZoneId': 'America/Los_Angeles',
       'tuyaMigrated': False,
     }),
@@ -369,7 +369,7 @@
         'isWorkdayHolidaySupported': False,
       }),
       'network_info': dict({
-        'ip': '',
+        'ip': '**REDACTED**',
       }),
     }),
   })
@@ -407,7 +407,7 @@
       'roomId': 2362003,
       'share': False,
       'silentOtaSwitch': True,
-      'sn': 'abc123',
+      'sn': '**REDACTED**',
       'timeZoneId': 'America/Los_Angeles',
       'tuyaMigrated': False,
     }),
@@ -724,7 +724,7 @@
         'startMinute': 0,
       }),
       'network_info': dict({
-        'ip': '',
+        'ip': '**REDACTED**',
       }),
     }),
   })
@@ -762,7 +762,7 @@
       'roomId': 2362003,
       'share': False,
       'silentOtaSwitch': True,
-      'sn': 'abc123',
+      'sn': '**REDACTED**',
       'timeZoneId': 'America/Los_Angeles',
       'tuyaMigrated': False,
     }),
@@ -1072,7 +1072,7 @@
         'isWorkdayHolidaySupported': False,
       }),
       'network_info': dict({
-        'ip': '',
+        'ip': '**REDACTED**',
       }),
       'status': dict({
         'battery': 100,
@@ -1136,7 +1136,7 @@
       'roomId': 2362003,
       'share': False,
       'silentOtaSwitch': True,
-      'sn': 'abc123',
+      'sn': '**REDACTED**',
       'timeZoneId': 'America/Los_Angeles',
       'tuyaMigrated': False,
     }),
@@ -1446,7 +1446,7 @@
         'isWorkdayHolidaySupported': False,
       }),
       'network_info': dict({
-        'ip': '',
+        'ip': '**REDACTED**',
       }),
       'sound_volume': dict({
         'volume': 90,
