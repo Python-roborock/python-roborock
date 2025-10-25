@@ -129,7 +129,7 @@ class RoborockDevice(ABC, TraitsMixin):
 
 T = TypeVar("T")
 
-REDACT_KEYS = {"duid", "localKey", "mac", "bssid"}
+REDACT_KEYS = {"duid", "localKey", "mac", "bssid", "sn", "ip"}
 REDACTED = "**REDACTED**"
 
 
