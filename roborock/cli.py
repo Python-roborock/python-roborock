@@ -118,7 +118,7 @@ class ConnectionCache(RoborockBase):
     email: str
     home_data: HomeData | None = None
     network_info: dict[str, NetworkInfo] | None = None
-    home_cache: dict[int, CombinedMapInfo] | None = None
+    home_map_info: dict[int, CombinedMapInfo] | None = None
     trait_data: dict[str, Any] | None = None
 
 
@@ -267,7 +267,7 @@ class RoborockContext(Cache):
         return CacheData(
             home_data=connection_cache.home_data,
             network_info=connection_cache.network_info or {},
-            home_cache=connection_cache.home_cache,
+            home_map_info=connection_cache.home_map_info,
             trait_data=connection_cache.trait_data or {},
         )
 
@@ -277,7 +277,7 @@ class RoborockContext(Cache):
         connection_cache = self.cache_data()
         connection_cache.home_data = value.home_data
         connection_cache.network_info = value.network_info
-        connection_cache.home_cache = value.home_cache
+        connection_cache.home_map_info = value.home_map_info
         connection_cache.trait_data = value.trait_data
         self.update(connection_cache)
 
@@ -717,14 +717,14 @@ async def home(ctx, device_id: str, refresh: bool):
         await home_trait.refresh()
 
     # Display the discovered home cache
-    if home_trait.home_cache:
+    if home_trait.home_map_info:
         cache_summary = {
             map_flag: {
                 "name": map_data.name,
                 "room_count": len(map_data.rooms),
                 "rooms": [{"segment_id": room.segment_id, "name": room.name} for room in map_data.rooms],
             }
-            for map_flag, map_data in home_trait.home_cache.items()
+            for map_flag, map_data in home_trait.home_map_info.items()
         }
         click.echo(dump_json(cache_summary))
     else:

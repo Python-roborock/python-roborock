@@ -125,18 +125,18 @@ async def test_discover_home_empty_cache(
     ]
 
     # Before discovery, no cache should exist
-    assert home_trait.home_cache is None
+    assert home_trait.home_map_info is None
     assert home_trait.current_map_data is None
 
     # Perform home discovery
     await home_trait.discover_home()
 
     # Verify cache is populated
-    assert home_trait.home_cache is not None
-    assert len(home_trait.home_cache) == 2
+    assert home_trait.home_map_info is not None
+    assert len(home_trait.home_map_info) == 2
 
     # Check map 0 data
-    map_0_data = home_trait.home_cache[0]
+    map_0_data = home_trait.home_map_info[0]
     assert map_0_data.map_flag == 0
     assert map_0_data.name == "Ground Floor"
     assert len(map_0_data.rooms) == 2
@@ -146,7 +146,7 @@ async def test_discover_home_empty_cache(
     assert map_0_data.rooms[1].name == "Example room 2"
 
     # Check map 123 data
-    map_123_data = home_trait.home_cache[123]
+    map_123_data = home_trait.home_map_info[123]
     assert map_123_data.map_flag == 123
     assert map_123_data.name == "Second Floor"
     assert len(map_123_data.rooms) == 2
@@ -170,7 +170,7 @@ async def test_discover_home_with_existing_cache(
     """Test that discovery is skipped when cache already exists."""
     # Pre-populate the cache
     cache_data = await home_trait._cache.get()
-    cache_data.home_cache = {0: CombinedMapInfo(map_flag=0, name="Dummy", rooms=[])}
+    cache_data.home_map_info = {0: CombinedMapInfo(map_flag=0, name="Dummy", rooms=[])}
     await home_trait._cache.set(cache_data)
 
     # Call discover_home
@@ -181,7 +181,7 @@ async def test_discover_home_with_existing_cache(
     assert mock_mqtt_rpc_channel.send_command.call_count == 0
 
     # Verify cache was loaded from storage
-    assert home_trait.home_cache == {0: CombinedMapInfo(map_flag=0, name="Dummy", rooms=[])}
+    assert home_trait.home_map_info == {0: CombinedMapInfo(map_flag=0, name="Dummy", rooms=[])}
 
 
 async def test_discover_home_no_maps(
@@ -209,9 +209,9 @@ async def test_refresh_updates_current_map_cache(
     # Pre-populate cache with some data
     cache_data = await home_trait._cache.get()
 
-    cache_data.home_cache = {0: CombinedMapInfo(map_flag=0, name="Old Ground Floor", rooms=[])}
+    cache_data.home_map_info = {0: CombinedMapInfo(map_flag=0, name="Old Ground Floor", rooms=[])}
     await home_trait._cache.set(cache_data)
-    home_trait._home_cache = cache_data.home_cache
+    home_trait._home_map_info = cache_data.home_map_info
 
     # Setup mocks for refresh
     mock_rpc_channel.send_command.side_effect = [
@@ -225,7 +225,7 @@ async def test_refresh_updates_current_map_cache(
     await home_trait.refresh()
 
     # Verify cache was updated for current map
-    updated_cache = home_trait.home_cache
+    updated_cache = home_trait.home_map_info
     assert updated_cache is not None
     assert 0 in updated_cache
 
@@ -277,7 +277,7 @@ async def test_current_map_data_property(
     assert current_data.name == "Ground Floor"
 
     # Test when no cache exists
-    home_trait._home_cache = None
+    home_trait._home_map_info = None
     assert home_trait.current_map_data is None
 
 
@@ -333,9 +333,9 @@ async def test_single_map_no_switching(
     await home_trait.discover_home()
 
     # Verify cache is populated
-    assert home_trait.home_cache is not None
-    assert len(home_trait.home_cache) == 1
-    assert 0 in home_trait.home_cache
+    assert home_trait.home_map_info is not None
+    assert len(home_trait.home_map_info) == 1
+    assert 0 in home_trait.home_map_info
 
     # Verify no LOAD_MULTI_MAP commands were sent (no map switching)
     load_map_calls = [

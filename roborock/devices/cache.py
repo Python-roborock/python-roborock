@@ -22,8 +22,8 @@ class CacheData:
     network_info: dict[str, NetworkInfo] = field(default_factory=dict)
     """Network information indexed by device DUID."""
 
-    home_cache: dict[int, CombinedMapInfo] = field(default_factory=dict)
-    """Home cache information indexed by map_flag."""
+    home_map_info: dict[int, CombinedMapInfo] = field(default_factory=dict)
+    """Home map information indexed by map_flag."""
 
     device_features: DeviceFeatures | None = None
     """Device features information."""
