@@ -60,14 +60,13 @@ class LocalChannel(Channel):
         self._local_key = local_key
         self._local_protocol_version: LocalProtocolVersion | None = None
         self._connect_nonce = get_next_int(10000, 32767)
-        self._ack_nonce: int | None = None
+        self._params: LocalChannelParams | None = None
         self._update_encoder_decoder()
 
     def _update_encoder_decoder(self, params: LocalChannelParams | None = None):
         if params is None:
-            params = LocalChannelParams(
-                local_key=self._local_key, connect_nonce=self._connect_nonce, ack_nonce=self._ack_nonce
-            )
+            params = LocalChannelParams(local_key=self._local_key, connect_nonce=self._connect_nonce, ack_nonce=None)
+        self._params = params
         self._encoder = create_local_encoder(
             local_key=params.local_key, connect_nonce=params.connect_nonce, ack_nonce=params.ack_nonce
         )
@@ -91,7 +90,7 @@ class LocalChannel(Channel):
             seq=1,
         )
         try:
-            response = await self.send_message(
+            response = await self._send_message(
                 roborock_message=request,
                 request_id=request.seq,
                 response_protocol=RoborockMessageProtocol.HELLO_RESPONSE,
@@ -123,7 +122,6 @@ class LocalChannel(Channel):
         for version in attempt_versions:
             params = await self._do_hello(version)
             if params is not None:
-                self._ack_nonce = params.ack_nonce
                 self._local_protocol_version = version
                 self._update_encoder_decoder(params)
                 return
@@ -200,7 +198,7 @@ class LocalChannel(Channel):
             logging.exception("Uncaught error sending command")
             raise RoborockException(f"Failed to send message: {message}") from err
 
-    async def send_message(
+    async def _send_message(
         self,
         roborock_message: RoborockMessage,
         request_id: int,
