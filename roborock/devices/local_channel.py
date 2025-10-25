@@ -157,7 +157,7 @@ class LocalChannel(Channel):
         # Perform protocol negotiation
         try:
             await self._hello()
-        except Exception:
+        except RoborockException:
             # If protocol negotiation fails, clean up the connection state
             self.close()
             raise
