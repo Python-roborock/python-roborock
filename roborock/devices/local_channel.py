@@ -57,15 +57,13 @@ class LocalChannel(Channel):
         self._protocol: _LocalProtocol | None = None
         self._subscribers: CallbackList[RoborockMessage] = CallbackList(_LOGGER)
         self._is_connected = False
-        self._local_key = local_key
         self._local_protocol_version: LocalProtocolVersion | None = None
-        self._connect_nonce = get_next_int(10000, 32767)
-        self._params: LocalChannelParams | None = None
-        self._update_encoder_decoder()
+        self._params = LocalChannelParams(local_key=local_key, connect_nonce=get_next_int(10000, 32767), ack_nonce=None)
+        self._update_encoder_decoder(self._params)
 
-    def _update_encoder_decoder(self, params: LocalChannelParams | None = None):
+    def _update_encoder_decoder(self, params: LocalChannelParams):
         if params is None:
-            params = LocalChannelParams(local_key=self._local_key, connect_nonce=self._connect_nonce, ack_nonce=None)
+            params = self._params
         self._params = params
         self._encoder = create_local_encoder(
             local_key=params.local_key, connect_nonce=params.connect_nonce, ack_nonce=params.ack_nonce
@@ -86,7 +84,7 @@ class LocalChannel(Channel):
         request = RoborockMessage(
             protocol=RoborockMessageProtocol.HELLO_REQUEST,
             version=local_protocol_version.encode(),
-            random=self._connect_nonce,
+            random=self._params.connect_nonce,
             seq=1,
         )
         try:
@@ -101,7 +99,7 @@ class LocalChannel(Channel):
                 local_protocol_version,
             )
             return LocalChannelParams(
-                local_key=self._local_key, connect_nonce=self._connect_nonce, ack_nonce=response.random
+                local_key=self._params.local_key, connect_nonce=self._params.connect_nonce, ack_nonce=response.random
             )
         except RoborockException as e:
             _LOGGER.debug(
@@ -114,7 +112,7 @@ class LocalChannel(Channel):
 
     async def _hello(self):
         """Send hello to the device to negotiate protocol."""
-        attempt_versions = [LocalProtocolVersion.L01, LocalProtocolVersion.L01]
+        attempt_versions = [LocalProtocolVersion.V1, LocalProtocolVersion.L01]
         if self._local_protocol_version:
             # Sort to try the preferred version first
             attempt_versions.sort(key=lambda v: v != self._local_protocol_version)

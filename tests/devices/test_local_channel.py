@@ -63,7 +63,9 @@ async def setup_local_channel_with_hello_mock() -> LocalChannel:
 
     async def mock_do_hello(_: LocalProtocolVersion):
         """Mock _do_hello to return successful params without sending actual request."""
-        return LocalChannelParams(local_key=channel._local_key, connect_nonce=channel._connect_nonce, ack_nonce=54321)
+        return LocalChannelParams(
+            local_key=channel._params.local_key, connect_nonce=channel._params.connect_nonce, ack_nonce=54321
+        )
 
     # Replace the _do_hello method
     setattr(channel, "_do_hello", mock_do_hello)
@@ -257,7 +259,7 @@ async def test_hello_fallback_to_l01_protocol(mock_loop: Mock, mock_transport: M
         elif local_protocol_version == LocalProtocolVersion.L01:
             # Second attempt (L01) succeeds
             return LocalChannelParams(
-                local_key=channel._local_key, connect_nonce=channel._connect_nonce, ack_nonce=54321
+                local_key=channel._params.local_key, connect_nonce=channel._params.connect_nonce, ack_nonce=54321
             )
         return None
 
@@ -285,12 +287,12 @@ async def test_hello_success_with_v1_protocol_first(mock_loop: Mock, mock_transp
         if local_protocol_version == LocalProtocolVersion.V1:
             # V1 succeeds on first attempt
             return LocalChannelParams(
-                local_key=channel._local_key, connect_nonce=channel._connect_nonce, ack_nonce=67890
+                local_key=channel._params.local_key, connect_nonce=channel._params.connect_nonce, ack_nonce=67890
             )
         elif local_protocol_version == LocalProtocolVersion.L01:
             # L01 would succeed but we shouldn't reach it
             return LocalChannelParams(
-                local_key=channel._local_key, connect_nonce=channel._connect_nonce, ack_nonce=99999
+                local_key=channel._params.local_key, connect_nonce=channel._params.connect_nonce, ack_nonce=99999
             )
         return None
 
@@ -346,7 +348,7 @@ async def test_hello_preferred_protocol_version_ordering(mock_loop: Mock, mock_t
         if local_protocol_version == LocalProtocolVersion.L01:
             # L01 succeeds
             return LocalChannelParams(
-                local_key=channel._local_key, connect_nonce=channel._connect_nonce, ack_nonce=11111
+                local_key=channel._params.local_key, connect_nonce=channel._params.connect_nonce, ack_nonce=11111
             )
         return None
 
