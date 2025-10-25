@@ -58,8 +58,9 @@ class LocalChannel(Channel):
         self._subscribers: CallbackList[RoborockMessage] = CallbackList(_LOGGER)
         self._is_connected = False
         self._local_protocol_version: LocalProtocolVersion | None = None
-        self._params = LocalChannelParams(local_key=local_key, connect_nonce=get_next_int(10000, 32767), ack_nonce=None)
-        self._update_encoder_decoder(self._params)
+        self._update_encoder_decoder(
+            LocalChannelParams(local_key=local_key, connect_nonce=get_next_int(10000, 32767), ack_nonce=None)
+        )
 
     def _update_encoder_decoder(self, params: LocalChannelParams):
         self._params = params
