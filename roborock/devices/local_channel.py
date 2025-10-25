@@ -62,8 +62,6 @@ class LocalChannel(Channel):
         self._update_encoder_decoder(self._params)
 
     def _update_encoder_decoder(self, params: LocalChannelParams):
-        if params is None:
-            params = self._params
         self._params = params
         self._encoder = create_local_encoder(
             local_key=params.local_key, connect_nonce=params.connect_nonce, ack_nonce=params.ack_nonce
