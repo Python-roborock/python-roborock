@@ -79,7 +79,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           changelog: true
           # Use noop mode to test without making changes
-          root_options: "--noop"
+          no_operation_mode: true
       - name: Test Semantic Release (Dry Run)
         id: test-release-dry
         uses: python-semantic-release/python-semantic-release@v10.4.1
@@ -87,7 +87,10 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           changelog: true
           # Use dry run mode to test without committing
-          root_options: "--no-commit --no-tag --no-push"
+          commit: false
+          tag: false
+          push: false
+          vcs_release: false
   release:
     runs-on: ubuntu-latest
     needs:
