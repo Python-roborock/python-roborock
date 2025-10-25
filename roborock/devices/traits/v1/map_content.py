@@ -23,6 +23,12 @@ class MapContent(RoborockBase):
     map_data: MapData | None = None
     """The parsed map data which contains metadata for points on the map."""
 
+    def __repr__(self) -> str:
+        """Return a string representation of the MapContent."""
+        img = self.image_content
+        if self.image_content and len(self.image_content) > 20:
+            img = f"{self.image_content[:17]}..."
+        return f"MapContent(image_content={img!r}, map_data={self.map_data!r})"
 
 @common.map_rpc_channel
 class MapContentTrait(MapContent, common.V1TraitMixin):
