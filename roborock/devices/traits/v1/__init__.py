@@ -254,7 +254,9 @@ class PropertiesApi(Trait):
             trait = getattr(self, item.name, None)
             if trait is None or not isinstance(trait, RoborockBase):
                 continue
-            result[item.name] = trait.as_dict()
+            data = trait.as_dict()
+            if data:  # Don't omit unset traits
+                result[item.name] = data
         return result
 
 

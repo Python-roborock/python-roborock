@@ -194,8 +194,6 @@
           1734458038,
         ]),
       }),
-      'consumables': dict({
-      }),
       'device_features': dict({
         'isActivateVideoChargingAndStandbySupported': False,
         'isAnalysisSupported': False,
@@ -370,22 +368,8 @@
         'isWifiManageSupported': False,
         'isWorkdayHolidaySupported': False,
       }),
-      'dnd': dict({
-      }),
-      'home': dict({
-      }),
-      'map_content': dict({
-      }),
-      'maps': dict({
-      }),
       'network_info': dict({
         'ip': '',
-      }),
-      'rooms': dict({
-      }),
-      'sound_volume': dict({
-      }),
-      'status': dict({
       }),
     }),
   })
@@ -558,10 +542,6 @@
       ]),
     }),
     'traits': dict({
-      'clean_summary': dict({
-      }),
-      'consumables': dict({
-      }),
       'device_features': dict({
         'isActivateVideoChargingAndStandbySupported': False,
         'isAnalysisSupported': False,
@@ -743,20 +723,8 @@
         'startHour': 22,
         'startMinute': 0,
       }),
-      'home': dict({
-      }),
-      'map_content': dict({
-      }),
-      'maps': dict({
-      }),
       'network_info': dict({
         'ip': '',
-      }),
-      'rooms': dict({
-      }),
-      'sound_volume': dict({
-      }),
-      'status': dict({
       }),
     }),
   })
@@ -929,10 +897,6 @@
       ]),
     }),
     'traits': dict({
-      'clean_summary': dict({
-      }),
-      'consumables': dict({
-      }),
       'device_features': dict({
         'isActivateVideoChargingAndStandbySupported': False,
         'isAnalysisSupported': False,
@@ -1107,20 +1071,8 @@
         'isWifiManageSupported': False,
         'isWorkdayHolidaySupported': False,
       }),
-      'dnd': dict({
-      }),
-      'home': dict({
-      }),
-      'map_content': dict({
-      }),
-      'maps': dict({
-      }),
       'network_info': dict({
         'ip': '',
-      }),
-      'rooms': dict({
-      }),
-      'sound_volume': dict({
       }),
       'status': dict({
         'battery': 100,
@@ -1319,10 +1271,6 @@
       ]),
     }),
     'traits': dict({
-      'clean_summary': dict({
-      }),
-      'consumables': dict({
-      }),
       'device_features': dict({
         'isActivateVideoChargingAndStandbySupported': False,
         'isAnalysisSupported': False,
@@ -1497,23 +1445,11 @@
         'isWifiManageSupported': False,
         'isWorkdayHolidaySupported': False,
       }),
-      'dnd': dict({
-      }),
-      'home': dict({
-      }),
-      'map_content': dict({
-      }),
-      'maps': dict({
-      }),
       'network_info': dict({
         'ip': '',
       }),
-      'rooms': dict({
-      }),
       'sound_volume': dict({
         'volume': 90,
-      }),
-      'status': dict({
       }),
     }),
   })
