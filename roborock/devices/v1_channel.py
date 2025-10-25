@@ -212,7 +212,6 @@ class V1Channel(Channel):
             raise RoborockException(f"Error connecting to local device {self._device_uid}: {e}") from e
         # Wire up the new channel
         self._local_channel = local_channel
-        await self._local_channel.hello()
         self._local_rpc_channel = create_local_rpc_channel(self._local_channel)
         self._local_unsub = await self._local_channel.subscribe(self._on_local_message)
         _LOGGER.info("Successfully connected to local device %s", self._device_uid)

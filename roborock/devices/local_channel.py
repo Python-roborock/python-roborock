@@ -20,6 +20,15 @@ _TIMEOUT = 10.0
 
 
 @dataclass
+class LocalChannelParams:
+    """Parameters for local channel encoder/decoder."""
+
+    local_key: str
+    connect_nonce: int
+    ack_nonce: int | None
+
+
+@dataclass
 class _LocalProtocol(asyncio.Protocol):
     """Callbacks for the Roborock local client transport."""
 
@@ -42,30 +51,34 @@ class LocalChannel(Channel):
     format most parsing to higher-level components.
     """
 
-    def __init__(self, host: str, local_key: str, local_protocol_version: LocalProtocolVersion | None = None):
+    def __init__(self, host: str, local_key: str):
         self._host = host
         self._transport: asyncio.Transport | None = None
         self._protocol: _LocalProtocol | None = None
         self._subscribers: CallbackList[RoborockMessage] = CallbackList(_LOGGER)
         self._is_connected = False
         self._local_key = local_key
-        self._local_protocol_version = local_protocol_version
+        self._local_protocol_version: LocalProtocolVersion | None = None
         self._connect_nonce = get_next_int(10000, 32767)
         self._ack_nonce: int | None = None
         self._update_encoder_decoder()
 
-    def _update_encoder_decoder(self):
+    def _update_encoder_decoder(self, params: LocalChannelParams | None = None):
+        if params is None:
+            params = LocalChannelParams(
+                local_key=self._local_key, connect_nonce=self._connect_nonce, ack_nonce=self._ack_nonce
+            )
         self._encoder = create_local_encoder(
-            local_key=self._local_key, connect_nonce=self._connect_nonce, ack_nonce=self._ack_nonce
+            local_key=params.local_key, connect_nonce=params.connect_nonce, ack_nonce=params.ack_nonce
         )
         self._decoder = create_local_decoder(
-            local_key=self._local_key, connect_nonce=self._connect_nonce, ack_nonce=self._ack_nonce
+            local_key=params.local_key, connect_nonce=params.connect_nonce, ack_nonce=params.ack_nonce
         )
         # Callback to decode messages and dispatch to subscribers
         self._data_received: Callable[[bytes], None] = decoder_callback(self._decoder, self._subscribers, _LOGGER)
 
-    async def _do_hello(self, local_protocol_version: LocalProtocolVersion) -> bool:
-        """Perform the initial handshaking."""
+    async def _do_hello(self, local_protocol_version: LocalProtocolVersion) -> LocalChannelParams | None:
+        """Perform the initial handshaking and return encoder params if successful."""
         _LOGGER.debug(
             "Attempting to use the %s protocol for client %s...",
             local_protocol_version,
@@ -83,16 +96,14 @@ class LocalChannel(Channel):
                 request_id=request.seq,
                 response_protocol=RoborockMessageProtocol.HELLO_RESPONSE,
             )
-            self._ack_nonce = response.random
-            self._local_protocol_version = local_protocol_version
-            self._update_encoder_decoder()
-
             _LOGGER.debug(
                 "Client %s speaks the %s protocol.",
                 self._host,
                 local_protocol_version,
             )
-            return True
+            return LocalChannelParams(
+                local_key=self._local_key, connect_nonce=self._connect_nonce, ack_nonce=response.random
+            )
         except RoborockException as e:
             _LOGGER.debug(
                 "Client %s did not respond or does not speak the %s protocol. %s",
@@ -100,24 +111,24 @@ class LocalChannel(Channel):
                 local_protocol_version,
                 e,
             )
-            return False
+            return None
 
-    async def hello(self):
+    async def _hello(self):
         """Send hello to the device to negotiate protocol."""
+        attempt_versions = [LocalProtocolVersion.V1, LocalProtocolVersion.L01]
         if self._local_protocol_version:
-            # version is forced - try it first, if it fails, try the opposite
-            if not await self._do_hello(self._local_protocol_version):
-                if not await self._do_hello(
-                    LocalProtocolVersion.V1
-                    if self._local_protocol_version is not LocalProtocolVersion.V1
-                    else LocalProtocolVersion.L01
-                ):
-                    raise RoborockException("Failed to connect to device with any known protocol")
-        else:
-            # try 1.0, then L01
-            if not await self._do_hello(LocalProtocolVersion.V1):
-                if not await self._do_hello(LocalProtocolVersion.L01):
-                    raise RoborockException("Failed to connect to device with any known protocol")
+            # Sort to try the preferred version first
+            attempt_versions.sort(key=lambda v: v != self._local_protocol_version)
+
+        for version in attempt_versions:
+            params = await self._do_hello(version)
+            if params is not None:
+                self._ack_nonce = params.ack_nonce
+                self._local_protocol_version = version
+                self._update_encoder_decoder(params)
+                return
+
+        raise RoborockException("Failed to connect to device with any known protocol")
 
     @property
     def is_connected(self) -> bool:
@@ -130,7 +141,7 @@ class LocalChannel(Channel):
         return self._is_connected
 
     async def connect(self) -> None:
-        """Connect to the device."""
+        """Connect to the device and negotiate protocol."""
         if self._is_connected:
             _LOGGER.warning("Already connected")
             return
@@ -142,6 +153,9 @@ class LocalChannel(Channel):
             self._is_connected = True
         except OSError as e:
             raise RoborockConnectionException(f"Failed to connect to {self._host}:{_PORT}") from e
+
+        # Perform protocol negotiation
+        await self._hello()
 
     def close(self) -> None:
         """Disconnect from the device."""
