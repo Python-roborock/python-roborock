@@ -49,10 +49,24 @@ jobs:
       - name: Test with Pytest
         run:  uv run pytest --log-cli-level=DEBUG -vv -s
         shell: bash
+
+  build:
+    name: Build Package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.11"
+          activate-environment: true
+      - name: Build package
+        run: uv build
   release:
     runs-on: ubuntu-latest
     needs:
       - test
+      - build
     concurrency: release
     if: github.ref == 'refs/heads/main'
     permissions:
