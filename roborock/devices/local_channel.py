@@ -155,7 +155,12 @@ class LocalChannel(Channel):
             raise RoborockConnectionException(f"Failed to connect to {self._host}:{_PORT}") from e
 
         # Perform protocol negotiation
-        await self._hello()
+        try:
+            await self._hello()
+        except Exception:
+            # If protocol negotiation fails, clean up the connection state
+            self.close()
+            raise
 
     def close(self) -> None:
         """Disconnect from the device."""
