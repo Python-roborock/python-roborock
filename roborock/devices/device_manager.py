@@ -132,7 +132,7 @@ class UserParams:
     """
 
 
-def _create_web_api_wrapper(
+def create_web_api_wrapper(
     user_params: UserParams,
     *,
     cache: Cache | None = None,
@@ -168,7 +168,7 @@ async def create_device_manager(
     if cache is None:
         cache = NoCache()
 
-    web_api = _create_web_api_wrapper(user_params, session=session, cache=cache)
+    web_api = create_web_api_wrapper(user_params, session=session, cache=cache)
     user_data = user_params.user_data
 
     mqtt_params = create_mqtt_params(user_data.rriot)

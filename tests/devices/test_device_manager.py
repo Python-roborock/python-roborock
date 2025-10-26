@@ -95,7 +95,7 @@ async def test_create_home_data_api_exception() -> None:
     with patch("roborock.devices.device_manager.RoborockApiClient.get_home_data_v3") as mock_get_home_data:
         mock_get_home_data.side_effect = RoborockException("Test exception")
         user_params = UserParams(username="test_user", user_data=USER_DATA)
-        api = _create_web_api_wrapper(user_params)
+        api = create_web_api_wrapper(user_params)
 
         with pytest.raises(RoborockException, match="Test exception"):
             await api.get_home_data()
