@@ -707,3 +707,21 @@ def _get_hawk_authentication(rriot: RRiot, url: str, formdata: dict | None = Non
     )
     mac = base64.b64encode(hmac.new(rriot.h.encode(), prestr.encode(), hashlib.sha256).digest()).decode()
     return f'Hawk id="{rriot.u}",s="{rriot.s}",ts="{timestamp}",nonce="{nonce}",mac="{mac}"'
+
+
+class UserWebApiClient:
+    """Wrapper around RoborockApiClient to provide information for a specific user.
+
+    This binds a RoborockApiClient to a specific user context with the
+    provided UserData. This allows for easier access to user-specific data,
+    to avoid neeting to pass UserData around and mock out the web API.
+    """
+
+    def __init__(self, web_api: RoborockApiClient, user_data: UserData) -> None:
+        """Initialize the wrapper with the API client and user data."""
+        self._web_api = web_api
+        self._user_data = user_data
+
+    async def get_home_data(self) -> HomeData:
+        """Fetch home data using the API client."""
+        return await self._web_api.get_home_data_v3(self._user_data)

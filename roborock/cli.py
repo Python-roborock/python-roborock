@@ -46,7 +46,7 @@ from roborock.data import CombinedMapInfo, DeviceData, HomeData, NetworkInfo, Ro
 from roborock.device_features import DeviceFeatures
 from roborock.devices.cache import Cache, CacheData
 from roborock.devices.device import RoborockDevice
-from roborock.devices.device_manager import DeviceManager, create_device_manager, create_home_data_api
+from roborock.devices.device_manager import DeviceManager, UserParams, create_device_manager
 from roborock.devices.traits import Trait
 from roborock.devices.traits.v1 import V1TraitMixin
 from roborock.devices.traits.v1.consumeable import ConsumableAttribute
@@ -135,8 +135,11 @@ class DeviceConnectionManager:
         """Ensure device manager is initialized."""
         if self.device_manager is None:
             cache_data = self.context.cache_data()
-            home_data_api = create_home_data_api(cache_data.email, cache_data.user_data)
-            self.device_manager = await create_device_manager(cache_data.user_data, home_data_api, self.context)
+            user_params = UserParams(
+                username=cache_data.email,
+                user_data=cache_data.user_data,
+            )
+            self.device_manager = await create_device_manager(user_params, cache=self.context)
             # Cache devices for quick lookup
             devices = await self.device_manager.get_devices()
             self._devices = {device.duid: device for device in devices}

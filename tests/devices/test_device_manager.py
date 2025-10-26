@@ -1,18 +1,19 @@
 """Tests for the DeviceManager class."""
 
-from collections.abc import Generator
+from collections.abc import Generator, Iterator
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
 from roborock.data import HomeData, UserData
-from roborock.devices.cache import CacheData, InMemoryCache
-from roborock.devices.device_manager import create_device_manager, create_home_data_api
+from roborock.devices.cache import InMemoryCache
+from roborock.devices.device_manager import UserParams, create_device_manager, create_web_api_wrapper
 from roborock.exceptions import RoborockException
 
 from .. import mock_data
 
 USER_DATA = UserData.from_dict(mock_data.USER_DATA)
+USER_PARAMS = UserParams(username="test_user", user_data=USER_DATA)
 NETWORK_INFO = mock_data.NETWORK_INFO
 
 
@@ -33,32 +34,40 @@ def channel_fixture() -> Generator[Mock, None, None]:
         yield mock_channel
 
 
-async def home_home_data_no_devices() -> HomeData:
+@pytest.fixture(name="home_data_no_devices")
+def home_data_no_devices_fixture() -> Iterator[HomeData]:
     """Mock home data API that returns no devices."""
-    return HomeData(
-        id=1,
-        name="Test Home",
-        devices=[],
-        products=[],
-    )
+    with patch("roborock.devices.device_manager.UserWebApiClient.get_home_data") as mock_home_data:
+        home_data = HomeData(
+            id=1,
+            name="Test Home",
+            devices=[],
+            products=[],
+        )
+        mock_home_data.return_value = home_data
+        yield home_data
 
 
-async def mock_home_data() -> HomeData:
+@pytest.fixture(name="home_data")
+def home_data_fixture() -> Iterator[HomeData]:
     """Mock home data API that returns devices."""
-    return HomeData.from_dict(mock_data.HOME_DATA_RAW)
+    with patch("roborock.devices.device_manager.UserWebApiClient.get_home_data") as mock_home_data:
+        home_data = HomeData.from_dict(mock_data.HOME_DATA_RAW)
+        mock_home_data.return_value = home_data
+        yield home_data
 
 
-async def test_no_devices() -> None:
+async def test_no_devices(home_data_no_devices: HomeData) -> None:
     """Test the DeviceManager created with no devices returned from the API."""
 
-    device_manager = await create_device_manager(USER_DATA, home_home_data_no_devices)
+    device_manager = await create_device_manager(USER_PARAMS)
     devices = await device_manager.get_devices()
     assert devices == []
 
 
-async def test_with_device() -> None:
+async def test_with_device(home_data: HomeData) -> None:
     """Test the DeviceManager created with devices returned from the API."""
-    device_manager = await create_device_manager(USER_DATA, mock_home_data)
+    device_manager = await create_device_manager(USER_PARAMS)
     devices = await device_manager.get_devices()
     assert len(devices) == 1
     assert devices[0].duid == "abc123"
@@ -72,22 +81,12 @@ async def test_with_device() -> None:
     await device_manager.close()
 
 
-async def test_get_non_existent_device() -> None:
+async def test_get_non_existent_device(home_data: HomeData) -> None:
     """Test getting a non-existent device."""
-    device_manager = await create_device_manager(USER_DATA, mock_home_data)
+    device_manager = await create_device_manager(USER_PARAMS)
     device = await device_manager.get_device("non_existent_duid")
     assert device is None
     await device_manager.close()
-
-
-async def test_home_data_api_exception() -> None:
-    """Test the home data API with an exception."""
-
-    async def home_data_api_exception() -> HomeData:
-        raise RoborockException("Test exception")
-
-    with pytest.raises(RoborockException, match="Test exception"):
-        await create_device_manager(USER_DATA, home_data_api_exception)
 
 
 async def test_create_home_data_api_exception() -> None:
@@ -95,41 +94,36 @@ async def test_create_home_data_api_exception() -> None:
 
     with patch("roborock.devices.device_manager.RoborockApiClient.get_home_data_v3") as mock_get_home_data:
         mock_get_home_data.side_effect = RoborockException("Test exception")
-        api = create_home_data_api(USER_DATA, mock_get_home_data)
+        user_params = UserParams(username="test_user", user_data=USER_DATA)
+        api = _create_web_api_wrapper(user_params)
 
         with pytest.raises(RoborockException, match="Test exception"):
-            await api()
+            await api.get_home_data()
 
 
 async def test_cache_logic() -> None:
     """Test that the cache logic works correctly."""
     call_count = 0
 
-    async def mock_home_data_with_counter() -> HomeData:
+    async def mock_home_data_with_counter(*args, **kwargs) -> HomeData:
         nonlocal call_count
         call_count += 1
         return HomeData.from_dict(mock_data.HOME_DATA_RAW)
 
-    class TestCache:
-        def __init__(self):
-            self._data = CacheData()
-
-        async def get(self) -> CacheData:
-            return self._data
-
-        async def set(self, value: CacheData) -> None:
-            self._data = value
-
     # First call happens during create_device_manager initialization
-    device_manager = await create_device_manager(USER_DATA, mock_home_data_with_counter, cache=InMemoryCache())
-    assert call_count == 1
+    with patch(
+        "roborock.devices.device_manager.RoborockApiClient.get_home_data_v3",
+        side_effect=mock_home_data_with_counter,
+    ):
+        device_manager = await create_device_manager(USER_PARAMS, cache=InMemoryCache())
+        assert call_count == 1
 
-    # Second call should use cache, not increment call_count
-    devices2 = await device_manager.discover_devices()
-    assert call_count == 1  # Should still be 1, not 2
-    assert len(devices2) == 1
+        # Second call should use cache, not increment call_count
+        devices2 = await device_manager.discover_devices()
+        assert call_count == 1  # Should still be 1, not 2
+        assert len(devices2) == 1
 
-    await device_manager.close()
-    assert len(devices2) == 1
+        await device_manager.close()
+        assert len(devices2) == 1
 
-    await device_manager.close()
+        await device_manager.close()

@@ -3,7 +3,8 @@
 import asyncio
 import enum
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
+from dataclasses import dataclass
 
 import aiohttp
 
@@ -18,7 +19,7 @@ from roborock.map.map_parser import MapParserConfig
 from roborock.mqtt.roborock_session import create_lazy_mqtt_session
 from roborock.mqtt.session import MqttSession
 from roborock.protocol import create_mqtt_params
-from roborock.web_api import RoborockApiClient
+from roborock.web_api import RoborockApiClient, UserWebApiClient
 
 from .cache import Cache, NoCache
 from .channel import Channel
@@ -30,12 +31,11 @@ _LOGGER = logging.getLogger(__name__)
 
 __all__ = [
     "create_device_manager",
-    "create_home_data_api",
+    "UserParams",
     "DeviceManager",
 ]
 
 
-HomeDataApi = Callable[[], Awaitable[HomeData]]
 DeviceCreator = Callable[[HomeData, HomeDataDevice, HomeDataProduct], RoborockDevice]
 
 
@@ -53,7 +53,7 @@ class DeviceManager:
 
     def __init__(
         self,
-        home_data_api: HomeDataApi,
+        web_api: UserWebApiClient,
         device_creator: DeviceCreator,
         mqtt_session: MqttSession,
         cache: Cache,
@@ -62,7 +62,7 @@ class DeviceManager:
 
         This takes ownership of the MQTT session and will close it when the manager is closed.
         """
-        self._home_data_api = home_data_api
+        self._web_api = web_api
         self._cache = cache
         self._device_creator = device_creator
         self._devices: dict[str, RoborockDevice] = {}
@@ -73,7 +73,7 @@ class DeviceManager:
         cache_data = await self._cache.get()
         if not cache_data.home_data:
             _LOGGER.debug("No cached home data found, fetching from API")
-            cache_data.home_data = await self._home_data_api()
+            cache_data.home_data = await self._web_api.get_home_data()
             await self._cache.set(cache_data)
         home_data = cache_data.home_data
 
@@ -108,44 +108,68 @@ class DeviceManager:
         await asyncio.gather(*tasks)
 
 
-def create_home_data_api(
-    email: str, user_data: UserData, base_url: str | None = None, session: aiohttp.ClientSession | None = None
-) -> HomeDataApi:
-    """Create a home data API wrapper.
+@dataclass
+class UserParams:
+    """Parameters for creating a new session with Roborock devices.
 
-    This function creates a wrapper around the Roborock API client to fetch
-    home data for the user.
+    These parameters include the username, user data for authentication,
+    and an optional base URL for the Roborock API. The `user_data` and `base_url`
+    parameters are obtained from `RoborockApiClient` during the login process.
     """
-    # Note: This will auto discover the API base URL. This can be improved
-    # by caching this next to `UserData` if needed to avoid unnecessary API calls.
-    client = RoborockApiClient(username=email, base_url=base_url, session=session)
 
-    return create_home_data_from_api_client(client, user_data)
+    username: str
+    """The username (email) used for logging in."""
+
+    user_data: UserData
+    """This is the user data containing authentication information."""
+
+    base_url: str | None = None
+    """Optional base URL for the Roborock API.
+
+    This is used to speed up connection times by avoiding the need to
+    discover the API base URL each time. If not provided, the API client
+    will attempt to discover it automatically which make take multiple requests.
+    """
 
 
-def create_home_data_from_api_client(client: RoborockApiClient, user_data: UserData) -> HomeDataApi:
+def _create_web_api_wrapper(
+    user_params: UserParams,
+    *,
+    cache: Cache | None = None,
+    session: aiohttp.ClientSession | None = None,
+) -> UserWebApiClient:
     """Create a home data API wrapper from an existing API client."""
 
-    async def home_data_api() -> HomeData:
-        return await client.get_home_data_v3(user_data)
+    # Note: This will auto discover the API base URL. This can be improved
+    # by caching this next to `UserData` if needed to avoid unnecessary API calls.
+    client = RoborockApiClient(username=user_params.username, base_url=user_params.base_url, session=session)
 
-    return home_data_api
+    return UserWebApiClient(client, user_params.user_data)
 
 
 async def create_device_manager(
-    user_data: UserData,
-    home_data_api: HomeDataApi,
+    user_params: UserParams,
+    *,
     cache: Cache | None = None,
     map_parser_config: MapParserConfig | None = None,
+    session: aiohttp.ClientSession | None = None,
 ) -> DeviceManager:
     """Convenience function to create and initialize a DeviceManager.
 
-    The Home Data is fetched using the provided home_data_api callable which
-    is exposed this way to allow for swapping out other implementations to
-    include caching or other optimizations.
+    Args:
+        user_params: Parameters for creating the user session.
+        cache: Optional cache implementation to use for caching device data.
+        map_parser_config: Optional configuration for parsing maps.
+        session: Optional aiohttp ClientSession to use for HTTP requests.
+
+    Returns:
+        An initialized DeviceManager with discovered devices.
     """
     if cache is None:
         cache = NoCache()
+
+    web_api = _create_web_api_wrapper(user_params, session=session, cache=cache)
+    user_data = user_params.user_data
 
     mqtt_params = create_mqtt_params(user_data.rriot)
     mqtt_session = await create_lazy_mqtt_session(mqtt_params)
@@ -176,6 +200,6 @@ async def create_device_manager(
                 raise NotImplementedError(f"Device {device.name} has unsupported version {device.pv}")
         return RoborockDevice(device, product, channel, trait)
 
-    manager = DeviceManager(home_data_api, device_creator, mqtt_session=mqtt_session, cache=cache)
+    manager = DeviceManager(web_api, device_creator, mqtt_session=mqtt_session, cache=cache)
     await manager.discover_devices()
     return manager
