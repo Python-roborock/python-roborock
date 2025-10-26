@@ -103,7 +103,7 @@ def maps_trait(device: RoborockDevice) -> MapsTrait:
 
 @pytest.fixture
 def map_content_trait(device: RoborockDevice) -> MapContentTrait:
-    """Create a MapsTrait instance with mocked dependencies."""
+    """Create a MapContentTrait instance with mocked dependencies."""
     assert device.v1_properties
     return device.v1_properties.map_content
 
