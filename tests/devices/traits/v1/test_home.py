@@ -125,7 +125,7 @@ def home_trait(
 
 @pytest.fixture(autouse=True)
 def map_parser_fixture() -> Iterator[None]:
-    """Create a MapContentTrait instance with mocked dependencies."""
+    """Mock MapParser.parse to return predefined test map data."""
 
     def parse_data(response: bytes) -> ParsedMapData:
         if image_content := TEST_PARSER_MAP.get(response):
