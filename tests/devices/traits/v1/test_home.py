@@ -1,7 +1,7 @@
 """Tests for the Home related functionality."""
 
 from collections.abc import Iterator
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -10,10 +10,12 @@ from roborock.data.v1.v1_code_mappings import RoborockStateCode
 from roborock.devices.cache import InMemoryCache
 from roborock.devices.device import RoborockDevice
 from roborock.devices.traits.v1.home import HomeTrait
+from roborock.devices.traits.v1.map_content import MapContentTrait
 from roborock.devices.traits.v1.maps import MapsTrait
 from roborock.devices.traits.v1.rooms import RoomsTrait
 from roborock.devices.traits.v1.status import StatusTrait
 from roborock.exceptions import RoborockDeviceBusy
+from roborock.map.map_parser import ParsedMapData
 from roborock.roborock_typing import RoborockCommand
 from tests import mock_data
 
@@ -52,6 +54,14 @@ UPDATED_STATUS_MAP_0 = {
 UPDATED_STATUS_MAP_123 = {
     **mock_data.STATUS,
     "map_status": 123 * 4 + 3,  # Set current map to 123
+}
+MAP_BYTES_RESPONSE_1 = b"<map bytes 1>"
+MAP_BYTES_RESPONSE_2 = b"<map bytes 2>"
+TEST_IMAGE_CONTENT_1 = b"<image bytes 1>"
+TEST_IMAGE_CONTENT_2 = b"<image bytes 2>"
+TEST_PARSER_MAP = {
+    MAP_BYTES_RESPONSE_1: TEST_IMAGE_CONTENT_1,
+    MAP_BYTES_RESPONSE_2: TEST_IMAGE_CONTENT_2,
 }
 
 
@@ -92,6 +102,13 @@ def maps_trait(device: RoborockDevice) -> MapsTrait:
 
 
 @pytest.fixture
+def map_content_trait(device: RoborockDevice) -> MapContentTrait:
+    """Create a MapsTrait instance with mocked dependencies."""
+    assert device.v1_properties
+    return device.v1_properties.map_content
+
+
+@pytest.fixture
 def rooms_trait(device: RoborockDevice) -> RoomsTrait:
     """Create a RoomsTrait instance with mocked dependencies."""
     assert device.v1_properties
@@ -99,9 +116,27 @@ def rooms_trait(device: RoborockDevice) -> RoomsTrait:
 
 
 @pytest.fixture
-def home_trait(status_trait: StatusTrait, maps_trait: MapsTrait, rooms_trait: RoomsTrait, cache) -> HomeTrait:
+def home_trait(
+    status_trait: StatusTrait, maps_trait: MapsTrait, map_content_trait: MapContentTrait, rooms_trait: RoomsTrait, cache
+) -> HomeTrait:
     """Create a HomeTrait instance with mocked dependencies."""
-    return HomeTrait(status_trait, maps_trait, rooms_trait, cache)
+    return HomeTrait(status_trait, maps_trait, map_content_trait, rooms_trait, cache)
+
+
+@pytest.fixture(autouse=True)
+def map_parser_fixture() -> Iterator[None]:
+    """Create a MapContentTrait instance with mocked dependencies."""
+
+    def parse_data(response: bytes) -> ParsedMapData:
+        if image_content := TEST_PARSER_MAP.get(response):
+            return ParsedMapData(
+                image_content=image_content,
+                map_data=MagicMock(),
+            )
+        raise ValueError(f"Unexpected map bytes {response!r}")
+
+    with patch("roborock.devices.traits.v1.map_content.MapParser.parse", side_effect=parse_data):
+        yield
 
 
 async def test_discover_home_empty_cache(
@@ -109,6 +144,7 @@ async def test_discover_home_empty_cache(
     home_trait: HomeTrait,
     mock_rpc_channel: AsyncMock,
     mock_mqtt_rpc_channel: AsyncMock,
+    mock_map_rpc_channel: AsyncMock,
 ) -> None:
     """Test discovering home when cache is empty."""
     # Setup mocks for the discovery process
@@ -122,6 +158,10 @@ async def test_discover_home_empty_cache(
         MULTI_MAP_LIST_DATA,  # Multi maps list
         {},  # LOAD_MULTI_MAP response for map 123
         {},  # LOAD_MULTI_MAP response back to map 0
+    ]
+    mock_map_rpc_channel.send_command.side_effect = [
+        MAP_BYTES_RESPONSE_2,  # Map bytes for 123
+        MAP_BYTES_RESPONSE_1,  # Map bytes for 0
     ]
 
     # Before discovery, no cache should exist
@@ -145,6 +185,11 @@ async def test_discover_home_empty_cache(
     assert map_0_data.rooms[1].segment_id == 17
     assert map_0_data.rooms[1].name == "Example room 2"
 
+    map_0_content = home_trait.home_map_content[0]
+    assert map_0_content is not None
+    assert map_0_content.image_content == TEST_IMAGE_CONTENT_1
+    assert map_0_content.map_data is not None
+
     # Check map 123 data
     map_123_data = home_trait.home_map_info[123]
     assert map_123_data.map_flag == 123
@@ -154,6 +199,11 @@ async def test_discover_home_empty_cache(
     assert map_123_data.rooms[0].name == "Example room 3"
     assert map_123_data.rooms[1].segment_id == 19
     assert map_123_data.rooms[1].name == "Unknown"  # Not in mock home data
+
+    map_123_content = home_trait.home_map_content[123]
+    assert map_123_content is not None
+    assert map_123_content.image_content == TEST_IMAGE_CONTENT_2
+    assert map_123_content.map_data is not None
 
     # Verify current map data is accessible
     current_map_data = home_trait.current_map_data
@@ -171,6 +221,7 @@ async def test_discover_home_with_existing_cache(
     # Pre-populate the cache
     cache_data = await home_trait._cache.get()
     cache_data.home_map_info = {0: CombinedMapInfo(map_flag=0, name="Dummy", rooms=[])}
+    cache_data.home_map_content = {0: MAP_BYTES_RESPONSE_1}
     await home_trait._cache.set(cache_data)
 
     # Call discover_home
@@ -182,6 +233,12 @@ async def test_discover_home_with_existing_cache(
 
     # Verify cache was loaded from storage
     assert home_trait.home_map_info == {0: CombinedMapInfo(map_flag=0, name="Dummy", rooms=[])}
+    assert home_trait.home_map_content
+    assert home_trait.home_map_content.keys() == {0}
+    map_0_content = home_trait.home_map_content[0]
+    assert map_0_content is not None
+    assert map_0_content.image_content == TEST_IMAGE_CONTENT_1
+    assert map_0_content.map_data is not None
 
 
 async def test_discover_home_no_maps(
@@ -200,18 +257,28 @@ async def test_discover_home_no_maps(
 
 
 async def test_refresh_updates_current_map_cache(
+    cache: InMemoryCache,
     status_trait: StatusTrait,
     home_trait: HomeTrait,
     mock_rpc_channel: AsyncMock,
     mock_mqtt_rpc_channel: AsyncMock,
+    mock_map_rpc_channel: AsyncMock,
 ) -> None:
     """Test that refresh updates the cache for the current map."""
     # Pre-populate cache with some data
-    cache_data = await home_trait._cache.get()
-
+    cache_data = await cache.get()
     cache_data.home_map_info = {0: CombinedMapInfo(map_flag=0, name="Old Ground Floor", rooms=[])}
-    await home_trait._cache.set(cache_data)
-    home_trait._home_map_info = cache_data.home_map_info
+    cache_data.home_map_content = {0: MAP_BYTES_RESPONSE_2}  # Pre-existing different map bytes
+    await cache.set(cache_data)
+    await home_trait.discover_home()  # Load cache into trait
+    # Verify initial cache state
+    assert home_trait.home_map_info
+    assert home_trait.home_map_info.keys() == {0}
+    assert home_trait.home_map_info[0].name == "Old Ground Floor"
+    assert len(home_trait.home_map_info[0].rooms) == 0
+    assert home_trait.home_map_content
+    assert home_trait.home_map_content.keys() == {0}
+    assert home_trait.home_map_content[0].image_content == TEST_IMAGE_CONTENT_2
 
     # Setup mocks for refresh
     mock_rpc_channel.send_command.side_effect = [
@@ -220,18 +287,22 @@ async def test_refresh_updates_current_map_cache(
     mock_mqtt_rpc_channel.send_command.side_effect = [
         MULTI_MAP_LIST_DATA,  # Maps refresh
     ]
+    mock_map_rpc_channel.send_command.side_effect = [
+        MAP_BYTES_RESPONSE_1,  # Map bytes refresh
+    ]
 
     # Perform refresh
     await home_trait.refresh()
 
     # Verify cache was updated for current map
-    updated_cache = home_trait.home_map_info
-    assert updated_cache is not None
-    assert 0 in updated_cache
-
-    map_data = updated_cache[0]
-    assert map_data.name == "Ground Floor"  # Updated from "Old Ground Floor"
-    assert len(map_data.rooms) == 2
+    assert home_trait.home_map_info
+    assert home_trait.home_map_info.keys() == {0}
+    assert home_trait.home_map_info[0].name == "Ground Floor"
+    assert len(home_trait.home_map_info[0].rooms) == 2
+    # Verify map content
+    assert home_trait.home_map_content
+    assert home_trait.home_map_content.keys() == {0}
+    assert home_trait.home_map_content[0].image_content == TEST_IMAGE_CONTENT_1
 
 
 async def test_refresh_no_cache_no_update(
@@ -253,6 +324,7 @@ async def test_current_map_data_property(
     home_trait: HomeTrait,
     mock_rpc_channel: AsyncMock,
     mock_mqtt_rpc_channel: AsyncMock,
+    mock_map_rpc_channel: AsyncMock,
 ) -> None:
     """Test current_map_data property returns correct data."""
     # Setup discovery
@@ -266,6 +338,10 @@ async def test_current_map_data_property(
         MULTI_MAP_LIST_DATA,  # Multi maps list
         {},  # LOAD_MULTI_MAP response for map 123
         {},  # LOAD_MULTI_MAP response back to map 0
+    ]
+    mock_map_rpc_channel.send_command.side_effect = [
+        MAP_BYTES_RESPONSE_2,  # Map bytes for 123
+        MAP_BYTES_RESPONSE_1,  # Map bytes for 0
     ]
 
     await home_trait.discover_home()
@@ -304,6 +380,7 @@ async def test_single_map_no_switching(
     home_trait: HomeTrait,
     mock_rpc_channel: AsyncMock,
     mock_mqtt_rpc_channel: AsyncMock,
+    mock_map_rpc_channel: AsyncMock,
 ) -> None:
     """Test that single map discovery doesn't trigger map switching."""
     single_map_data = [
@@ -329,13 +406,18 @@ async def test_single_map_no_switching(
     mock_mqtt_rpc_channel.send_command.side_effect = [
         single_map_data,  # Single map list
     ]
+    mock_map_rpc_channel.send_command.side_effect = [
+        MAP_BYTES_RESPONSE_1,  # Map bytes for the single map
+    ]
+
 
     await home_trait.discover_home()
 
     # Verify cache is populated
     assert home_trait.home_map_info is not None
-    assert len(home_trait.home_map_info) == 1
-    assert 0 in home_trait.home_map_info
+    assert home_trait.home_map_info.keys() == {0}
+    assert home_trait.home_map_content is not None
+    assert home_trait.home_map_content.keys() == {0}
 
     # Verify no LOAD_MULTI_MAP commands were sent (no map switching)
     load_map_calls = [

@@ -25,6 +25,9 @@ class CacheData:
     home_map_info: dict[int, CombinedMapInfo] = field(default_factory=dict)
     """Home map information indexed by map_flag."""
 
+    home_map_content: dict[int, bytes] = field(default_factory=dict)
+    """Home cache content for each map data indexed by map_flag."""
+
     device_features: DeviceFeatures | None = None
     """Device features information."""
 
