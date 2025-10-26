@@ -714,7 +714,7 @@ class UserWebApiClient:
 
     This binds a RoborockApiClient to a specific user context with the
     provided UserData. This allows for easier access to user-specific data,
-    to avoid neeting to pass UserData around and mock out the web API.
+    to avoid needing to pass UserData around and mock out the web API.
     """
 
     def __init__(self, web_api: RoborockApiClient, user_data: UserData) -> None:

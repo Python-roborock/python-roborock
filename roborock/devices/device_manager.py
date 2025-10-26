@@ -128,7 +128,7 @@ class UserParams:
 
     This is used to speed up connection times by avoiding the need to
     discover the API base URL each time. If not provided, the API client
-    will attempt to discover it automatically which make take multiple requests.
+    will attempt to discover it automatically which may take multiple requests.
     """
 
 
