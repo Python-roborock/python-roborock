@@ -86,7 +86,7 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
                 self._home_map_content = {
                     k: self._map_content.parse_map_content(v) for k, v in cache_data.home_map_content.items()
                 }
-            except RoborockException as ex:
+            except (ValueError, RoborockException) as ex:
                 _LOGGER.warning("Failed to parse cached home map content, will re-discover: %s", ex)
                 self._home_map_content = {}
             else:

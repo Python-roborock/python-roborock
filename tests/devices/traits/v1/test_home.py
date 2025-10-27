@@ -14,7 +14,7 @@ from roborock.devices.traits.v1.map_content import MapContentTrait
 from roborock.devices.traits.v1.maps import MapsTrait
 from roborock.devices.traits.v1.rooms import RoomsTrait
 from roborock.devices.traits.v1.status import StatusTrait
-from roborock.exceptions import RoborockDeviceBusy
+from roborock.exceptions import RoborockDeviceBusy, RoborockException
 from roborock.map.map_parser import ParsedMapData
 from roborock.roborock_typing import RoborockCommand
 from tests import mock_data
@@ -38,6 +38,22 @@ MULTI_MAP_LIST_DATA = [
                 "length": 0,
                 "name": "Second Floor",
                 "bak_maps": [{"mapFlag": 5, "add_time": 1747132946}],
+            },
+        ],
+    }
+]
+MULTI_MAP_LIST_SINGLE_MAP_DATA = [
+    {
+        "max_multi_map": 1,
+        "max_bak_map": 0,
+        "multi_map_count": 1,
+        "map_info": [
+            {
+                "mapFlag": 0,
+                "add_time": 1747132930,
+                "length": 0,
+                "name": "Only Floor",
+                "bak_maps": [],
             },
         ],
     }
@@ -241,6 +257,57 @@ async def test_discover_home_with_existing_cache(
     assert map_0_content.map_data is not None
 
 
+async def test_existing_home_cache_invalid_bytes(
+    home_trait: HomeTrait,
+    mock_rpc_channel: AsyncMock,
+    mock_mqtt_rpc_channel: AsyncMock,
+    mock_map_rpc_channel: AsyncMock,
+) -> None:
+    """Test that discovery is skipped when cache already exists."""
+    # Pre-populate the cache.
+    cache_data = await home_trait._cache.get()
+    cache_data.home_map_info = {0: CombinedMapInfo(map_flag=0, name="Dummy", rooms=[])}
+    # We override the map bytes parser to raise an exception above.
+    cache_data.home_map_content = {0: MAP_BYTES_RESPONSE_1}
+    await home_trait._cache.set(cache_data)
+
+    # Setup mocks for the discovery process
+    mock_rpc_channel.send_command.side_effect = [
+        ROOM_MAPPING_DATA_MAP_0,  # Rooms for the single map
+    ]
+    mock_mqtt_rpc_channel.send_command.side_effect = [
+        MULTI_MAP_LIST_SINGLE_MAP_DATA,  # Single map list
+    ]
+    mock_map_rpc_channel.send_command.side_effect = [
+        MAP_BYTES_RESPONSE_1,  # Map bytes for the single map
+    ]
+
+    # Call discover_home. First attempt raises an exception then loading from the server
+    # produes a valid result.
+    with patch(
+        "roborock.devices.traits.v1.map_content.MapParser.parse",
+        side_effect=[
+            RoborockException("Invalid map bytes"),
+            ParsedMapData(
+                image_content=TEST_IMAGE_CONTENT_2,
+                map_data=MagicMock(),
+            ),
+        ],
+    ):
+        await home_trait.discover_home()
+
+    # Verify cache was loaded from storage. The map was re-fetched from storage.
+    assert home_trait.home_map_info
+    assert home_trait.home_map_info.keys() == {0}
+    assert home_trait.home_map_info[0].name == "Only Floor"
+    assert home_trait.home_map_content
+    assert home_trait.home_map_content.keys() == {0}
+    map_0_content = home_trait.home_map_content[0]
+    assert map_0_content is not None
+    assert map_0_content.image_content == TEST_IMAGE_CONTENT_2
+    assert map_0_content.map_data is not None
+
+
 async def test_discover_home_no_maps(
     home_trait: HomeTrait,
     mock_rpc_channel: AsyncMock,
@@ -311,10 +378,6 @@ async def test_refresh_no_cache_no_update(
     mock_mqtt_rpc_channel: AsyncMock,
 ) -> None:
     """Test that refresh doesn't update when no cache exists."""
-    # Setup mocks for refresh
-    # mock_mqtt_rpc_channel.send_command.side_effect = [
-    #     MULTI_MAP_LIST_DATA,  # Maps refresh
-    # ]
     # Perform refresh without existing cache
     with pytest.raises(Exception, match="Cannot refresh home data without home cache, did you call discover_home()?"):
         await home_trait.refresh()
@@ -383,33 +446,15 @@ async def test_single_map_no_switching(
     mock_map_rpc_channel: AsyncMock,
 ) -> None:
     """Test that single map discovery doesn't trigger map switching."""
-    single_map_data = [
-        {
-            "max_multi_map": 1,
-            "max_bak_map": 0,
-            "multi_map_count": 1,
-            "map_info": [
-                {
-                    "mapFlag": 0,
-                    "add_time": 1747132930,
-                    "length": 0,
-                    "name": "Only Floor",
-                    "bak_maps": [],
-                },
-            ],
-        }
-    ]
-
     mock_rpc_channel.send_command.side_effect = [
         ROOM_MAPPING_DATA_MAP_0,  # Rooms for the single map
     ]
     mock_mqtt_rpc_channel.send_command.side_effect = [
-        single_map_data,  # Single map list
+        MULTI_MAP_LIST_SINGLE_MAP_DATA,  # Single map list
     ]
     mock_map_rpc_channel.send_command.side_effect = [
         MAP_BYTES_RESPONSE_1,  # Map bytes for the single map
     ]
-
 
     await home_trait.discover_home()
 
