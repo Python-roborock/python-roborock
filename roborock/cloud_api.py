@@ -118,7 +118,7 @@ class RoborockMqttClient(RoborockClient, ABC):
         client, __, msg = args
         try:
             messages = self._decoder(msg.payload)
-            super().on_message_received(messages)
+            self.on_message_received(messages)
         except Exception as ex:
             self._logger.exception(ex)
 

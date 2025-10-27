@@ -77,7 +77,7 @@ class RoborockBase:
         """Create an instance of the class from a dictionary."""
         if not isinstance(data, dict):
             return None
-        field_types = {field.name: field.type for field in dataclasses.fields(cls)}
+        field_types: dict[str, type] = {field.name: field.type for field in dataclasses.fields(cls)}
         result: dict[str, Any] = {}
         for orig_key, value in data.items():
             key = _decamelize(orig_key)
