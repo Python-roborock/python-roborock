@@ -158,7 +158,7 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
             home_map_info[map_info.map_flag] = combined_map_info
         return home_map_info, home_map_content
 
-    async def refresh(self) -> Self:
+    async def refresh(self) -> None:
         """Refresh current map's underlying map and room data, updating cache as needed.
 
         This will only refresh the current map's data and will not populate non
@@ -171,7 +171,7 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
             # then we'll fall through below to refresh the current map only.
             try:
                 await self.discover_home()
-                return self
+                return
             except RoborockDeviceBusy:
                 _LOGGER.debug("Cannot refresh home data while device is busy cleaning")
 
@@ -189,7 +189,6 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
         await self._update_current_map(
             map_flag, combined_map_info, new_map_content, update_cache=self._discovery_completed
         )
-        return self
 
     @property
     def home_map_info(self) -> dict[int, CombinedMapInfo] | None:

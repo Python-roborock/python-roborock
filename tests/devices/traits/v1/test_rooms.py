@@ -48,11 +48,11 @@ async def test_refresh_rooms_trait(
     assert not rooms_trait.rooms
 
     # Load the room mapping information
-    refreshed_trait = await rooms_trait.refresh()
+    await rooms_trait.refresh()
 
     # Verify the room mappings are now populated
-    assert refreshed_trait.rooms
-    rooms = refreshed_trait.rooms
+    assert rooms_trait.rooms
+    rooms = rooms_trait.rooms
     assert len(rooms) == 3
 
     assert rooms[0].segment_id == 16
