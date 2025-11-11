@@ -77,7 +77,6 @@ class CleanSummaryTrait(CleanSummaryWithDetail, common.V1TraitMixin):
                 except Exception:
                     # Return final record when an exception occurred
                     return final_record
-
             # There are still a few unknown variables in this.
             begin, end, duration, area = unpack_list(response, 4)
             return CleanRecord(begin=begin, end=end, duration=duration, area=area)
