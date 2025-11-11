@@ -63,15 +63,22 @@ class CleanSummaryTrait(CleanSummaryWithDetail, common.V1TraitMixin):
                 try:
                     # This code is semi-presumptuous - so it is put in a try finally to be safe.
                     final_record.begin = records[0].begin
+                    final_record.begin_datetime = records[0].begin_datetime
                     final_record.start_type = records[0].start_type
                     for rec in records[0:-1]:
                         final_record.duration = (final_record.duration or 0) + (rec.duration or 0)
                         final_record.area = (final_record.area or 0) + (rec.area or 0)
                         final_record.avoid_count = (final_record.avoid_count or 0) + (rec.avoid_count or 0)
                         final_record.wash_count = (final_record.wash_count or 0) + (rec.wash_count or 0)
+                        final_record.square_meter_area = (final_record.square_meter_area or 0) + (
+                            rec.square_meter_area or 0
+                        )
+                    return final_record
                 except Exception:
                     # Return final record when an exception occurred
-                    return final_record  # There are still a few unknown variables in this.
+                    return final_record
+
+            # There are still a few unknown variables in this.
             begin, end, duration, area = unpack_list(response, 4)
             return CleanRecord(begin=begin, end=end, duration=duration, area=area)
         raise ValueError(f"Unexpected clean record format: {response!r}")
