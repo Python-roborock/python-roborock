@@ -126,6 +126,13 @@ class LocalChannel(Channel):
         raise RoborockException("Failed to connect to device with any known protocol")
 
     @property
+    def protocol_version(self) -> LocalProtocolVersion:
+        """Return the negotiated local protocol version, or a sensible default."""
+        if self._local_protocol_version is not None:
+            return self._local_protocol_version
+        return LocalProtocolVersion.V1
+
+    @property
     def is_connected(self) -> bool:
         """Check if the channel is currently connected."""
         return self._is_connected

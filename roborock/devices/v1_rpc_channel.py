@@ -188,7 +188,7 @@ def create_local_rpc_channel(local_channel: LocalChannel) -> V1RpcChannel:
     return PayloadEncodedV1RpcChannel(
         "local",
         local_channel,
-        lambda x: x.encode_message(RoborockMessageProtocol.GENERAL_REQUEST),
+        lambda x: x.encode_message(RoborockMessageProtocol.GENERAL_REQUEST, version=local_channel.protocol_version),
         decode_rpc_response,
     )
 
