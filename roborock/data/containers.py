@@ -140,6 +140,9 @@ class RoborockBaseTimer(RoborockBase):
             else None
         )
 
+    def as_list(self) -> list:
+        return [self.start_hour, self.start_minute, self.end_hour, self.end_minute]
+
     def __repr__(self) -> str:
         return _attr_repr(self)
 

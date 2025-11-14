@@ -17,7 +17,7 @@ class DoNotDisturbTrait(DnDTimer, common.V1TraitMixin, common.RoborockSwitchBase
 
     async def set_dnd_timer(self, dnd_timer: DnDTimer) -> None:
         """Set the Do Not Disturb (DND) timer settings of the device."""
-        await self.rpc_channel.send_command(RoborockCommand.SET_DND_TIMER, params=dnd_timer.as_dict())
+        await self.rpc_channel.send_command(RoborockCommand.SET_DND_TIMER, params=dnd_timer.as_list())
 
     async def clear_dnd_timer(self) -> None:
         """Clear the Do Not Disturb (DND) timer settings of the device."""
@@ -27,12 +27,7 @@ class DoNotDisturbTrait(DnDTimer, common.V1TraitMixin, common.RoborockSwitchBase
         """Set the Do Not Disturb (DND) timer settings of the device."""
         await self.rpc_channel.send_command(
             RoborockCommand.SET_DND_TIMER,
-            params=[
-                self.start_hour,
-                self.start_minute,
-                self.end_hour,
-                self.end_minute,
-            ],
+            params=self.as_list(),
         )
 
     async def disable(self) -> None:
