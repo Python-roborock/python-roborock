@@ -79,13 +79,7 @@ async def test_set_dnd_timer_success(
 
     # Verify the RPC call was made correctly with dataclass converted to dict
 
-    expected_params = {
-        "startHour": 22,
-        "startMinute": 0,
-        "endHour": 8,
-        "endMinute": 0,
-        "enabled": 1,
-    }
+    expected_params = [22, 0, 8, 0]
     mock_rpc_channel.send_command.assert_called_once_with(RoborockCommand.SET_DND_TIMER, params=expected_params)
 
 
