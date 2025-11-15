@@ -51,13 +51,15 @@ class LocalChannel(Channel):
     format most parsing to higher-level components.
     """
 
+    _protocol_cache: dict[str, LocalProtocolVersion] = {}
+
     def __init__(self, host: str, local_key: str):
         self._host = host
         self._transport: asyncio.Transport | None = None
         self._protocol: _LocalProtocol | None = None
         self._subscribers: CallbackList[RoborockMessage] = CallbackList(_LOGGER)
         self._is_connected = False
-        self._local_protocol_version: LocalProtocolVersion | None = None
+        self._local_protocol_version: LocalProtocolVersion | None = self._protocol_cache.get(host)
         self._update_encoder_decoder(
             LocalChannelParams(local_key=local_key, connect_nonce=get_next_int(10000, 32767), ack_nonce=None)
         )
@@ -123,6 +125,7 @@ class LocalChannel(Channel):
             if params is not None:
                 self._local_protocol_version = version
                 self._update_encoder_decoder(params)
+                self._protocol_cache[self._host] = self._local_protocol_version
                 return
 
         raise RoborockException("Failed to connect to device with any known protocol")
