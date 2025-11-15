@@ -69,6 +69,10 @@ you have to find them used.
    * - Roborock Q Revo
      - `Link <https://amzn.to/3Rw9MuB>`__
      - `Link <https://roborock.pxf.io/c/2522604/1705456/14848>`__
+   * - Roborock Saros 10R
+     - `Link <https://www.amzn.com/roborock-Vacuum-Official-Cleaning-Solution/dp/B0DWN69CVG>`__
+     - 
+
 
 
 Roborock has recently added two other categories of devices, handheld vacuums, and washing machines.
