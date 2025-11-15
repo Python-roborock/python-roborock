@@ -72,6 +72,8 @@ class LocalChannel(Channel):
         )
         # Callback to decode messages and dispatch to subscribers
         self._data_received: Callable[[bytes], None] = decoder_callback(self._decoder, self._subscribers, _LOGGER)
+        if self._protocol:
+            self._protocol.messages_cb = self._data_received
 
     async def _do_hello(self, local_protocol_version: LocalProtocolVersion) -> LocalChannelParams | None:
         """Perform the initial handshaking and return encoder params if successful."""
