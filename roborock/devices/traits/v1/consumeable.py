@@ -45,3 +45,4 @@ class ConsumableTrait(Consumable, common.V1TraitMixin):
     async def reset_consumable(self, consumable: ConsumableAttribute) -> None:
         """Reset a specific consumable attribute on the device."""
         await self.rpc_channel.send_command(RoborockCommand.RESET_CONSUMABLE, params=[consumable.value])
+        await self.refresh()

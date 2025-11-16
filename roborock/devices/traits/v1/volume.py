@@ -24,3 +24,4 @@ class SoundVolumeTrait(SoundVolume, common.V1TraitMixin):
     async def set_volume(self, volume: int) -> None:
         """Set the sound volume of the device."""
         await self.rpc_channel.send_command(RoborockCommand.CHANGE_SOUND_VOLUME, params=[volume])
+        self.volume = volume

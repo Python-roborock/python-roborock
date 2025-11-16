@@ -19,7 +19,11 @@ class FlowLedStatusTrait(FlowLedStatus, common.V1TraitMixin, common.RoborockSwit
     async def enable(self) -> None:
         """Enable the Flow LED status."""
         await self.rpc_channel.send_command(RoborockCommand.SET_FLOW_LED_STATUS, params={_STATUS_PARAM: 1})
+        # Optimistic update to avoid an extra refresh
+        self.status = 1
 
     async def disable(self) -> None:
         """Disable the Flow LED status."""
         await self.rpc_channel.send_command(RoborockCommand.SET_FLOW_LED_STATUS, params={_STATUS_PARAM: 0})
+        # Optimistic update to avoid an extra refresh
+        self.status = 0

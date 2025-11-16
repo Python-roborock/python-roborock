@@ -19,10 +19,14 @@ class LedStatusTrait(LedStatus, common.V1TraitMixin, common.RoborockSwitchBase):
     async def enable(self) -> None:
         """Enable the LED status."""
         await self.rpc_channel.send_command(RoborockCommand.SET_LED_STATUS, params=[1])
+        # Optimistic update to avoid an extra refresh
+        self.status = 1
 
     async def disable(self) -> None:
         """Disable the LED status."""
         await self.rpc_channel.send_command(RoborockCommand.SET_LED_STATUS, params=[0])
+        # Optimistic update to avoid an extra refresh
+        self.status = 0
 
     @classmethod
     def _parse_type_response(cls, response: V1ResponseData) -> LedStatus:
