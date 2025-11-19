@@ -281,6 +281,8 @@ async def test_hello_success_with_v1_protocol_first(mock_loop: Mock, mock_transp
 
     # Create a channel without the automatic hello mocking
     channel = LocalChannel(host=TEST_HOST, local_key=TEST_LOCAL_KEY)
+    # Clear cached protocol to ensure V1 is tried first
+    channel._local_protocol_version = None
 
     # Mock _do_hello to succeed for V1 on first attempt
     async def mock_do_hello(local_protocol_version: LocalProtocolVersion) -> LocalChannelParams | None:

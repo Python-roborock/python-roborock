@@ -73,14 +73,17 @@ class RequestMessage:
     request_id: int = field(default_factory=lambda: get_next_int(10000, 32767))
 
     def encode_message(
-        self, protocol: RoborockMessageProtocol, security_data: SecurityData | None = None, version: str = "1.0"
+        self,
+        protocol: RoborockMessageProtocol,
+        security_data: SecurityData | None = None,
+        version: LocalProtocolVersion = LocalProtocolVersion.V1,
     ) -> RoborockMessage:
         """Convert the request message to a RoborockMessage."""
         return RoborockMessage(
             timestamp=self.timestamp,
             protocol=protocol,
             payload=self._as_payload(security_data=security_data),
-            version=version.encode(),
+            version=version.value.encode(),
         )
 
     def _as_payload(self, security_data: SecurityData | None) -> bytes:
