@@ -32,7 +32,7 @@ optional traits:
 
 import logging
 from dataclasses import dataclass, field, fields
-from typing import Any, get_args
+from typing import Any, cast, get_args
 
 from roborock.data.containers import HomeData, HomeDataProduct, RoborockBase
 from roborock.data.v1.v1_code_mappings import RoborockDockTypeCode
@@ -159,7 +159,7 @@ class PropertiesApi(Trait):
                 if (union_args := get_args(item.type)) is None or len(union_args) > 0:
                     continue
                 _LOGGER.debug("Trait '%s' is supported, initializing", item.name)
-                trait = item.type()
+                trait = cast(type, item.type)()
                 setattr(self, item.name, trait)
             # This is a hack to allow setting the rpc_channel on all traits. This is
             # used so we can preserve the dataclass behavior when the values in the
