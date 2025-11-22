@@ -19,10 +19,12 @@ class ValleyElectricityTimerTrait(ValleyElectricityTimer, common.V1TraitMixin, c
     async def set_timer(self, timer: ValleyElectricityTimer) -> None:
         """Set the Valley Electricity Timer settings of the device."""
         await self.rpc_channel.send_command(RoborockCommand.SET_VALLEY_ELECTRICITY_TIMER, params=timer.as_list())
+        await self.refresh()
 
     async def clear_timer(self) -> None:
         """Clear the Valley Electricity Timer settings of the device."""
         await self.rpc_channel.send_command(RoborockCommand.CLOSE_VALLEY_ELECTRICITY_TIMER)
+        await self.refresh()
 
     async def enable(self) -> None:
         """Enable the Valley Electricity Timer settings of the device."""
@@ -30,9 +32,13 @@ class ValleyElectricityTimerTrait(ValleyElectricityTimer, common.V1TraitMixin, c
             RoborockCommand.SET_VALLEY_ELECTRICITY_TIMER,
             params=self.as_list(),
         )
+        # Optimistic update to avoid an extra refresh
+        self.enabled = 1
 
     async def disable(self) -> None:
         """Disable the Valley Electricity Timer settings of the device."""
         await self.rpc_channel.send_command(
             RoborockCommand.CLOSE_VALLEY_ELECTRICITY_TIMER,
         )
+        # Optimistic update to avoid an extra refresh
+        self.enabled = 0

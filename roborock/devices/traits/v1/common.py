@@ -28,8 +28,14 @@ class V1TraitMixin(ABC):
     Each trait subclass must define a class variable `command` that specifies
     the RoborockCommand used to fetch the trait data from the device. The
     `refresh()` method can be called to update the contents of the trait data
-    from the device. A trait can also support additional commands for updating
-    state associated with the trait.
+    from the device.
+
+    A trait can also support additional commands for updating state associated
+    with the trait. It is expected that a trait will update its own internal
+    state either reflecting the change optimistically or by refreshing the
+    trait state from the device. In cases where one trait caches data that is
+    also represented in another trait, it is the responsibility of the caller
+    to ensure that both traits are refreshed as needed to keep them in sync.
 
     The traits typically subclass RoborockBase to provide serialization
     and deserialization functionality, but this is not strictly required.

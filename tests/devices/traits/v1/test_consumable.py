@@ -1,6 +1,6 @@
 """Tests for the DoNotDisturbTrait class."""
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, call
 
 import pytest
 
@@ -60,11 +60,29 @@ async def test_reset_consumable_data(
     reset_param: str,
 ) -> None:
     """Test successfully resetting consumable data."""
+    mock_rpc_channel.send_command.side_effect = [
+        {},  # Response for RESET_CONSUMABLE
+        # Response for GET_CONSUMABLE after reset
+        {
+            "main_brush_work_time": 5555,
+            "side_brush_work_time": 6666,
+            "filter_work_time": 7777,
+            "filter_element_work_time": 8888,
+            "sensor_dirty_time": 9999,
+        },
+    ]
+
     # Call the method
     await consumable_trait.reset_consumable(consumable)
 
     # Verify the RPC call was made correctly with expected parameters
-    mock_rpc_channel.send_command.assert_called_once_with(RoborockCommand.RESET_CONSUMABLE, params=[reset_param])
-
-
-#
+    assert mock_rpc_channel.send_command.mock_calls == [
+        call(RoborockCommand.RESET_CONSUMABLE, params=[reset_param]),
+        call(RoborockCommand.GET_CONSUMABLE),
+    ]
+    # Verify the consumable data was refreshed correctly
+    assert consumable_trait.main_brush_work_time == 5555
+    assert consumable_trait.side_brush_work_time == 6666
+    assert consumable_trait.filter_work_time == 7777
+    assert consumable_trait.filter_element_work_time == 8888
+    assert consumable_trait.sensor_dirty_time == 9999
