@@ -10,8 +10,6 @@ from roborock.exceptions import RoborockConnectionException, RoborockException
 from roborock.protocol import create_local_decoder, create_local_encoder
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 
-
-
 from ..protocols.v1_protocol import LocalProtocolVersion
 from ..util import get_next_int
 from .channel import Channel
@@ -53,7 +51,6 @@ class LocalChannel(Channel):
     format most parsing to higher-level components.
     """
 
-
     def __init__(self, host: str, local_key: str):
         self._host = host
         self._transport: asyncio.Transport | None = None
@@ -67,7 +64,7 @@ class LocalChannel(Channel):
 
     def _update_encoder_decoder(self, params: LocalChannelParams) -> None:
         """Update the encoder and decoder with new parameters.
-        
+
         This is invoked once with an initial set of values used for protocol
         negotiation. Once negotiation completes, it is updated again to set the
         correct nonces for the follow up communications and updates the encoder
