@@ -26,13 +26,31 @@ def setup_mqtt_session() -> Generator[Mock, None, None]:
         yield mock_create_session
 
 
+@pytest.fixture(autouse=True, name="mock_rpc_channel")
+def rpc_channel_fixture() -> AsyncMock:
+    """Fixture to set up the channel for tests."""
+    return AsyncMock()
+
+
 @pytest.fixture(autouse=True)
-def channel_fixture() -> Generator[Mock, None, None]:
+async def discover_features_fixture(
+    mock_rpc_channel: AsyncMock,
+) -> None:
+    """Fixture to handle device feature discovery."""
+    mock_rpc_channel.send_command.side_effect = [
+        [mock_data.APP_GET_INIT_STATUS],
+        mock_data.STATUS,
+    ]
+
+
+@pytest.fixture(autouse=True)
+def channel_fixture(mock_rpc_channel: AsyncMock) -> Generator[Mock, None, None]:
     """Fixture to set up the local session for the tests."""
     with patch("roborock.devices.device_manager.create_v1_channel") as mock_channel:
         mock_unsub = Mock()
         mock_channel.return_value.subscribe = AsyncMock()
         mock_channel.return_value.subscribe.return_value = mock_unsub
+        mock_channel.return_value.rpc_channel = mock_rpc_channel
         yield mock_channel
 
 
@@ -48,11 +66,12 @@ def mock_sleep() -> Generator[None, None, None]:
 
 
 @pytest.fixture(name="channel_failure")
-def channel_failure_fixture() -> Generator[Mock, None, None]:
+def channel_failure_fixture(mock_rpc_channel: AsyncMock) -> Generator[Mock, None, None]:
     """Fixture that makes channel subscribe fail."""
     with patch("roborock.devices.device_manager.create_v1_channel") as mock_channel:
         mock_channel.return_value.subscribe = AsyncMock(side_effect=RoborockException("Connection failed"))
         mock_channel.return_value.is_connected = False
+        mock_channel.return_value.rpc_channel = mock_rpc_channel
         yield mock_channel
 
 

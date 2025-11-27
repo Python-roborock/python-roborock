@@ -143,8 +143,15 @@ class RoborockDevice(ABC, TraitsMixin):
         """Connect to the device using the appropriate protocol channel."""
         if self._unsub:
             raise ValueError("Already connected to the device")
-        self._unsub = await self._channel.subscribe(self._on_message)
+        unsub = await self._channel.subscribe(self._on_message)
         _LOGGER.info("Connected to V1 device %s", self.name)
+        if self.v1_properties is not None:
+            try:
+                await self.v1_properties.discover_features()
+            except RoborockException:
+                unsub()
+                raise
+        self._unsub = unsub
 
     async def close(self) -> None:
         """Close all connections to the device."""

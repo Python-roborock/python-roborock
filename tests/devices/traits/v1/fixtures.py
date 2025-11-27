@@ -91,11 +91,7 @@ async def discover_features_fixture(
     mock_rpc_channel: AsyncMock,
     dock_type_code: RoborockDockTypeCode | None,
 ) -> None:
-    """Fixture to set up the clean summary for tests.
-
-    The CleanRecordTrait depends on the CleanSummaryTrait, so we need to
-    prepare that first.
-    """
+    """Fixture to handle device feature discovery."""
     assert device.v1_properties
     mock_rpc_channel.send_command.side_effect = [
         [mock_data.APP_GET_INIT_STATUS],
@@ -104,6 +100,7 @@ async def discover_features_fixture(
             "dock_type": dock_type_code,
         },
     ]
-    await device.v1_properties.discover_features()
+    # Connecting triggers device discovery
+    await device.connect()
     assert device.v1_properties.status.dock_type == dock_type_code
     mock_rpc_channel.send_command.reset_mock()

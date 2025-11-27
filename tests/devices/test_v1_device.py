@@ -2,6 +2,7 @@
 
 import pathlib
 from collections.abc import Callable
+from typing import Any
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -68,7 +69,7 @@ def device_fixture(channel: AsyncMock, rpc_channel: AsyncMock, mqtt_rpc_channel:
     )
 
 
-async def test_device_connection(device: RoborockDevice, channel: AsyncMock) -> None:
+async def test_device_connection(device: RoborockDevice, channel: AsyncMock, setup_rpc_channel: AsyncMock) -> None:
     """Test the Device connection setup."""
 
     unsub = Mock()
@@ -111,30 +112,46 @@ async def test_connection_status(
     assert device.is_local_connected is local_connected
 
 
+@pytest.fixture(name="payloads")
+def payloads_fixture() -> list[pathlib.Path]:
+    """Fixture to provide the payload for the tests."""
+    return []
+
+
 @pytest.fixture(name="setup_rpc_channel")
-def setup_rpc_channel_fixture(rpc_channel: AsyncMock, payload: pathlib.Path) -> AsyncMock:
+def setup_rpc_channel_fixture(rpc_channel: AsyncMock, payloads: list[pathlib.Path]) -> AsyncMock:
     """Fixture to set up the RPC channel for the tests."""
-    # The values other than the payload are arbitrary
-    message = RoborockMessage(
-        protocol=RoborockMessageProtocol.GENERAL_RESPONSE,
-        payload=payload.read_bytes(),
-        seq=12750,
-        version=b"1.0",
-        random=97431,
-        timestamp=1652547161,
-    )
-    response_message = decode_rpc_response(message)
-    rpc_channel.send_command.return_value = response_message.data
+    # Device discovery calls
+    side_effects: list[dict[str, Any] | list[Any] | int] = [
+        [mock_data.APP_GET_INIT_STATUS],
+        mock_data.STATUS,
+    ]
+
+    # Subsequent calls return the data payloads setup by the test.
+    for payload in payloads:
+        # The values other than the payload are arbitrary
+        message = RoborockMessage(
+            protocol=RoborockMessageProtocol.GENERAL_RESPONSE,
+            payload=payload.read_bytes(),
+            seq=12750,
+            version=b"1.0",
+            random=97431,
+            timestamp=1652547161,
+        )
+        response_message = decode_rpc_response(message)
+        side_effects.append(response_message.data)
+
+    rpc_channel.send_command.side_effect = side_effects
     return rpc_channel
 
 
 @pytest.mark.parametrize(
-    ("payload", "property_method"),
+    ("payloads", "property_method"),
     [
-        (TESTDATA / "get_status.json", lambda x: x.status),
-        (TESTDATA / "get_dnd.json", lambda x: x.dnd),
-        (TESTDATA / "get_clean_summary.json", lambda x: x.clean_summary),
-        (TESTDATA / "get_volume.json", lambda x: x.sound_volume),
+        ([TESTDATA / "get_status.json"], lambda x: x.status),
+        ([TESTDATA / "get_dnd.json"], lambda x: x.dnd),
+        ([TESTDATA / "get_clean_summary.json", TESTDATA / "get_last_clean_record.json"], lambda x: x.clean_summary),
+        ([TESTDATA / "get_volume.json"], lambda x: x.sound_volume),
     ],
     ids=[
         "status",
@@ -148,9 +165,10 @@ async def test_device_trait_command_parsing(
     setup_rpc_channel: AsyncMock,
     snapshot: SnapshotAssertion,
     property_method: Callable[..., V1TraitMixin],
-    payload: str,
 ) -> None:
     """Test the device trait command."""
+    await device.connect()
+
     trait = property_method(device.v1_properties)
     assert trait
     assert isinstance(trait, V1TraitMixin)

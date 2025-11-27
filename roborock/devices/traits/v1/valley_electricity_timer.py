@@ -9,7 +9,8 @@ class ValleyElectricityTimerTrait(ValleyElectricityTimer, common.V1TraitMixin, c
     """Trait for managing Valley Electricity Timer settings on Roborock devices."""
 
     command = RoborockCommand.GET_VALLEY_ELECTRICITY_TIMER
-    requires_feature = "is_supported_valley_electricity"
+    # This flag does not yet appear to be accurate
+    # requires_feature = "is_supported_valley_electricity"
 
     @property
     def is_on(self) -> bool:

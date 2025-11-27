@@ -9,7 +9,8 @@ class ChildLockTrait(ChildLockStatus, common.V1TraitMixin, common.RoborockSwitch
     """Trait for controlling the child lock of a Roborock device."""
 
     command = RoborockCommand.GET_CHILD_LOCK_STATUS
-    requires_feature = "is_set_child_supported"
+    # This flag does not yet appear to be accurate
+    # requires_feature = "is_set_child_supported"
 
     @property
     def is_on(self) -> bool:
