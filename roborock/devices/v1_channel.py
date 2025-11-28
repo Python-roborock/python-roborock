@@ -181,14 +181,20 @@ class V1Channel(Channel):
         This is a cloud only command used to get the local device's IP address.
         """
         cache_data = await self._cache.get()
-        if use_cache and cache_data.network_info and (network_info := cache_data.network_info.get(self._device_uid)):
+        cached_info = cache_data.network_info.get(self._device_uid) if cache_data.network_info else None
+        if use_cache and cached_info:
             _LOGGER.debug("Using cached network info for device %s", self._device_uid)
-            return network_info
+            return cached_info
         try:
             network_info = await self._mqtt_rpc_channel.send_command(
                 RoborockCommand.GET_NETWORK_INFO, response_type=NetworkInfo
             )
         except RoborockException as e:
+            if cached_info:
+                _LOGGER.warning(
+                    "Failed to refresh network info for device %s, falling back to cache: %s", self._device_uid, e
+                )
+                return cached_info
             raise RoborockException(f"Network info failed for device {self._device_uid}") from e
         _LOGGER.debug("Network info for device %s: %s", self._device_uid, network_info)
         self._last_network_info_refresh = datetime.datetime.now(datetime.UTC)
