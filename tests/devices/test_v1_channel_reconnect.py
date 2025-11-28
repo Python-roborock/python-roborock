@@ -1,15 +1,12 @@
-
-import asyncio
 import datetime
-import logging
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
 from roborock.data import NetworkInfo
 from roborock.devices.cache import CacheData, InMemoryCache
 from roborock.devices.local_channel import LocalSession
-from roborock.devices.v1_channel import V1Channel, NETWORK_INFO_REFRESH_INTERVAL
+from roborock.devices.v1_channel import NETWORK_INFO_REFRESH_INTERVAL, V1Channel
 from roborock.exceptions import RoborockException
 from roborock.protocols.v1_protocol import SecurityData
 
@@ -18,6 +15,7 @@ from ..conftest import FakeChannel
 TEST_DEVICE_UID = "abc123"
 TEST_SECURITY_DATA = SecurityData(endpoint="test_endpoint", nonce=b"test_nonce")
 TEST_IP = "192.168.1.100"
+
 
 @pytest.fixture(name="mock_mqtt_channel")
 async def setup_mock_mqtt_channel() -> FakeChannel:
@@ -28,11 +26,13 @@ async def setup_mock_mqtt_channel() -> FakeChannel:
     channel.send_command = AsyncMock(side_effect=RoborockException("MQTT Failed"))
     return channel
 
+
 @pytest.fixture(name="mock_local_channel")
 async def setup_mock_local_channel() -> FakeChannel:
     """Mock Local channel for testing."""
     channel = FakeChannel()
     return channel
+
 
 @pytest.fixture(name="mock_local_session")
 def setup_mock_local_session(mock_local_channel: Mock) -> Mock:
@@ -40,6 +40,7 @@ def setup_mock_local_session(mock_local_channel: Mock) -> Mock:
     mock_session = Mock(spec=LocalSession)
     mock_session.return_value = mock_local_channel
     return mock_session
+
 
 @pytest.mark.asyncio
 async def test_v1_channel_reconnect_with_stale_cache_and_mqtt_down(
@@ -67,7 +68,9 @@ async def test_v1_channel_reconnect_with_stale_cache_and_mqtt_down(
     )
 
     # Manually set the last refresh to be old to simulate stale cache
-    v1_channel._last_network_info_refresh = datetime.datetime.now(datetime.UTC) - (NETWORK_INFO_REFRESH_INTERVAL + datetime.timedelta(hours=1))
+    # Break long line
+    last_refresh = datetime.datetime.now(datetime.UTC) - (NETWORK_INFO_REFRESH_INTERVAL + datetime.timedelta(hours=1))
+    v1_channel._last_network_info_refresh = last_refresh
 
     # 2. Mock MQTT RPC channel to fail
     # V1Channel creates _mqtt_rpc_channel in __init__. We need to mock its send_command.
