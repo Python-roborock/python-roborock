@@ -86,12 +86,13 @@ class RoborockMqttSession(MqttSession):
     async def close(self) -> None:
         """Cancels the MQTT loop and shutdown the client library."""
         self._stop = True
-        if self._reconnect_task:
-            self._reconnect_task.cancel()
-            try:
-                await self._reconnect_task
-            except asyncio.CancelledError:
-                pass
+        tasks = [task for task in [self._connection_task, self._reconnect_task] if task]
+        for task in tasks:
+            task.cancel()
+        try:
+            await asyncio.gather(*tasks)
+        except asyncio.CancelledError:
+            pass
 
         self._healthy = False
 
