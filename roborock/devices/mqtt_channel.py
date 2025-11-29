@@ -82,6 +82,10 @@ class MqttChannel(Channel):
             _LOGGER.exception("Error publishing MQTT message: %s", e)
             raise RoborockException(f"Failed to publish MQTT message: {e}") from e
 
+    async def restart(self) -> None:
+        """Restart the underlying MQTT session."""
+        await self._mqtt_session.restart()
+
 
 def create_mqtt_channel(
     user_data: UserData, mqtt_params: MqttParams, mqtt_session: MqttSession, device: HomeDataDevice

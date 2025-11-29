@@ -55,6 +55,10 @@ class MqttSession(ABC):
         """
 
     @abstractmethod
+    async def restart(self) -> None:
+        """Force the session to disconnect and reconnect."""
+
+    @abstractmethod
     async def close(self) -> None:
         """Cancels the mqtt loop"""
 

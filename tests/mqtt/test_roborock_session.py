@@ -1,7 +1,8 @@
 """Tests for the MQTT session module."""
 
 import asyncio
-from collections.abc import AsyncGenerator, Callable
+import datetime
+from collections.abc import AsyncGenerator, Callable, Generator
 from queue import Queue
 from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
@@ -70,6 +71,13 @@ async def mock_client_fixture() -> AsyncGenerator[None, None]:
         yield
         if task:
             task.cancel()
+
+
+@pytest.fixture(autouse=True)
+def fast_backoff_fixture() -> Generator[None, None, None]:
+    """Fixture to make backoff intervals fast."""
+    with patch("roborock.mqtt.roborock_session.MIN_BACKOFF_INTERVAL", datetime.timedelta(seconds=0.01)):
+        yield
 
 
 @pytest.fixture
@@ -205,6 +213,8 @@ async def test_publish_failure() -> None:
         with pytest.raises(MqttSessionException, match="Error publishing message"):
             await session.publish("topic-1", message=b"payload")
 
+        await session.close()
+
 
 async def test_subscribe_failure() -> None:
     """Test an MQTT error while subscribing."""
@@ -231,3 +241,41 @@ async def test_subscribe_failure() -> None:
 
         assert not subscriber1.messages
         await session.close()
+
+
+async def test_restart(push_response: Callable[[bytes], None]) -> None:
+    """Test restarting the MQTT session."""
+
+    push_response(mqtt_packet.gen_connack(rc=0, flags=2))
+    session = await create_mqtt_session(FAKE_PARAMS)
+    assert session.connected
+
+    # Subscribe to a topic
+    push_response(mqtt_packet.gen_suback(mid=1))
+    subscriber = Subscriber()
+    await session.subscribe("topic-1", subscriber.append)
+
+    # Verify we can receive messages
+    push_response(mqtt_packet.gen_publish("topic-1", mid=2, payload=b"12345"))
+    await subscriber.wait()
+    assert subscriber.messages == [b"12345"]
+
+    # Restart the session.
+    await session.restart()
+    # This is a hack where we grab on to the client and wait for it to be
+    # closed properly and restarted.
+    while session._client:  # type: ignore[attr-defined]
+        await asyncio.sleep(0.01)
+
+    # We need to queue up a new connack for the reconnection
+    push_response(mqtt_packet.gen_connack(rc=0, flags=2))
+
+    # And a suback for the resubscription. Since we created a new client,
+    # the message ID resets to 1.
+    push_response(mqtt_packet.gen_suback(mid=1))
+
+    push_response(mqtt_packet.gen_publish("topic-1", mid=4, payload=b"67890"))
+    await subscriber.wait()
+    assert subscriber.messages == [b"12345", b"67890"]
+
+    await session.close()

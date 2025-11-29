@@ -49,13 +49,14 @@ class RoborockMqttSession(MqttSession):
 
     def __init__(self, params: MqttParams):
         self._params = params
-        self._background_task: asyncio.Task[None] | None = None
+        self._reconnect_task: asyncio.Task[None] | None = None
         self._healthy = False
         self._stop = False
         self._backoff = MIN_BACKOFF_INTERVAL
         self._client: aiomqtt.Client | None = None
         self._client_lock = asyncio.Lock()
         self._listeners: CallbackMap[str, bytes] = CallbackMap(_LOGGER)
+        self._connection_task: asyncio.Task[None] | None = None
 
     @property
     def connected(self) -> bool:
@@ -72,7 +73,7 @@ class RoborockMqttSession(MqttSession):
         """
         start_future: asyncio.Future[None] = asyncio.Future()
         loop = asyncio.get_event_loop()
-        self._background_task = loop.create_task(self._run_task(start_future))
+        self._reconnect_task = loop.create_task(self._run_reconnect_loop(start_future))
         try:
             await start_future
         except MqttError as err:
@@ -85,59 +86,43 @@ class RoborockMqttSession(MqttSession):
     async def close(self) -> None:
         """Cancels the MQTT loop and shutdown the client library."""
         self._stop = True
-        if self._background_task:
-            self._background_task.cancel()
+        if self._reconnect_task:
+            self._reconnect_task.cancel()
             try:
-                await self._background_task
+                await self._reconnect_task
             except asyncio.CancelledError:
                 pass
-        async with self._client_lock:
-            if self._client:
-                await self._client.close()
 
         self._healthy = False
 
-    async def _run_task(self, start_future: asyncio.Future[None] | None) -> None:
+    async def restart(self) -> None:
+        """Force the session to disconnect and reconnect.
+
+        The active connection task will be cancelled and restarted in the background, retried by
+        the reconnect loop. This is a no-op if there is no active connection.
+        """
+        _LOGGER.info("Forcing MQTT session restart")
+        if self._connection_task:
+            self._connection_task.cancel()
+        else:
+            _LOGGER.debug("No message loop task to cancel")
+
+    async def _run_reconnect_loop(self, start_future: asyncio.Future[None] | None) -> None:
         """Run the MQTT loop."""
         _LOGGER.info("Starting MQTT session")
         while True:
             try:
-                async with self._mqtt_client(self._params) as client:
-                    # Reset backoff once we've successfully connected
-                    self._backoff = MIN_BACKOFF_INTERVAL
-                    self._healthy = True
-                    _LOGGER.info("MQTT Session connected.")
-                    if start_future:
-                        start_future.set_result(None)
-                        start_future = None
-
-                    await self._process_message_loop(client)
-
-            except MqttError as err:
-                if start_future:
-                    _LOGGER.info("MQTT error starting session: %s", err)
-                    start_future.set_exception(err)
+                self._connection_task = asyncio.create_task(self._run_connection(start_future))
+                await self._connection_task
+            except asyncio.CancelledError:
+                _LOGGER.debug("MQTT connection task cancelled")
+            except Exception:
+                # Exceptions are logged and handled in _run_connection.
+                # There is a special case for exceptions on startup where we return
+                # immediately. Otherwise, we let the reconnect loop retry with
+                # backoff when the reconnect loop is active.
+                if start_future and start_future.done() and start_future.exception():
                     return
-                _LOGGER.info("MQTT error: %s", err)
-            except asyncio.CancelledError as err:
-                if start_future:
-                    _LOGGER.debug("MQTT loop was cancelled while starting")
-                    start_future.set_exception(err)
-                _LOGGER.debug("MQTT loop was cancelled")
-                return
-            # Catch exceptions to avoid crashing the loop
-            # and to allow the loop to retry.
-            except Exception as err:
-                # This error is thrown when the MQTT loop is cancelled
-                # and the generator is not stopped.
-                if "generator didn't stop" in str(err) or "generator didn't yield" in str(err):
-                    _LOGGER.debug("MQTT loop was cancelled")
-                    return
-                if start_future:
-                    _LOGGER.error("Uncaught error starting MQTT session: %s", err)
-                    start_future.set_exception(err)
-                    return
-                _LOGGER.exception("Uncaught error during MQTT session: %s", err)
 
             self._healthy = False
             if self._stop:
@@ -146,6 +131,45 @@ class RoborockMqttSession(MqttSession):
             _LOGGER.info("MQTT session disconnected, retrying in %s seconds", self._backoff.total_seconds())
             await asyncio.sleep(self._backoff.total_seconds())
             self._backoff = min(self._backoff * BACKOFF_MULTIPLIER, MAX_BACKOFF_INTERVAL)
+
+    async def _run_connection(self, start_future: asyncio.Future[None] | None) -> None:
+        """Connect to the MQTT broker and listen for messages.
+
+        This is the primary connection loop for the MQTT session that is
+        long running and processes incoming messages. If the connection
+        is lost, this method will exit.
+        """
+        try:
+            async with self._mqtt_client(self._params) as client:
+                self._backoff = MIN_BACKOFF_INTERVAL
+                self._healthy = True
+                _LOGGER.info("MQTT Session connected.")
+                if start_future and not start_future.done():
+                    start_future.set_result(None)
+
+                _LOGGER.debug("Processing MQTT messages")
+                async for message in client.messages:
+                    _LOGGER.debug("Received message: %s", message)
+                    self._listeners(message.topic.value, message.payload)
+        except MqttError as err:
+            if start_future and not start_future.done():
+                _LOGGER.info("MQTT error starting session: %s", err)
+                start_future.set_exception(err)
+            else:
+                _LOGGER.info("MQTT error: %s", err)
+            raise
+        except Exception as err:
+            # This error is thrown when the MQTT loop is cancelled
+            # and the generator is not stopped.
+            if "generator didn't stop" in str(err) or "generator didn't yield" in str(err):
+                _LOGGER.debug("MQTT loop was cancelled")
+                return
+            if start_future and not start_future.done():
+                _LOGGER.error("Uncaught error starting MQTT session: %s", err)
+                start_future.set_exception(err)
+            else:
+                _LOGGER.exception("Uncaught error during MQTT session: %s", err)
+            raise
 
     @asynccontextmanager
     async def _mqtt_client(self, params: MqttParams) -> aiomqtt.Client:
@@ -177,12 +201,6 @@ class RoborockMqttSession(MqttSession):
         finally:
             async with self._client_lock:
                 self._client = None
-
-    async def _process_message_loop(self, client: aiomqtt.Client) -> None:
-        _LOGGER.debug("Processing MQTT messages")
-        async for message in client.messages:
-            _LOGGER.debug("Received message: %s", message)
-            self._listeners(message.topic.value, message.payload)
 
     async def subscribe(self, topic: str, callback: Callable[[bytes], None]) -> Callable[[], None]:
         """Subscribe to messages on the specified topic and invoke the callback for new messages.
@@ -270,6 +288,10 @@ class LazyMqttSession(MqttSession):
         restarted again.
         """
         await self._session.close()
+
+    async def restart(self) -> None:
+        """Force the session to disconnect and reconnect."""
+        await self._session.restart()
 
 
 async def create_mqtt_session(params: MqttParams) -> MqttSession:
