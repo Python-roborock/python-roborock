@@ -44,7 +44,7 @@ class HealthManager:
         """
         self._consecutive_timeouts += 1
         if self._consecutive_timeouts >= TIMEOUT_THRESHOLD:
-            now = datetime.datetime.now()
+            now = datetime.datetime.now(datetime.UTC)
             if self._last_restart is None or now - self._last_restart >= RESTART_COOLDOWN:
                 await self._restart()
                 self._last_restart = now
