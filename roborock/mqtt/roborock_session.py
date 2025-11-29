@@ -125,6 +125,7 @@ class RoborockMqttSession(MqttSession):
                     return
 
             self._healthy = False
+            start_future = None
             if self._stop:
                 _LOGGER.debug("MQTT session closed, stopping retry loop")
                 return
