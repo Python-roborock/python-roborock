@@ -80,58 +80,6 @@ class RpcStrategy:
     """Optional health manager for monitoring the channel."""
 
 
-async def _send_rpc(strategy: RpcStrategy, request: RequestMessage) -> ResponseData | bytes:
-    """Send a command and return a parsed response RoborockBase type.
-
-    This provides an RPC interface over a given channel strategy. The device
-    channel only supports publish and subscribe, so this function handles
-    associating requests with their corresponding responses.
-
-    The provided RpcStrategy defines how to encode/decode messages and which
-    channel to use for communication.
-    """
-    future: asyncio.Future[ResponseData | bytes] = asyncio.Future()
-    _LOGGER.debug(
-        "Sending command (%s, request_id=%s): %s, params=%s",
-        strategy.name,
-        request.request_id,
-        request.method,
-        request.params,
-    )
-
-    message = strategy.encoder(request)
-
-    def find_response(response_message: RoborockMessage) -> None:
-        try:
-            decoded = strategy.decoder(response_message)
-        except RoborockException as ex:
-            _LOGGER.debug("Exception while decoding message (%s): %s", response_message, ex)
-            return
-        if decoded is None:
-            return
-        _LOGGER.debug("Received response (%s, request_id=%s)", strategy.name, decoded.request_id)
-        if decoded.request_id == request.request_id:
-            if isinstance(decoded, ResponseMessage) and decoded.api_error:
-                future.set_exception(decoded.api_error)
-            else:
-                future.set_result(decoded.data)
-
-    unsub = await strategy.channel.subscribe(find_response)
-    try:
-        await strategy.channel.publish(message)
-        result = await asyncio.wait_for(future, timeout=_TIMEOUT)
-    except TimeoutError as ex:
-        if strategy.health_manager:
-            await strategy.health_manager.on_timeout()
-        future.cancel()
-        raise RoborockException(f"Command timed out after {_TIMEOUT}s") from ex
-    finally:
-        unsub()
-    if strategy.health_manager:
-        await strategy.health_manager.on_success()
-    return result
-
-
 class RpcChannel(V1RpcChannel):
     """Wrapper to expose V1RpcChannel interface with a specific set of RpcStrategies.
 
@@ -157,7 +105,7 @@ class RpcChannel(V1RpcChannel):
         last_exception = None
         for strategy in self._rpc_strategies:
             try:
-                decoded_response = await _send_rpc(strategy, request)
+                decoded_response = await self._send_rpc(strategy, request)
             except RoborockException as e:
                 _LOGGER.warning("Command %s failed on %s channel: %s", method, strategy.name, e)
                 last_exception = e
@@ -174,6 +122,58 @@ class RpcChannel(V1RpcChannel):
                 return decoded_response
 
         raise last_exception or RoborockException("No available connection to send command")
+
+    @staticmethod
+    async def _send_rpc(strategy: RpcStrategy, request: RequestMessage) -> ResponseData | bytes:
+        """Send a command and return a parsed response RoborockBase type.
+
+        This provides an RPC interface over a given channel strategy. The device
+        channel only supports publish and subscribe, so this function handles
+        associating requests with their corresponding responses.
+
+        The provided RpcStrategy defines how to encode/decode messages and which
+        channel to use for communication.
+        """
+        future: asyncio.Future[ResponseData | bytes] = asyncio.Future()
+        _LOGGER.debug(
+            "Sending command (%s, request_id=%s): %s, params=%s",
+            strategy.name,
+            request.request_id,
+            request.method,
+            request.params,
+        )
+
+        message = strategy.encoder(request)
+
+        def find_response(response_message: RoborockMessage) -> None:
+            try:
+                decoded = strategy.decoder(response_message)
+            except RoborockException as ex:
+                _LOGGER.debug("Exception while decoding message (%s): %s", response_message, ex)
+                return
+            if decoded is None:
+                return
+            _LOGGER.debug("Received response (%s, request_id=%s)", strategy.name, decoded.request_id)
+            if decoded.request_id == request.request_id:
+                if isinstance(decoded, ResponseMessage) and decoded.api_error:
+                    future.set_exception(decoded.api_error)
+                else:
+                    future.set_result(decoded.data)
+
+        unsub = await strategy.channel.subscribe(find_response)
+        try:
+            await strategy.channel.publish(message)
+            result = await asyncio.wait_for(future, timeout=_TIMEOUT)
+        except TimeoutError as ex:
+            if strategy.health_manager:
+                await strategy.health_manager.on_timeout()
+            future.cancel()
+            raise RoborockException(f"Command timed out after {_TIMEOUT}s") from ex
+        finally:
+            unsub()
+        if strategy.health_manager:
+            await strategy.health_manager.on_success()
+        return result
 
 
 class V1Channel(Channel):
@@ -248,7 +248,7 @@ class V1Channel(Channel):
         decoder = create_map_response_decoder(security_data=self._security_data)
         return RpcChannel([self._create_mqtt_rpc_strategy(decoder)])
 
-    def _create_local_rpc_strategy(self) -> RpcStrategy:
+    def _create_local_rpc_strategy(self) -> RpcStrategy | None:
         """Create the RPC strategy for local transport."""
         if self._local_channel is None or not self.is_local_connected:
             return None
@@ -261,7 +261,7 @@ class V1Channel(Channel):
 
     def _local_encoder(self, x: RequestMessage) -> RoborockMessage:
         """Encode a request message for local transport.
-        
+
         This is passed to the RpcStrategy as a function so that it will
         read the current local channel's protocol version which changes as
         the protocol version is discovered.
