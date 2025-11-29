@@ -38,8 +38,8 @@ from roborock.data.containers import HomeData, HomeDataProduct, RoborockBase
 from roborock.data.v1.v1_code_mappings import RoborockDockTypeCode
 from roborock.devices.cache import Cache
 from roborock.devices.traits import Trait
-from roborock.devices.v1_rpc_channel import V1RpcChannel
 from roborock.map.map_parser import MapParserConfig
+from roborock.protocols.v1_protocol import V1RpcChannel
 from roborock.web_api import UserWebApiClient
 
 from .child_lock import ChildLockTrait

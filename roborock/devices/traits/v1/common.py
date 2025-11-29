@@ -9,7 +9,7 @@ from dataclasses import dataclass, fields
 from typing import ClassVar, Self
 
 from roborock.data import RoborockBase
-from roborock.devices.v1_rpc_channel import V1RpcChannel
+from roborock.protocols.v1_protocol import V1RpcChannel
 from roborock.roborock_typing import RoborockCommand
 
 _LOGGER = logging.getLogger(__name__)

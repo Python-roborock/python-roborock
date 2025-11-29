@@ -90,5 +90,5 @@ class MqttChannel(Channel):
 def create_mqtt_channel(
     user_data: UserData, mqtt_params: MqttParams, mqtt_session: MqttSession, device: HomeDataDevice
 ) -> MqttChannel:
-    """Create a V1Channel for the given device."""
+    """Create a MQTT channel for the given device."""
     return MqttChannel(mqtt_session, device.duid, device.local_key, user_data.rriot, mqtt_params)

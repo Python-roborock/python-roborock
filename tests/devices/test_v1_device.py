@@ -13,7 +13,7 @@ from roborock.devices.cache import NoCache
 from roborock.devices.device import RoborockDevice
 from roborock.devices.traits import v1
 from roborock.devices.traits.v1.common import V1TraitMixin
-from roborock.devices.v1_rpc_channel import decode_rpc_response
+from roborock.protocols.v1_protocol import decode_rpc_response
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 
 from .. import mock_data

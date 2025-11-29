@@ -12,9 +12,9 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any
+from typing import Any, Protocol, TypeVar, overload
 
-from roborock.data import RRiot
+from roborock.data import RoborockBase, RRiot
 from roborock.exceptions import RoborockException, RoborockUnsupportedFeature
 from roborock.protocol import Utils
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
@@ -27,6 +27,7 @@ __all__ = [
     "SecurityData",
     "create_security_data",
     "decode_rpc_response",
+    "V1RpcChannel",
 ]
 
 CommandType = RoborockCommand | str
@@ -208,3 +209,35 @@ def create_map_response_decoder(security_data: SecurityData) -> Callable[[Roboro
         return MapResponse(request_id=request_id, data=decompressed)
 
     return _decode_map_response
+
+
+_T = TypeVar("_T", bound=RoborockBase)
+
+
+class V1RpcChannel(Protocol):
+    """Protocol for V1 RPC channels.
+
+    This is a wrapper around a raw channel that provides a high-level interface
+    for sending commands and receiving responses.
+    """
+
+    @overload
+    async def send_command(
+        self,
+        method: CommandType,
+        *,
+        params: ParamsType = None,
+    ) -> Any:
+        """Send a command and return a decoded response."""
+        ...
+
+    @overload
+    async def send_command(
+        self,
+        method: CommandType,
+        *,
+        response_type: type[_T],
+        params: ParamsType = None,
+    ) -> _T:
+        """Send a command and return a parsed response RoborockBase type."""
+        ...

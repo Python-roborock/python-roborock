@@ -108,7 +108,7 @@ def setup_mock_request_id() -> Iterator[None]:
 @pytest.fixture(name="mock_create_map_response_decoder")
 def setup_mock_map_decoder() -> Iterator[Mock]:
     """Mock the map response decoder to control its behavior in tests."""
-    with patch("roborock.devices.v1_rpc_channel.create_map_response_decoder") as mock_create_decoder:
+    with patch("roborock.devices.v1_channel.create_map_response_decoder") as mock_create_decoder:
         yield mock_create_decoder
 
 
@@ -277,7 +277,7 @@ async def test_v1_channel_send_command_local_preferred(
     # Send command
     mock_local_channel.response_queue.append(TEST_RESPONSE)
     result = await v1_channel.rpc_channel.send_command(
-        RoborockCommand.CHANGE_SOUND_VOLUME,
+        RoborockCommand.GET_STATUS,
         response_type=S5MaxStatus,
     )
 
@@ -290,7 +290,7 @@ async def test_v1_channel_send_command_local_fails(
     mock_mqtt_channel: Mock,
     mock_local_channel: Mock,
 ) -> None:
-    """Test case where sending with local connection fails."""
+    """Test case where sending with local connection fails, falling back to MQTT."""
 
     # Establish connections
     mock_mqtt_channel.response_queue.append(TEST_NETWORK_INFO_RESPONSE)
@@ -300,12 +300,25 @@ async def test_v1_channel_send_command_local_fails(
     mock_local_channel.publish = Mock()
     mock_local_channel.publish.side_effect = RoborockException("Local failed")
 
+    # MQTT command succeeds
+    mock_mqtt_channel.response_queue.append(TEST_RESPONSE)
+
     # Send command
-    with pytest.raises(RoborockException, match="Local failed"):
-        await v1_channel.rpc_channel.send_command(
-            RoborockCommand.CHANGE_SOUND_VOLUME,
-            response_type=S5MaxStatus,
-        )
+    result = await v1_channel.rpc_channel.send_command(
+        RoborockCommand.GET_STATUS,
+        response_type=S5MaxStatus,
+    )
+
+    # Verify result
+    assert result.state == RoborockStateCode.cleaning
+
+    # Verify local was attempted
+    mock_local_channel.publish.assert_called_once()
+
+    # Verify MQTT was used
+    assert mock_mqtt_channel.published_messages
+    # The last message should be the command we sent
+    assert mock_mqtt_channel.published_messages[-1].protocol == RoborockMessageProtocol.RPC_REQUEST
 
 
 async def test_v1_channel_send_decoded_command_mqtt_only(
@@ -323,7 +336,7 @@ async def test_v1_channel_send_decoded_command_mqtt_only(
     # Send command
     mock_mqtt_channel.response_queue.append(TEST_RESPONSE)
     result = await v1_channel.rpc_channel.send_command(
-        RoborockCommand.CHANGE_SOUND_VOLUME,
+        RoborockCommand.GET_STATUS,
         response_type=S5MaxStatus,
     )
 
@@ -503,9 +516,7 @@ async def test_v1_channel_command_encoding_validation(
     assert local_message.protocol == RoborockMessageProtocol.GENERAL_REQUEST
 
 
-@patch("roborock.devices.v1_rpc_channel.create_map_response_decoder")
 async def test_v1_channel_send_map_command(
-    mock_create_decoder: Mock,
     v1_channel: V1Channel,
     mock_mqtt_channel: Mock,
     mock_create_map_response_decoder: Mock,
