@@ -173,14 +173,7 @@ class V1Channel(Channel):
         local_session: LocalSession,
         cache: Cache,
     ) -> None:
-        """Initialize the V1Channel.
-
-        Args:
-            device_uid: Unique device identifier (DUID).
-            mqtt_channel: MQTT channel for cloud communication
-            local_session: Factory that creates LocalChannels for a hostname.
-            cache: Cache for storing network information.
-        """
+        """Initialize the V1Channel."""
         self._device_uid = device_uid
         self._security_data = security_data
         self._mqtt_channel = mqtt_channel
