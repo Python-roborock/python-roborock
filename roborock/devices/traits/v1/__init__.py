@@ -141,14 +141,13 @@ class PropertiesApi(Trait):
         self._map_rpc_channel = map_rpc_channel
         self._web_api = web_api
         self._cache = cache
-
-        self.status = StatusTrait(product)
+        self.device_features = DeviceFeaturesTrait(product.product_nickname, cache)
+        self.status = StatusTrait(self.device_features)
         self.consumables = ConsumableTrait()
         self.rooms = RoomsTrait(home_data)
         self.maps = MapsTrait(self.status)
         self.map_content = MapContentTrait(map_parser_config)
         self.home = HomeTrait(self.status, self.maps, self.map_content, self.rooms, cache)
-        self.device_features = DeviceFeaturesTrait(product.product_nickname, cache)
         self.network_info = NetworkInfoTrait(device_uid, cache)
         self.routines = RoutinesTrait(device_uid, web_api)
 

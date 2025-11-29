@@ -1,24 +1,66 @@
+from functools import cached_property
 from typing import Self
 
-from roborock.data import HomeDataProduct, ModelStatus, S7MaxVStatus, Status
-from roborock.devices.traits.v1 import common
+from roborock import CleanRoutes, StatusV2, VacuumModes, WaterModes, get_clean_modes, get_clean_routes, get_water_modes
+from roborock.devices.traits.v1 import DeviceFeaturesTrait, common
 from roborock.roborock_typing import RoborockCommand
 
 
-class StatusTrait(Status, common.V1TraitMixin):
+class StatusTrait(StatusV2, common.V1TraitMixin):
     """Trait for managing the status of Roborock devices."""
 
     command = RoborockCommand.GET_STATUS
 
-    def __init__(self, product_info: HomeDataProduct) -> None:
+    def __init__(self, device_feature_trait: DeviceFeaturesTrait) -> None:
         """Initialize the StatusTrait."""
-        self._product_info = product_info
+        self._device_features_trait = device_feature_trait
+
+    @cached_property
+    def fan_speed_options(self) -> list[VacuumModes]:
+        return get_clean_modes(self._device_features_trait)
+
+    @cached_property
+    def fan_speed_mapping(self) -> dict[int, str]:
+        return {fan.code: fan.name for fan in self.fan_speed_options}
+
+    @cached_property
+    def water_mode_options(self) -> list[WaterModes]:
+        return get_water_modes(self._device_features_trait)
+
+    @cached_property
+    def water_mode_mapping(self) -> dict[int, str]:
+        return {mop.code: mop.name for mop in self.water_mode_options}
+
+    @cached_property
+    def mop_route_options(self) -> list[CleanRoutes]:
+        return get_clean_routes(self._device_features_trait, "US")  # TODO: find best place to get region
+
+    @cached_property
+    def mop_route_mapping(self) -> dict[int, str]:
+        return {route.code: route.name for route in self.mop_route_options}
+
+    @property
+    def fan_speed_name(self) -> str | None:
+        if self.fan_power is None:
+            return None
+        return self.fan_speed_mapping.get(self.fan_power)
+
+    @property
+    def water_mode_name(self) -> str | None:
+        if self.water_box_mode is None:
+            return None
+        return self.water_mode_mapping.get(self.water_box_mode)
+
+    @property
+    def mop_route_name(self) -> str | None:
+        if self.mop_mode is None:
+            return None
+        return self.mop_route_mapping.get(self.mop_mode)
 
     def _parse_response(self, response: common.V1ResponseData) -> Self:
         """Parse the response from the device into a CleanSummary."""
-        status_type: type[Status] = ModelStatus.get(self._product_info.model, S7MaxVStatus)
         if isinstance(response, list):
             response = response[0]
         if isinstance(response, dict):
-            return status_type.from_dict(response)
+            return StatusV2.from_dict(response)
         raise ValueError(f"Unexpected status format: {response!r}")
