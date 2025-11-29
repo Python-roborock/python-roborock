@@ -363,11 +363,15 @@ class FakeChannel:
         self.connect = AsyncMock(side_effect=self._connect)
         self.close = MagicMock(side_effect=self._close)
         self.protocol_version = LocalProtocolVersion.V1
+        self.restart = MagicMock(side_effect=self._restart)
 
     async def _connect(self) -> None:
         self._is_connected = True
 
     def _close(self) -> None:
+        self._is_connected = False
+
+    def _restart(self) -> None:
         self._is_connected = False
 
     @property

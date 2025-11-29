@@ -13,6 +13,7 @@ from typing import Any, Protocol, TypeVar, overload
 
 from roborock.data import RoborockBase
 from roborock.exceptions import RoborockException
+from roborock.mqtt.health_manager import HealthManager
 from roborock.protocols.v1_protocol import (
     CommandType,
     MapResponse,
@@ -125,12 +126,14 @@ class PayloadEncodedV1RpcChannel(BaseV1RpcChannel):
         channel: MqttChannel | LocalChannel,
         payload_encoder: Callable[[RequestMessage], RoborockMessage],
         decoder: Callable[[RoborockMessage], ResponseMessage] | Callable[[RoborockMessage], MapResponse | None],
+        health_manager: HealthManager | None = None,
     ) -> None:
         """Initialize the channel with a raw channel and an encoder function."""
         self._name = name
         self._channel = channel
         self._payload_encoder = payload_encoder
         self._decoder = decoder
+        self._health_manager = health_manager
 
     async def _send_raw_command(
         self,
@@ -165,12 +168,18 @@ class PayloadEncodedV1RpcChannel(BaseV1RpcChannel):
         unsub = await self._channel.subscribe(find_response)
         try:
             await self._channel.publish(message)
-            return await asyncio.wait_for(future, timeout=_TIMEOUT)
+            result = await asyncio.wait_for(future, timeout=_TIMEOUT)
         except TimeoutError as ex:
+            if self._health_manager:
+                await self._health_manager.on_timeout()
             future.cancel()
             raise RoborockException(f"Command timed out after {_TIMEOUT}s") from ex
         finally:
             unsub()
+
+        if self._health_manager:
+            await self._health_manager.on_success()
+        return result
 
 
 def create_mqtt_rpc_channel(mqtt_channel: MqttChannel, security_data: SecurityData) -> V1RpcChannel:
@@ -180,6 +189,7 @@ def create_mqtt_rpc_channel(mqtt_channel: MqttChannel, security_data: SecurityDa
         mqtt_channel,
         lambda x: x.encode_message(RoborockMessageProtocol.RPC_REQUEST, security_data=security_data),
         decode_rpc_response,
+        health_manager=HealthManager(mqtt_channel.restart),
     )
 
 
