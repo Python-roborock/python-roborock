@@ -58,11 +58,7 @@ LOCAL_CONNECTION_CHECK_INTERVAL = datetime.timedelta(seconds=15)
 
 @dataclass(frozen=True)
 class RpcStrategy:
-    """Strategy for sending RPC commands over a specific channel.
-
-    This holds the configuration for a specific transport method that differ
-    in how messages are encoded/decoded and which channel is used.
-    """
+    """Strategy for encoding/sending/decoding RPC commands."""
 
     name: str  # For debug logging
     channel: LocalChannel | MqttChannel
@@ -72,7 +68,7 @@ class RpcStrategy:
 
 
 class RpcChannel(V1RpcChannel):
-    """Provides a synchronous RPC interface around a transport channel."""
+    """Provides an RPC interface around a pub/sub transport channel."""
 
     def __init__(self, rpc_strategies: list[RpcStrategy]) -> None:
         """Initialize the RpcChannel with on ordered list of strategies."""
@@ -215,7 +211,7 @@ class V1Channel(Channel):
 
     @property
     def rpc_channel(self) -> V1RpcChannel:
-        """Return the combined RPC channel prefers local with a fallback to MQTT."""
+        """Return the combined RPC channel that prefers local with a fallback to MQTT."""
         strategies = []
         if local_rpc_strategy := self._create_local_rpc_strategy():
             strategies.append(local_rpc_strategy)
