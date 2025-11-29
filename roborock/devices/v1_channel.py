@@ -72,13 +72,10 @@ class RpcStrategy:
 
 
 class RpcChannel(V1RpcChannel):
-    """Wrapper to expose V1RpcChannel interface with a specific set of RpcStrategies.
-
-    This is used to provide a simpler interface to v1 traits for sending commands
-    over multiple possible transports (local, MQTT) with automatic fallback.
-    """
+    """Provides a synchronous RPC interface around a transport channel."""
 
     def __init__(self, rpc_strategies: list[RpcStrategy]) -> None:
+        """Initialize the RpcChannel with on ordered list of strategies."""
         self._rpc_strategies = rpc_strategies
 
     @override
@@ -116,14 +113,11 @@ class RpcChannel(V1RpcChannel):
 
     @staticmethod
     async def _send_rpc(strategy: RpcStrategy, request: RequestMessage) -> ResponseData | bytes:
-        """Send a command and return a parsed response RoborockBase type.
+        """Send a command and return a decoded response type.
 
         This provides an RPC interface over a given channel strategy. The device
         channel only supports publish and subscribe, so this function handles
         associating requests with their corresponding responses.
-
-        The provided RpcStrategy defines how to encode/decode messages and which
-        channel to use for communication.
         """
         future: asyncio.Future[ResponseData | bytes] = asyncio.Future()
         _LOGGER.debug(
@@ -253,26 +247,18 @@ class V1Channel(Channel):
     def _local_encoder(self, x: RequestMessage) -> RoborockMessage:
         """Encode a request message for local transport.
 
-        This is passed to the RpcStrategy as a function so that it will
-        read the current local channel's protocol version which changes as
-        the protocol version is discovered.
+        This will read the current local channel's protocol version which
+        changes as the protocol version is discovered.
         """
         if self._local_channel is None:
-            # This is for typing and should not happen since we only create the
-            # strategy if local is connected and it will never get set back to
-            # None once connected.
-            raise ValueError("Local channel is not available for encoding")
+            raise ValueError("Local channel unavailable for encoding")
         return x.encode_message(
             RoborockMessageProtocol.GENERAL_REQUEST,
             version=self._local_channel.protocol_version,
         )
 
     def _create_mqtt_rpc_strategy(self, decoder: Callable[[RoborockMessage], Any] = decode_rpc_response) -> RpcStrategy:
-        """Create the RPC strategy for MQTT transport.
-
-        This can optionally take a custom decoder for different response types
-        such as map data.
-        """
+        """Create the RPC strategy for MQTT transport with optional custom decoder."""
         return RpcStrategy(
             name="mqtt",
             channel=self._mqtt_channel,
