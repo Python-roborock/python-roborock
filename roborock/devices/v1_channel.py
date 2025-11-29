@@ -64,20 +64,11 @@ class RpcStrategy:
     in how messages are encoded/decoded and which channel is used.
     """
 
-    name: str
-    """Name of the strategy for logging purposes."""
-
+    name: str  # For debug logging
     channel: LocalChannel | MqttChannel
-    """Channel to use for communication."""
-
     encoder: Callable[[RequestMessage], RoborockMessage]
-    """Function to encode request messages for the channel."""
-
     decoder: Callable[[RoborockMessage], ResponseMessage | MapResponse | None]
-    """Function to decode response messages from the channel."""
-
     health_manager: HealthManager | None = None
-    """Optional health manager for monitoring the channel."""
 
 
 class RpcChannel(V1RpcChannel):
