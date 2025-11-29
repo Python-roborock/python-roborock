@@ -9,7 +9,7 @@ import datetime
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, TypeVar, override
+from typing import Any, TypeVar
 
 from roborock.data import HomeDataDevice, NetworkInfo, RoborockBase, UserData
 from roborock.exceptions import RoborockException
@@ -74,7 +74,6 @@ class RpcChannel(V1RpcChannel):
         """Initialize the RpcChannel with on ordered list of strategies."""
         self._rpc_strategies = rpc_strategies
 
-    @override
     async def send_command(
         self,
         method: CommandType,
