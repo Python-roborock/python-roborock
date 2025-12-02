@@ -6,7 +6,6 @@ persistent caching of device data across application restarts.
 """
 
 import asyncio
-import logging
 import pathlib
 import pickle
 from collections.abc import Callable
