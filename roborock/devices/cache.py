@@ -40,6 +40,24 @@ class CacheData:
     trait_data: dict[str, Any] | None = None
     """Trait-specific cached data used internally for caching device features."""
 
+    @staticmethod
+    def from_dict(data: dict) -> "CacheData":
+        """Load CacheData from deserialized dict."""
+        return CacheData(
+            home_data=HomeData.from_dict(data.get("home_data", {})),
+            network_info={
+                duid: NetworkInfo.from_dict(duid_data) for duid, duid_data in data.get("network_info", {}).items()
+            },
+            home_map_info={
+                map_id: CombinedMapInfo.from_dict(map_data)
+                for map_id, map_data in data.get("home_map_info", {}).items()
+            },
+            home_map_content=data.get("home_map_content", {}),
+            home_map_content_base64=data.get("home_map_content_base64", {}),
+            device_features=DeviceFeatures(**data.get("device_features", {})) if data.get("device_features") else None,
+            trait_data=data.get("trait_data"),
+        )
+
 
 class Cache(Protocol):
     """Protocol for a cache that can store and retrieve values."""

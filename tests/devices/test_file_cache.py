@@ -1,13 +1,17 @@
 """Tests for the FileCache class."""
 
+import dataclasses
 import pathlib
 import pickle
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from roborock.data import HomeData, NetworkInfo, RoborockProductNickname
+from roborock.device_features import DeviceFeatures
 from roborock.devices.cache import CacheData
 from roborock.devices.file_cache import FileCache
+from tests.mock_data import HOME_DATA_RAW, NETWORK_INFO
 
 
 @pytest.fixture(name="cache_file")
@@ -66,3 +70,36 @@ async def test_flush_no_data(cache_file: pathlib.Path) -> None:
     cache = FileCache(cache_file)
     await cache.flush()
     assert not cache_file.exists()
+
+
+def test_serialize_dictionary_cache() -> None:
+    data = {
+        "home_data": HOME_DATA_RAW,
+        "network_info": {"fake_duid": NETWORK_INFO},
+        "home_map_info": {
+            "0": {
+                "map_flag": 0,
+                "name": "",
+                "rooms": [
+                    {"segment_id": 16, "iot_id": "2537178", "name": "Living room"},
+                    {"segment_id": 17, "iot_id": "2537175", "name": "Kitchen"},
+                ],
+            }
+        },
+        "home_map_content": {},
+        "home_map_content_base64": {"0": "fake_bytes"},
+        "device_features": dataclasses.asdict(
+            DeviceFeatures.from_feature_flags(
+                new_feature_info=4499197267967999,
+                new_feature_info_str="508A977F7EFEFFFF",
+                feature_info=[111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125],
+                product_nickname=RoborockProductNickname.TANOS,
+            )
+        ),
+        "trait_data": {"dock_type": 9},
+    }
+    cache_data = CacheData.from_dict(data)
+    assert isinstance(cache_data, CacheData)
+    assert isinstance(cache_data.device_features, DeviceFeatures)
+    assert isinstance(cache_data.network_info["fake_duid"], NetworkInfo)
+    assert isinstance(cache_data.home_data, HomeData)
