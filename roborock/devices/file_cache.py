@@ -57,7 +57,7 @@ class FileCache(Cache):
         await store_value(self._file_path, self._cache_data, self._serialize_fn)
 
 
-async def store_value(file_path: pathlib.Path, value: Any, serialize_fn: Callable[[Any], bytes]) -> None:
+async def store_value(file_path: pathlib.Path, value: Any, serialize_fn: Callable[[Any], bytes] = pickle.dumps) -> None:
     """Store a value to the given file path."""
 
     def _store_to_disk(file_path: pathlib.Path, value: Any) -> None:
@@ -70,7 +70,7 @@ async def store_value(file_path: pathlib.Path, value: Any, serialize_fn: Callabl
     await asyncio.to_thread(_store_to_disk, file_path, value)
 
 
-async def load_value(file_path: pathlib.Path, deserialize_fn: Callable[[bytes], Any]) -> Any | None:
+async def load_value(file_path: pathlib.Path, deserialize_fn: Callable[[bytes], Any] = pickle.loads) -> Any | None:
     """Load a value from the given file path."""
 
     def _load_from_disk(file_path: pathlib.Path) -> Any | None:
