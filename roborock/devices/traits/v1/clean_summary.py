@@ -24,7 +24,7 @@ class CleanSummaryTrait(CleanSummaryWithDetail, common.V1TraitMixin):
             _LOGGER.debug("No clean records available in clean summary.")
             self.last_clean_record = None
             return
-        last_record_id = self.records[-1]
+        last_record_id = self.records[0]
         self.last_clean_record = await self.get_clean_record(last_record_id)
 
     @classmethod
