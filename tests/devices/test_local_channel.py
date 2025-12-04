@@ -423,27 +423,9 @@ async def test_keep_alive_task_canceled_on_connection_lost(local_channel: LocalC
 
 async def test_keep_alive_ping_loop_executes_periodically(local_channel: LocalChannel, mock_loop: Mock) -> None:
     """Test that the ping loop continues to execute periodically while connected."""
-    ping_count = 0
-
-    # Mock the _ping method to track calls
-    original_ping = local_channel._ping
-
-    async def mock_ping() -> None:
-        nonlocal ping_count
-        ping_count += 1
-        await original_ping()
-
-    setattr(local_channel, "_ping", mock_ping)
-
     await local_channel.connect()
 
-    # Wait for multiple ping intervals
-    # _PING_INTERVAL is 10 seconds, so we'll wait a bit longer to see multiple pings
-    # We'll use a shorter wait in the test and manually advance time
-    await asyncio.sleep(0.1)  # Give the task time to start
-
-    # Since we can't easily fast-forward time in this test setup,
-    # we'll just verify the task is running
+    # Verify the task is running and connected
     assert local_channel._keep_alive_task is not None
     assert not local_channel._keep_alive_task.done()
     assert local_channel._is_connected
@@ -453,6 +435,8 @@ async def test_keep_alive_ping_exceptions_handled_gracefully(
     local_channel: LocalChannel, mock_loop: Mock, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Test that exceptions in the ping loop are handled gracefully without stopping the loop."""
+    from roborock.devices.local_channel import _PING_INTERVAL
+
     # Set log level to capture DEBUG messages
     caplog.set_level("DEBUG")
 
@@ -468,8 +452,8 @@ async def test_keep_alive_ping_exceptions_handled_gracefully(
     original_sleep = asyncio.sleep
 
     async def mock_sleep(delay: float) -> None:
-        # Only sleep briefly for test speed
-        if delay > 1:
+        # Only sleep briefly for test speed when waiting for ping interval
+        if delay >= _PING_INTERVAL:
             await original_sleep(0.01)
         else:
             await original_sleep(delay)
