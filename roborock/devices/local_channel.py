@@ -17,6 +17,7 @@ from .channel import Channel
 _LOGGER = logging.getLogger(__name__)
 _PORT = 58867
 _TIMEOUT = 5.0
+_PING_INTERVAL = 10
 
 
 @dataclass
@@ -58,6 +59,7 @@ class LocalChannel(Channel):
         self._subscribers: CallbackList[RoborockMessage] = CallbackList(_LOGGER)
         self._is_connected = False
         self._local_protocol_version: LocalProtocolVersion | None = None
+        self._keep_alive_task: asyncio.Task[None] | None = None
         self._update_encoder_decoder(
             LocalChannelParams(local_key=local_key, connect_nonce=get_next_int(10000, 32767), ack_nonce=None)
         )
@@ -132,6 +134,28 @@ class LocalChannel(Channel):
 
         raise RoborockException("Failed to connect to device with any known protocol")
 
+    async def _ping(self) -> None:
+        ping_message = RoborockMessage(
+            protocol=RoborockMessageProtocol.PING_REQUEST, version=self.protocol_version.encode()
+        )
+        await self._send_message(
+            roborock_message=ping_message,
+            request_id=ping_message.seq,
+            response_protocol=RoborockMessageProtocol.PING_RESPONSE,
+        )
+
+    async def _keep_alive_loop(self) -> None:
+        while self._is_connected:
+            try:
+                await asyncio.sleep(_PING_INTERVAL)
+                if self._is_connected:
+                    await self._ping()
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                _LOGGER.debug("Keep-alive ping failed", exc_info=True)
+                # Retry next interval
+
     @property
     def protocol_version(self) -> LocalProtocolVersion:
         """Return the negotiated local protocol version, or a sensible default."""
@@ -166,6 +190,7 @@ class LocalChannel(Channel):
         # Perform protocol negotiation
         try:
             await self._hello()
+            self._keep_alive_task = asyncio.create_task(self._keep_alive_loop())
         except RoborockException:
             # If protocol negotiation fails, clean up the connection state
             self.close()
@@ -177,6 +202,8 @@ class LocalChannel(Channel):
 
     def close(self) -> None:
         """Disconnect from the device."""
+        if self._keep_alive_task:
+            self._keep_alive_task.cancel()
         if self._transport:
             self._transport.close()
         else:
@@ -187,6 +214,8 @@ class LocalChannel(Channel):
     def _connection_lost(self, exc: Exception | None) -> None:
         """Handle connection loss."""
         _LOGGER.warning("Connection lost to %s", self._host, exc_info=exc)
+        if self._keep_alive_task:
+            self._keep_alive_task.cancel()
         self._transport = None
         self._is_connected = False
 
