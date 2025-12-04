@@ -204,6 +204,7 @@ class LocalChannel(Channel):
         """Disconnect from the device."""
         if self._keep_alive_task:
             self._keep_alive_task.cancel()
+            self._keep_alive_task = None
         if self._transport:
             self._transport.close()
         else:
@@ -216,6 +217,7 @@ class LocalChannel(Channel):
         _LOGGER.warning("Connection lost to %s", self._host, exc_info=exc)
         if self._keep_alive_task:
             self._keep_alive_task.cancel()
+            self._keep_alive_task = None
         self._transport = None
         self._is_connected = False
 
