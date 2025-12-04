@@ -186,7 +186,7 @@ class LocalChannel(Channel):
 
     def _connection_lost(self, exc: Exception | None) -> None:
         """Handle connection loss."""
-        _LOGGER.warning("Connection lost to %s", self._host, exc_info=exc)
+        _LOGGER.debug("Local connection lost to %s", self._host, exc_info=exc)
         self._transport = None
         self._is_connected = False
 

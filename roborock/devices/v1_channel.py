@@ -374,8 +374,15 @@ class V1Channel(Channel):
 
                 # Not connected, so wait with backoff before trying to connect.
                 # The first time through, we don't sleep, we just try to connect.
+                # We also only log after the first retry to avoid spamming logs.
                 local_connect_failures += 1
                 if local_connect_failures > 1:
+                    if local_connect_failures == 2:
+                        _LOGGER.info(
+                            "Local connection to device %s failed, retrying in %s seconds",
+                            self._device_uid,
+                            reconnect_backoff.total_seconds(),
+                        )
                     await asyncio.sleep(reconnect_backoff.total_seconds())
                     reconnect_backoff = min(reconnect_backoff * RECONNECT_MULTIPLIER, MAX_RECONNECT_INTERVAL)
 
@@ -383,6 +390,8 @@ class V1Channel(Channel):
                 await self._local_connect(prefer_cache=use_cache)
                 # Reset backoff and failures on success
                 reconnect_backoff = MIN_RECONNECT_INTERVAL
+                if local_connect_failures >= 2:
+                    _LOGGER.info("Local connection to device %s re-established", self._device_uid)
                 local_connect_failures = 0
 
             except asyncio.CancelledError:
