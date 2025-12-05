@@ -13,36 +13,36 @@ graph TB
     subgraph "Application Layer"
         User[Application Code]
     end
-    
+
     subgraph "Device Management Layer"
         DM[DeviceManager]
         Traits[Device Traits]
     end
-    
+
     subgraph "Channel Layer"
         V1C[V1Channel]
         RPC[RpcChannel]
         MC[MqttChannel]
         LC[LocalChannel]
     end
-    
+
     subgraph "Session Layer"
         MS[MqttSession]
         LS[LocalSession Factory]
     end
-    
+
     subgraph "Protocol Layer"
         Proto[Protocol Encoders/Decoders]
         V1P[V1 Protocol]
         A01P[A01 Protocol]
         B01P[B01 Protocol]
     end
-    
+
     subgraph "Transport Layer"
         MQTT[MQTT Broker]
         TCP[TCP Socket]
     end
-    
+
     User --> DM
     User --> Traits
     DM --> V1C
@@ -59,7 +59,7 @@ graph TB
     Proto --> B01P
     MS --> MQTT
     LC --> TCP
-    
+
     style User fill:#e1f5ff
     style DM fill:#fff4e1
     style V1C fill:#ffe1e1
@@ -129,22 +129,22 @@ sequenceDiagram
     participant MS as MqttSession
     participant Broker as MQTT Broker
     participant Device as Vacuum Device
-    
+
     App->>DM: create_device_manager()
     DM->>MS: Create MQTT Session
     MS->>Broker: Connect
     Broker-->>MS: Connected
-    
+
     App->>DM: get_devices()
     DM->>V1C: Create V1Channel
     V1C->>MC: Create MqttChannel
     V1C->>LC: Create LocalChannel (if available)
-    
+
     Note over V1C: Subscribe to device topics
     V1C->>MC: subscribe()
     MC->>MS: subscribe(topic, callback)
     MS->>Broker: SUBSCRIBE
-    
+
     Note over V1C: Fetch network info via MQTT
     V1C->>RPC: send_command(GET_NETWORK_INFO)
     RPC->>MC: publish(request)
@@ -156,12 +156,12 @@ sequenceDiagram
     MS->>MC: callback(message)
     MC->>RPC: decoded message
     RPC-->>V1C: NetworkInfo
-    
+
     Note over V1C: Connect locally using IP from NetworkInfo
     V1C->>LC: connect()
     LC->>Device: TCP Connect :58867
     Device-->>LC: Connected
-    
+
     Note over V1C: Send command (prefers local)
     App->>V1C: send_command(GET_STATUS)
     V1C->>RPC: send_command()
@@ -171,6 +171,8 @@ sequenceDiagram
     LC->>RPC: decoded message
     RPC-->>App: Status
 ```
+
+
 
 ### MQTT connection
 
@@ -205,7 +207,7 @@ graph LR
         E -->|5. Match request_id| F[Future.set_result]
         F -->|6. Return| G[Command Result]
     end
-    
+
     subgraph "Channel Layer"
         C --> H[Subscription Map]
         D --> I[Transport]
@@ -237,7 +239,7 @@ classDiagram
         +publish(message)
         +is_connected() bool
     }
-    
+
     class MqttChannel {
         -MqttSession session
         -duid: str
@@ -245,7 +247,7 @@ classDiagram
         +subscribe(callback)
         +publish(message)
     }
-    
+
     class LocalChannel {
         -host: str
         -transport: Transport
@@ -255,7 +257,7 @@ classDiagram
         +publish(message)
         +close()
     }
-    
+
     class V1Channel {
         -MqttChannel mqtt_channel
         -LocalChannel local_channel
@@ -263,12 +265,12 @@ classDiagram
         +send_command(method, params)
         +subscribe(callback)
     }
-    
+
     class RpcChannel {
         -List~RpcStrategy~ strategies
         +send_command(method, params)
     }
-    
+
     class RpcStrategy {
         +name: str
         +channel: Channel
@@ -276,7 +278,7 @@ classDiagram
         +decoder: Callable
         +health_manager: HealthManager
     }
-    
+
     class MqttSession {
         -Client client
         -dict listeners
@@ -285,7 +287,7 @@ classDiagram
         +publish(topic, payload)
         +close()
     }
-    
+
     Channel <|-- MqttChannel
     Channel <|-- LocalChannel
     Channel <|-- V1Channel
@@ -495,13 +497,13 @@ def mock_mqtt_channel():
     """Mock MQTT channel that simulates responses."""
     channel = AsyncMock(spec=MqttChannel)
     channel.response_queue = []
-    
+
     async def publish_side_effect(message):
         # Simulate device response
         if channel.response_queue:
             response = channel.response_queue.pop(0)
             await callback(response)
-    
+
     channel.publish.side_effect = publish_side_effect
     return channel
 ```
