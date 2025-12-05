@@ -11,6 +11,7 @@ import aiomqtt
 import paho.mqtt.client as mqtt
 import pytest
 
+from roborock.exceptions import RoborockInvalidCredentials
 from roborock.mqtt.roborock_session import RoborockMqttSession, create_mqtt_session
 from roborock.mqtt.session import MqttParams, MqttSessionException
 from tests import mqtt_packet
@@ -366,3 +367,42 @@ async def test_idle_timeout_multiple_callbacks(mock_mqtt_client: AsyncMock) -> N
     mock_mqtt_client.unsubscribe.assert_called_once_with(topic)
 
     await session.close()
+
+
+@pytest.mark.parametrize(
+    ("side_effect", "expected_exception", "match"),
+    [
+        (
+            aiomqtt.MqttError("Connection failed"),
+            MqttSessionException,
+            "Error starting MQTT session",
+        ),
+        (
+            aiomqtt.MqttCodeError(rc=135),
+            RoborockInvalidCredentials,
+            "Authorization error starting MQTT session",
+        ),
+        (
+            aiomqtt.MqttCodeError(rc=128),
+            MqttSessionException,
+            "Error starting MQTT session",
+        ),
+        (
+            ValueError("Unexpected"),
+            MqttSessionException,
+            "Unexpected error starting session",
+        ),
+    ],
+)
+async def test_connect_failure(
+    side_effect: Exception,
+    expected_exception: type[Exception],
+    match: str,
+) -> None:
+    """Test connection failure with different exceptions."""
+    mock_aenter = AsyncMock()
+    mock_aenter.side_effect = side_effect
+
+    with patch("roborock.mqtt.roborock_session.aiomqtt.Client.__aenter__", mock_aenter):
+        with pytest.raises(expected_exception, match=match):
+            await create_mqtt_session(FAKE_PARAMS)

@@ -64,4 +64,9 @@ class MqttSession(ABC):
 
 
 class MqttSessionException(RoborockException):
-    """ "Raised when there is an error communicating with MQTT."""
+    """Raised when there is an error communicating with MQTT.
+
+    Note that not all exceptions raised by the MQTT session are of this type
+    as other `RoborockException`s may be raised for specific error conditions
+    such as authentication errors.
+    """
