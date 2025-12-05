@@ -73,29 +73,29 @@ graph TB
     DM -->|pv=1.0| V1Dev
     DM -->|pv=A01| A01Dev
     DM -->|pv=B01| B01Dev
-    
+
     V1Dev --> V1Traits
     A01Dev --> A01Traits
     B01Dev --> B01Traits
-    
+
     V1Traits --> V1C
     A01Traits --> A01C
     B01Traits --> B01C
-    
+
     V1C --> RPC
     RPC -->|Strategy 1| LC
     RPC -->|Strategy 2| MC
     A01C --> MC
     B01C --> MC
-    
+
     MC --> MS
     LC --> LS
-    
+
     MC --> V1P
     MC --> A01P
     MC --> B01P
     LC --> V1P
-    
+
     MS --> MQTT
     LC --> TCP
     MQTT <--> TCP
@@ -125,7 +125,7 @@ graph TB
 6. **Protocol Layer**: Message encoding/decoding for different device versions
 7. **Transport Layer**: Low-level MQTT and TCP communication
     LC --> V1P
-    
+
     MS --> MQTT
     LC --> TCP
     MQTT <--> TCP
@@ -154,6 +154,8 @@ graph TB
    - **LocalSession**: Factory for creating device-specific local connections
 6. **Protocol Layer**: Message encoding/decoding for different device versions
 7. **Transport Layer**: Low-level MQTT and TCP communication
+
+
 
 **Important:** All `MqttChannel` instances share the same `MqttSession`, which maintains a single MQTT connection to the broker. This means:
 - Only one TCP connection to the MQTT broker regardless of device count
