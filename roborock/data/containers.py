@@ -68,7 +68,9 @@ class RoborockBase:
             return [RoborockBase._convert_to_class_obj(sub_type, obj) for obj in value]
         if get_origin(class_type) is dict:
             key_type, value_type = get_args(class_type)
-            return {key_type(k): RoborockBase._convert_to_class_obj(value_type, v) for k, v in value.items()}
+            if key_type is not None:
+                return {key_type(k): RoborockBase._convert_to_class_obj(value_type, v) for k, v in value.items()}
+            return {k: RoborockBase._convert_to_class_obj(value_type, v) for k, v in value.items()}
         if inspect.isclass(class_type):
             if issubclass(class_type, RoborockBase):
                 return class_type.from_dict(value)
