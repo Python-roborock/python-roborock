@@ -6,7 +6,7 @@ Cloud and Network.
 
 ## Architecture Overview
 
-The library is organized into distinct layers, each with a specific responsibility:
+The library is organized into distinct layers, each with a specific responsibility. **Different device protocols use different channel implementations:**
 
 ```mermaid
 graph TB
@@ -15,66 +15,110 @@ graph TB
     end
 
     subgraph "Device Management Layer"
-        DM[DeviceManager]
-        Traits[Device Traits]
+        DM[DeviceManager<br/>Detects protocol version]
+    end
+
+    subgraph "Device Types by Protocol"
+        V1Dev[V1 Devices<br/>pv=1.0<br/>Most vacuums]
+        A01Dev[A01 Devices<br/>pv=A01<br/>Dyad, Zeo]
+        B01Dev[B01 Devices<br/>pv=B01<br/>Some models]
+    end
+
+    subgraph "Traits Layer"
+        V1Traits[V1 Traits<br/>Clean, Map, etc.]
+        A01Traits[A01 Traits<br/>DPS-based]
+        B01Traits[B01 Traits<br/>DPS-based]
     end
 
     subgraph "Channel Layer"
-        V1C[V1Channel]
-        RPC[RpcChannel]
-        MC[MqttChannel]
-        LC[LocalChannel]
+        V1C[V1Channel<br/>MQTT + Local]
+        A01C[A01 send_decoded_command<br/>MQTT only]
+        B01C[B01 send_decoded_command<br/>MQTT only]
+        RPC[RpcChannel<br/>Multi-strategy]
+        MC1[MqttChannel]
+        MC2[MqttChannel]
+        MC3[MqttChannel]
+        LC[LocalChannel<br/>TCP :58867]
     end
 
     subgraph "Session Layer"
-        MS[MqttSession]
-        LS[LocalSession Factory]
+        MS[MqttSession<br/>Shared connection<br/>Idle timeout]
+        LS[LocalSession<br/>Factory]
     end
 
     subgraph "Protocol Layer"
-        Proto[Protocol Encoders/Decoders]
-        V1P[V1 Protocol]
-        A01P[A01 Protocol]
-        B01P[B01 Protocol]
+        V1P[V1 Protocol<br/>JSON RPC + AES]
+        A01P[A01 Protocol<br/>DPS format]
+        B01P[B01 Protocol<br/>DPS format]
     end
 
     subgraph "Transport Layer"
-        MQTT[MQTT Broker]
-        TCP[TCP Socket]
+        MQTT[MQTT Broker<br/>Roborock Cloud]
+        TCP[TCP Socket<br/>Direct to device]
     end
 
     User --> DM
-    User --> Traits
-    DM --> V1C
-    Traits --> RPC
+    DM -->|pv=1.0| V1Dev
+    DM -->|pv=A01| A01Dev
+    DM -->|pv=B01| B01Dev
+    
+    V1Dev --> V1Traits
+    A01Dev --> A01Traits
+    B01Dev --> B01Traits
+    
+    V1Traits --> V1C
+    A01Traits --> A01C
+    B01Traits --> B01C
+    
     V1C --> RPC
-    RPC --> MC
-    RPC --> LC
-    MC --> MS
+    RPC -->|Strategy 1| LC
+    RPC -->|Strategy 2| MC1
+    A01C --> MC2
+    B01C --> MC3
+    
+    MC1 --> MS
+    MC2 --> MS
+    MC3 --> MS
     LC --> LS
-    MS --> Proto
-    LC --> Proto
-    Proto --> V1P
-    Proto --> A01P
-    Proto --> B01P
+    
+    MC1 --> V1P
+    MC2 --> A01P
+    MC3 --> B01P
+    LC --> V1P
+    
     MS --> MQTT
     LC --> TCP
+    MQTT <--> TCP
 
     style User fill:#e1f5ff
     style DM fill:#fff4e1
     style V1C fill:#ffe1e1
     style RPC fill:#ffe1e1
     style MS fill:#e1ffe1
-    style Proto fill:#f0e1ff
+    style V1P fill:#f0e1ff
+    style A01P fill:#f0e1ff
+    style B01P fill:#f0e1ff
 ```
 
 ### Layer Responsibilities
 
-1. **Device Management Layer**: High-level device discovery and lifecycle management
-2. **Channel Layer**: Request/response correlation and connection management
-3. **Session Layer**: Connection pooling and subscription management
-4. **Protocol Layer**: Message encoding/decoding for different device versions
-5. **Transport Layer**: Low-level MQTT and TCP communication
+1. **Device Management Layer**: Detects protocol version (`pv` field) and creates appropriate channels
+2. **Device Types**: Different devices based on protocol version (V1, A01, B01)
+3. **Traits Layer**: Protocol-specific device capabilities and commands
+4. **Channel Layer**: Protocol-specific communication patterns
+   - **V1**: Full RPC channel with local + MQTT fallback
+   - **A01/B01**: Helper functions wrapping MqttChannel (MQTT only)
+5. **Session Layer**: Connection pooling and subscription management
+6. **Protocol Layer**: Message encoding/decoding for different device versions
+7. **Transport Layer**: Low-level MQTT and TCP communication
+
+### Protocol-Specific Architecture
+
+| Protocol | Channel Type | Local Support | RPC Strategy | Use Case |
+|----------|-------------|---------------|--------------|----------|
+| **V1** (`pv=1.0`) | `V1Channel` with `RpcChannel` | ✅ Yes | Multi-strategy (Local → MQTT) | Most vacuum robots |
+| **A01** (`pv=A01`) | `MqttChannel` + helpers | ❌ No | Direct MQTT | Dyad, Zeo washers |
+| **B01** (`pv=B01`) | `MqttChannel` + helpers | ❌ No | Direct MQTT | Some newer models |
 
 ## Init account setup
 
@@ -114,9 +158,11 @@ that a newer version of the API should be used.
 
 ## Device Connections
 
-### Connection Flow
+### Connection Flow by Protocol
 
-The following diagram shows how a device connection is established and how commands flow through the system:
+The connection flow differs based on the device protocol version:
+
+#### V1 Devices (Most Vacuums) - MQTT + Local
 
 ```mermaid
 sequenceDiagram
@@ -128,7 +174,7 @@ sequenceDiagram
     participant LC as LocalChannel
     participant MS as MqttSession
     participant Broker as MQTT Broker
-    participant Device as Vacuum Device
+    participant Device as V1 Vacuum
 
     App->>DM: create_device_manager()
     DM->>MS: Create MQTT Session
@@ -136,9 +182,10 @@ sequenceDiagram
     Broker-->>MS: Connected
 
     App->>DM: get_devices()
+    Note over DM: Detect pv=1.0
     DM->>V1C: Create V1Channel
     V1C->>MC: Create MqttChannel
-    V1C->>LC: Create LocalChannel (if available)
+    V1C->>LC: Create LocalChannel (deferred)
 
     Note over V1C: Subscribe to device topics
     V1C->>MC: subscribe()
@@ -154,6 +201,78 @@ sequenceDiagram
     Device->>Broker: Response
     Broker->>MS: Message
     MS->>MC: callback(message)
+    MC->>RPC: decoded message
+    RPC-->>V1C: NetworkInfo
+
+    Note over V1C: Connect locally using IP
+    V1C->>LC: connect()
+    LC->>Device: TCP Connect :58867
+    Device-->>LC: Connected
+
+    Note over App: Commands prefer local
+    App->>V1C: send_command(GET_STATUS)
+    V1C->>RPC: send_command()
+    RPC->>LC: publish(request) [Try local first]
+    LC->>Device: Command via TCP
+    Device->>LC: Response
+    LC->>RPC: decoded message
+    RPC-->>App: Status
+```
+
+#### A01/B01 Devices (Dyad, Zeo) - MQTT Only
+
+```mermaid
+sequenceDiagram
+    participant App as Application
+    participant DM as DeviceManager
+    participant A01 as A01 Traits
+    participant Helper as send_decoded_command
+    participant MC as MqttChannel
+    participant MS as MqttSession
+    participant Broker as MQTT Broker
+    participant Device as A01 Device
+
+    App->>DM: create_device_manager()
+    DM->>MS: Create MQTT Session
+    MS->>Broker: Connect
+    Broker-->>MS: Connected
+
+    App->>DM: get_devices()
+    Note over DM: Detect pv=A01
+    DM->>MC: Create MqttChannel
+    DM->>A01: Create A01 Traits
+
+    Note over A01: Subscribe to device topics
+    A01->>MC: subscribe()
+    MC->>MS: subscribe(topic, callback)
+    MS->>Broker: SUBSCRIBE
+
+    Note over App: All commands via MQTT
+    App->>A01: set_power(True)
+    A01->>Helper: send_decoded_command()
+    Helper->>MC: subscribe(find_response)
+    Helper->>MC: publish(request)
+    MC->>MS: publish(topic, message)
+    MS->>Broker: PUBLISH
+    Broker->>Device: Command
+    Device->>Broker: Response
+    Broker->>MS: Message
+    MS->>MC: callback(message)
+    MC->>Helper: decoded message
+    Helper-->>App: Result
+```
+
+### Key Differences
+
+| Aspect | V1 Devices | A01/B01 Devices |
+|--------|------------|-----------------|
+| **Protocols** | V1 Protocol (JSON RPC) | DPS Protocol |
+| **Transports** | MQTT + Local TCP | MQTT only |
+| **Channel Type** | `V1Channel` with `RpcChannel` | `MqttChannel` with helpers |
+| **Local Support** | ✅ Yes, preferred | ❌ No |
+| **Fallback** | Local → MQTT | N/A |
+| **Connection** | Requires network info fetch | Direct MQTT |
+| **Examples** | Most vacuum robots | Dyad washers, Zeo models |
     MC->>RPC: decoded message
     RPC-->>V1C: NetworkInfo
 
