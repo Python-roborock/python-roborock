@@ -4,6 +4,20 @@ The devices module provides functionality to discover Roborock devices on the
 network. This section documents the full lifecycle of device discovery across
 Cloud and Network.
 
+## Quick Start: Understanding Device Protocols
+
+**The library supports three device protocol versions, each with different capabilities:**
+
+### Protocol Summary
+
+| Protocol | Device Examples | MQTT | Local TCP | Channel Type | Notes |
+|----------|----------------|------|-----------|--------------|-------|
+| **V1** (`pv=1.0`) | Most vacuum robots (S7, S8, Q5, Q7, etc.) | ✅ | ✅ | `V1Channel` with `RpcChannel` | Prefers local, falls back to MQTT |
+| **A01** (`pv=A01`) | Dyad, Zeo washers | ✅ | ❌ | `MqttChannel` + helpers | MQTT only, DPS protocol |
+| **B01** (`pv=B01`) | Some newer models | ✅ | ❌ | `MqttChannel` + helpers | MQTT only, DPS protocol |
+
+**Key Point:** The `DeviceManager` automatically detects the protocol version and creates the appropriate channel type. You don't need to handle this manually.
+
 ## Architecture Overview
 
 The library is organized into distinct layers, each with a specific responsibility. **Different device protocols use different channel implementations:**
@@ -35,14 +49,12 @@ graph TB
         A01C[A01 send_decoded_command<br/>MQTT only]
         B01C[B01 send_decoded_command<br/>MQTT only]
         RPC[RpcChannel<br/>Multi-strategy]
-        MC1[MqttChannel]
-        MC2[MqttChannel]
-        MC3[MqttChannel]
+        MC[MqttChannel<br/>Per-device wrapper]
         LC[LocalChannel<br/>TCP :58867]
     end
 
     subgraph "Session Layer"
-        MS[MqttSession<br/>Shared connection<br/>Idle timeout]
+        MS[MqttSession<br/>SHARED by all devices<br/>Idle timeout]
         LS[LocalSession<br/>Factory]
     end
 
@@ -72,18 +84,16 @@ graph TB
     
     V1C --> RPC
     RPC -->|Strategy 1| LC
-    RPC -->|Strategy 2| MC1
-    A01C --> MC2
-    B01C --> MC3
+    RPC -->|Strategy 2| MC
+    A01C --> MC
+    B01C --> MC
     
-    MC1 --> MS
-    MC2 --> MS
-    MC3 --> MS
+    MC --> MS
     LC --> LS
     
-    MC1 --> V1P
-    MC2 --> A01P
-    MC3 --> B01P
+    MC --> V1P
+    MC --> A01P
+    MC --> B01P
     LC --> V1P
     
     MS --> MQTT
@@ -108,9 +118,47 @@ graph TB
 4. **Channel Layer**: Protocol-specific communication patterns
    - **V1**: Full RPC channel with local + MQTT fallback
    - **A01/B01**: Helper functions wrapping MqttChannel (MQTT only)
+   - **MqttChannel**: Per-device wrapper that uses shared `MqttSession`
 5. **Session Layer**: Connection pooling and subscription management
+   - **MqttSession**: **Shared single connection** for all devices
+   - **LocalSession**: Factory for creating device-specific local connections
 6. **Protocol Layer**: Message encoding/decoding for different device versions
 7. **Transport Layer**: Low-level MQTT and TCP communication
+    LC --> V1P
+    
+    MS --> MQTT
+    LC --> TCP
+    MQTT <--> TCP
+
+    style User fill:#e1f5ff
+    style DM fill:#fff4e1
+    style V1C fill:#ffe1e1
+    style RPC fill:#ffe1e1
+    style MS fill:#e1ffe1
+    style V1P fill:#f0e1ff
+    style A01P fill:#f0e1ff
+    style B01P fill:#f0e1ff
+```
+
+### Layer Responsibilities
+
+1. **Device Management Layer**: Detects protocol version (`pv` field) and creates appropriate channels
+2. **Device Types**: Different devices based on protocol version (V1, A01, B01)
+3. **Traits Layer**: Protocol-specific device capabilities and commands
+4. **Channel Layer**: Protocol-specific communication patterns
+   - **V1**: Full RPC channel with local + MQTT fallback
+   - **A01/B01**: Helper functions wrapping MqttChannel (MQTT only)
+   - **MqttChannel**: Per-device wrapper (each device has its own `MqttChannel` instance)
+5. **Session Layer**: Connection pooling and subscription management
+   - **MqttSession**: **Single shared connection** for ALL devices (efficiency!)
+   - **LocalSession**: Factory for creating device-specific local connections
+6. **Protocol Layer**: Message encoding/decoding for different device versions
+7. **Transport Layer**: Low-level MQTT and TCP communication
+
+**Important:** All `MqttChannel` instances share the same `MqttSession`, which maintains a single MQTT connection to the broker. This means:
+- Only one TCP connection to the MQTT broker regardless of device count
+- Subscription management is centralized with idle timeout optimization
+- All devices communicate through device-specific MQTT topics on the shared connection
 
 ### Protocol-Specific Architecture
 
@@ -273,48 +321,29 @@ sequenceDiagram
 | **Fallback** | Local → MQTT | N/A |
 | **Connection** | Requires network info fetch | Direct MQTT |
 | **Examples** | Most vacuum robots | Dyad washers, Zeo models |
-    MC->>RPC: decoded message
-    RPC-->>V1C: NetworkInfo
 
-    Note over V1C: Connect locally using IP from NetworkInfo
-    V1C->>LC: connect()
-    LC->>Device: TCP Connect :58867
-    Device-->>LC: Connected
-
-    Note over V1C: Send command (prefers local)
-    App->>V1C: send_command(GET_STATUS)
-    V1C->>RPC: send_command()
-    RPC->>LC: publish(request) [Try local first]
-    LC->>Device: Command
-    Device->>LC: Response
-    LC->>RPC: decoded message
-    RPC-->>App: Status
-```
-
-
-
-### MQTT connection
+### MQTT Connection (All Devices)
 
 - Initial device information must be obtained from MQTT
-- We typically set up the MQTT device connection before the local device connection.
-  - The `NetworkingInfo` needs to be fetched to get additional information about connecting to the device:
-    - e.g. Local IP Address
+- For V1 devices, we set up the MQTT device connection before the local device connection
+  - The `NetworkingInfo` needs to be fetched to get additional information about connecting to the device (e.g., Local IP Address)
   - This networking info can be cached to reduce network calls
-  - MQTT also is the only way to get the device Map
+  - MQTT is also the only way to get the device Map
 - Incoming and outgoing messages are decoded/encoded using the device `local_key`
-- Otherwise all commands may be performed locally.
+- For A01/B01 devices, MQTT is the only transport
 
-### Local connection
+### Local Connection (V1 Devices Only)
 
-- We can use the `ip` from the `NetworkingInfo` to find the device
-- The local connection is preferred to for improved latency and reducing load on the cloud servers to avoid rate limiting.
+- We use the `ip` from the `NetworkingInfo` to find the device
+- The local connection is preferred for improved latency and reducing load on the cloud servers to avoid rate limiting
 - Connections are made using a normal TCP socket on port `58867`
 - Incoming and outgoing messages are decoded/encoded using the device `local_key`
-- Messages received on the stream may be partially received so we keep a running buffer as messages are partially decoded
+- Messages received on the stream may be partially received, so we keep a running buffer as messages are partially decoded
+- **Not available for A01/B01 devices**
 
-### RPC Pattern
+### RPC Pattern (V1 Devices)
 
-The library uses a publish/subscribe model for both MQTT and local connections, with an RPC abstraction on top:
+V1 devices use a publish/subscribe model for both MQTT and local connections, with an RPC abstraction on top:
 
 ```mermaid
 graph LR
@@ -430,18 +459,30 @@ The `Channel` abstraction provides a uniform interface for both MQTT and local c
 
 This abstraction allows the RPC layer to work identically over both transports.
 
-#### MqttSession
+#### MqttSession (Shared Across All Devices)
 
-The `MqttSession` manages a shared MQTT connection for all devices:
+The `MqttSession` manages a **single shared MQTT connection** for all devices:
 
+- **Single Connection**: Only one TCP connection to the MQTT broker, regardless of device count
+- **Per-Device Topics**: Each device communicates via its own MQTT topics (e.g., `rr/m/i/{user}/{username}/{duid}`)
 - **Subscription Pooling**: Multiple callbacks can subscribe to the same topic
-- **Idle Timeout**: Keeps subscriptions alive for 10 seconds after the last callback unsubscribes
-- **Reconnection**: Automatically reconnects and re-establishes subscriptions on connection loss
+- **Idle Timeout**: Keeps subscriptions alive for 10 seconds after the last callback unsubscribes (enables reuse during command bursts)
+- **Reconnection**: Automatically reconnects and re-establishes all subscriptions on connection loss
 - **Thread-Safe**: Uses asyncio primitives for safe concurrent access
 
-#### RpcChannel with Multiple Strategies
+**Efficiency**: Creating 5 devices means 5 `MqttChannel` instances but only 1 `MqttSession` and 1 MQTT broker connection.
 
-The `RpcChannel` implements the request/response pattern over pub/sub channels:
+#### MqttChannel (Per-Device Wrapper)
+
+Each device gets its own `MqttChannel` instance that:
+- Wraps the shared `MqttSession`
+- Manages device-specific topics (publish to `rr/m/i/.../duid`, subscribe to `rr/m/o/.../duid`)
+- Handles protocol-specific encoding/decoding with the device's `local_key`
+- Provides the same `Channel` interface as `LocalChannel`
+
+#### RpcChannel with Multiple Strategies (V1 Only)
+
+The `RpcChannel` implements the request/response pattern over pub/sub channels and is **only used by V1 devices**:
 
 ```python
 # Example: V1Channel tries local first, then MQTT
@@ -452,18 +493,32 @@ strategies = [
 rpc_channel = RpcChannel(strategies)
 ```
 
-For each command:
+For each V1 command:
 1. Try the first strategy (local)
 2. If it fails, try the next strategy (MQTT)
 3. Return the first successful result
 
-#### Health Management
+**A01/B01 devices** don't use `RpcChannel`. Instead, they use helper functions (`send_decoded_command`) that directly wrap `MqttChannel`.
 
-Each strategy can have a `HealthManager` that tracks success/failure:
+#### Protocol-Specific Channel Architecture
+
+| Component | V1 Devices | A01/B01 Devices |
+|-----------|------------|-----------------|
+| **Channel Class** | `V1Channel` | `MqttChannel` directly |
+| **RPC Abstraction** | `RpcChannel` with strategies | Helper functions |
+| **Strategy Pattern** | ✅ Multi-strategy (Local → MQTT) | ❌ Direct MQTT only |
+| **Health Manager** | ✅ Tracks local/MQTT health | ❌ Not needed |
+| **Code Location** | `v1_channel.py` | `a01_channel.py`, `b01_channel.py` |
+
+#### Health Management (V1 Only)
+
+Each V1 RPC strategy can have a `HealthManager` that tracks success/failure:
 
 - **Exponential Backoff**: After failures, wait before retrying
 - **Automatic Recovery**: Periodically attempt to restore failed connections
 - **Network Info Refresh**: Refresh local IP addresses after extended periods
+
+A01/B01 devices don't need health management since they only use MQTT (no fallback).
 
 ### Protocol Versions
 
