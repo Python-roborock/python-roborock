@@ -197,7 +197,15 @@ async def create_device_manager(
                 trait = a01.create(product, channel)
             case DeviceVersion.B01:
                 channel = create_mqtt_channel(user_data, mqtt_params, mqtt_session, device)
-                trait = b01.create(channel)
+                if "ss" in product.model.split(".")[-1]:
+                    raise NotImplementedError(
+                        f"Device {device.name} has unsupported version B01_{product.model.strip('.')[-1]}"
+                    )
+                elif "sc" in product.model.split(".")[-1]:
+                    # Q7 devices start with 'sc' in their model naming.
+                    trait = b01.q7.create(channel)
+                else:
+                    raise NotImplementedError(f"Device {device.name} has unsupported B01 model: {product.model}")
             case _:
                 raise NotImplementedError(f"Device {device.name} has unsupported version {device.pv}")
         return RoborockDevice(device, product, channel, trait)

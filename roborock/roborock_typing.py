@@ -271,8 +271,8 @@ class RoborockCommand(str, Enum):
     APP_GET_ROBOT_SETTING = "app_get_robot_setting"
 
 
-class RoborockB01Methods(StrEnum):
-    """Methods used by the Roborock B01 model."""
+class RoborockB01Q7Methods(StrEnum):
+    """Methods used by the Roborock Q7 model."""
 
     GET_PROP = "prop.get"
     GET_MAP_LIST = "service.get_map_list"

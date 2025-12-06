@@ -7,7 +7,7 @@ from typing import Any
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 
-from roborock import RoborockB01Methods
+from roborock import RoborockB01Q7Methods
 from roborock.exceptions import RoborockException
 from roborock.roborock_message import (
     RoborockMessage,
@@ -18,7 +18,7 @@ from roborock.util import get_next_int
 _LOGGER = logging.getLogger(__name__)
 
 B01_VERSION = b"B01"
-CommandType = RoborockB01Methods | str
+CommandType = RoborockB01Q7Methods | str
 ParamsType = list | dict | int | None
 
 
