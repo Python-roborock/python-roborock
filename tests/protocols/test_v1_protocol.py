@@ -274,3 +274,17 @@ def test_decode_no_request_id():
     )
     with pytest.raises(RoborockException, match="The method called is not recognized by the device"):
         decode_rpc_response(message)
+
+
+def test_invalid_unicode() -> None:
+    """Test an error while decoding unicode bytes"""
+    message = RoborockMessage(
+        protocol=RoborockMessageProtocol.GENERAL_RESPONSE,
+        payload=b"hello\xff\xfe",  # Invalid UTF-8 bytes
+        seq=12750,
+        version=b"1.0",
+        random=97431,
+        timestamp=1652547161,
+    )
+    with pytest.raises(RoborockException, match="Invalid V1 message payload"):
+        decode_rpc_response(message)

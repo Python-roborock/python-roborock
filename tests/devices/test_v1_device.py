@@ -9,7 +9,7 @@ import pytest
 from syrupy import SnapshotAssertion
 
 from roborock.data import HomeData, S7MaxVStatus, UserData
-from roborock.devices.cache import NoCache
+from roborock.devices.cache import DeviceCache, NoCache
 from roborock.devices.device import RoborockDevice
 from roborock.devices.traits import v1
 from roborock.devices.traits.v1.common import V1TraitMixin
@@ -64,7 +64,7 @@ def device_fixture(channel: AsyncMock, rpc_channel: AsyncMock, mqtt_rpc_channel:
             mqtt_rpc_channel,
             AsyncMock(),
             AsyncMock(),
-            NoCache(),
+            device_cache=DeviceCache(HOME_DATA.devices[0].duid, NoCache()),
         ),
     )
 

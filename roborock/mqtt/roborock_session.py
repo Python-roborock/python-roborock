@@ -24,7 +24,8 @@ from .session import MqttParams, MqttSession, MqttSessionException
 _LOGGER = logging.getLogger(__name__)
 _MQTT_LOGGER = logging.getLogger(f"{__name__}.aiomqtt")
 
-KEEPALIVE = 60
+CLIENT_KEEPALIVE = datetime.timedelta(seconds=120)
+TOPIC_KEEPALIVE = datetime.timedelta(seconds=60)
 
 # Exponential backoff parameters
 MIN_BACKOFF_INTERVAL = datetime.timedelta(seconds=10)
@@ -47,7 +48,11 @@ class RoborockMqttSession(MqttSession):
     re-established.
     """
 
-    def __init__(self, params: MqttParams):
+    def __init__(
+        self,
+        params: MqttParams,
+        topic_idle_timeout: datetime.timedelta = TOPIC_KEEPALIVE,
+    ):
         self._params = params
         self._reconnect_task: asyncio.Task[None] | None = None
         self._healthy = False
@@ -57,6 +62,8 @@ class RoborockMqttSession(MqttSession):
         self._client_lock = asyncio.Lock()
         self._listeners: CallbackMap[str, bytes] = CallbackMap(_LOGGER)
         self._connection_task: asyncio.Task[None] | None = None
+        self._topic_idle_timeout = topic_idle_timeout
+        self._idle_timers: dict[str, asyncio.Task[None]] = {}
 
     @property
     def connected(self) -> bool:
@@ -86,11 +93,15 @@ class RoborockMqttSession(MqttSession):
     async def close(self) -> None:
         """Cancels the MQTT loop and shutdown the client library."""
         self._stop = True
-        tasks = [task for task in [self._connection_task, self._reconnect_task] if task]
+        tasks = [task for task in [self._connection_task, self._reconnect_task, *self._idle_timers.values()] if task]
+        self._connection_task = None
+        self._reconnect_task = None
+        self._idle_timers.clear()
+
         for task in tasks:
             task.cancel()
         try:
-            await asyncio.gather(*tasks)
+            await asyncio.gather(*tasks, return_exceptions=True)
         except asyncio.CancelledError:
             pass
 
@@ -183,7 +194,7 @@ class RoborockMqttSession(MqttSession):
                 port=params.port,
                 username=params.username,
                 password=params.password,
-                keepalive=KEEPALIVE,
+                keepalive=int(CLIENT_KEEPALIVE.total_seconds()),
                 protocol=aiomqtt.ProtocolVersion.V5,
                 tls_params=TLSParameters() if params.tls else None,
                 timeout=params.timeout,
@@ -210,9 +221,17 @@ class RoborockMqttSession(MqttSession):
         The callback will be called with the message payload as a bytes object. The callback
         should not block since it runs in the async loop. It should not raise any exceptions.
 
-        The returned callable unsubscribes from the topic when called.
+        The returned callable unsubscribes from the topic when called, but will delay actual
+        unsubscription for the idle timeout period. If a new subscription comes in during the
+        timeout, the timer is cancelled and the subscription is reused.
         """
         _LOGGER.debug("Subscribing to topic %s", topic)
+
+        # If there is an idle timer for this topic, cancel it (reuse subscription)
+        if idle_timer := self._idle_timers.pop(topic, None):
+            idle_timer.cancel()
+            _LOGGER.debug("Cancelled idle timer for topic %s (reused subscription)", topic)
+
         unsub = self._listeners.add_callback(topic, callback)
 
         async with self._client_lock:
@@ -221,11 +240,41 @@ class RoborockMqttSession(MqttSession):
                 try:
                     await self._client.subscribe(topic)
                 except MqttError as err:
+                    # Clean up the callback if subscription fails
+                    unsub()
                     raise MqttSessionException(f"Error subscribing to topic: {err}") from err
             else:
                 _LOGGER.debug("Client not connected, will establish subscription later")
 
-        return unsub
+        def schedule_unsubscribe():
+            async def idle_unsubscribe():
+                try:
+                    await asyncio.sleep(self._topic_idle_timeout.total_seconds())
+                    # Only unsubscribe if there are no callbacks left for this topic
+                    if not self._listeners.get_callbacks(topic):
+                        async with self._client_lock:
+                            if self._client:
+                                _LOGGER.debug("Idle timeout expired, unsubscribing from topic %s", topic)
+                                try:
+                                    await self._client.unsubscribe(topic)
+                                except MqttError as err:
+                                    _LOGGER.warning("Error unsubscribing from topic %s: %s", topic, err)
+                    # Clean up timer from dict
+                    self._idle_timers.pop(topic, None)
+                except asyncio.CancelledError:
+                    _LOGGER.debug("Idle unsubscribe for topic %s cancelled", topic)
+
+            # Start the idle timer task
+            task = asyncio.create_task(idle_unsubscribe())
+            self._idle_timers[topic] = task
+
+        def delayed_unsub():
+            unsub()  # Remove the callback from CallbackMap
+            # If no more callbacks for this topic, start idle timer
+            if not self._listeners.get_callbacks(topic):
+                schedule_unsubscribe()
+
+        return delayed_unsub
 
     async def publish(self, topic: str, message: bytes) -> None:
         """Publish a message on the topic."""

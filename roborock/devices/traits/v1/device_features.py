@@ -2,7 +2,7 @@ from dataclasses import fields
 
 from roborock.data import AppInitStatus, RoborockProductNickname
 from roborock.device_features import DeviceFeatures
-from roborock.devices.cache import Cache
+from roborock.devices.cache import DeviceCache
 from roborock.devices.traits.v1 import common
 from roborock.roborock_typing import RoborockCommand
 
@@ -12,10 +12,10 @@ class DeviceFeaturesTrait(DeviceFeatures, common.V1TraitMixin):
 
     command = RoborockCommand.APP_GET_INIT_STATUS
 
-    def __init__(self, product_nickname: RoborockProductNickname, cache: Cache) -> None:  # pylint: disable=super-init-not-called
+    def __init__(self, product_nickname: RoborockProductNickname, device_cache: DeviceCache) -> None:  # pylint: disable=super-init-not-called
         """Initialize MapContentTrait."""
         self._nickname = product_nickname
-        self._cache = cache
+        self._device_cache = device_cache
         # All fields of DeviceFeatures are required. Initialize them to False
         # so we have some known state.
         for field in fields(self):
@@ -28,14 +28,14 @@ class DeviceFeaturesTrait(DeviceFeatures, common.V1TraitMixin):
         change often and this avoids unnecessary RPC calls. This would only
         ever change with a firmware update, so caching is appropriate.
         """
-        cache_data = await self._cache.get()
+        cache_data = await self._device_cache.get()
         if cache_data.device_features is not None:
             self._update_trait_values(cache_data.device_features)
             return
         # Save cached device features
         await super().refresh()
         cache_data.device_features = self
-        await self._cache.set(cache_data)
+        await self._device_cache.set(cache_data)
 
     def _parse_response(self, response: common.V1ResponseData) -> DeviceFeatures:
         """Parse the response from the device into a MapContentTrait instance."""

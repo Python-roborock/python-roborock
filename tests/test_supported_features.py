@@ -1,4 +1,7 @@
+from syrupy import SnapshotAssertion
+
 from roborock import SHORT_MODEL_TO_ENUM
+from roborock.data.code_mappings import RoborockProductNickname
 from roborock.device_features import DeviceFeatures
 
 
@@ -43,3 +46,16 @@ def test_supported_features_s7():
     assert not device_features.is_hot_wash_towel_supported
     num_true = sum(vars(device_features).values())
     assert num_true != 0
+
+
+def test_device_feature_serialization(snapshot: SnapshotAssertion) -> None:
+    """Test serialization and deserialization of DeviceFeatures."""
+    device_features = DeviceFeatures.from_feature_flags(
+        new_feature_info=636084721975295,
+        new_feature_info_str="0000000000002000",
+        feature_info=[111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 122, 123, 124, 125],
+        product_nickname=RoborockProductNickname.TANOSS,
+    )
+    serialized = device_features.as_dict()
+    deserialized = DeviceFeatures.from_dict(serialized)
+    assert deserialized == device_features

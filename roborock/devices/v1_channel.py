@@ -31,7 +31,7 @@ from roborock.protocols.v1_protocol import (
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 from roborock.roborock_typing import RoborockCommand
 
-from .cache import Cache
+from .cache import DeviceCache
 from .channel import Channel
 from .local_channel import LocalChannel, LocalSession, create_local_session
 from .mqtt_channel import MqttChannel
@@ -170,7 +170,7 @@ class V1Channel(Channel):
         security_data: SecurityData,
         mqtt_channel: MqttChannel,
         local_session: LocalSession,
-        cache: Cache,
+        device_cache: DeviceCache,
     ) -> None:
         """Initialize the V1Channel."""
         self._device_uid = device_uid
@@ -182,7 +182,7 @@ class V1Channel(Channel):
         self._mqtt_unsub: Callable[[], None] | None = None
         self._local_unsub: Callable[[], None] | None = None
         self._callback: Callable[[RoborockMessage], None] | None = None
-        self._cache = cache
+        self._device_cache = device_cache
         self._reconnect_task: asyncio.Task[None] | None = None
         self._last_network_info_refresh: datetime.datetime | None = None
 
@@ -318,24 +318,27 @@ class V1Channel(Channel):
 
         This is a cloud only command used to get the local device's IP address.
         """
-        cache_data = await self._cache.get()
-        if prefer_cache and cache_data.network_info and (network_info := cache_data.network_info.get(self._device_uid)):
+        device_cache_data = await self._device_cache.get()
+
+        if prefer_cache and device_cache_data.network_info:
             _LOGGER.debug("Using cached network info for device %s", self._device_uid)
-            return network_info
+            return device_cache_data.network_info
         try:
             network_info = await self.mqtt_rpc_channel.send_command(
                 RoborockCommand.GET_NETWORK_INFO, response_type=NetworkInfo
             )
         except RoborockException as e:
             _LOGGER.debug("Error fetching network info for device %s", self._device_uid)
-            if cache_data.network_info and (network_info := cache_data.network_info.get(self._device_uid)):
+            if device_cache_data.network_info:
                 _LOGGER.debug("Falling back to cached network info for device %s after error", self._device_uid)
-                return network_info
+                return device_cache_data.network_info
             raise RoborockException(f"Network info failed for device {self._device_uid}") from e
         _LOGGER.debug("Network info for device %s: %s", self._device_uid, network_info)
         self._last_network_info_refresh = datetime.datetime.now(datetime.UTC)
-        cache_data.network_info[self._device_uid] = network_info
-        await self._cache.set(cache_data)
+
+        device_cache_data = await self._device_cache.get()
+        device_cache_data.network_info = network_info
+        await self._device_cache.set(device_cache_data)
         return network_info
 
     async def _local_connect(self, *, prefer_cache: bool = True) -> None:
@@ -425,10 +428,16 @@ def create_v1_channel(
     mqtt_params: MqttParams,
     mqtt_session: MqttSession,
     device: HomeDataDevice,
-    cache: Cache,
+    device_cache: DeviceCache,
 ) -> V1Channel:
     """Create a V1Channel for the given device."""
     security_data = create_security_data(user_data.rriot)
     mqtt_channel = MqttChannel(mqtt_session, device.duid, device.local_key, user_data.rriot, mqtt_params)
     local_session = create_local_session(device.local_key)
-    return V1Channel(device.duid, security_data, mqtt_channel, local_session=local_session, cache=cache)
+    return V1Channel(
+        device.duid,
+        security_data,
+        mqtt_channel,
+        local_session=local_session,
+        device_cache=device_cache,
+    )

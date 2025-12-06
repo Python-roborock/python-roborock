@@ -93,7 +93,7 @@ async def test_get_clean_summary_success(
 
     # Verify the RPC call was made correctly
     mock_rpc_channel.send_command.assert_has_calls(
-        [call(RoborockCommand.GET_CLEAN_SUMMARY), call(RoborockCommand.GET_CLEAN_RECORD, params=[1734458038])]
+        [call(RoborockCommand.GET_CLEAN_SUMMARY), call(RoborockCommand.GET_CLEAN_RECORD, params=[1756848207])]
     )
 
 

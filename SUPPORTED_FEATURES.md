@@ -38,7 +38,7 @@
 | `is_carpet_shape_type_supported` |  |  |  |
 | `is_carpet_show_on_map` |  | X |  |
 | `is_carpet_supported` | X | X |  |
-| `is_ces2022_supported` |  |  |  |
+| `is_ces_2022_supported` |  |  |  |
 | `is_clean_count_setting_supported` |  | X |  |
 | `is_clean_direct_status_supported` |  |  |  |
 | `is_clean_efficiency_supported` |  |  |  |

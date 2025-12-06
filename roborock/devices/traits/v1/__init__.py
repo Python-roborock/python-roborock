@@ -32,11 +32,12 @@ optional traits:
 
 import logging
 from dataclasses import dataclass, field, fields
+from functools import cache
 from typing import Any, get_args
 
 from roborock.data.containers import HomeData, HomeDataProduct, RoborockBase
 from roborock.data.v1.v1_code_mappings import RoborockDockTypeCode
-from roborock.devices.cache import Cache
+from roborock.devices.cache import DeviceCache
 from roborock.devices.traits import Trait
 from roborock.map.map_parser import MapParserConfig
 from roborock.protocols.v1_protocol import V1RpcChannel
@@ -131,7 +132,7 @@ class PropertiesApi(Trait):
         mqtt_rpc_channel: V1RpcChannel,
         map_rpc_channel: V1RpcChannel,
         web_api: UserWebApiClient,
-        cache: Cache,
+        device_cache: DeviceCache,
         map_parser_config: MapParserConfig | None = None,
     ) -> None:
         """Initialize the V1TraitProps."""
@@ -140,16 +141,16 @@ class PropertiesApi(Trait):
         self._mqtt_rpc_channel = mqtt_rpc_channel
         self._map_rpc_channel = map_rpc_channel
         self._web_api = web_api
-        self._cache = cache
+        self._device_cache = device_cache
 
         self.status = StatusTrait(product)
         self.consumables = ConsumableTrait()
         self.rooms = RoomsTrait(home_data)
         self.maps = MapsTrait(self.status)
         self.map_content = MapContentTrait(map_parser_config)
-        self.home = HomeTrait(self.status, self.maps, self.map_content, self.rooms, cache)
-        self.device_features = DeviceFeaturesTrait(product.product_nickname, cache)
-        self.network_info = NetworkInfoTrait(device_uid, cache)
+        self.home = HomeTrait(self.status, self.maps, self.map_content, self.rooms, self._device_cache)
+        self.device_features = DeviceFeaturesTrait(product.product_nickname, self._device_cache)
+        self.network_info = NetworkInfoTrait(device_uid, self._device_cache)
         self.routines = RoutinesTrait(device_uid, web_api)
 
         # Dynamically create any traits that need to be populated
@@ -239,7 +240,7 @@ class PropertiesApi(Trait):
 
     async def _get_cached_trait_data(self, name: str) -> Any:
         """Get the dock type from the status trait or cache."""
-        cache_data = await self._cache.get()
+        cache_data = await self._device_cache.get()
         if cache_data.trait_data is None:
             cache_data.trait_data = {}
         _LOGGER.debug("Cached trait data: %s", cache_data.trait_data)
@@ -247,12 +248,12 @@ class PropertiesApi(Trait):
 
     async def _set_cached_trait_data(self, name: str, value: Any) -> None:
         """Set trait-specific cached data."""
-        cache_data = await self._cache.get()
+        cache_data = await self._device_cache.get()
         if cache_data.trait_data is None:
             cache_data.trait_data = {}
         cache_data.trait_data[name] = value
         _LOGGER.debug("Updating cached trait data: %s", cache_data.trait_data)
-        await self._cache.set(cache_data)
+        await self._device_cache.set(cache_data)
 
     def as_dict(self) -> dict[str, Any]:
         """Return the trait data as a dictionary."""
@@ -275,7 +276,7 @@ def create(
     mqtt_rpc_channel: V1RpcChannel,
     map_rpc_channel: V1RpcChannel,
     web_api: UserWebApiClient,
-    cache: Cache,
+    device_cache: DeviceCache,
     map_parser_config: MapParserConfig | None = None,
 ) -> PropertiesApi:
     """Create traits for V1 devices."""
@@ -287,6 +288,6 @@ def create(
         mqtt_rpc_channel,
         map_rpc_channel,
         web_api,
-        cache,
+        device_cache,
         map_parser_config,
     )

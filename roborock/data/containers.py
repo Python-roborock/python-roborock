@@ -1,5 +1,6 @@
 import dataclasses
 import datetime
+import inspect
 import json
 import logging
 import re
@@ -27,7 +28,11 @@ def _camelize(s: str):
 
 
 def _decamelize(s: str):
-    return re.sub("([A-Z]+)", "_\\1", s).lower()
+    # Split before uppercase letters not at the start, and before numbers
+    s = re.sub(r"(?<=[a-z0-9])([A-Z])", r"_\1", s)
+    s = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", s)  # Split acronyms followed by normal camelCase
+    s = re.sub(r"([a-zA-Z])([0-9]+)", r"\1_\2", s)
+    return s.lower()
 
 
 def _attr_repr(obj: Any) -> str:
@@ -62,13 +67,16 @@ class RoborockBase:
             sub_type = get_args(class_type)[0]
             return [RoborockBase._convert_to_class_obj(sub_type, obj) for obj in value]
         if get_origin(class_type) is dict:
-            _, value_type = get_args(class_type)  # assume keys are only basic types
+            key_type, value_type = get_args(class_type)
+            if key_type is not None:
+                return {key_type(k): RoborockBase._convert_to_class_obj(value_type, v) for k, v in value.items()}
             return {k: RoborockBase._convert_to_class_obj(value_type, v) for k, v in value.items()}
-        if issubclass(class_type, RoborockBase):
-            return class_type.from_dict(value)
-        if issubclass(class_type, RoborockModeEnum):
-            return class_type.from_code(value)
-        if class_type is Any:
+        if inspect.isclass(class_type):
+            if issubclass(class_type, RoborockBase):
+                return class_type.from_dict(value)
+            if issubclass(class_type, RoborockModeEnum):
+                return class_type.from_code(value)
+        if class_type is Any or type(class_type) is str:
             return value
         return class_type(value)  # type: ignore[call-arg]
 

@@ -135,7 +135,7 @@ def decode_rpc_response(message: RoborockMessage) -> ResponseMessage:
         return ResponseMessage(request_id=message.seq, data={})
     try:
         payload = json.loads(message.payload.decode())
-    except (json.JSONDecodeError, TypeError) as e:
+    except (json.JSONDecodeError, TypeError, UnicodeDecodeError) as e:
         raise RoborockException(f"Invalid V1 message payload: {e} for {message.payload!r}") from e
 
     _LOGGER.debug("Decoded V1 message payload: %s", payload)

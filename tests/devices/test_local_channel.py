@@ -366,3 +366,112 @@ async def test_hello_preferred_protocol_version_ordering(mock_loop: Mock, mock_t
     assert channel._params is not None
     assert channel._params.ack_nonce == 11111
     assert channel._is_connected is True
+
+
+async def test_keep_alive_task_created_on_connect(local_channel: LocalChannel, mock_loop: Mock) -> None:
+    """Test that _keep_alive_task is created when connect() is called."""
+    # Before connecting, task should be None
+    assert local_channel._keep_alive_task is None
+
+    await local_channel.connect()
+
+    # After connecting, task should be created and not done
+    assert local_channel._keep_alive_task is not None
+    assert isinstance(local_channel._keep_alive_task, asyncio.Task)
+    assert not local_channel._keep_alive_task.done()
+
+
+async def test_keep_alive_task_canceled_on_close(local_channel: LocalChannel, mock_loop: Mock) -> None:
+    """Test that the keep-alive task is properly canceled when close() is called."""
+    await local_channel.connect()
+
+    # Verify task exists
+    task = local_channel._keep_alive_task
+    assert task is not None
+    assert not task.done()
+
+    # Close the connection
+    local_channel.close()
+
+    # Give the task a moment to be cancelled
+    await asyncio.sleep(0.01)
+
+    # Task should be canceled and reset to None
+    assert task.cancelled() or task.done()
+    assert local_channel._keep_alive_task is None
+
+
+async def test_keep_alive_task_canceled_on_connection_lost(local_channel: LocalChannel, mock_loop: Mock) -> None:
+    """Test that the keep-alive task is properly canceled when _connection_lost() is called."""
+    await local_channel.connect()
+
+    # Verify task exists
+    task = local_channel._keep_alive_task
+    assert task is not None
+    assert not task.done()
+
+    # Simulate connection loss
+    local_channel._connection_lost(None)
+
+    # Give the task a moment to be cancelled
+    await asyncio.sleep(0.01)
+
+    # Task should be canceled and reset to None
+    assert task.cancelled() or task.done()
+    assert local_channel._keep_alive_task is None
+
+
+async def test_keep_alive_ping_loop_executes_periodically(local_channel: LocalChannel, mock_loop: Mock) -> None:
+    """Test that the ping loop continues to execute periodically while connected."""
+    await local_channel.connect()
+
+    # Verify the task is running and connected
+    assert local_channel._keep_alive_task is not None
+    assert not local_channel._keep_alive_task.done()
+    assert local_channel._is_connected
+
+
+async def test_keep_alive_ping_exceptions_handled_gracefully(
+    local_channel: LocalChannel, mock_loop: Mock, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Test that exceptions in the ping loop are handled gracefully without stopping the loop."""
+    from roborock.devices.local_channel import _PING_INTERVAL
+
+    # Set log level to capture DEBUG messages
+    caplog.set_level("DEBUG")
+
+    ping_call_count = 0
+
+    # Mock the _ping method to always fail
+    async def mock_ping() -> None:
+        nonlocal ping_call_count
+        ping_call_count += 1
+        raise Exception("Test ping failure")
+
+    # Also need to mock asyncio.sleep to avoid waiting the full interval
+    original_sleep = asyncio.sleep
+
+    async def mock_sleep(delay: float) -> None:
+        # Only sleep briefly for test speed when waiting for ping interval
+        if delay >= _PING_INTERVAL:
+            await original_sleep(0.01)
+        else:
+            await original_sleep(delay)
+
+    with patch("asyncio.sleep", side_effect=mock_sleep):
+        setattr(local_channel, "_ping", mock_ping)
+
+        await local_channel.connect()
+
+        # Wait for multiple ping attempts
+        await original_sleep(0.1)
+
+        # Verify the task is still running despite the exception
+        assert local_channel._keep_alive_task is not None
+        assert not local_channel._keep_alive_task.done()
+
+        # Verify ping was called at least once
+        assert ping_call_count >= 1
+
+        # Verify the exception was logged but didn't crash the loop
+        assert any("Keep-alive ping failed" in record.message for record in caplog.records)

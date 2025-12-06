@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 from roborock.data import NetworkInfo, RoborockStateCode, S5MaxStatus, UserData
-from roborock.devices.cache import CacheData, InMemoryCache
+from roborock.devices.cache import DeviceCache, DeviceCacheData, InMemoryCache
 from roborock.devices.local_channel import LocalSession
 from roborock.devices.v1_channel import V1Channel
 from roborock.exceptions import RoborockException
@@ -118,12 +118,18 @@ def cache_fixtures() -> InMemoryCache:
     return InMemoryCache()
 
 
+@pytest.fixture(name="device_cache")
+def device_cache_fixtures() -> DeviceCache:
+    """Mock device cache for testing."""
+    return DeviceCache(TEST_DEVICE_UID, InMemoryCache())
+
+
 @pytest.fixture(name="v1_channel")
 def setup_v1_channel(
     mock_mqtt_channel: Mock,
     mock_local_session: Mock,
     mock_create_map_response_decoder: Mock,
-    cache: InMemoryCache,
+    device_cache: DeviceCache,
 ) -> V1Channel:
     """Fixture to set up the V1 channel for tests."""
     return V1Channel(
@@ -131,7 +137,7 @@ def setup_v1_channel(
         security_data=TEST_SECURITY_DATA,
         mqtt_channel=mock_mqtt_channel,
         local_session=mock_local_session,
-        cache=cache,
+        device_cache=device_cache,
     )
 
 
@@ -409,12 +415,12 @@ async def test_v1_channel_networking_info_cached_during_connection(
     """Test that networking information is cached and reused on subsequent connections."""
 
     # Create a cache with pre-populated network info
-    cache_data = CacheData()
-    cache_data.network_info[TEST_DEVICE_UID] = TEST_NETWORKING_INFO
+    device_cache_data = DeviceCacheData()
+    device_cache_data.network_info = TEST_NETWORKING_INFO
 
-    mock_cache = AsyncMock()
-    mock_cache.get.return_value = cache_data
-    mock_cache.set = AsyncMock()
+    mock_device_cache = AsyncMock()
+    mock_device_cache.get.return_value = device_cache_data
+    mock_device_cache.set = AsyncMock()
 
     # Create V1Channel with the mock cache
     v1_channel = V1Channel(
@@ -422,7 +428,7 @@ async def test_v1_channel_networking_info_cached_during_connection(
         security_data=TEST_SECURITY_DATA,
         mqtt_channel=mock_mqtt_channel,
         local_session=mock_local_session,
-        cache=mock_cache,
+        device_cache=mock_device_cache,
     )
 
     # Subscribe - should use cached network info
@@ -439,8 +445,8 @@ async def test_v1_channel_networking_info_cached_during_connection(
     mock_local_session.assert_called_once_with(mock_data.NETWORK_INFO["ip"])
 
     # Verify cache was accessed but not updated (cache hit)
-    mock_cache.get.assert_called_once()
-    mock_cache.set.assert_not_called()
+    mock_device_cache.get.assert_called_once()
+    mock_device_cache.set.assert_not_called()
 
 
 # V1Channel edge cases tests
@@ -461,13 +467,11 @@ async def test_v1_channel_local_connect_network_info_failure_fallback_to_cache(
     mock_mqtt_channel: FakeChannel,
     mock_local_session: Mock,
     v1_channel: V1Channel,
-    cache: InMemoryCache,
+    device_cache: DeviceCache,
 ) -> None:
     """Test local connection falls back to cache when network info retrieval fails."""
     # Create a cache with pre-populated network info
-    cache_data = CacheData()
-    cache_data.network_info[TEST_DEVICE_UID] = TEST_NETWORKING_INFO
-    await cache.set(cache_data)
+    await device_cache.set(DeviceCacheData(network_info=TEST_NETWORKING_INFO))
 
     # Setup: MQTT fails to publish
     mock_mqtt_channel.publish_side_effect = RoborockException("Network info failed")

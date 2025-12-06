@@ -11,7 +11,7 @@ import aiomqtt
 import paho.mqtt.client as mqtt
 import pytest
 
-from roborock.mqtt.roborock_session import create_mqtt_session
+from roborock.mqtt.roborock_session import RoborockMqttSession, create_mqtt_session
 from roborock.mqtt.session import MqttParams, MqttSessionException
 from tests import mqtt_packet
 from tests.conftest import FakeSocketHandler
@@ -78,6 +78,23 @@ def fast_backoff_fixture() -> Generator[None, None, None]:
     """Fixture to make backoff intervals fast."""
     with patch("roborock.mqtt.roborock_session.MIN_BACKOFF_INTERVAL", datetime.timedelta(seconds=0.01)):
         yield
+
+
+@pytest.fixture
+def mock_mqtt_client() -> Generator[AsyncMock, None, None]:
+    """Fixture to create a mock MQTT client with patched aiomqtt.Client."""
+    mock_client = AsyncMock()
+    mock_client.messages = FakeAsyncIterator()
+
+    mock_aenter = AsyncMock()
+    mock_aenter.return_value = mock_client
+
+    mock_shim = Mock()
+    mock_shim.return_value.__aenter__ = mock_aenter
+    mock_shim.return_value.__aexit__ = AsyncMock()
+
+    with patch("roborock.mqtt.roborock_session.aiomqtt.Client", mock_shim):
+        yield mock_client
 
 
 @pytest.fixture
@@ -195,52 +212,34 @@ class FakeAsyncIterator:
             await asyncio.sleep(1)
 
 
-async def test_publish_failure() -> None:
+async def test_publish_failure(mock_mqtt_client: AsyncMock) -> None:
     """Test an MQTT error is received when publishing a message."""
 
-    mock_client = AsyncMock()
-    mock_client.messages = FakeAsyncIterator()
+    session = await create_mqtt_session(FAKE_PARAMS)
+    assert session.connected
 
-    mock_aenter = AsyncMock()
-    mock_aenter.return_value = mock_client
+    mock_mqtt_client.publish.side_effect = aiomqtt.MqttError
 
-    with patch("roborock.mqtt.roborock_session.aiomqtt.Client.__aenter__", mock_aenter):
-        session = await create_mqtt_session(FAKE_PARAMS)
-        assert session.connected
+    with pytest.raises(MqttSessionException, match="Error publishing message"):
+        await session.publish("topic-1", message=b"payload")
 
-        mock_client.publish.side_effect = aiomqtt.MqttError
-
-        with pytest.raises(MqttSessionException, match="Error publishing message"):
-            await session.publish("topic-1", message=b"payload")
-
-        await session.close()
+    await session.close()
 
 
-async def test_subscribe_failure() -> None:
+async def test_subscribe_failure(mock_mqtt_client: AsyncMock) -> None:
     """Test an MQTT error while subscribing."""
 
-    mock_client = AsyncMock()
-    mock_client.messages = FakeAsyncIterator()
+    session = await create_mqtt_session(FAKE_PARAMS)
+    assert session.connected
 
-    mock_aenter = AsyncMock()
-    mock_aenter.return_value = mock_client
+    mock_mqtt_client.subscribe.side_effect = aiomqtt.MqttError
 
-    mock_shim = Mock()
-    mock_shim.return_value.__aenter__ = mock_aenter
-    mock_shim.return_value.__aexit__ = AsyncMock()
+    subscriber1 = Subscriber()
+    with pytest.raises(MqttSessionException, match="Error subscribing to topic"):
+        await session.subscribe("topic-1", subscriber1.append)
 
-    with patch("roborock.mqtt.roborock_session.aiomqtt.Client", mock_shim):
-        session = await create_mqtt_session(FAKE_PARAMS)
-        assert session.connected
-
-        mock_client.subscribe.side_effect = aiomqtt.MqttError
-
-        subscriber1 = Subscriber()
-        with pytest.raises(MqttSessionException, match="Error subscribing to topic"):
-            await session.subscribe("topic-1", subscriber1.append)
-
-        assert not subscriber1.messages
-        await session.close()
+    assert not subscriber1.messages
+    await session.close()
 
 
 async def test_restart(push_response: Callable[[bytes], None]) -> None:
@@ -277,5 +276,93 @@ async def test_restart(push_response: Callable[[bytes], None]) -> None:
     push_response(mqtt_packet.gen_publish("topic-1", mid=4, payload=b"67890"))
     await subscriber.wait()
     assert subscriber.messages == [b"12345", b"67890"]
+
+    await session.close()
+
+
+async def test_idle_timeout_resubscribe(mock_mqtt_client: AsyncMock) -> None:
+    """Test that resubscribing before idle timeout cancels the unsubscribe."""
+
+    # Create session with idle timeout
+    session = RoborockMqttSession(FAKE_PARAMS, topic_idle_timeout=datetime.timedelta(seconds=5))
+    await session.start()
+    assert session.connected
+
+    topic = "test/topic"
+    subscriber1 = Subscriber()
+    unsub1 = await session.subscribe(topic, subscriber1.append)
+
+    # Unsubscribe to start idle timer
+    unsub1()
+
+    # Resubscribe before idle timeout expires (should cancel timer)
+    subscriber2 = Subscriber()
+    await session.subscribe(topic, subscriber2.append)
+
+    # Give a brief moment for any async operations to complete
+    await asyncio.sleep(0.01)
+
+    # unsubscribe should NOT have been called because we resubscribed
+    mock_mqtt_client.unsubscribe.assert_not_called()
+
+    await session.close()
+
+
+async def test_idle_timeout_unsubscribe(mock_mqtt_client: AsyncMock) -> None:
+    """Test that unsubscribe happens after idle timeout expires."""
+
+    # Create session with very short idle timeout for fast test
+    session = RoborockMqttSession(FAKE_PARAMS, topic_idle_timeout=datetime.timedelta(milliseconds=50))
+    await session.start()
+    assert session.connected
+
+    topic = "test/topic"
+    subscriber = Subscriber()
+    unsub = await session.subscribe(topic, subscriber.append)
+
+    # Unsubscribe to start idle timer
+    unsub()
+
+    # Wait for idle timeout plus a small buffer
+    await asyncio.sleep(0.1)
+
+    # unsubscribe should have been called after idle timeout
+    mock_mqtt_client.unsubscribe.assert_called_once_with(topic)
+
+    await session.close()
+
+
+async def test_idle_timeout_multiple_callbacks(mock_mqtt_client: AsyncMock) -> None:
+    """Test that unsubscribe is delayed when multiple subscribers exist."""
+
+    # Create session with very short idle timeout for fast test
+    session = RoborockMqttSession(FAKE_PARAMS, topic_idle_timeout=datetime.timedelta(milliseconds=50))
+    await session.start()
+    assert session.connected
+
+    topic = "test/topic"
+    subscriber1 = Subscriber()
+    subscriber2 = Subscriber()
+
+    unsub1 = await session.subscribe(topic, subscriber1.append)
+    unsub2 = await session.subscribe(topic, subscriber2.append)
+
+    # Unsubscribe first callback (should NOT start timer, subscriber2 still active)
+    unsub1()
+
+    # Brief wait to ensure no timer fires
+    await asyncio.sleep(0.1)
+
+    # unsubscribe should NOT have been called because subscriber2 is still active
+    mock_mqtt_client.unsubscribe.assert_not_called()
+
+    # Unsubscribe second callback (NOW timer should start)
+    unsub2()
+
+    # Wait for idle timeout plus a small buffer
+    await asyncio.sleep(0.1)
+
+    # Now unsubscribe should have been called
+    mock_mqtt_client.unsubscribe.assert_called_once_with(topic)
 
     await session.close()

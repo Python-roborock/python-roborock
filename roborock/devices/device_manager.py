@@ -21,7 +21,7 @@ from roborock.mqtt.session import MqttSession
 from roborock.protocol import create_mqtt_params
 from roborock.web_api import RoborockApiClient, UserWebApiClient
 
-from .cache import Cache, NoCache
+from .cache import Cache, DeviceCache, NoCache
 from .channel import Channel
 from .mqtt_channel import create_mqtt_channel
 from .traits import Trait, a01, b01, v1
@@ -177,9 +177,10 @@ async def create_device_manager(
     def device_creator(home_data: HomeData, device: HomeDataDevice, product: HomeDataProduct) -> RoborockDevice:
         channel: Channel
         trait: Trait
+        device_cache: DeviceCache = DeviceCache(device.duid, cache)
         match device.pv:
             case DeviceVersion.V1:
-                channel = create_v1_channel(user_data, mqtt_params, mqtt_session, device, cache)
+                channel = create_v1_channel(user_data, mqtt_params, mqtt_session, device, device_cache)
                 trait = v1.create(
                     device.duid,
                     product,
@@ -188,7 +189,7 @@ async def create_device_manager(
                     channel.mqtt_rpc_channel,
                     channel.map_rpc_channel,
                     web_api,
-                    cache,
+                    device_cache=device_cache,
                     map_parser_config=map_parser_config,
                 )
             case DeviceVersion.A01:
