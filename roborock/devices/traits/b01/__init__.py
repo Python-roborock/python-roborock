@@ -2,4 +2,4 @@
 
 from .q7 import Q7PropertiesApi
 
-__all__ = ["q&PropertiesApi", "q7", "q10"]
+__all__ = ["Q7PropertiesApi", "q7", "q10"]
