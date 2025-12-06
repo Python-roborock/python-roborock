@@ -176,13 +176,10 @@ async def test_start_connect_failure(home_data: HomeData, channel_failure: Mock,
     device_manager = await create_device_manager(USER_PARAMS)
     devices = await device_manager.get_devices()
 
-    # Wait for the device to attempt to connect
-    attempts = 0
+    # The device should attempt to connect in the background at least once
+    # by the time this function returns.
     subscribe_mock = channel_failure.return_value.subscribe
-    while subscribe_mock.call_count < 1:
-        await asyncio.sleep(0.01)
-        attempts += 1
-        assert attempts < 10, "Device did not connect after multiple attempts"
+    assert subscribe_mock.call_count > 0
 
     # Device should exist but not be connected
     assert len(devices) == 1

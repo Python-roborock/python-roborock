@@ -82,14 +82,16 @@ class DeviceManager:
 
         # These are connected serially to avoid overwhelming the MQTT broker
         new_devices = {}
+        start_tasks = []
         for duid, (device, product) in device_products.items():
             if duid in self._devices:
                 continue
             new_device = self._device_creator(home_data, device, product)
-            new_device.start_connect()
+            start_tasks.append(new_device.start_connect())
             new_devices[duid] = new_device
 
         self._devices.update(new_devices)
+        await asyncio.gather(*start_tasks)
         return list(self._devices.values())
 
     async def get_device(self, duid: str) -> RoborockDevice | None:

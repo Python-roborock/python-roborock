@@ -29,6 +29,7 @@ __all__ = [
 MIN_BACKOFF_INTERVAL = datetime.timedelta(seconds=10)
 MAX_BACKOFF_INTERVAL = datetime.timedelta(minutes=30)
 BACKOFF_MULTIPLIER = 1.5
+START_ATTEMPT_TIMEOUT = datetime.timedelta(seconds=5)
 
 
 class RoborockDevice(ABC, TraitsMixin):
@@ -107,16 +108,21 @@ class RoborockDevice(ABC, TraitsMixin):
         """
         return self._channel.is_local_connected
 
-    def start_connect(self) -> None:
+    async def start_connect(self) -> None:
         """Start a background task to connect to the device.
 
-        This will attempt to connect to the device using the appropriate protocol
-        channel. If the connection fails, it will retry with exponential backoff.
+        This will give a moment for the first connection attempt to start so
+        that the device will have connections established -- however, this will
+        never directly fail.
+
+        If the connection fails, it will retry in the background with
+        exponential backoff.
 
         Once connected, the device will remain connected until `close()` is
         called. The device will automatically attempt to reconnect if the connection
         is lost.
         """
+        start_attempt: asyncio.Event = asyncio.Event()
 
         async def connect_loop() -> None:
             backoff = MIN_BACKOFF_INTERVAL
@@ -124,8 +130,10 @@ class RoborockDevice(ABC, TraitsMixin):
                 while True:
                     try:
                         await self.connect()
+                        start_attempt.set()
                         return
                     except RoborockException as e:
+                        start_attempt.set()
                         _LOGGER.info("Failed to connect to device %s: %s", self.name, e)
                         _LOGGER.info(
                             "Retrying connection to device %s in %s seconds", self.name, backoff.total_seconds()
@@ -136,8 +144,15 @@ class RoborockDevice(ABC, TraitsMixin):
                 _LOGGER.info("connect_loop for device %s was cancelled", self.name)
                 # Clean exit on cancellation
                 return
+            finally:
+                start_attempt.set()
 
         self._connect_task = asyncio.create_task(connect_loop())
+
+        try:
+            await asyncio.wait_for(start_attempt.wait(), timeout=START_ATTEMPT_TIMEOUT.total_seconds())
+        except TimeoutError:
+            _LOGGER.debug("Initial connection attempt to device %s is taking longer than expected", self.name)
 
     async def connect(self) -> None:
         """Connect to the device using the appropriate protocol channel."""
