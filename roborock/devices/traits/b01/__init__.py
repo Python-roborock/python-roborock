@@ -1,5 +1,5 @@
 """Traits for B01 devices."""
 
-from .sc import PropertiesApi
+from .q7 import Q7PropertiesApi
 
-__all__ = ["PropertiesApi", "sc", "ss"]
+__all__ = ["q&PropertiesApi", "q7", "q10"]

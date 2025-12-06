@@ -201,7 +201,8 @@ async def create_device_manager(
                         f"Device {device.name} has unsupported version B01_{product.model.strip('.')[-1]}"
                     )
                 elif "sc" in product.model.strip(".")[-1]:
-                    trait = b01.sc.create(channel)
+                    # Q7 devices start with 'sc' in their model naming.
+                    trait = b01.q7.create(channel)
             case _:
                 raise NotImplementedError(f"Device {device.name} has unsupported version {device.pv}")
         return RoborockDevice(device, product, channel, trait)
