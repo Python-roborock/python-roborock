@@ -70,9 +70,9 @@ class RpcStrategy:
 class RpcChannel(V1RpcChannel):
     """Provides an RPC interface around a pub/sub transport channel."""
 
-    def __init__(self, rpc_strategies: list[RpcStrategy]) -> None:
-        """Initialize the RpcChannel with on ordered list of strategies."""
-        self._rpc_strategies = rpc_strategies
+    def __init__(self, rpc_strategies_cb: Callable[[], list[RpcStrategy]]) -> None:
+        """Initialize the RpcChannel with an ordered list of strategies."""
+        self._rpc_strategies_cb = rpc_strategies_cb
 
     async def send_command(
         self,
@@ -86,7 +86,7 @@ class RpcChannel(V1RpcChannel):
 
         # Try each channel in order until one succeeds
         last_exception = None
-        for strategy in self._rpc_strategies:
+        for strategy in self._rpc_strategies_cb():
             try:
                 decoded_response = await self._send_rpc(strategy, request)
             except RoborockException as e:
@@ -203,23 +203,35 @@ class V1Channel(Channel):
 
     @property
     def rpc_channel(self) -> V1RpcChannel:
-        """Return the combined RPC channel that prefers local with a fallback to MQTT."""
-        strategies = []
-        if local_rpc_strategy := self._create_local_rpc_strategy():
-            strategies.append(local_rpc_strategy)
-        strategies.append(self._create_mqtt_rpc_strategy())
-        return RpcChannel(strategies)
+        """Return the combined RPC channel that prefers local with a fallback to MQTT.
+
+        The returned V1RpcChannel may be long lived and will respect the
+        current connection state of the underlying channels.
+        """
+
+        def rpc_strategies_cb() -> list[RpcStrategy]:
+            strategies = []
+            if local_rpc_strategy := self._create_local_rpc_strategy():
+                strategies.append(local_rpc_strategy)
+            strategies.append(self._create_mqtt_rpc_strategy())
+            return strategies
+
+        return RpcChannel(rpc_strategies_cb)
 
     @property
     def mqtt_rpc_channel(self) -> V1RpcChannel:
-        """Return the MQTT-only RPC channel."""
-        return RpcChannel([self._create_mqtt_rpc_strategy()])
+        """Return the MQTT-only RPC channel.
+
+        The returned V1RpcChannel may be long lived and will respect the
+        current connection state of the underlying channels.
+        """
+        return RpcChannel(lambda: [self._create_mqtt_rpc_strategy()])
 
     @property
     def map_rpc_channel(self) -> V1RpcChannel:
         """Return the map RPC channel used for fetching map content."""
         decoder = create_map_response_decoder(security_data=self._security_data)
-        return RpcChannel([self._create_mqtt_rpc_strategy(decoder)])
+        return RpcChannel(lambda: [self._create_mqtt_rpc_strategy(decoder)])
 
     def _create_local_rpc_strategy(self) -> RpcStrategy | None:
         """Create the RPC strategy for local transport."""

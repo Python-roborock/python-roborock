@@ -22,7 +22,7 @@ from roborock.protocol import (
     create_mqtt_decoder,
     create_mqtt_encoder,
 )
-from roborock.protocols.v1_protocol import MapResponse, SecurityData
+from roborock.protocols.v1_protocol import MapResponse, SecurityData, V1RpcChannel
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 from roborock.roborock_typing import RoborockCommand
 
@@ -139,6 +139,29 @@ def setup_v1_channel(
         local_session=mock_local_session,
         device_cache=device_cache,
     )
+
+
+@pytest.fixture(name="rpc_channel")
+def setup_rpc_channel(v1_channel: V1Channel) -> V1RpcChannel:
+    """Fixture to set up the RPC channel for tests.
+
+    We expect tests to use this to send commands via the V1Channel since we
+    want to exercise the behavior that the V1RpcChannel is long lived and
+    respects the current state of the underlying channels.
+    """
+    return v1_channel.rpc_channel
+
+
+@pytest.fixture(name="mqtt_rpc_channel")
+def setup_mqtt_rpc_channel(v1_channel: V1Channel) -> V1RpcChannel:
+    """Fixture to set up the MQTT RPC channel for tests."""
+    return v1_channel.mqtt_rpc_channel
+
+
+@pytest.fixture(name="map_rpc_channel")
+def setup_map_rpc_channel(v1_channel: V1Channel) -> V1RpcChannel:
+    """Fixture to set up the Map RPC channel for tests."""
+    return v1_channel.map_rpc_channel
 
 
 @pytest.fixture(name="warning_caplog")
@@ -274,6 +297,7 @@ async def test_v1_channel_send_command_local_preferred(
     v1_channel: V1Channel,
     mock_mqtt_channel: Mock,
     mock_local_channel: Mock,
+    rpc_channel: V1RpcChannel,
 ) -> None:
     """Test command sending prefers local connection when available."""
     # Establish connections
@@ -282,7 +306,7 @@ async def test_v1_channel_send_command_local_preferred(
 
     # Send command
     mock_local_channel.response_queue.append(TEST_RESPONSE)
-    result = await v1_channel.rpc_channel.send_command(
+    result = await rpc_channel.send_command(
         RoborockCommand.GET_STATUS,
         response_type=S5MaxStatus,
     )
@@ -295,6 +319,7 @@ async def test_v1_channel_send_command_local_fails(
     v1_channel: V1Channel,
     mock_mqtt_channel: Mock,
     mock_local_channel: Mock,
+    rpc_channel: V1RpcChannel,
 ) -> None:
     """Test case where sending with local connection fails, falling back to MQTT."""
 
@@ -310,7 +335,7 @@ async def test_v1_channel_send_command_local_fails(
     mock_mqtt_channel.response_queue.append(TEST_RESPONSE)
 
     # Send command
-    result = await v1_channel.rpc_channel.send_command(
+    result = await rpc_channel.send_command(
         RoborockCommand.GET_STATUS,
         response_type=S5MaxStatus,
     )
@@ -327,21 +352,39 @@ async def test_v1_channel_send_command_local_fails(
     assert mock_mqtt_channel.published_messages[-1].protocol == RoborockMessageProtocol.RPC_REQUEST
 
 
-async def test_v1_channel_send_decoded_command_mqtt_only(
+@pytest.mark.parametrize(
+    ("local_channel_side_effect", "local_channel_responses", "mock_mqtt_channel_responses"),
+    [
+        (RoborockException("Local failed"), [], [TEST_RESPONSE]),
+        (None, [], [TEST_RESPONSE]),
+        (None, [RoborockMessage(protocol=RoborockMessageProtocol.RPC_RESPONSE, payload=b"invalid")], [TEST_RESPONSE]),
+    ],
+    ids=[
+        "local-fails-mqtt-succeeds",
+        "local-no-response-mqtt-succeeds",
+        "local-invalid-response-mqtt-succeeds",
+    ],
+)
+async def test_v1_channel_send_pick_first_available(
     v1_channel: V1Channel,
+    rpc_channel: V1RpcChannel,
     mock_mqtt_channel: Mock,
     mock_local_channel: Mock,
+    local_channel_side_effect: Exception | None,
+    local_channel_responses: list[RoborockMessage],
+    mock_mqtt_channel_responses: list[RoborockMessage],
 ) -> None:
     """Test command sending works with MQTT only."""
     # Setup: only MQTT connection
     mock_mqtt_channel.response_queue.append(TEST_NETWORK_INFO_RESPONSE)
-    mock_local_channel.connect.side_effect = RoborockException("No local")
+    mock_local_channel.connect.side_effect = local_channel_side_effect
 
     await v1_channel.subscribe(Mock())
 
     # Send command
-    mock_mqtt_channel.response_queue.append(TEST_RESPONSE)
-    result = await v1_channel.rpc_channel.send_command(
+    mock_mqtt_channel.response_queue.extend(mock_mqtt_channel_responses)
+    mock_local_channel.response_queue.extend(local_channel_responses)
+    result = await rpc_channel.send_command(
         RoborockCommand.GET_STATUS,
         response_type=S5MaxStatus,
     )
@@ -352,6 +395,7 @@ async def test_v1_channel_send_decoded_command_mqtt_only(
 
 async def test_v1_channel_send_decoded_command_with_params(
     v1_channel: V1Channel,
+    rpc_channel: V1RpcChannel,
     mock_mqtt_channel: Mock,
     mock_local_channel: Mock,
 ) -> None:
@@ -363,7 +407,7 @@ async def test_v1_channel_send_decoded_command_with_params(
     # Send command with params
     mock_local_channel.response_queue.append(TEST_RESPONSE)
     test_params = {"volume": 80}
-    await v1_channel.rpc_channel.send_command(
+    await rpc_channel.send_command(
         RoborockCommand.CHANGE_SOUND_VOLUME,
         response_type=S5MaxStatus,
         params=test_params,
@@ -492,6 +536,8 @@ async def test_v1_channel_local_connect_network_info_failure_fallback_to_cache(
 
 async def test_v1_channel_command_encoding_validation(
     v1_channel: V1Channel,
+    mqtt_rpc_channel: V1RpcChannel,
+    rpc_channel: V1RpcChannel,
     mock_mqtt_channel: Mock,
     mock_local_channel: Mock,
 ) -> None:
@@ -501,13 +547,13 @@ async def test_v1_channel_command_encoding_validation(
 
     # Send mqtt command and capture the request
     mock_mqtt_channel.response_queue.append(TEST_RESPONSE)
-    await v1_channel.mqtt_rpc_channel.send_command(RoborockCommand.CHANGE_SOUND_VOLUME, params={"volume": 50})
+    await mqtt_rpc_channel.send_command(RoborockCommand.CHANGE_SOUND_VOLUME, params={"volume": 50})
     assert mock_mqtt_channel.published_messages
     mqtt_message = mock_mqtt_channel.published_messages[0]
 
     # Send local command and capture the request
     mock_local_channel.response_queue.append(TEST_RESPONSE_2)
-    await v1_channel.rpc_channel.send_command(RoborockCommand.CHANGE_SOUND_VOLUME, params={"volume": 50})
+    await rpc_channel.send_command(RoborockCommand.CHANGE_SOUND_VOLUME, params={"volume": 50})
     assert mock_local_channel.published_messages
     local_message = mock_local_channel.published_messages[0]
 
@@ -522,6 +568,7 @@ async def test_v1_channel_command_encoding_validation(
 
 async def test_v1_channel_send_map_command(
     v1_channel: V1Channel,
+    map_rpc_channel: V1RpcChannel,
     mock_mqtt_channel: Mock,
     mock_create_map_response_decoder: Mock,
 ) -> None:
@@ -546,7 +593,7 @@ async def test_v1_channel_send_map_command(
     mock_mqtt_channel.response_queue.append(map_response_message)
 
     # Send the command and get the result
-    result = await v1_channel.map_rpc_channel.send_command(RoborockCommand.GET_MAP_V1)
+    result = await map_rpc_channel.send_command(RoborockCommand.GET_MAP_V1)
 
     # Verify the result is the data from our mocked decoder
     assert result == decompressed_map_data
