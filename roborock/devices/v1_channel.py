@@ -90,7 +90,7 @@ class RpcChannel(V1RpcChannel):
             try:
                 decoded_response = await self._send_rpc(strategy, request)
             except RoborockException as e:
-                _LOGGER.warning("Command %s failed on %s channel: %s", method, strategy.name, e)
+                _LOGGER.debug("Command %s failed on %s channel: %s", method, strategy.name, e)
                 last_exception = e
             except Exception as e:
                 _LOGGER.exception("Unexpected error sending command %s on %s channel", method, strategy.name)
@@ -282,7 +282,7 @@ class V1Channel(Channel):
         try:
             await self._local_connect(prefer_cache=True)
         except RoborockException as err:
-            _LOGGER.warning("Could not establish local connection for device %s: %s", self._device_uid, err)
+            _LOGGER.debug("First local connection attempt for device %s failed, will retry: %s", self._device_uid, err)
 
         # Start a background task to manage the local connection health. This
         # happens independent of whether we were able to connect locally now.

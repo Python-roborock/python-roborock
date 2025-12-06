@@ -254,22 +254,6 @@ async def test_v1_channel_subscribe_already_connected_error(v1_channel: V1Channe
         await v1_channel.subscribe(Mock())
 
 
-async def test_v1_channel_local_connection_warning_logged(
-    v1_channel: V1Channel,
-    mock_mqtt_channel: Mock,
-    mock_local_channel: Mock,
-    warning_caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Test that local connection failures are logged as warnings."""
-    mock_mqtt_channel.response_queue.append(TEST_NETWORK_INFO_RESPONSE)
-    mock_local_channel.connect.side_effect = RoborockException("Local connection failed")
-
-    await v1_channel.subscribe(Mock())
-
-    assert "Could not establish local connection for device abc123" in warning_caplog.text
-    assert "Local connection failed" in warning_caplog.text
-
-
 async def test_v1_channel_send_command_local_preferred(
     v1_channel: V1Channel,
     mock_mqtt_channel: Mock,

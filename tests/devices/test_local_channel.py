@@ -102,16 +102,6 @@ async def test_connection_failure(local_channel: LocalChannel, mock_loop: Mock) 
     assert local_channel._is_connected is False
 
 
-async def test_already_connected_warning(
-    local_channel: LocalChannel, mock_loop: Mock, caplog: pytest.LogCaptureFixture
-) -> None:
-    """Test warning when trying to connect when already connected."""
-    await local_channel.connect()
-    await local_channel.connect()  # Second connection attempt
-
-    assert "Already connected" in caplog.text
-    assert mock_loop.create_connection.call_count == 1
-
 
 async def test_close_connection(local_channel: LocalChannel, mock_loop: Mock, mock_transport: Mock) -> None:
     """Test closing the connection."""
@@ -228,7 +218,6 @@ async def test_connection_lost_callback(
 
     assert local_channel._is_connected is False
     assert local_channel._transport is None
-    assert "Connection lost to 192.168.1.100" in caplog.text
 
 
 async def test_connection_lost_without_exception(
@@ -242,7 +231,6 @@ async def test_connection_lost_without_exception(
 
     assert local_channel._is_connected is False
     assert local_channel._transport is None
-    assert "Connection lost to 192.168.1.100" in caplog.text
 
 
 async def test_hello_fallback_to_l01_protocol(mock_loop: Mock, mock_transport: Mock) -> None:

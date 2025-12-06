@@ -176,7 +176,7 @@ class LocalChannel(Channel):
     async def connect(self) -> None:
         """Connect to the device and negotiate protocol."""
         if self._is_connected:
-            _LOGGER.warning("Already connected")
+            _LOGGER.debug("Unexpected call to connect when already connected")
             return
         _LOGGER.debug("Connecting to %s:%s", self._host, _PORT)
         loop = asyncio.get_running_loop()
@@ -214,7 +214,7 @@ class LocalChannel(Channel):
 
     def _connection_lost(self, exc: Exception | None) -> None:
         """Handle connection loss."""
-        _LOGGER.warning("Connection lost to %s", self._host, exc_info=exc)
+        _LOGGER.debug("Connection lost to %s", self._host, exc_info=exc)
         if self._keep_alive_task:
             self._keep_alive_task.cancel()
             self._keep_alive_task = None
