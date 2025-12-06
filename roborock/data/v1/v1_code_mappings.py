@@ -123,6 +123,13 @@ class DustBagStatus(RoborockDssCodes):
     full = 34
 
 
+class CleanFluidStatus(RoborockDssCodes):
+    """Status of the cleaning fluid container."""
+
+    empty_not_installed = 1
+    okay = 2
+
+
 class RoborockErrorCode(RoborockEnum):
     none = 0
     lidar_blocked = 1
