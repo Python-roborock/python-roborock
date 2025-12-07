@@ -1,6 +1,7 @@
 """Thin wrapper around the MQTT channel for Roborock A01 devices."""
 
 import asyncio
+import json
 import logging
 from typing import Any, overload
 
@@ -53,6 +54,13 @@ async def send_decoded_command(
     if not (query_values := param_values.get(_ID_QUERY)):
         await mqtt_channel.publish(roborock_message)
         return {}
+
+    if isinstance(query_values, str):
+        try:
+            query_values = json.loads(query_values)
+        except ValueError:
+            _LOGGER.warning("Failed to parse query values: %s", query_values)
+            return {}
 
     # Merge any results together than contain the requested data. This
     # does not use a future since it needs to merge results across responses.
