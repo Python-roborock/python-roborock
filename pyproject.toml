@@ -54,6 +54,7 @@ dev = [
     "pdoc>=15.0.4,<16",
     "pyyaml>=6.0.3",
     "pyshark>=0.6",
+    "pytest-cov>=7.0.0",
 ]
 
 [tool.hatch.build.targets.sdist]

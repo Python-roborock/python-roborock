@@ -47,8 +47,15 @@ jobs:
           activate-environment: true
       - run: uv pip install pip
       - name: Test with Pytest
-        run:  uv run pytest --log-cli-level=DEBUG -vv -s
+        run:  uv run pytest --log-cli-level=DEBUG -vv -s --cov --cov-branch --cov-report=xml
         shell: bash
+      - name: Upload results to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: Python-roborock/python-roborock
+
+
 
   build:
     name: Build Package
