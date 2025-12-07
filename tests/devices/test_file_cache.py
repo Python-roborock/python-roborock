@@ -11,7 +11,8 @@ from syrupy import SnapshotAssertion
 from roborock.data import HomeData
 from roborock.data.containers import CombinedMapInfo, NamedRoomMapping
 from roborock.data.v1.v1_containers import NetworkInfo
-from roborock.devices.cache import CacheData
+from roborock.device_features import DeviceFeatures
+from roborock.devices.cache import CacheData, DeviceCacheData
 from roborock.devices.file_cache import FileCache
 from tests.mock_data import HOME_DATA_RAW
 from tests.mock_data import NETWORK_INFO as NETWORK_INFO_RAW
@@ -51,8 +52,43 @@ async def test_get_from_non_existent_cache(cache_file: pathlib.Path) -> None:
                 )
             },
         ),
+        CacheData(
+            home_data=HOME_DATA,
+            device_info={
+                "device1": DeviceCacheData(
+                    network_info=NETWORK_INFO,
+                    home_map_info={
+                        1: CombinedMapInfo(
+                            map_flag=1,
+                            name="Test Map 1",
+                            rooms=[
+                                NamedRoomMapping(segment_id=1023, iot_id="4321", name="Living Room"),
+                                NamedRoomMapping(segment_id=1024, iot_id="4322", name="Starship"),
+                            ],
+                        ),
+                        2: CombinedMapInfo(
+                            map_flag=2,
+                            name="Test Map 2",
+                            rooms=[NamedRoomMapping(segment_id=2047, iot_id="5432", name="Bedroom")],
+                        ),
+                    },
+                    home_map_content_base64={
+                        1: "ZHVtbXlfbWFwX2NvbnRlbnQ=",
+                        2: "bW9yZV9kdW1teV9jb250ZW50",
+                    },
+                    device_features=DeviceFeatures.from_feature_flags(
+                        new_feature_info=1,
+                        new_feature_info_str="0000000000000001",
+                        feature_info=[],
+                        product_nickname=None,
+                    ),
+                    trait_data={"test_trait": {"key": "value", "number": 42}},
+                ),
+                "device2": DeviceCacheData(),
+            },
+        ),
     ],
-    ids=["empty_cache", "populated_cache", "multiple_fields_cache"],
+    ids=["empty_cache", "populated_cache", "multiple_fields_cache", "all_fields_cache"],
 )
 @pytest.mark.parametrize(
     ("init_args"),

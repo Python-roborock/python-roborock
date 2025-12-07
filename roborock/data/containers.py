@@ -32,7 +32,10 @@ def _decamelize(s: str):
     s = re.sub(r"(?<=[a-z0-9])([A-Z])", r"_\1", s)
     s = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", s)  # Split acronyms followed by normal camelCase
     s = re.sub(r"([a-zA-Z])([0-9]+)", r"\1_\2", s)
-    return s.lower()
+    s = s.lower()
+    # Temporary fix to avoid breaking any serialization.
+    s = s.replace("base_64", "base64")
+    return s
 
 
 def _attr_repr(obj: Any) -> str:
