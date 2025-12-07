@@ -92,19 +92,23 @@ ZEO_PROTOCOL_ENTRIES: dict[RoborockZeoProtocol, Callable] = {
 }
 
 
-def convert_dyad_value(protocol: int, value: Any) -> Any:
+def convert_dyad_value(protocol_value: RoborockDyadDataProtocol, value: Any) -> Any:
     """Convert a dyad protocol value to its corresponding type."""
-    protocol_value = RoborockDyadDataProtocol(protocol)
     if (converter := DYAD_PROTOCOL_ENTRIES.get(protocol_value)) is not None:
-        return converter(value)
+        try:
+            return converter(value)
+        except (ValueError, TypeError):
+            return None
     return None
 
 
-def convert_zeo_value(protocol: int, value: Any) -> Any:
+def convert_zeo_value(protocol_value: RoborockZeoProtocol, value: Any) -> Any:
     """Convert a zeo protocol value to its corresponding type."""
-    protocol_value = RoborockZeoProtocol(protocol)
     if (converter := ZEO_PROTOCOL_ENTRIES.get(protocol_value)) is not None:
-        return converter(value)
+        try:
+            return converter(value)
+        except (ValueError, TypeError):
+            return None
     return None
 
 
@@ -119,11 +123,7 @@ class DyadApi(Trait):
         """Query the device for the values of the given Dyad protocols."""
         params = {RoborockDyadDataProtocol.ID_QUERY: str([int(p) for p in protocols])}
         response = await send_decoded_command(self._channel, params)
-        return {
-            RoborockDyadDataProtocol(int(k)): v
-            for k, val in response.items()
-            if (v := convert_dyad_value(int(k), val)) is not None
-        }
+        return {protocol: convert_dyad_value(protocol, response.get(protocol)) for protocol in protocols}
 
     async def set_value(self, protocol: RoborockDyadDataProtocol, value: Any) -> dict[RoborockDyadDataProtocol, Any]:
         """Set a value for a specific protocol on the device."""
@@ -144,11 +144,7 @@ class ZeoApi(Trait):
         """Query the device for the values of the given protocols."""
         params = {RoborockZeoProtocol.ID_QUERY: str([int(p) for p in protocols])}
         response = await send_decoded_command(self._channel, params)
-        return {
-            RoborockZeoProtocol(int(k)): v
-            for k, val in response.items()
-            if (v := convert_zeo_value(int(k), val)) is not None
-        }
+        return {protocol: convert_zeo_value(protocol, response.get(protocol)) for protocol in protocols}
 
     async def set_value(self, protocol: RoborockZeoProtocol, value: Any) -> dict[RoborockZeoProtocol, Any]:
         """Set a value for a specific protocol on the device."""

@@ -1,3 +1,4 @@
+import datetime
 from collections.abc import Generator
 from typing import Any
 from unittest.mock import AsyncMock, call, patch
@@ -51,17 +52,16 @@ async def test_dyad_api_query_values(mock_channel: AsyncMock, mock_send: AsyncMo
         ]
     )
     assert result == {
-        # Note: Bugs here, returning raw values
         RoborockDyadDataProtocol.POWER: 1,
-        RoborockDyadDataProtocol.STATUS: 6,
-        RoborockDyadDataProtocol.WATER_LEVEL: 3,
-        RoborockDyadDataProtocol.MESH_LEFT: 120,
-        RoborockDyadDataProtocol.BRUSH_LEFT: 90,
-        RoborockDyadDataProtocol.SILENT_MODE_START_TIME: 85,
-        RoborockDyadDataProtocol.RECENT_RUN_TIME: "3,4,5",
+        RoborockDyadDataProtocol.STATUS: "self_clean_deep_cleaning",
+        RoborockDyadDataProtocol.WATER_LEVEL: "l3",
+        RoborockDyadDataProtocol.MESH_LEFT: 352800,
+        RoborockDyadDataProtocol.BRUSH_LEFT: 354600,
+        RoborockDyadDataProtocol.SILENT_MODE_START_TIME: datetime.time(1, 25),
+        RoborockDyadDataProtocol.RECENT_RUN_TIME: [3, 4, 5],
         RoborockDyadDataProtocol.TOTAL_RUN_TIME: 123456,
-        RoborockDyadDataProtocol.STAND_LOCK_AUTO_RUN: 1,
-        RoborockDyadDataProtocol.AUTO_DRY_MODE: 0,
+        RoborockDyadDataProtocol.STAND_LOCK_AUTO_RUN: True,
+        RoborockDyadDataProtocol.AUTO_DRY_MODE: False,
     }
 
     # Note: Bug here, this is the wrong encoding for the query
@@ -86,11 +86,7 @@ async def test_dyad_api_query_values(mock_channel: AsyncMock, mock_send: AsyncMo
                 9999: -3,
             },
             {
-                # Note: Bug here, should return enum value
-                RoborockDyadDataProtocol.STATUS: 3,
-                # Note: Bug here, unknown value should not be returned
-                7: 1,
-                9999: -3,
+                RoborockDyadDataProtocol.STATUS: "charging",
             },
         ),
         (
@@ -99,8 +95,7 @@ async def test_dyad_api_query_values(mock_channel: AsyncMock, mock_send: AsyncMo
                 RoborockDyadDataProtocol.SILENT_MODE_START_TIME: "invalid",
             },
             {
-                # Note: Bug here, invalid value should not be returned
-                RoborockDyadDataProtocol.SILENT_MODE_START_TIME: "invalid",
+                RoborockDyadDataProtocol.SILENT_MODE_START_TIME: None,
             },
         ),
         (
@@ -111,11 +106,7 @@ async def test_dyad_api_query_values(mock_channel: AsyncMock, mock_send: AsyncMo
                 9999: -3,
             },
             {
-                # Note: Bug here, should return time value
-                RoborockDyadDataProtocol.SILENT_MODE_START_TIME: 85,
-                # Note: Bug here, additional values should not be returned
-                RoborockDyadDataProtocol.POWER: 2,
-                9999: -3,
+                RoborockDyadDataProtocol.SILENT_MODE_START_TIME: datetime.time(1, 25),
             },
         ),
     ],
@@ -164,10 +155,10 @@ async def test_zeo_api_query_values(mock_channel: AsyncMock, mock_send: AsyncMoc
     )
     assert result == {
         # Note: Bug here, should return enum/bool values
-        RoborockZeoProtocol.STATE: 6,
-        RoborockZeoProtocol.TEMP: 3,
-        RoborockZeoProtocol.DETERGENT_EMPTY: 1,
-        RoborockZeoProtocol.SOFTENER_EMPTY: 0,
+        RoborockZeoProtocol.STATE: "spinning",
+        RoborockZeoProtocol.TEMP: "medium",
+        RoborockZeoProtocol.DETERGENT_EMPTY: True,
+        RoborockZeoProtocol.SOFTENER_EMPTY: False,
         RoborockZeoProtocol.TIMES_AFTER_CLEAN: 1,
         RoborockZeoProtocol.WASHING_LEFT: 0,
     }
@@ -193,11 +184,7 @@ async def test_zeo_api_query_values(mock_channel: AsyncMock, mock_send: AsyncMoc
                 9999: -3,
             },
             {
-                # Note: Bug here, should return enum/bool value
-                RoborockZeoProtocol.STATE: 1,
-                # Note: Bug here, unknown value should not be returned
-                7: 1,
-                9999: -3,
+                RoborockZeoProtocol.STATE: "standby",
             },
         ),
         (
@@ -206,8 +193,7 @@ async def test_zeo_api_query_values(mock_channel: AsyncMock, mock_send: AsyncMoc
                 RoborockZeoProtocol.WASHING_LEFT: "invalid",
             },
             {
-                # Note: Bug here, invalid value should not be returned
-                RoborockZeoProtocol.WASHING_LEFT: "invalid",
+                RoborockZeoProtocol.WASHING_LEFT: None,
             },
         ),
         (
@@ -218,10 +204,7 @@ async def test_zeo_api_query_values(mock_channel: AsyncMock, mock_send: AsyncMoc
                 9999: -3,
             },
             {
-                RoborockZeoProtocol.STATE: 1,
-                # Note: Bug here, these values were not requested and should not be returned
-                RoborockZeoProtocol.WASHING_LEFT: 2,
-                9999: -3,
+                RoborockZeoProtocol.STATE: "standby",
             },
         ),
     ],
