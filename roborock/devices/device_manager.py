@@ -197,11 +197,12 @@ async def create_device_manager(
                 trait = a01.create(product, channel)
             case DeviceVersion.B01:
                 channel = create_mqtt_channel(user_data, mqtt_params, mqtt_session, device)
-                if "ss" in product.model.split(".")[-1]:
+                model_part = product.model.split(".")[-1]
+                if "ss" in model_part:
                     raise NotImplementedError(
                         f"Device {device.name} has unsupported version B01_{product.model.strip('.')[-1]}"
                     )
-                elif "sc" in product.model.split(".")[-1]:
+                elif "sc" in model_part:
                     # Q7 devices start with 'sc' in their model naming.
                     trait = b01.q7.create(channel)
                 else:
