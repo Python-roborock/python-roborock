@@ -12,19 +12,11 @@ def mock_channel():
     channel.send_command = AsyncMock()
     # Mocking send_decoded_command if it was a method on channel, but it's a standalone function imported in traits.
     # However, in traits/__init__.py it is imported as: from roborock.devices.a01_channel import send_decoded_command
-    # Implementation detail: we need to mock send_decoded_command where it is used.
     return channel
-
-
-@pytest.fixture
-def mock_send_decoded_command():
-    with patch("roborock.devices.traits.a01.send_decoded_command", new_callable=AsyncMock) as mock:
-        yield mock
 
 
 @pytest.mark.asyncio
 async def test_dyad_query_values(mock_channel):
-    # We need to patch send_decoded_command in the module under test
     with patch("roborock.devices.traits.a01.send_decoded_command", new_callable=AsyncMock) as mock_send:
         api = DyadApi(mock_channel)
 

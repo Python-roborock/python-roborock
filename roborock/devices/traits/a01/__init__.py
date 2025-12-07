@@ -71,7 +71,7 @@ DYAD_PROTOCOL_ENTRIES: dict[RoborockDyadDataProtocol, Callable] = {
 }
 
 ZEO_PROTOCOL_ENTRIES: dict[RoborockZeoProtocol, Callable] = {
-    # ro
+    # read-only
     RoborockZeoProtocol.STATE: lambda val: ZeoState(val).name,
     RoborockZeoProtocol.COUNTDOWN: lambda val: int(val),
     RoborockZeoProtocol.WASHING_LEFT: lambda val: int(val),
@@ -79,7 +79,7 @@ ZEO_PROTOCOL_ENTRIES: dict[RoborockZeoProtocol, Callable] = {
     RoborockZeoProtocol.TIMES_AFTER_CLEAN: lambda val: int(val),
     RoborockZeoProtocol.DETERGENT_EMPTY: lambda val: bool(val),
     RoborockZeoProtocol.SOFTENER_EMPTY: lambda val: bool(val),
-    # rw
+    # read-write
     RoborockZeoProtocol.MODE: lambda val: ZeoMode(val).name,
     RoborockZeoProtocol.PROGRAM: lambda val: ZeoProgram(val).name,
     RoborockZeoProtocol.TEMP: lambda val: ZeoTemperature(val).name,
