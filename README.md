@@ -6,7 +6,11 @@
   </a>
   <img src="https://img.shields.io/pypi/pyversions/python-roborock.svg?style=flat-square&logo=python&amp;logoColor=fff" alt="Supported Python versions">
   <img src="https://img.shields.io/pypi/l/python-roborock.svg?style=flat-square" alt="License">
+    <a href="https://codecov.io/github/Python-roborock/python-roborock" >
+  <img src="https://codecov.io/github/Python-roborock/python-roborock/graph/badge.svg?token=KEK4S3FPSZ" alt="Code Coverage"/>
+ </a>
 </p>
+
 
 Roborock library for online and offline control of your vacuums.
 
