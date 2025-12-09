@@ -341,9 +341,32 @@ class PrefixedStruct(Struct):
     def _parse(self, stream, context, path):
         subcon1 = Peek(Optional(Bytes(3)))
         peek_version = subcon1.parse_stream(stream, **context)
-        if peek_version not in (b"1.0", b"A01", b"B01", b"L01"):
-            subcon2 = Bytes(4)
-            subcon2.parse_stream(stream, **context)
+
+        valid_versions = (b"1.0", b"A01", b"B01", b"L01")
+        if peek_version not in valid_versions:
+            # Current stream position does not start with a valid version.
+            # Scan forward to find one.
+            current_pos = stream_tell(stream, path)
+            # Read remaining data to find a valid header
+            data = stream.read()
+
+            start_index = -1
+            # Find the earliest occurrence of any valid version
+            candidates = [idx for v in valid_versions if (idx := data.find(v)) != -1]
+            if candidates:
+                start_index = min(candidates)
+
+            if start_index != -1:
+                # Found a valid version header at `start_index`.
+                # Seek to that position (original_pos + index).
+                if start_index != 4:
+                    # 4 is the typical/expected amount we prune off,
+                    # therefore, we only want a debug if we have a different length.
+                    _LOGGER.debug("Stripping %d bytes of invalid data from stream", start_index)
+                stream_seek(stream, current_pos + start_index, 0, path)
+            else:
+                _LOGGER.debug("No valid version header found in stream, continuing anyways...")
+
         return super()._parse(stream, context, path)
 
     def _build(self, obj, stream, context, path):
