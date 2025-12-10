@@ -351,10 +351,11 @@ class PrefixedStruct(Struct):
             data = stream.read()
 
             start_index = -1
-            # Find the earliest occurrence of any valid version
-            candidates = [idx for v in valid_versions if (idx := data.find(v)) != -1]
-            if candidates:
-                start_index = min(candidates)
+            # Find the earliest occurrence of any valid version in a single pass
+            for i in range(len(data) - 2):
+                if data[i:i+3] in valid_versions:
+                    start_index = i
+                    break
 
             if start_index != -1:
                 # Found a valid version header at `start_index`.
