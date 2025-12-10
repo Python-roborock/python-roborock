@@ -537,7 +537,8 @@ def create_local_decoder(local_key: str, connect_nonce: int | None = None, ack_n
         parsed_messages, remaining = MessageParser.parse(
             buffer, local_key=local_key, connect_nonce=connect_nonce, ack_nonce=ack_nonce
         )
-        _LOGGER.debug("Found %d extra bytes: %s", len(remaining), remaining)
+        if remaining:
+            _LOGGER.debug("Found %d extra bytes: %s", len(remaining), remaining)
         buffer = remaining
         return parsed_messages
 
