@@ -44,7 +44,7 @@ def test_decoder_4byte_padding():
 
 
 def test_decoder_variable_padding():
-    """Test proposed fix: variable length padding should be skipped."""
+    """Test variable length padding handling."""
     encoder = create_local_encoder(TEST_LOCAL_KEY, connect_nonce=123, ack_nonce=456)
     decoder = create_local_decoder(TEST_LOCAL_KEY, connect_nonce=123, ack_nonce=456)
 

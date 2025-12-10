@@ -366,6 +366,8 @@ class PrefixedStruct(Struct):
                 stream_seek(stream, current_pos + start_index, 0, path)
             else:
                 _LOGGER.debug("No valid version header found in stream, continuing anyways...")
+                # Seek back to the original position to avoid parsing at EOF
+                stream_seek(stream, current_pos, 0, path)
 
         return super()._parse(stream, context, path)
 
