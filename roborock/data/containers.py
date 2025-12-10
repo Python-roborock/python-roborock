@@ -8,7 +8,7 @@ import types
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from functools import cached_property
-from typing import Any, NamedTuple, get_args, get_origin
+from typing import Any, ClassVar, NamedTuple, get_args, get_origin
 
 from .code_mappings import (
     SHORT_MODEL_TO_ENUM,
@@ -64,6 +64,8 @@ def _attr_repr(obj: Any) -> str:
 class RoborockBase:
     """Base class for all Roborock data classes."""
 
+    _missing_logged: ClassVar[set[str]] = set()
+
     @staticmethod
     def _convert_to_class_obj(class_type: type, value):
         if get_origin(class_type) is list:
@@ -93,6 +95,14 @@ class RoborockBase:
         for orig_key, value in data.items():
             key = _decamelize(orig_key)
             if (field_type := field_types.get(key)) is None:
+                if (log_key := f"{cls.__name__}.{key}") not in RoborockBase._missing_logged:
+                    _LOGGER.debug(
+                        "Key '%s' (decamelized: '%s') not found in %s fields, skipping",
+                        orig_key,
+                        key,
+                        cls.__name__,
+                    )
+                    RoborockBase._missing_logged.add(log_key)
                 continue
             if value == "None" or value is None:
                 result[key] = None
