@@ -351,9 +351,9 @@ async def discover(ctx):
     """Discover devices."""
     context: RoborockContext = ctx.obj
     # Use the explicit refresh method for the discover command
-    cache_data = await context.refresh_devices()
+    connection_cache = await context.refresh_devices()
 
-    home_data = cache_data.home_data
+    home_data = connection_cache.cache_data.home_data
     click.echo(f"Discovered devices {', '.join([device.name for device in home_data.get_all_devices()])}")
 
 
@@ -376,10 +376,10 @@ async def list_devices(ctx):
 @async_command
 async def list_scenes(ctx, device_id):
     context: RoborockContext = ctx.obj
-    cache_data = await context.get_devices()
+    connection_cache = await context.get_devices()
 
-    client = RoborockApiClient(cache_data.email)
-    scenes = await client.get_scenes(cache_data.user_data, device_id)
+    client = RoborockApiClient(connection_cache.email)
+    scenes = await client.get_scenes(connection_cache.user_data, device_id)
     output_list = []
     for scene in scenes:
         output_list.append(scene.as_dict())
@@ -392,10 +392,10 @@ async def list_scenes(ctx, device_id):
 @async_command
 async def execute_scene(ctx, scene_id):
     context: RoborockContext = ctx.obj
-    cache_data = await context.get_devices()
+    connection_cache = await context.get_devices()
 
-    client = RoborockApiClient(cache_data.email)
-    await client.execute_scene(cache_data.user_data, scene_id)
+    client = RoborockApiClient(connection_cache.email)
+    await client.execute_scene(connection_cache.user_data, scene_id)
 
 
 async def _v1_trait(context: RoborockContext, device_id: str, display_func: Callable[[], V1TraitMixin]) -> Trait:
@@ -815,9 +815,9 @@ async def get_device_info(ctx: click.Context):
     """
     click.echo("Discovering devices...")
     context: RoborockContext = ctx.obj
-    cache_data = await context.get_devices()
+    connection_cache = await context.get_devices()
 
-    home_data = cache_data.home_data
+    home_data = connection_cache.cache_data.home_data
 
     all_devices = home_data.get_all_devices()
     if not all_devices:
@@ -832,7 +832,7 @@ async def get_device_info(ctx: click.Context):
         click.echo(f"  - Processing {device.name} ({device.duid})")
         product_info = home_data.product_map[device.product_id]
         device_data = DeviceData(device, product_info.model)
-        mqtt_client = RoborockMqttClientV1(cache_data.user_data, device_data)
+        mqtt_client = RoborockMqttClientV1(connection_cache.user_data, device_data)
 
         try:
             init_status_result = await mqtt_client.send_command(
