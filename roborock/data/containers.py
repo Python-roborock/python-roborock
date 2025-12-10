@@ -258,6 +258,10 @@ class HomeDataDevice(RoborockBase):
     silent_ota_switch: bool | None = None
     setting: Any | None = None
     f: bool | None = None
+    create_time: int | None = None
+    cid: str | None = None
+    share_type: Any | None = None
+    share_expired_time: int | None = None
 
 
 @dataclass
