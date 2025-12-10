@@ -257,7 +257,7 @@ class RoborockApiClient:
         code_response = await code_request.request(
             "post",
             "/api/v4/email/code/send",
-            params={"email": self._username, "type": "login", "platform": ""},
+            data={"email": self._username, "type": "login", "platform": ""},
         )
         if code_response is None:
             raise RoborockException("Failed to get a response from send email code")
@@ -316,12 +316,21 @@ class RoborockApiClient:
         login_request = PreparedRequest(
             base_url,
             self.session,
-            {"header_clientid": header_clientid, "x-mercy-ks": x_mercy_ks, "x-mercy-k": x_mercy_k},
+            {
+                "header_clientid": header_clientid,
+                "x-mercy-ks": x_mercy_ks,
+                "x-mercy-k": x_mercy_k,
+                "Content-Type": "application/x-www-form-urlencoded",
+                "header_clientlang": "en",
+                "header_appversion": "4.54.02",
+                "header_phonesystem": "iOS",
+                "header_phonemodel": "iPhone16,1",
+            },
         )
         login_response = await login_request.request(
             "post",
             "/api/v4/auth/email/login/code",
-            params={
+            data={
                 "country": country,
                 "countryCode": country_code,
                 "email": self._username,
