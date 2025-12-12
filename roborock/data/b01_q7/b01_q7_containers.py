@@ -69,62 +69,62 @@ class B01Props(RoborockBase):
     This dataclass is generated based on the device's status JSON object.
     """
 
-    status: WorkStatusMapping
-    fault: B01Fault
-    wind: SCWindMapping
-    water: int
-    mode: int
-    quantity: int
-    alarm: int
-    volume: int
-    hypa: int
-    main_brush: int
-    side_brush: int
-    mop_life: int
-    main_sensor: int
-    net_status: NetStatus
-    repeat_state: int
-    tank_state: int
-    sweep_type: int
-    clean_path_preference: int
-    cloth_state: int
-    time_zone: int
-    time_zone_info: str
-    language: int
-    cleaning_time: int
-    real_clean_time: int
-    cleaning_area: int
-    custom_type: int
-    sound: int
-    work_mode: WorkModeMapping
-    station_act: int
-    charge_state: int
-    current_map_id: int
-    map_num: int
-    dust_action: int
-    quiet_is_open: int
-    quiet_begin_time: int
-    quiet_end_time: int
-    clean_finish: int
-    voice_type: int
-    voice_type_version: int
-    order_total: OrderTotal
-    build_map: int
-    privacy: Privacy
-    dust_auto_state: int
-    dust_frequency: int
-    child_lock: int
-    multi_floor: int
-    map_save: int
-    light_mode: int
-    green_laser: int
-    dust_bag_used: int
-    order_save_mode: int
-    manufacturer: str
-    back_to_wash: int
-    charge_station_type: int
-    pv_cut_charge: int
-    pv_charging: PvCharging
-    serial_number: str
-    recommend: Recommend
-    add_sweep_status: int
+    status: WorkStatusMapping | None = None
+    fault: B01Fault | None = None
+    wind: SCWindMapping | None = None
+    water: int | None = None
+    mode: int | None = None
+    quantity: int | None = None
+    alarm: int | None = None
+    volume: int | None = None
+    hypa: int | None = None
+    main_brush: int | None = None
+    side_brush: int | None = None
+    mop_life: int | None = None
+    main_sensor: int | None = None
+    net_status: NetStatus | None = None
+    repeat_state: int | None = None
+    tank_state: int | None = None
+    sweep_type: int | None = None
+    clean_path_preference: int | None = None
+    cloth_state: int | None = None
+    time_zone: int | None = None
+    time_zone_info: str | None = None
+    language: int | None = None
+    cleaning_time: int | None = None
+    real_clean_time: int | None = None
+    cleaning_area: int | None = None
+    custom_type: int | None = None
+    sound: int | None = None
+    work_mode: WorkModeMapping | None = None
+    station_act: int | None = None
+    charge_state: int | None = None
+    current_map_id: int | None = None
+    map_num: int | None = None
+    dust_action: int | None = None
+    quiet_is_open: int | None = None
+    quiet_begin_time: int | None = None
+    quiet_end_time: int | None = None
+    clean_finish: int | None = None
+    voice_type: int | None = None
+    voice_type_version: int | None = None
+    order_total: OrderTotal | None = None
+    build_map: int | None = None
+    privacy: Privacy | None = None
+    dust_auto_state: int | None = None
+    dust_frequency: int | None = None
+    child_lock: int | None = None
+    multi_floor: int | None = None
+    map_save: int | None = None
+    light_mode: int | None = None
+    green_laser: int | None = None
+    dust_bag_used: int | None = None
+    order_save_mode: int | None = None
+    manufacturer: str | None = None
+    back_to_wash: int | None = None
+    charge_station_type: int | None = None
+    pv_cut_charge: int | None = None
+    pv_charging: PvCharging | None = None
+    serial_number: str | None = None
+    recommend: Recommend | None = None
+    add_sweep_status: int | None = None
