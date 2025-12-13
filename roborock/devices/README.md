@@ -659,12 +659,18 @@ To reduce API calls and improve reliability:
 
 ### Testing
 
+Test structur mirrors the python module structure. For example,
+the module `roborock.devices.traits.v1.maps` is tested in the file
+`tests/devices/traits/v1/test_maps.py`. Each test file corresponds to a python
+module.
+
 The test suite uses mocking extensively to avoid real devices:
 
 - `Mock` and `AsyncMock` for channels and sessions
 - Fake message generators (`mqtt_packet.gen_publish()`)
 - Snapshot testing for complex data structures
 - Time-based tests use small timeouts (10-50ms) for speed
+
 
 Example test structure:
 ```python
