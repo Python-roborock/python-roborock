@@ -659,7 +659,7 @@ To reduce API calls and improve reliability:
 
 ### Testing
 
-Test structur mirrors the python module structure. For example,
+Test structure mirrors the python module structure. For example,
 the module `roborock.devices.traits.v1.maps` is tested in the file
 `tests/devices/traits/v1/test_maps.py`. Each test file corresponds to a python
 module.
