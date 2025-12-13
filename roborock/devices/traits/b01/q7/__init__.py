@@ -21,7 +21,7 @@ class Q7PropertiesApi(Trait):
         self._channel = channel
 
     async def query_values(self, props: list[RoborockB01Props]) -> B01Props | None:
-        """Query the device for the values of the given Dyad protocols."""
+        """Query the device for the values of the given Q7 protocols."""
         result = await send_decoded_command(
             self._channel, dps=10000, command=RoborockB01Q7Methods.GET_PROP, params={"property": props}
         )

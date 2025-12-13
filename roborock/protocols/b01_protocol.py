@@ -22,7 +22,7 @@ CommandType = RoborockB01Q7Methods | str
 ParamsType = list | dict | int | None
 
 
-def encode_mqtt_payload(dps: int, command: CommandType, params: ParamsType, msg_id: int) -> RoborockMessage:
+def encode_mqtt_payload(dps: int, command: CommandType, params: ParamsType, msg_id: str) -> RoborockMessage:
     """Encode payload for B01 commands over MQTT."""
     dps_data = {
         "dps": {

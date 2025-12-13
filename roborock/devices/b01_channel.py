@@ -31,7 +31,7 @@ async def send_decoded_command(
 ) -> dict[str, Any]:
     """Send a command on the MQTT channel and get a decoded response."""
     _LOGGER.debug("Sending MQTT command: %s", params)
-    msg_id = get_next_int(100000000000, 999999999999)
+    msg_id = str(get_next_int(100000000000, 999999999999))
     roborock_message = encode_mqtt_payload(dps, command, params, msg_id)
     finished = asyncio.Event()
     result: dict[str, Any] = {}
