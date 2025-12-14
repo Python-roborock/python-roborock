@@ -56,10 +56,15 @@ def setup_mock_loop(mock_transport: Mock) -> Generator[Mock, None, None]:
         yield loop
 
 
+def create_test_local_channel() -> LocalChannel:
+    """Helper to create a LocalChannel for testing."""
+    return LocalChannel(host=TEST_HOST, local_key=TEST_LOCAL_KEY, device_uid="test_duid")
+
+
 @pytest.fixture(name="local_channel")
 async def setup_local_channel_with_hello_mock() -> LocalChannel:
     """Fixture to set up the local channel with automatic hello mocking."""
-    channel = LocalChannel(host=TEST_HOST, local_key=TEST_LOCAL_KEY)
+    channel = create_test_local_channel()
 
     async def mock_do_hello(_: LocalProtocolVersion):
         """Mock _do_hello to return successful params without sending actual request."""
@@ -236,7 +241,7 @@ async def test_hello_fallback_to_l01_protocol(mock_loop: Mock, mock_transport: M
     """Test that when first hello() message fails (V1) but second succeeds (L01), we use L01."""
 
     # Create a channel without the automatic hello mocking
-    channel = LocalChannel(host=TEST_HOST, local_key=TEST_LOCAL_KEY)
+    channel = create_test_local_channel()
 
     # Mock _do_hello to fail for V1 but succeed for L01
     async def mock_do_hello(local_protocol_version: LocalProtocolVersion) -> LocalChannelParams | None:
@@ -267,7 +272,7 @@ async def test_hello_success_with_v1_protocol_first(mock_loop: Mock, mock_transp
     """Test that when V1 protocol succeeds on first attempt, we use V1."""
 
     # Create a channel without the automatic hello mocking
-    channel = LocalChannel(host=TEST_HOST, local_key=TEST_LOCAL_KEY)
+    channel = create_test_local_channel()
     # Clear cached protocol to ensure V1 is tried first
     channel._local_protocol_version = None
 
@@ -302,7 +307,7 @@ async def test_hello_both_protocols_fail(mock_loop: Mock, mock_transport: Mock) 
     """Test that when both V1 and L01 protocols fail, connection fails."""
 
     # Create a channel without the automatic hello mocking
-    channel = LocalChannel(host=TEST_HOST, local_key=TEST_LOCAL_KEY)
+    channel = create_test_local_channel()
 
     # Mock _do_hello to fail for both protocols
     async def mock_do_hello(_: LocalProtocolVersion) -> LocalChannelParams | None:
@@ -325,7 +330,7 @@ async def test_hello_preferred_protocol_version_ordering(mock_loop: Mock, mock_t
     """Test that preferred protocol version is tried first."""
 
     # Create a channel with preferred L01 protocol
-    channel = LocalChannel(host=TEST_HOST, local_key=TEST_LOCAL_KEY)
+    channel = create_test_local_channel()
     channel._local_protocol_version = LocalProtocolVersion.L01
 
     # Track which protocols were attempted and in what order

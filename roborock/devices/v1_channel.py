@@ -30,6 +30,7 @@ from roborock.protocols.v1_protocol import (
 )
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 from roborock.roborock_typing import RoborockCommand
+from roborock.util import RoborockLoggerAdapter
 
 from .cache import DeviceCache
 from .channel import Channel
@@ -70,9 +71,10 @@ class RpcStrategy:
 class RpcChannel(V1RpcChannel):
     """Provides an RPC interface around a pub/sub transport channel."""
 
-    def __init__(self, rpc_strategies_cb: Callable[[], list[RpcStrategy]]) -> None:
+    def __init__(self, rpc_strategies_cb: Callable[[], list[RpcStrategy]], logger: RoborockLoggerAdapter) -> None:
         """Initialize the RpcChannel with an ordered list of strategies."""
         self._rpc_strategies_cb = rpc_strategies_cb
+        self._logger = logger
 
     async def send_command(
         self,
@@ -88,12 +90,12 @@ class RpcChannel(V1RpcChannel):
         last_exception = None
         for strategy in self._rpc_strategies_cb():
             try:
-                decoded_response = await self._send_rpc(strategy, request)
+                decoded_response = await self._send_rpc(strategy, request, self._logger)
             except RoborockException as e:
-                _LOGGER.debug("Command %s failed on %s channel: %s", method, strategy.name, e)
+                self._logger.debug("Command %s failed on %s channel: %s", method, strategy.name, e)
                 last_exception = e
             except Exception as e:
-                _LOGGER.exception("Unexpected error sending command %s on %s channel", method, strategy.name)
+                self._logger.exception("Unexpected error sending command %s on %s channel", method, strategy.name)
                 last_exception = RoborockException(f"Unexpected error: {e}")
             else:
                 if response_type is not None:
@@ -107,7 +109,9 @@ class RpcChannel(V1RpcChannel):
         raise last_exception or RoborockException("No available connection to send command")
 
     @staticmethod
-    async def _send_rpc(strategy: RpcStrategy, request: RequestMessage) -> ResponseData | bytes:
+    async def _send_rpc(
+        strategy: RpcStrategy, request: RequestMessage, logger: RoborockLoggerAdapter
+    ) -> ResponseData | bytes:
         """Send a command and return a decoded response type.
 
         This provides an RPC interface over a given channel strategy. The device
@@ -115,7 +119,7 @@ class RpcChannel(V1RpcChannel):
         associating requests with their corresponding responses.
         """
         future: asyncio.Future[ResponseData | bytes] = asyncio.Future()
-        _LOGGER.debug(
+        logger.debug(
             "Sending command (%s, request_id=%s): %s, params=%s",
             strategy.name,
             request.request_id,
@@ -129,11 +133,11 @@ class RpcChannel(V1RpcChannel):
             try:
                 decoded = strategy.decoder(response_message)
             except RoborockException as ex:
-                _LOGGER.debug("Exception while decoding message (%s): %s", response_message, ex)
+                logger.debug("Exception while decoding message (%s): %s", response_message, ex)
                 return
             if decoded is None:
                 return
-            _LOGGER.debug("Received response (%s, request_id=%s)", strategy.name, decoded.request_id)
+            logger.debug("Received response (%s, request_id=%s)", strategy.name, decoded.request_id)
             if decoded.request_id == request.request_id:
                 if isinstance(decoded, ResponseMessage) and decoded.api_error:
                     future.set_exception(decoded.api_error)
@@ -174,6 +178,7 @@ class V1Channel(Channel):
     ) -> None:
         """Initialize the V1Channel."""
         self._device_uid = device_uid
+        self._logger = RoborockLoggerAdapter(device_uid, _LOGGER)
         self._security_data = security_data
         self._mqtt_channel = mqtt_channel
         self._mqtt_health_manager = HealthManager(self._mqtt_channel.restart)
@@ -216,7 +221,7 @@ class V1Channel(Channel):
             strategies.append(self._create_mqtt_rpc_strategy())
             return strategies
 
-        return RpcChannel(rpc_strategies_cb)
+        return RpcChannel(rpc_strategies_cb, self._logger)
 
     @property
     def mqtt_rpc_channel(self) -> V1RpcChannel:
@@ -225,13 +230,13 @@ class V1Channel(Channel):
         The returned V1RpcChannel may be long lived and will respect the
         current connection state of the underlying channels.
         """
-        return RpcChannel(lambda: [self._create_mqtt_rpc_strategy()])
+        return RpcChannel(lambda: [self._create_mqtt_rpc_strategy()], self._logger)
 
     @property
     def map_rpc_channel(self) -> V1RpcChannel:
         """Return the map RPC channel used for fetching map content."""
         decoder = create_map_response_decoder(security_data=self._security_data)
-        return RpcChannel(lambda: [self._create_mqtt_rpc_strategy(decoder)])
+        return RpcChannel(lambda: [self._create_mqtt_rpc_strategy(decoder)], self._logger)
 
     def _create_local_rpc_strategy(self) -> RpcStrategy | None:
         """Create the RPC strategy for local transport."""
@@ -294,7 +299,7 @@ class V1Channel(Channel):
         try:
             await self._local_connect(prefer_cache=True)
         except RoborockException as err:
-            _LOGGER.debug("First local connection attempt for device %s failed, will retry: %s", self._device_uid, err)
+            self._logger.debug("First local connection attempt failed, will retry: %s", err)
 
         # Start a background task to manage the local connection health. This
         # happens independent of whether we were able to connect locally now.
@@ -307,7 +312,7 @@ class V1Channel(Channel):
             # establish that connection explicitly. If this fails then raise an
             # error and let the caller know we failed to subscribe.
             self._mqtt_unsub = await self._mqtt_channel.subscribe(self._on_mqtt_message)
-            _LOGGER.debug("V1Channel connected to device %s via MQTT", self._device_uid)
+            self._logger.debug("V1Channel connected to device via MQTT")
 
         def unsub() -> None:
             """Unsubscribe from all messages."""
@@ -320,7 +325,7 @@ class V1Channel(Channel):
             if self._local_unsub:
                 self._local_unsub()
                 self._local_unsub = None
-            _LOGGER.debug("Unsubscribed from device %s", self._device_uid)
+            self._logger.debug("Unsubscribed from device")
 
         self._callback = callback
         return unsub
@@ -333,19 +338,19 @@ class V1Channel(Channel):
         device_cache_data = await self._device_cache.get()
 
         if prefer_cache and device_cache_data.network_info:
-            _LOGGER.debug("Using cached network info for device %s", self._device_uid)
+            self._logger.debug("Using cached network info")
             return device_cache_data.network_info
         try:
             network_info = await self.mqtt_rpc_channel.send_command(
                 RoborockCommand.GET_NETWORK_INFO, response_type=NetworkInfo
             )
         except RoborockException as e:
-            _LOGGER.debug("Error fetching network info for device %s", self._device_uid)
+            self._logger.debug("Error fetching network info for device")
             if device_cache_data.network_info:
-                _LOGGER.debug("Falling back to cached network info for device %s after error", self._device_uid)
+                self._logger.debug("Falling back to cached network info after error")
                 return device_cache_data.network_info
             raise RoborockException(f"Network info failed for device {self._device_uid}") from e
-        _LOGGER.debug("Network info for device %s: %s", self._device_uid, network_info)
+        self._logger.debug("Network info for device: %s", network_info)
         self._last_network_info_refresh = datetime.datetime.now(datetime.UTC)
 
         device_cache_data = await self._device_cache.get()
@@ -355,12 +360,10 @@ class V1Channel(Channel):
 
     async def _local_connect(self, *, prefer_cache: bool = True) -> None:
         """Set up local connection if possible."""
-        _LOGGER.debug(
-            "Attempting to connect to local channel for device %s (prefer_cache=%s)", self._device_uid, prefer_cache
-        )
+        self._logger.debug("Attempting to connect to local channel (prefer_cache=%s)", prefer_cache)
         networking_info = await self._get_networking_info(prefer_cache=prefer_cache)
         host = networking_info.ip
-        _LOGGER.debug("Connecting to local channel at %s", host)
+        self._logger.debug("Connecting to local channel at %s", host)
         # Create a new local channel and connect
         local_channel = self._local_session(host)
         try:
@@ -374,7 +377,7 @@ class V1Channel(Channel):
 
     async def _background_reconnect(self) -> None:
         """Task to run in the background to manage the local connection."""
-        _LOGGER.debug("Starting background task to manage local connection for %s", self._device_uid)
+        self._logger.debug("Starting background task to manage local connection")
         reconnect_backoff = MIN_RECONNECT_INTERVAL
         local_connect_failures = 0
 
@@ -398,14 +401,14 @@ class V1Channel(Channel):
                 local_connect_failures = 0
 
             except asyncio.CancelledError:
-                _LOGGER.debug("Background reconnect task cancelled")
+                self._logger.debug("Background reconnect task cancelled")
                 if self._local_channel:
                     self._local_channel.close()
                 return
             except RoborockException as err:
-                _LOGGER.debug("Background reconnect failed: %s", err)
+                self._logger.debug("Background reconnect failed: %s", err)
             except Exception:
-                _LOGGER.exception("Unhandled exception in background reconnect task")
+                self._logger.exception("Unhandled exception in background reconnect task")
 
     def _should_use_cache(self, local_connect_failures: int) -> bool:
         """Determine whether to use cached network info on retries.
@@ -424,13 +427,13 @@ class V1Channel(Channel):
 
     def _on_mqtt_message(self, message: RoborockMessage) -> None:
         """Handle incoming MQTT messages."""
-        _LOGGER.debug("V1Channel received MQTT message from device %s: %s", self._device_uid, message)
+        self._logger.debug("V1Channel received MQTT message: %s", message)
         if self._callback:
             self._callback(message)
 
     def _on_local_message(self, message: RoborockMessage) -> None:
         """Handle incoming local messages."""
-        _LOGGER.debug("V1Channel received local message from device %s: %s", self._device_uid, message)
+        self._logger.debug("V1Channel received local message: %s", message)
         if self._callback:
             self._callback(message)
 
@@ -445,7 +448,7 @@ def create_v1_channel(
     """Create a V1Channel for the given device."""
     security_data = create_security_data(user_data.rriot)
     mqtt_channel = MqttChannel(mqtt_session, device.duid, device.local_key, user_data.rriot, mqtt_params)
-    local_session = create_local_session(device.local_key)
+    local_session = create_local_session(device.local_key, device.duid)
     return V1Channel(
         device.duid,
         security_data,

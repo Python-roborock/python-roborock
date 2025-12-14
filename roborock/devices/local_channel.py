@@ -11,7 +11,7 @@ from roborock.protocol import create_local_decoder, create_local_encoder
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 
 from ..protocols.v1_protocol import LocalProtocolVersion
-from ..util import get_next_int
+from ..util import RoborockLoggerAdapter, get_next_int
 from .channel import Channel
 
 _LOGGER = logging.getLogger(__name__)
@@ -52,11 +52,12 @@ class LocalChannel(Channel):
     format most parsing to higher-level components.
     """
 
-    def __init__(self, host: str, local_key: str):
+    def __init__(self, host: str, local_key: str, device_uid: str) -> None:
         self._host = host
+        self._logger = RoborockLoggerAdapter(device_uid, _LOGGER)
         self._transport: asyncio.Transport | None = None
         self._protocol: _LocalProtocol | None = None
-        self._subscribers: CallbackList[RoborockMessage] = CallbackList(_LOGGER)
+        self._subscribers: CallbackList[RoborockMessage] = CallbackList(self._logger)
         self._is_connected = False
         self._local_protocol_version: LocalProtocolVersion | None = None
         self._keep_alive_task: asyncio.Task[None] | None = None
@@ -80,11 +81,11 @@ class LocalChannel(Channel):
             local_key=params.local_key, connect_nonce=params.connect_nonce, ack_nonce=params.ack_nonce
         )
         # Callback to decode messages and dispatch to subscribers
-        self._dispatch = decoder_callback(self._decoder, self._subscribers, _LOGGER)
+        self._dispatch = decoder_callback(self._decoder, self._subscribers, self._logger)
 
     async def _do_hello(self, local_protocol_version: LocalProtocolVersion) -> LocalChannelParams | None:
         """Perform the initial handshaking and return encoder params if successful."""
-        _LOGGER.debug(
+        self._logger.debug(
             "Attempting to use the %s protocol for client %s...",
             local_protocol_version,
             self._host,
@@ -101,7 +102,7 @@ class LocalChannel(Channel):
                 request_id=request.seq,
                 response_protocol=RoborockMessageProtocol.HELLO_RESPONSE,
             )
-            _LOGGER.debug(
+            self._logger.debug(
                 "Client %s speaks the %s protocol.",
                 self._host,
                 local_protocol_version,
@@ -110,7 +111,7 @@ class LocalChannel(Channel):
                 local_key=self._params.local_key, connect_nonce=self._params.connect_nonce, ack_nonce=response.random
             )
         except RoborockException as e:
-            _LOGGER.debug(
+            self._logger.debug(
                 "Client %s did not respond or does not speak the %s protocol. %s",
                 self._host,
                 local_protocol_version,
@@ -153,7 +154,7 @@ class LocalChannel(Channel):
             except asyncio.CancelledError:
                 break
             except Exception:
-                _LOGGER.debug("Keep-alive ping failed", exc_info=True)
+                self._logger.debug("Keep-alive ping failed", exc_info=True)
                 # Retry next interval
 
     @property
@@ -176,9 +177,9 @@ class LocalChannel(Channel):
     async def connect(self) -> None:
         """Connect to the device and negotiate protocol."""
         if self._is_connected:
-            _LOGGER.debug("Unexpected call to connect when already connected")
+            self._logger.debug("Unexpected call to connect when already connected")
             return
-        _LOGGER.debug("Connecting to %s:%s", self._host, _PORT)
+        self._logger.debug("Connecting to %s:%s", self._host, _PORT)
         loop = asyncio.get_running_loop()
         protocol = _LocalProtocol(self._data_received, self._connection_lost)
         try:
@@ -208,13 +209,13 @@ class LocalChannel(Channel):
         if self._transport:
             self._transport.close()
         else:
-            _LOGGER.warning("Close called but transport is already None")
+            self._logger.warning("Close called but transport is already None")
         self._transport = None
         self._is_connected = False
 
     def _connection_lost(self, exc: Exception | None) -> None:
         """Handle connection loss."""
-        _LOGGER.debug("Connection lost to %s", self._host, exc_info=exc)
+        self._logger.debug("Connection lost to %s", self._host, exc_info=exc)
         if self._keep_alive_task:
             self._keep_alive_task.cancel()
             self._keep_alive_task = None
@@ -236,12 +237,12 @@ class LocalChannel(Channel):
         try:
             encoded_msg = self._encoder(message)
         except Exception as err:
-            _LOGGER.exception("Error encoding MQTT message: %s", err)
+            self._logger.exception("Error encoding MQTT message: %s", err)
             raise RoborockException(f"Failed to encode MQTT message: {err}") from err
         try:
             self._transport.write(encoded_msg)
         except Exception as err:
-            logging.exception("Uncaught error sending command")
+            self._logger.exception("Uncaught error sending command")
             raise RoborockException(f"Failed to send message: {message}") from err
 
     async def _send_message(
@@ -276,7 +277,7 @@ class LocalChannel(Channel):
 LocalSession = Callable[[str], LocalChannel]
 
 
-def create_local_session(local_key: str) -> LocalSession:
+def create_local_session(local_key: str, device_uid: str) -> LocalSession:
     """Creates a local session which can create local channels.
 
     This plays a role similar to the MqttSession but is really just a factory
@@ -285,6 +286,6 @@ def create_local_session(local_key: str) -> LocalSession:
 
     def create_local_channel(host: str) -> LocalChannel:
         """Create a LocalChannel instance for the given host."""
-        return LocalChannel(host, local_key)
+        return LocalChannel(host, local_key, device_uid)
 
     return create_local_channel

@@ -9,6 +9,7 @@ from roborock.exceptions import RoborockException
 from roborock.mqtt.session import MqttParams, MqttSession, MqttSessionException
 from roborock.protocol import create_mqtt_decoder, create_mqtt_encoder
 from roborock.roborock_message import RoborockMessage
+from roborock.util import RoborockLoggerAdapter
 
 from .channel import Channel
 
@@ -25,6 +26,7 @@ class MqttChannel(Channel):
     def __init__(self, mqtt_session: MqttSession, duid: str, local_key: str, rriot: RRiot, mqtt_params: MqttParams):
         self._mqtt_session = mqtt_session
         self._duid = duid
+        self._logger = RoborockLoggerAdapter(duid, _LOGGER)
         self._local_key = local_key
         self._rriot = rriot
         self._mqtt_params = mqtt_params
@@ -74,12 +76,12 @@ class MqttChannel(Channel):
         try:
             encoded_msg = self._encoder(message)
         except Exception as e:
-            _LOGGER.exception("Error encoding MQTT message: %s", e)
+            self._logger.exception("Error encoding MQTT message: %s", e)
             raise RoborockException(f"Failed to encode MQTT message: {e}") from e
         try:
             return await self._mqtt_session.publish(self._publish_topic, encoded_msg)
         except MqttSessionException as e:
-            _LOGGER.exception("Error publishing MQTT message: %s", e)
+            self._logger.exception("Error publishing MQTT message: %s", e)
             raise RoborockException(f"Failed to publish MQTT message: {e}") from e
 
     async def restart(self) -> None:

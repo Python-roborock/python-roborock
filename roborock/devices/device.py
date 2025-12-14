@@ -14,6 +14,7 @@ from typing import Any, TypeVar, cast
 from roborock.data import HomeDataDevice, HomeDataProduct
 from roborock.exceptions import RoborockException
 from roborock.roborock_message import RoborockMessage
+from roborock.util import RoborockLoggerAdapter
 
 from .channel import Channel
 from .traits import Trait
@@ -59,6 +60,7 @@ class RoborockDevice(ABC, TraitsMixin):
         """
         TraitsMixin.__init__(self, trait)
         self._duid = device_info.duid
+        self._logger = RoborockLoggerAdapter(self._duid, _LOGGER)
         self._name = device_info.name
         self._device_info = device_info
         self._product = product
@@ -134,14 +136,11 @@ class RoborockDevice(ABC, TraitsMixin):
                         return
                     except RoborockException as e:
                         start_attempt.set()
-                        _LOGGER.info("Failed to connect to device %s: %s", self.name, e)
-                        _LOGGER.info(
-                            "Retrying connection to device %s in %s seconds", self.name, backoff.total_seconds()
-                        )
+                        self._logger.info("Failed to connect (retry %s): %s", backoff.total_seconds(), e)
                         await asyncio.sleep(backoff.total_seconds())
                         backoff = min(backoff * BACKOFF_MULTIPLIER, MAX_BACKOFF_INTERVAL)
             except asyncio.CancelledError:
-                _LOGGER.info("connect_loop for device %s was cancelled", self.name)
+                self._logger.debug("connect_loop was cancelled for device %s", self.duid)
                 # Clean exit on cancellation
                 return
             finally:
@@ -152,14 +151,14 @@ class RoborockDevice(ABC, TraitsMixin):
         try:
             await asyncio.wait_for(start_attempt.wait(), timeout=START_ATTEMPT_TIMEOUT.total_seconds())
         except TimeoutError:
-            _LOGGER.debug("Initial connection attempt to device %s is taking longer than expected", self.name)
+            self._logger.debug("Initial connection attempt took longer than expected, will keep trying in background")
 
     async def connect(self) -> None:
         """Connect to the device using the appropriate protocol channel."""
         if self._unsub:
             raise ValueError("Already connected to the device")
         unsub = await self._channel.subscribe(self._on_message)
-        _LOGGER.info("Connected to V1 device %s", self.name)
+        self._logger.info("Connecting to device")
         if self.v1_properties is not None:
             try:
                 await self.v1_properties.discover_features()
@@ -182,7 +181,7 @@ class RoborockDevice(ABC, TraitsMixin):
 
     def _on_message(self, message: RoborockMessage) -> None:
         """Handle incoming messages from the device."""
-        _LOGGER.debug("Received message from device: %s", message)
+        self._logger.debug("Received message from device: %s", message)
 
     def diagnostic_data(self) -> dict[str, Any]:
         """Return diagnostics information about the device."""
