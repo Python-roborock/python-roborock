@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import paho.mqtt.client as mqtt
 import pytest
+import syrupy
 
 from roborock import (
     HomeData,
@@ -21,7 +22,7 @@ from roborock.roborock_message import (
 from roborock.version_a01_apis import RoborockMqttClientA01
 
 from . import mqtt_packet
-from .conftest import QUEUE_TIMEOUT
+from .conftest import QUEUE_TIMEOUT, CapturedRequestLog
 from .mock_data import (
     HOME_DATA_RAW,
     LOCAL_KEY,
@@ -173,6 +174,8 @@ async def test_update_zeo_values(
     received_requests: Queue,
     response_queue: Queue,
     connected_a01_mqtt_client: RoborockMqttClientA01,
+    snapshot: syrupy.SnapshotAssertion,
+    log: CapturedRequestLog,
 ) -> None:
     """Test sending an arbitrary MQTT message and parsing the response."""
 
@@ -206,6 +209,7 @@ async def test_update_zeo_values(
         RoborockZeoProtocol.TIMES_AFTER_CLEAN: 1,
         RoborockZeoProtocol.WASHING_LEFT: 0,
     }
+    assert snapshot == log
 
 
 @pytest.mark.parametrize("category", [RoborockCategory.WET_DRY_VAC])
@@ -213,6 +217,8 @@ async def test_update_dyad_values(
     received_requests: Queue,
     response_queue: Queue,
     connected_a01_mqtt_client: RoborockMqttClientA01,
+    snapshot: syrupy.SnapshotAssertion,
+    log: CapturedRequestLog,
 ) -> None:
     """Test sending an arbitrary MQTT message and parsing the response."""
 
@@ -243,12 +249,15 @@ async def test_update_dyad_values(
         RoborockDyadDataProtocol.STAND_LOCK_AUTO_RUN: True,
         RoborockDyadDataProtocol.AUTO_DRY_MODE: False,
     }
+    assert snapshot == log
 
 
 async def test_set_value(
     received_requests: Queue,
     response_queue: Queue,
     connected_a01_mqtt_client: RoborockMqttClientA01,
+    snapshot: syrupy.SnapshotAssertion,
+    log: CapturedRequestLog,
 ) -> None:
     """Test sending an arbitrary MQTT message and parsing the response."""
     # Clear existing messages received during setup
@@ -263,6 +272,8 @@ async def test_set_value(
 
     await connected_a01_mqtt_client.set_value(RoborockZeoProtocol.STATE, "spinning")
     assert received_requests.get(block=True)
+
+    assert snapshot == log
 
 
 async def test_publish_failure(

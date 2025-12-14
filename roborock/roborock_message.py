@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import math
-import time
 from dataclasses import dataclass, field
 from enum import StrEnum
 
 from roborock import RoborockEnum
-from roborock.util import get_next_int
+from roborock.util import get_next_int, get_timestamp
 
 
 class RoborockMessageProtocol(RoborockEnum):
@@ -245,4 +243,4 @@ class RoborockMessage:
     seq: int = field(default_factory=lambda: get_next_int(100000, 999999))
     version: bytes = b"1.0"
     random: int = field(default_factory=lambda: get_next_int(10000, 99999))
-    timestamp: int = field(default_factory=lambda: math.floor(time.time()))
+    timestamp: int = field(default_factory=lambda: get_timestamp())

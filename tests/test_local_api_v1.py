@@ -7,6 +7,7 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
+import syrupy
 
 from roborock.data import RoomMapping
 from roborock.exceptions import RoborockException
@@ -14,6 +15,7 @@ from roborock.protocol import MessageParser
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 from roborock.version_1_apis import RoborockLocalClientV1
 
+from .conftest import CapturedRequestLog
 from .mock_data import LOCAL_KEY
 
 
@@ -45,7 +47,9 @@ async def test_async_connect(
     local_client: RoborockLocalClientV1,
     received_requests: Queue,
     response_queue: Queue,
-):
+    snapshot: syrupy.SnapshotAssertion,
+    log: CapturedRequestLog,
+) -> None:
     """Test that we can connect to the Roborock device."""
     response_queue.put(build_raw_response(RoborockMessageProtocol.HELLO_RESPONSE, 1, b"ignored"))
     response_queue.put(build_raw_response(RoborockMessageProtocol.PING_RESPONSE, 2, b"ignored"))
@@ -56,6 +60,8 @@ async def test_async_connect(
 
     await local_client.async_disconnect()
     assert not local_client.is_connected()
+
+    assert snapshot == log
 
 
 @pytest.fixture(name="connected_local_client")
@@ -73,6 +79,8 @@ async def test_get_room_mapping(
     received_requests: Queue,
     response_queue: Queue,
     connected_local_client: RoborockLocalClientV1,
+    snapshot: syrupy.SnapshotAssertion,
+    log: CapturedRequestLog,
 ) -> None:
     """Test sending an arbitrary MQTT message and parsing the response."""
 
@@ -94,6 +102,8 @@ async def test_get_room_mapping(
         RoomMapping(segment_id=16, iot_id="2362048"),
         RoomMapping(segment_id=17, iot_id="2362044"),
     ]
+
+    assert snapshot == log
 
 
 async def test_retry_request(

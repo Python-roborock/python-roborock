@@ -5,10 +5,8 @@ from __future__ import annotations
 import base64
 import json
 import logging
-import math
 import secrets
 import struct
-import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -19,7 +17,7 @@ from roborock.exceptions import RoborockException, RoborockUnsupportedFeature
 from roborock.protocol import Utils
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 from roborock.roborock_typing import RoborockCommand
-from roborock.util import get_next_int
+from roborock.util import get_next_int, get_timestamp
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -70,7 +68,7 @@ class RequestMessage:
 
     method: RoborockCommand | str
     params: ParamsType
-    timestamp: int = field(default_factory=lambda: math.floor(time.time()))
+    timestamp: int = field(default_factory=lambda: get_timestamp())
     request_id: int = field(default_factory=lambda: get_next_int(10000, 32767))
 
     def encode_message(
