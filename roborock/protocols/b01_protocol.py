@@ -47,8 +47,9 @@ def decode_rpc_response(message: RoborockMessage) -> dict[int, Any]:
         raise RoborockException("Invalid B01 message format: missing payload")
     try:
         unpadded = unpad(message.payload, AES.block_size)
-    except ValueError as err:
-        raise RoborockException(f"Unable to unpad B01 payload: {err}")
+    except ValueError:
+        # It would be better to fail down the line.
+        unpadded = message.payload
 
     try:
         payload = json.loads(unpadded.decode())
