@@ -14,7 +14,7 @@ from roborock.data import (
     HomeDataProduct,
     UserData,
 )
-from roborock.devices.device import RoborockDevice
+from roborock.devices.device import DeviceReadyCallback, RoborockDevice
 from roborock.map.map_parser import MapParserConfig
 from roborock.mqtt.roborock_session import create_lazy_mqtt_session
 from roborock.mqtt.session import MqttSession
@@ -155,6 +155,7 @@ async def create_device_manager(
     cache: Cache | None = None,
     map_parser_config: MapParserConfig | None = None,
     session: aiohttp.ClientSession | None = None,
+    ready_callback: DeviceReadyCallback | None = None,
 ) -> DeviceManager:
     """Convenience function to create and initialize a DeviceManager.
 
@@ -163,6 +164,7 @@ async def create_device_manager(
         cache: Optional cache implementation to use for caching device data.
         map_parser_config: Optional configuration for parsing maps.
         session: Optional aiohttp ClientSession to use for HTTP requests.
+        ready_callback: Optional callback to be notified when a device is ready.
 
     Returns:
         An initialized DeviceManager with discovered devices.
@@ -211,7 +213,11 @@ async def create_device_manager(
                     raise NotImplementedError(f"Device {device.name} has unsupported B01 model: {product.model}")
             case _:
                 raise NotImplementedError(f"Device {device.name} has unsupported version {device.pv}")
-        return RoborockDevice(device, product, channel, trait)
+
+        dev = RoborockDevice(device, product, channel, trait)
+        if ready_callback:
+            dev.add_ready_callback(ready_callback)
+        return dev
 
     manager = DeviceManager(web_api, device_creator, mqtt_session=mqtt_session, cache=cache)
     await manager.discover_devices()

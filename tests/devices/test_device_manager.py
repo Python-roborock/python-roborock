@@ -9,6 +9,7 @@ import pytest
 
 from roborock.data import HomeData, UserData
 from roborock.devices.cache import InMemoryCache
+from roborock.devices.device import RoborockDevice
 from roborock.devices.device_manager import UserParams, create_device_manager, create_web_api_wrapper
 from roborock.exceptions import RoborockException
 
@@ -171,9 +172,30 @@ async def test_cache_logic() -> None:
         await device_manager.close()
 
 
+async def test_ready_callback(home_data: HomeData) -> None:
+    """Test that the ready callback is invoked when a device connects."""
+    ready_devices: list[RoborockDevice] = []
+    device_manager = await create_device_manager(USER_PARAMS, ready_callback=ready_devices.append)
+
+    # Callback should be called for the discovered device
+    assert len(ready_devices) == 1
+    device = ready_devices[0]
+    assert device.duid == "abc123"
+
+    # Verify that adding a ready callback to an already connected device will
+    # invoke the callback immediately.
+    more_ready_device: list[RoborockDevice] = []
+    device.add_ready_callback(more_ready_device.append)
+    assert len(more_ready_device) == 1
+    assert more_ready_device[0].duid == "abc123"
+
+    await device_manager.close()
+
+
 async def test_start_connect_failure(home_data: HomeData, channel_failure: Mock, mock_sleep: Mock) -> None:
     """Test that start_connect retries when connection fails."""
-    device_manager = await create_device_manager(USER_PARAMS)
+    ready_devices: list[RoborockDevice] = []
+    device_manager = await create_device_manager(USER_PARAMS, ready_callback=ready_devices.append)
     devices = await device_manager.get_devices()
 
     # The device should attempt to connect in the background at least once
@@ -184,6 +206,7 @@ async def test_start_connect_failure(home_data: HomeData, channel_failure: Mock,
     # Device should exist but not be connected
     assert len(devices) == 1
     assert not devices[0].is_connected
+    assert not ready_devices
 
     # Verify retry attempts
     assert channel_failure.return_value.subscribe.call_count >= 1
@@ -203,6 +226,8 @@ async def test_start_connect_failure(home_data: HomeData, channel_failure: Mock,
         assert attempts < 10, "Device did not connect after multiple attempts"
 
     assert devices[0].is_connected
+    assert ready_devices
+    assert len(ready_devices) == 1
 
     await device_manager.close()
     assert mock_unsub.call_count == 1

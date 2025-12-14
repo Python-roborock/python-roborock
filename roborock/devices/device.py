@@ -11,6 +11,7 @@ from abc import ABC
 from collections.abc import Callable, Mapping
 from typing import Any, TypeVar, cast
 
+from roborock.callbacks import CallbackList
 from roborock.data import HomeDataDevice, HomeDataProduct
 from roborock.exceptions import RoborockException
 from roborock.roborock_message import RoborockMessage
@@ -22,6 +23,7 @@ from .traits.traits_mixin import TraitsMixin
 _LOGGER = logging.getLogger(__name__)
 
 __all__ = [
+    "DeviceReadyCallback",
     "RoborockDevice",
 ]
 
@@ -30,6 +32,9 @@ MIN_BACKOFF_INTERVAL = datetime.timedelta(seconds=10)
 MAX_BACKOFF_INTERVAL = datetime.timedelta(minutes=30)
 BACKOFF_MULTIPLIER = 1.5
 START_ATTEMPT_TIMEOUT = datetime.timedelta(seconds=5)
+
+
+DeviceReadyCallback = Callable[["RoborockDevice"], None]
 
 
 class RoborockDevice(ABC, TraitsMixin):
@@ -65,6 +70,8 @@ class RoborockDevice(ABC, TraitsMixin):
         self._channel = channel
         self._connect_task: asyncio.Task[None] | None = None
         self._unsub: Callable[[], None] | None = None
+        self._ready_callbacks = CallbackList["RoborockDevice"]()
+        self._has_connected = False
 
     @property
     def duid(self) -> str:
@@ -108,6 +115,22 @@ class RoborockDevice(ABC, TraitsMixin):
         """
         return self._channel.is_local_connected
 
+    def add_ready_callback(self, callback: DeviceReadyCallback) -> Callable[[], None]:
+        """Add a callback to be notified when the device is ready.
+
+        A device is considered ready when it has successfully connected. It may go
+        offline later, but this callback will only be called once when the device
+        first connects.
+
+        The callback will be called immediately if the device has already previously
+        connected.
+        """
+        remove = self._ready_callbacks.add_callback(callback)
+        if self._has_connected:
+            callback(self)
+
+        return remove
+
     async def start_connect(self) -> None:
         """Start a background task to connect to the device.
 
@@ -131,6 +154,8 @@ class RoborockDevice(ABC, TraitsMixin):
                     try:
                         await self.connect()
                         start_attempt.set()
+                        self._has_connected = True
+                        self._ready_callbacks(self)
                         return
                     except RoborockException as e:
                         start_attempt.set()
