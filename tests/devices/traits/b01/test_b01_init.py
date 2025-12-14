@@ -7,7 +7,9 @@ from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 
 from roborock.data.b01_q7 import WorkStatusMapping
+from roborock.devices.b01_channel import send_decoded_command
 from roborock.devices.traits.b01.q7 import Q7PropertiesApi
+from roborock.exceptions import RoborockException
 from roborock.protocols.b01_protocol import B01_VERSION
 from roborock.roborock_message import RoborockB01Props, RoborockMessage, RoborockMessageProtocol
 from tests.conftest import FakeChannel
@@ -87,6 +89,7 @@ async def test_q7_api_query_values(q7_api: Q7PropertiesApi, fake_channel: FakeCh
     assert message.version == B01_VERSION
 
     # Verify request payload
+    assert message.payload is not None
     payload_data = json.loads(unpad(message.payload, AES.block_size))
     # {"dps": {"10000": {"method": "prop.get", "msgId": "123456789", "params": {"property": ["status", "wind"]}}}}
     assert "dps" in payload_data
@@ -128,3 +131,36 @@ async def test_q7_response_value_mapping(
         result = await q7_api.query_values(query)
 
     assert result is not None
+
+
+async def test_send_decoded_command_non_dict_response(fake_channel: FakeChannel):
+    """Test validity of handling non-dict responses (should not timeout)."""
+    msg_id = "123456789"
+
+    dps_payload = {
+        "dps": {
+            "10000": json.dumps(
+                {
+                    "msgId": msg_id,
+                    "data": "some_string_error",
+                }
+            )
+        }
+    }
+    message = RoborockMessage(
+        protocol=RoborockMessageProtocol.RPC_RESPONSE,
+        payload=pad(
+            json.dumps(dps_payload).encode(),
+            AES.block_size,
+        ),
+        version=b"B01",
+        seq=2021,
+    )
+
+    fake_channel.response_queue.append(message)
+
+    with patch("roborock.devices.b01_channel.get_next_int", return_value=int(msg_id)):
+        # Use a random string for command type to avoid needing import
+
+        with pytest.raises(RoborockException, match="Unexpected data type for response"):
+            await send_decoded_command(fake_channel, 10000, "prop.get", [])  # type: ignore[arg-type]

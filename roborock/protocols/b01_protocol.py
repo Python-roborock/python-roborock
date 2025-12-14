@@ -13,7 +13,6 @@ from roborock.roborock_message import (
     RoborockMessage,
     RoborockMessageProtocol,
 )
-from roborock.util import get_next_int
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,7 +27,7 @@ def encode_mqtt_payload(dps: int, command: CommandType, params: ParamsType, msg_
         "dps": {
             dps: {
                 "method": str(command),
-                "msgId": msg_id or str(get_next_int(100000000000, 999999999999)),
+                "msgId": msg_id,
                 "params": params or [],
             }
         }

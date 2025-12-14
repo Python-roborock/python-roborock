@@ -33,8 +33,7 @@ async def send_decoded_command(
     _LOGGER.debug("Sending MQTT command: %s", params)
     msg_id = str(get_next_int(100000000000, 999999999999))
     roborock_message = encode_mqtt_payload(dps, command, params, msg_id)
-    finished = asyncio.Event()
-    result: dict[str, Any] = {}
+    future: asyncio.Future[dict[str, Any]] = asyncio.get_running_loop().create_future()
 
     def find_response(response_message: RoborockMessage) -> None:
         """Handle incoming messages and resolve the future."""
@@ -56,9 +55,11 @@ async def send_decoded_command(
                 if isinstance(inner, dict) and inner.get("msgId") == msg_id:
                     _LOGGER.debug("Received query response: %s", inner)
                     data = inner.get("data")
-                    if isinstance(data, dict):
-                        result.update(data)
-                    finished.set()
+                    if not future.done():
+                        if isinstance(data, dict):
+                            future.set_result(data)
+                        else:
+                            future.set_exception(RoborockException(f"Unexpected data type for response: {data}"))
             else:
                 _LOGGER.debug("Received unexpected response: %s", dps_value)
 
@@ -68,10 +69,8 @@ async def send_decoded_command(
     try:
         await mqtt_channel.publish(roborock_message)
         try:
-            await asyncio.wait_for(finished.wait(), timeout=_TIMEOUT)
+            return await asyncio.wait_for(future, timeout=_TIMEOUT)
         except TimeoutError as ex:
             raise RoborockException(f"Command timed out after {_TIMEOUT}s") from ex
     finally:
         unsub()
-
-    return result
