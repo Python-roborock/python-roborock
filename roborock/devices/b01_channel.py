@@ -44,7 +44,7 @@ async def send_decoded_command(
             _LOGGER.info("Failed to decode b01 message: %s: %s", response_message, ex)
             return
 
-        for _, dps_value in decoded_dps.items():
+        for dps_value in decoded_dps.values():
             # valid responses are JSON strings wrapped in the dps value
             if not isinstance(dps_value, str):
                 _LOGGER.debug("Received unexpected response: %s", dps_value)
