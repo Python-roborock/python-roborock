@@ -43,25 +43,26 @@ async def send_decoded_command(
             _LOGGER.info("Failed to decode b01 message: %s: %s", response_message, ex)
             return
 
-        for _, dps_value in decoded_dps.items():
+        for dps_value in decoded_dps.values():
             # valid responses are JSON strings wrapped in the dps value
-            if isinstance(dps_value, str):
-                try:
-                    inner = json.loads(dps_value)
-                except (json.JSONDecodeError, TypeError):
-                    _LOGGER.debug("Received unexpected response: %s", dps_value)
-                    continue
-
-                if isinstance(inner, dict) and inner.get("msgId") == msg_id:
-                    _LOGGER.debug("Received query response: %s", inner)
-                    data = inner.get("data")
-                    if not future.done():
-                        if isinstance(data, dict):
-                            future.set_result(data)
-                        else:
-                            future.set_exception(RoborockException(f"Unexpected data type for response: {data}"))
-            else:
+            if not isinstance(dps_value, str):
                 _LOGGER.debug("Received unexpected response: %s", dps_value)
+                continue
+
+            try:
+                inner = json.loads(dps_value)
+            except (json.JSONDecodeError, TypeError):
+                _LOGGER.debug("Received unexpected response: %s", dps_value)
+                continue
+
+            if isinstance(inner, dict) and inner.get("msgId") == msg_id:
+                _LOGGER.debug("Received query response: %s", inner)
+                data = inner.get("data")
+                if not future.done():
+                    if isinstance(data, dict):
+                        future.set_result(data)
+                    else:
+                        future.set_exception(RoborockException(f"Unexpected data type for response: {data}"))
 
     unsub = await mqtt_channel.subscribe(find_response)
 
