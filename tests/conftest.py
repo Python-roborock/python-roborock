@@ -114,7 +114,7 @@ def deterministic_message_fixtures() -> Generator[None, None, None]:
     timestamp = FAKE_TIMESTAMP
 
     def get_timestamp() -> int:
-        """Get a monotonicly increasing timestamp for testing."""
+        """Get a monotonically increasing timestamp for testing."""
         nonlocal timestamp
         timestamp += 1
         return int(timestamp)
