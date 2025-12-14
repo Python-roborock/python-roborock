@@ -47,11 +47,11 @@ class CapturedRequestLog:
         self.entries.append((label, data))
 
     def __repr__(self):
-        """Iterate over the log entries.
+        """Return a string representation of the log entries.
         
         This assumes that the client will behave in a request-response manner,
         so each request is followed by a response. If a test uses non-deterministic
-        message orderd, this may not be accurate and the test would need to decode
+        message order, this may not be accurate and the test would need to decode
         the raw messages and remove any ordering assumptions.
         """
         lines = []
