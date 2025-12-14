@@ -33,7 +33,7 @@ FAKE_TIMESTAMP = 1755750946.721395
 
 class CapturedRequestLog:
     """Log of requests and responses for snapshot assertions.
-    
+
     The log captures the raw bytes of each request and response along with
     a label indicating the direction of the message.
     """
@@ -48,7 +48,7 @@ class CapturedRequestLog:
 
     def __repr__(self):
         """Return a string representation of the log entries.
-        
+
         This assumes that the client will behave in a request-response manner,
         so each request is followed by a response. If a test uses non-deterministic
         message order, this may not be accurate and the test would need to decode
@@ -64,6 +64,8 @@ class CapturedRequestLog:
         """Print a hexdump of the given bytes object in a tcpdump/hexdump -C style.
 
         This makes the packets easier to read and compare in test snapshots.
+
+
 
         Args:
             data: The bytes object to print.
@@ -93,7 +95,7 @@ class CapturedRequestLog:
 @pytest.fixture
 def deterministic_message_fixtures() -> Generator[None, None, None]:
     """Fixture to use predictable get_next_int and timestamp values for each test.
-    
+
     This test mocks out the functions used to generate requests that have some
     entropy such as the nonces, timestamps, and request IDs. This makes the
     generated messages deterministic so we can snapshot them in a test.
