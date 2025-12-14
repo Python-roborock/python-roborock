@@ -285,6 +285,15 @@ class HomeDataScene(RoborockBase):
 
 
 @dataclass
+class HomeDataSchedule(RoborockBase):
+    id: int
+    cron: str
+    repeated: bool
+    enabled: bool
+    param: dict | None = None
+
+
+@dataclass
 class HomeData(RoborockBase):
     id: int
     name: str

@@ -14,6 +14,7 @@ import aiohttp
 from aiohttp import ContentTypeError, FormData
 from pyrate_limiter import BucketFullException, Duration, Limiter, Rate
 
+from roborock import HomeDataSchedule
 from roborock.data import HomeData, HomeDataRoom, HomeDataScene, ProductResponse, RRiot, UserData
 from roborock.exceptions import (
     RoborockAccountDoesNotExist,
@@ -606,6 +607,28 @@ class RoborockApiClient:
         execute_scene_response = await execute_scene_request.request("POST", f"/user/scene/{str(scene_id)}/execute")
         if not execute_scene_response.get("success"):
             raise RoborockException(execute_scene_response)
+
+    async def get_schedules(self, user_data: UserData, device_id: str) -> list[HomeDataSchedule]:
+        rriot = user_data.rriot
+        if rriot is None:
+            raise RoborockException("rriot is none")
+        if rriot.r.a is None:
+            raise RoborockException("Missing field 'a' in rriot reference")
+        schedules_request = PreparedRequest(
+            rriot.r.a,
+            self.session,
+            {
+                "Authorization": _get_hawk_authentication(rriot, f"/user/devices/{str(device_id)}/jobs"),
+            },
+        )
+        schedules_response = await schedules_request.request("get", f"/user/devices/{str(device_id)}/jobs")
+        if not schedules_response.get("success"):
+            raise RoborockException(schedules_response)
+        schedules = schedules_response.get("result")
+        if isinstance(schedules, list):
+            return [HomeDataSchedule.from_dict(schedule) for schedule in schedules]
+        else:
+            raise RoborockException("scene_response result was an unexpected type")
 
     async def get_products(self, user_data: UserData) -> ProductResponse:
         """Gets all products and their schemas, good for determining status codes and model numbers."""
