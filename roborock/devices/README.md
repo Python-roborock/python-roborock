@@ -124,38 +124,6 @@ graph TB
    - **LocalSession**: Factory for creating device-specific local connections
 6. **Protocol Layer**: Message encoding/decoding for different device versions
 7. **Transport Layer**: Low-level MQTT and TCP communication
-    LC --> V1P
-
-    MS --> MQTT
-    LC --> TCP
-    MQTT <--> TCP
-
-    style User fill:#e1f5ff
-    style DM fill:#fff4e1
-    style V1C fill:#ffe1e1
-    style RPC fill:#ffe1e1
-    style MS fill:#e1ffe1
-    style V1P fill:#f0e1ff
-    style A01P fill:#f0e1ff
-    style B01P fill:#f0e1ff
-```
-
-### Layer Responsibilities
-
-1. **Device Management Layer**: Detects protocol version (`pv` field) and creates appropriate channels
-2. **Device Types**: Different devices based on protocol version (V1, A01, B01)
-3. **Traits Layer**: Protocol-specific device capabilities and commands
-4. **Channel Layer**: Protocol-specific communication patterns
-   - **V1**: Full RPC channel with local + MQTT fallback
-   - **A01/B01**: Helper functions wrapping MqttChannel (MQTT only)
-   - **MqttChannel**: Per-device wrapper (each device has its own `MqttChannel` instance)
-5. **Session Layer**: Connection pooling and subscription management
-   - **MqttSession**: **Single shared connection** for ALL devices (efficiency!)
-   - **LocalSession**: Factory for creating device-specific local connections
-6. **Protocol Layer**: Message encoding/decoding for different device versions
-7. **Transport Layer**: Low-level MQTT and TCP communication
-
-
 
 **Important:** All `MqttChannel` instances share the same `MqttSession`, which maintains a single MQTT connection to the broker. This means:
 - Only one TCP connection to the MQTT broker regardless of device count
