@@ -628,7 +628,7 @@ class RoborockApiClient:
         if isinstance(schedules, list):
             return [HomeDataSchedule.from_dict(schedule) for schedule in schedules]
         else:
-            raise RoborockException(f"scene_response result was an unexpected type: {result}")
+            raise RoborockException(f"schedule_response result was an unexpected type: {schedules}")
 
     async def get_products(self, user_data: UserData) -> ProductResponse:
         """Gets all products and their schemas, good for determining status codes and model numbers."""
