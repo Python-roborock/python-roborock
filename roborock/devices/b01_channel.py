@@ -46,21 +46,22 @@ async def send_decoded_command(
 
         for _, dps_value in decoded_dps.items():
             # valid responses are JSON strings wrapped in the dps value
-            if isinstance(dps_value, str):
-                try:
-                    inner = json.loads(dps_value)
-                except (json.JSONDecodeError, TypeError):
-                    _LOGGER.debug("Received unexpected response: %s", dps_value)
-                    continue
-
-                if isinstance(inner, dict) and inner.get("msgId") == msg_id:
-                    _LOGGER.debug("Received query response: %s", inner)
-                    data = inner.get("data")
-                    if isinstance(data, dict):
-                        result.update(data)
-                    finished.set()
-            else:
+            if not isinstance(dps_value, str):
                 _LOGGER.debug("Received unexpected response: %s", dps_value)
+                continue
+
+            try:
+                inner = json.loads(dps_value)
+            except (json.JSONDecodeError, TypeError):
+                _LOGGER.debug("Received unexpected response: %s", dps_value)
+                continue
+
+            if isinstance(inner, dict) and inner.get("msgId") == msg_id:
+                _LOGGER.debug("Received query response: %s", inner)
+                data = inner.get("data")
+                if isinstance(data, dict):
+                    result.update(data)
+                finished.set()
 
     unsub = await mqtt_channel.subscribe(find_response)
 
