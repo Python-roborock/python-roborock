@@ -1,0 +1,8 @@
+# serializer version: 1
+# name: test_decode_rpc_payload[get_prop]
+  '''
+  {
+    "10001": "{\"msgId\":\"200000000001\",\"code\":0,\"method\":\"prop.get\",\"data\":{\"status\":4,\"main_brush\":4088}}"
+  }
+  '''
+# ---

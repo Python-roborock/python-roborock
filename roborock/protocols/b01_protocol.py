@@ -22,13 +22,13 @@ CommandType = RoborockB01Q7Methods | str
 ParamsType = list | dict | int | None
 
 
-def encode_mqtt_payload(dps: int, command: CommandType, params: ParamsType) -> RoborockMessage:
+def encode_mqtt_payload(dps: int, command: CommandType, params: ParamsType, msg_id: str) -> RoborockMessage:
     """Encode payload for B01 commands over MQTT."""
     dps_data = {
         "dps": {
             dps: {
                 "method": str(command),
-                "msgId": str(get_next_int(100000000000, 999999999999)),
+                "msgId": msg_id or str(get_next_int(100000000000, 999999999999)),
                 "params": params or [],
             }
         }
@@ -47,8 +47,9 @@ def decode_rpc_response(message: RoborockMessage) -> dict[int, Any]:
         raise RoborockException("Invalid B01 message format: missing payload")
     try:
         unpadded = unpad(message.payload, AES.block_size)
-    except ValueError as err:
-        raise RoborockException(f"Unable to unpad B01 payload: {err}")
+    except ValueError:
+        # It would be better to fail down the line.
+        unpadded = message.payload
 
     try:
         payload = json.loads(unpadded.decode())
