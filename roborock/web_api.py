@@ -618,7 +618,7 @@ class RoborockApiClient:
             rriot.r.a,
             self.session,
             {
-                "Authorization": _get_hawk_authentication(rriot, f"/user/devices/{str(device_id)}/jobs"),
+                "Authorization": _get_hawk_authentication(rriot, f"/user/devices/{device_id}/jobs"),
             },
         )
         schedules_response = await schedules_request.request("get", f"/user/devices/{str(device_id)}/jobs")
@@ -628,7 +628,7 @@ class RoborockApiClient:
         if isinstance(schedules, list):
             return [HomeDataSchedule.from_dict(schedule) for schedule in schedules]
         else:
-            raise RoborockException("scene_response result was an unexpected type")
+            raise RoborockException(f"scene_response result was an unexpected type: {result}")
 
     async def get_products(self, user_data: UserData) -> ProductResponse:
         """Gets all products and their schemas, good for determining status codes and model numbers."""
