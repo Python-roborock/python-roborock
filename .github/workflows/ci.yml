@@ -145,7 +145,7 @@ jobs:
         verbose: true
 
     - name: Publish package distributions to GitHub Releases
-      uses: python-semantic-release/publish-action@v10.5.2
+      uses: python-semantic-release/publish-action@v10.5.3
       if: steps.release.outputs.released == 'true'
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
