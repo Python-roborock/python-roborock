@@ -1,7 +1,12 @@
 from dataclasses import dataclass, field
 
 from ..containers import RoborockBase
-from .b01_q7_code_mappings import B01Fault, SCWindMapping, WorkModeMapping, WorkStatusMapping
+from .b01_q7_code_mappings import (
+    B01Fault,
+    SCWindMapping,
+    WorkModeMapping,
+    WorkStatusMapping,
+)
 
 
 @dataclass
@@ -128,3 +133,73 @@ class B01Props(RoborockBase):
     serial_number: str | None = None
     recommend: Recommend | None = None
     add_sweep_status: int | None = None
+
+    @property
+    def main_brush_time_left(self) -> int | None:
+        """
+        Returns estimated remaining life of the main brush in minutes.
+        Total life is 300 hours (18000 minutes).
+        """
+        if self.main_brush is None:
+            return None
+        return max(0, 18000 - self.main_brush)
+
+    @property
+    def side_brush_time_left(self) -> int | None:
+        """
+        Returns estimated remaining life of the side brush in minutes.
+        Total life is 200 hours (12000 minutes).
+        """
+        if self.side_brush is None:
+            return None
+        return max(0, 12000 - self.side_brush)
+
+    @property
+    def filter_time_left(self) -> int | None:
+        """
+        Returns estimated remaining life of the filter (hypa) in minutes.
+        Total life is 150 hours (9000 minutes).
+        """
+        if self.hypa is None:
+            return None
+        return max(0, 9000 - self.hypa)
+
+    @property
+    def mop_life_time_left(self) -> int | None:
+        """
+        Returns estimated remaining life of the mop in minutes.
+        Total life is 180 hours (10800 minutes).
+        """
+        if self.mop_life is None:
+            return None
+        return max(0, 10800 - self.mop_life)
+
+    @property
+    def sensor_dirty_time_left(self) -> int | None:
+        """
+        Returns estimated time until sensors need cleaning in minutes.
+        Maintenance interval is typically 30 hours (1800 minutes).
+        """
+        if self.main_sensor is None:
+            return None
+        return max(0, 1800 - self.main_sensor)
+
+    @property
+    def status_name(self) -> str | None:
+        """Returns the name of the current status."""
+        return self.status.name if self.status is not None else None
+
+    @property
+    def fault_name(self) -> str | None:
+        """Returns the name of the current fault."""
+        return self.fault.name if self.fault is not None else None
+
+    @property
+    def wind_name(self) -> str | None:
+        """Returns the name of the current fan speed (wind)."""
+        return self.wind.name if self.wind is not None else None
+
+    @property
+    def work_mode_name(self) -> str | None:
+        """Returns the name of the current work mode."""
+        return self.work_mode.name if self.work_mode is not None else None

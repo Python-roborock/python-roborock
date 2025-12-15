@@ -70,6 +70,11 @@ class RoborockModeEnum(StrEnum):
                 return member
         raise ValueError(f"{code} is not a valid code for {cls.__name__}")
 
+    @classmethod
+    def keys(cls) -> list[str]:
+        """Returns a list of all member names."""
+        return [member.name for member in cls]
+
 
 ProductInfo = namedtuple("ProductInfo", ["nickname", "short_models"])
 
