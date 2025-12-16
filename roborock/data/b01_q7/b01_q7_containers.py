@@ -187,19 +187,19 @@ class B01Props(RoborockBase):
     @property
     def status_name(self) -> str | None:
         """Returns the name of the current status."""
-        return self.status.name if self.status is not None else None
+        return self.status.value if self.status is not None else None
 
     @property
     def fault_name(self) -> str | None:
         """Returns the name of the current fault."""
-        return self.fault.name if self.fault is not None else None
+        return self.fault.value if self.fault is not None else None
 
     @property
     def wind_name(self) -> str | None:
         """Returns the name of the current fan speed (wind)."""
-        return self.wind.name if self.wind is not None else None
+        return self.wind.value if self.wind is not None else None
 
     @property
     def work_mode_name(self) -> str | None:
         """Returns the name of the current work mode."""
-        return self.work_mode.name if self.work_mode is not None else None
+        return self.work_mode.value if self.work_mode is not None else None
