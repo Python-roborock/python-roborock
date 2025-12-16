@@ -72,7 +72,7 @@ class RoborockModeEnum(StrEnum):
 
     @classmethod
     def keys(cls) -> list[str]:
-        """Returns a list of all member names."""
+        """Returns a list of all member values."""
         return [member.value for member in cls]
 
 
