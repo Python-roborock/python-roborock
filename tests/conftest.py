@@ -65,8 +65,6 @@ class CapturedRequestLog:
 
         This makes the packets easier to read and compare in test snapshots.
 
-
-
         Args:
             data: The bytes object to print.
             bytes_per_line: The number of bytes to display per line (default is 16).
