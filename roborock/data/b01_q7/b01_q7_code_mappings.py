@@ -50,6 +50,14 @@ class CleanRepeatMapping(RoborockModeEnum):
     TWICE = ("twice", 1)
 
 
+class SCDeviceCleanParam(RoborockModeEnum):
+    """Maps the control values for cleaning tasks."""
+
+    STOP = ("stop", 0)
+    START = ("start", 1)
+    PAUSE = ("pause", 2)
+
+
 class WorkModeMapping(RoborockModeEnum):
     """Maps the detailed work modes of the robot."""
 

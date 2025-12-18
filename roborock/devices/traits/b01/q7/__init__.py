@@ -4,7 +4,12 @@ Potentially other devices may fall into this category in the future."""
 from typing import Any
 
 from roborock import B01Props
-from roborock.data.b01_q7.b01_q7_code_mappings import SCWindMapping, WaterLevelMapping
+from roborock.data.b01_q7.b01_q7_code_mappings import (
+    CleanTaskTypeMapping,
+    SCDeviceCleanParam,
+    SCWindMapping,
+    WaterLevelMapping,
+)
 from roborock.devices.b01_channel import send_decoded_command
 from roborock.devices.mqtt_channel import MqttChannel
 from roborock.devices.traits import Trait
@@ -49,6 +54,63 @@ class Q7PropertiesApi(Trait):
     async def set_water_level(self, water_level: WaterLevelMapping) -> dict[str, Any]:
         """Set the water level (water)."""
         return await self.set_prop(RoborockB01Props.WATER, water_level.code)
+
+    async def start_clean(self) -> dict[str, Any]:
+        """Start cleaning."""
+        return await send_decoded_command(
+            self._channel,
+            dps=10000,
+            command=RoborockB01Q7Methods.SET_ROOM_CLEAN,
+            params={
+                "clean_type": CleanTaskTypeMapping.ALL.code,
+                "ctrl_value": SCDeviceCleanParam.START.code,
+                "room_ids": [],
+            },
+        )
+
+    async def pause_clean(self) -> dict[str, Any]:
+        """Pause cleaning."""
+        return await send_decoded_command(
+            self._channel,
+            dps=10000,
+            command=RoborockB01Q7Methods.SET_ROOM_CLEAN,
+            params={
+                "clean_type": CleanTaskTypeMapping.ALL.code,
+                "ctrl_value": SCDeviceCleanParam.PAUSE.code,
+                "room_ids": [],
+            },
+        )
+
+    async def stop_clean(self) -> dict[str, Any]:
+        """Stop cleaning."""
+        return await send_decoded_command(
+            self._channel,
+            dps=10000,
+            command=RoborockB01Q7Methods.SET_ROOM_CLEAN,
+            params={
+                "clean_type": CleanTaskTypeMapping.ALL.code,
+                "ctrl_value": SCDeviceCleanParam.STOP.code,
+                "room_ids": [],
+            },
+        )
+
+    async def return_to_dock(self) -> dict[str, Any]:
+        """Return to dock."""
+        return await send_decoded_command(
+            self._channel,
+            dps=10000,
+            command=RoborockB01Q7Methods.START_RECHARGE,
+            params={},
+        )
+
+    async def find_me(self) -> dict[str, Any]:
+        """Locate the robot."""
+        return await send_decoded_command(
+            self._channel,
+            dps=10000,
+            command=RoborockB01Q7Methods.FIND_DEVICE,
+            params={},
+        )
 
 
 def create(channel: MqttChannel) -> Q7PropertiesApi:
