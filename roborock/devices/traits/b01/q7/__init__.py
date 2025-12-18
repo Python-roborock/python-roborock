@@ -109,6 +109,63 @@ class Q7PropertiesApi(Trait):
             params=params,
         )
 
+    async def start_clean(self) -> dict[str, Any]:
+        """Start cleaning."""
+        return await send_decoded_command(
+            self._channel,
+            dps=10000,
+            command=RoborockB01Q7Methods.SET_ROOM_CLEAN,
+            params={
+                "clean_type": CleanTaskTypeMapping.ALL.code,
+                "ctrl_value": SCDeviceCleanParam.START.code,
+                "room_ids": [],
+            },
+        )
+
+    async def pause_clean(self) -> dict[str, Any]:
+        """Pause cleaning."""
+        return await send_decoded_command(
+            self._channel,
+            dps=10000,
+            command=RoborockB01Q7Methods.SET_ROOM_CLEAN,
+            params={
+                "clean_type": CleanTaskTypeMapping.ALL.code,
+                "ctrl_value": SCDeviceCleanParam.PAUSE.code,
+                "room_ids": [],
+            },
+        )
+
+    async def stop_clean(self) -> dict[str, Any]:
+        """Stop cleaning."""
+        return await send_decoded_command(
+            self._channel,
+            dps=10000,
+            command=RoborockB01Q7Methods.SET_ROOM_CLEAN,
+            params={
+                "clean_type": CleanTaskTypeMapping.ALL.code,
+                "ctrl_value": SCDeviceCleanParam.STOP.code,
+                "room_ids": [],
+            },
+        )
+
+    async def return_to_dock(self) -> dict[str, Any]:
+        """Return to dock."""
+        return await send_decoded_command(
+            self._channel,
+            dps=10000,
+            command=RoborockB01Q7Methods.START_RECHARGE,
+            params={},
+        )
+
+    async def find_me(self) -> dict[str, Any]:
+        """Locate the robot."""
+        return await send_decoded_command(
+            self._channel,
+            dps=10000,
+            command=RoborockB01Q7Methods.FIND_DEVICE,
+            params={},
+        )
+
 
 def create(channel: MqttChannel) -> Q7PropertiesApi:
     """Create traits for B01 devices."""
