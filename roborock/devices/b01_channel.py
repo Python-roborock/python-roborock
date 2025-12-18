@@ -69,9 +69,11 @@ async def send_decoded_command(
     _LOGGER.debug("Sending MQTT message: %s", roborock_message)
     try:
         await mqtt_channel.publish(roborock_message)
-        try:
-            return await asyncio.wait_for(future, timeout=_TIMEOUT)
-        except TimeoutError as ex:
-            raise RoborockException(f"Command timed out after {_TIMEOUT}s") from ex
+        return await asyncio.wait_for(future, timeout=_TIMEOUT)
+    except TimeoutError as ex:
+        raise RoborockException(f"Command timed out after {_TIMEOUT}s") from ex
+    except Exception as ex:
+        _LOGGER.exception("Error sending decoded command: %s", ex)
+        raise
     finally:
         unsub()
