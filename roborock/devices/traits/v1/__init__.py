@@ -48,7 +48,6 @@ optional traits:
 
 import logging
 from dataclasses import dataclass, field, fields
-from functools import cache
 from typing import Any, get_args
 
 from roborock.data.containers import HomeData, HomeDataProduct, RoborockBase
@@ -174,6 +173,7 @@ class PropertiesApi(Trait):
         web_api: UserWebApiClient,
         device_cache: DeviceCache,
         map_parser_config: MapParserConfig | None = None,
+        region: str | None = None,
     ) -> None:
         """Initialize the V1TraitProps."""
         self._device_uid = device_uid
@@ -181,17 +181,16 @@ class PropertiesApi(Trait):
         self._mqtt_rpc_channel = mqtt_rpc_channel
         self._map_rpc_channel = map_rpc_channel
         self._web_api = web_api
-        self._cache = cache
-        self.device_features = DeviceFeaturesTrait(product.product_nickname, cache)
         self._device_cache = device_cache
+        self._region = region
 
-        self.status = StatusTrait(self.device_features)
+        self.device_features = DeviceFeaturesTrait(product.product_nickname, self._device_cache)
+        self.status = StatusTrait(self.device_features, region=self._region)
         self.consumables = ConsumableTrait()
         self.rooms = RoomsTrait(home_data)
         self.maps = MapsTrait(self.status)
         self.map_content = MapContentTrait(map_parser_config)
         self.home = HomeTrait(self.status, self.maps, self.map_content, self.rooms, self._device_cache)
-        self.device_features = DeviceFeaturesTrait(product.product_nickname, self._device_cache)
         self.network_info = NetworkInfoTrait(device_uid, self._device_cache)
         self.routines = RoutinesTrait(device_uid, web_api)
 
@@ -202,6 +201,8 @@ class PropertiesApi(Trait):
                 if (union_args := get_args(item.type)) is None or len(union_args) > 0:
                     continue
                 _LOGGER.debug("Trait '%s' is supported, initializing", item.name)
+                if not callable(item.type):
+                    continue
                 trait = item.type()
                 setattr(self, item.name, trait)
             # This is a hack to allow setting the rpc_channel on all traits. This is
@@ -320,6 +321,7 @@ def create(
     web_api: UserWebApiClient,
     device_cache: DeviceCache,
     map_parser_config: MapParserConfig | None = None,
+    region: str | None = None,
 ) -> PropertiesApi:
     """Create traits for V1 devices."""
     return PropertiesApi(
@@ -332,4 +334,5 @@ def create(
         web_api,
         device_cache,
         map_parser_config,
+        region=region,
     )

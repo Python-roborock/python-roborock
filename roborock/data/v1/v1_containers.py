@@ -256,6 +256,7 @@ class Status(RoborockBase):
         return _attr_repr(self)
 
 
+@dataclass
 class StatusV2(RoborockBase):
     """
     This is a new version of the Status object.

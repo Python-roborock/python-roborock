@@ -2,8 +2,10 @@ from functools import cached_property
 from typing import Self
 
 from roborock import CleanRoutes, StatusV2, VacuumModes, WaterModes, get_clean_modes, get_clean_routes, get_water_modes
-from roborock.devices.traits.v1 import DeviceFeaturesTrait, common
 from roborock.roborock_typing import RoborockCommand
+
+from . import common
+from .device_features import DeviceFeaturesTrait
 
 
 class StatusTrait(StatusV2, common.V1TraitMixin):
@@ -11,9 +13,11 @@ class StatusTrait(StatusV2, common.V1TraitMixin):
 
     command = RoborockCommand.GET_STATUS
 
-    def __init__(self, device_feature_trait: DeviceFeaturesTrait) -> None:
+    def __init__(self, device_feature_trait: DeviceFeaturesTrait, region: str | None = None) -> None:
         """Initialize the StatusTrait."""
+        super().__init__()
         self._device_features_trait = device_feature_trait
+        self._region = region
 
     @cached_property
     def fan_speed_options(self) -> list[VacuumModes]:
@@ -33,7 +37,7 @@ class StatusTrait(StatusV2, common.V1TraitMixin):
 
     @cached_property
     def mop_route_options(self) -> list[CleanRoutes]:
-        return get_clean_routes(self._device_features_trait, "US")  # TODO: find best place to get region
+        return get_clean_routes(self._device_features_trait, self._region or "us")
 
     @cached_property
     def mop_route_mapping(self) -> dict[int, str]:
