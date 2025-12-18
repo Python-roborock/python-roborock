@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, patch
 
 import paho.mqtt.client as mqtt
 import pytest
+import syrupy
 
 from roborock import (
     HomeData,
@@ -33,6 +34,7 @@ from tests.mock_data import (
 )
 
 from . import mqtt_packet
+from .conftest import CapturedRequestLog
 
 
 def test_can_create_prepared_request():
@@ -277,6 +279,8 @@ async def test_get_room_mapping(
     received_requests: Queue,
     response_queue: Queue,
     connected_mqtt_client: RoborockMqttClientV1,
+    snapshot: syrupy.SnapshotAssertion,
+    log: CapturedRequestLog,
 ) -> None:
     """Test sending an arbitrary MQTT message and parsing the response."""
 
@@ -296,6 +300,8 @@ async def test_get_room_mapping(
         RoomMapping(segment_id=16, iot_id="2362048"),
         RoomMapping(segment_id=17, iot_id="2362044"),
     ]
+
+    assert snapshot == log
 
 
 async def test_publish_failure(

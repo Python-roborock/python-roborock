@@ -10,7 +10,9 @@ K = TypeVar("K")
 V = TypeVar("V")
 
 
-def safe_callback(callback: Callable[[V], None], logger: logging.Logger | None = None) -> Callable[[V], None]:
+def safe_callback(
+    callback: Callable[[V], None], logger: logging.Logger | logging.LoggerAdapter | None = None
+) -> Callable[[V], None]:
     """Wrap a callback to catch and log exceptions.
 
     This is useful for ensuring that errors in callbacks do not propagate
@@ -36,7 +38,7 @@ class CallbackMap(Generic[K, V]):
     when a value is received for a specific key.
     """
 
-    def __init__(self, logger: logging.Logger | None = None) -> None:
+    def __init__(self, logger: logging.Logger | logging.LoggerAdapter | None = None) -> None:
         self._callbacks: dict[K, list[Callable[[V], None]]] = {}
         self._logger = logger or _LOGGER
 
@@ -79,7 +81,7 @@ class CallbackList(Generic[V]):
     additional callbacks to the list at any time.
     """
 
-    def __init__(self, logger: logging.Logger | None = None) -> None:
+    def __init__(self, logger: logging.Logger | logging.LoggerAdapter | None = None) -> None:
         self._callbacks: list[Callable[[V], None]] = []
         self._logger = logger or _LOGGER
 
@@ -101,7 +103,9 @@ class CallbackList(Generic[V]):
 
 
 def decoder_callback(
-    decoder: Callable[[K], list[V]], callback: Callable[[V], None], logger: logging.Logger | None = None
+    decoder: Callable[[K], list[V]],
+    callback: Callable[[V], None],
+    logger: logging.Logger | logging.LoggerAdapter | None = None,
 ) -> Callable[[K], None]:
     """Create a callback that decodes messages using a decoder and invokes a callback.
 
@@ -120,7 +124,7 @@ def decoder_callback(
             logger.warning("Failed to decode message: %s", data)
             return
         for message in messages:
-            _LOGGER.debug("Decoded message: %s", message)
+            logger.debug("Decoded message: %s", message)
             safe_cb(message)
 
     return wrapper

@@ -1,4 +1,71 @@
 # serializer version: 1
+# name: test_decode_rpc_payload[app_get_init_status2]
+  23607
+# ---
+# name: test_decode_rpc_payload[app_get_init_status2].1
+  '''
+  [
+    {
+      "local_info": {
+        "name": "custom_A.03.0096_FCC",
+        "bom": "A.03.0096",
+        "location": "us",
+        "language": "en",
+        "wifiplan": "US",
+        "timezone": "US/Pacific",
+        "logserver": "awsusor0.fds.api.xiaomi.com",
+        "featureset": 1
+      },
+      "feature_info": [
+        111,
+        112,
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125
+      ],
+      "new_feature_info": 10738169343,
+      "status_info": {
+        "state": 8,
+        "battery": 100,
+        "clean_time": 251,
+        "clean_area": 3847500,
+        "error_code": 0,
+        "in_cleaning": 0,
+        "in_returning": 0,
+        "in_fresh_state": 1,
+        "lab_status": 3,
+        "water_box_status": 0,
+        "map_status": 7,
+        "is_locating": 0,
+        "lock_status": 0,
+        "water_box_mode": 203,
+        "distance_off": 0,
+        "water_box_carriage_status": 0,
+        "mop_forbidden_enable": 0,
+        "camera_status": 3495,
+        "is_exploring": 0,
+        "home_sec_status": 0,
+        "home_sec_enable_password": 1,
+        "adbumper_status": [
+          0,
+          0,
+          0
+        ]
+      }
+    }
+  ]
+  '''
+# ---
 # name: test_decode_rpc_payload[app_get_init_status]
   20001
 # ---

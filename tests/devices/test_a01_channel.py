@@ -34,7 +34,8 @@ async def test_id_query(mock_mqtt_channel: FakeChannel):
         {
             RoborockDyadDataProtocol.WARM_LEVEL: 101,
             RoborockDyadDataProtocol.POWER: 75,
-        }
+        },
+        value_encoder=lambda x: x,
     )
     response_message = RoborockMessage(
         protocol=RoborockMessageProtocol.RPC_RESPONSE, payload=encoded.payload, version=encoded.version
@@ -45,6 +46,9 @@ async def test_id_query(mock_mqtt_channel: FakeChannel):
     result = await send_decoded_command(mock_mqtt_channel, params)  # type: ignore[call-overload]
 
     # Assertions
-    assert result == {RoborockDyadDataProtocol.WARM_LEVEL: 101, RoborockDyadDataProtocol.POWER: 75}
+    assert result == {
+        RoborockDyadDataProtocol.WARM_LEVEL: 101,
+        RoborockDyadDataProtocol.POWER: 75,
+    }
     mock_mqtt_channel.publish.assert_awaited_once()
     mock_mqtt_channel.subscribe.assert_awaited_once()

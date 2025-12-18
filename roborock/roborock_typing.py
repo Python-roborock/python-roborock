@@ -16,6 +16,12 @@ from .data import (
 
 
 class RoborockCommand(str, Enum):
+    """Enum of all known Roborock V1 protocol commands.
+
+    These commands can be sent to a device using the `CommandTrait`.
+    For example: `device.v1_properties.command.send(RoborockCommand.APP_START)`.
+    """
+
     ADD_MOP_TEMPLATE_PARAMS = "add_mop_template_params"
     APP_AMETHYST_SELF_CHECK = "app_amethyst_self_check"
     APP_CHARGE = "app_charge"
@@ -271,8 +277,8 @@ class RoborockCommand(str, Enum):
     APP_GET_ROBOT_SETTING = "app_get_robot_setting"
 
 
-class RoborockB01Methods(StrEnum):
-    """Methods used by the Roborock B01 model."""
+class RoborockB01Q7Methods(StrEnum):
+    """Methods used by the Roborock Q7 model."""
 
     GET_PROP = "prop.get"
     GET_MAP_LIST = "service.get_map_list"

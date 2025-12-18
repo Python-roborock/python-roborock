@@ -2,6 +2,7 @@
 
 import json
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from Crypto.Cipher import AES
@@ -20,13 +21,28 @@ _LOGGER = logging.getLogger(__name__)
 A01_VERSION = b"A01"
 
 
+def _no_encode(value: Any) -> Any:
+    return value
+
+
 def encode_mqtt_payload(
     data: dict[RoborockDyadDataProtocol, Any]
     | dict[RoborockZeoProtocol, Any]
     | dict[RoborockDyadDataProtocol | RoborockZeoProtocol, Any],
+    value_encoder: Callable[[Any], Any] | None = None,
 ) -> RoborockMessage:
-    """Encode payload for A01 commands over MQTT."""
-    dps_data = {"dps": data}
+    """Encode payload for A01 commands over MQTT.
+
+    Args:
+        data: The data to encode.
+        value_encoder: A function to encode the values of the dictionary.
+
+    Returns:
+        RoborockMessage: The encoded message.
+    """
+    if value_encoder is None:
+        value_encoder = _no_encode
+    dps_data = {"dps": {key: value_encoder(value) for key, value in data.items()}}
     payload = pad(json.dumps(dps_data).encode("utf-8"), AES.block_size)
     return RoborockMessage(
         protocol=RoborockMessageProtocol.RPC_REQUEST,

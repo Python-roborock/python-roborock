@@ -14,6 +14,7 @@ import aiohttp
 from aiohttp import ContentTypeError, FormData
 from pyrate_limiter import BucketFullException, Duration, Limiter, Rate
 
+from roborock import HomeDataSchedule
 from roborock.data import HomeData, HomeDataRoom, HomeDataScene, ProductResponse, RRiot, UserData
 from roborock.exceptions import (
     RoborockAccountDoesNotExist,
@@ -257,7 +258,7 @@ class RoborockApiClient:
         code_response = await code_request.request(
             "post",
             "/api/v4/email/code/send",
-            params={"email": self._username, "type": "login", "platform": ""},
+            data={"email": self._username, "type": "login", "platform": ""},
         )
         if code_response is None:
             raise RoborockException("Failed to get a response from send email code")
@@ -316,12 +317,21 @@ class RoborockApiClient:
         login_request = PreparedRequest(
             base_url,
             self.session,
-            {"header_clientid": header_clientid, "x-mercy-ks": x_mercy_ks, "x-mercy-k": x_mercy_k},
+            {
+                "header_clientid": header_clientid,
+                "x-mercy-ks": x_mercy_ks,
+                "x-mercy-k": x_mercy_k,
+                "Content-Type": "application/x-www-form-urlencoded",
+                "header_clientlang": "en",
+                "header_appversion": "4.54.02",
+                "header_phonesystem": "iOS",
+                "header_phonemodel": "iPhone16,1",
+            },
         )
         login_response = await login_request.request(
             "post",
             "/api/v4/auth/email/login/code",
-            params={
+            data={
                 "country": country,
                 "countryCode": country_code,
                 "email": self._username,
@@ -597,6 +607,28 @@ class RoborockApiClient:
         execute_scene_response = await execute_scene_request.request("POST", f"/user/scene/{str(scene_id)}/execute")
         if not execute_scene_response.get("success"):
             raise RoborockException(execute_scene_response)
+
+    async def get_schedules(self, user_data: UserData, device_id: str) -> list[HomeDataSchedule]:
+        rriot = user_data.rriot
+        if rriot is None:
+            raise RoborockException("rriot is none")
+        if rriot.r.a is None:
+            raise RoborockException("Missing field 'a' in rriot reference")
+        schedules_request = PreparedRequest(
+            rriot.r.a,
+            self.session,
+            {
+                "Authorization": _get_hawk_authentication(rriot, f"/user/devices/{device_id}/jobs"),
+            },
+        )
+        schedules_response = await schedules_request.request("get", f"/user/devices/{str(device_id)}/jobs")
+        if not schedules_response.get("success"):
+            raise RoborockException(schedules_response)
+        schedules = schedules_response.get("result")
+        if isinstance(schedules, list):
+            return [HomeDataSchedule.from_dict(schedule) for schedule in schedules]
+        else:
+            raise RoborockException(f"schedule_response result was an unexpected type: {schedules}")
 
     async def get_products(self, user_data: UserData) -> ProductResponse:
         """Gets all products and their schemas, good for determining status codes and model numbers."""

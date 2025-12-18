@@ -22,7 +22,7 @@ from typing import Self
 
 from roborock.data import CombinedMapInfo, RoborockBase
 from roborock.data.v1.v1_code_mappings import RoborockStateCode
-from roborock.devices.cache import Cache
+from roborock.devices.cache import DeviceCache
 from roborock.devices.traits.v1 import common
 from roborock.exceptions import RoborockDeviceBusy, RoborockException
 from roborock.roborock_typing import RoborockCommand
@@ -48,7 +48,7 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
         maps_trait: MapsTrait,
         map_content: MapContentTrait,
         rooms_trait: RoomsTrait,
-        cache: Cache,
+        device_cache: DeviceCache,
     ) -> None:
         """Initialize the HomeTrait.
 
@@ -70,7 +70,7 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
         self._maps_trait = maps_trait
         self._map_content = map_content
         self._rooms_trait = rooms_trait
-        self._cache = cache
+        self._device_cache = device_cache
         self._discovery_completed = False
         self._home_map_info: dict[int, CombinedMapInfo] | None = None
         self._home_map_content: dict[int, MapContent] | None = None
@@ -86,21 +86,16 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
 
         After discovery, the home cache will be populated and can be accessed via the `home_map_info` property.
         """
-        cache_data = await self._cache.get()
-        if cache_data.home_map_info and (cache_data.home_map_content or cache_data.home_map_content_base64):
+        device_cache_data = await self._device_cache.get()
+        if device_cache_data and device_cache_data.home_map_info:
             _LOGGER.debug("Home cache already populated, skipping discovery")
-            self._home_map_info = cache_data.home_map_info
+            self._home_map_info = device_cache_data.home_map_info
             self._discovery_completed = True
             try:
-                if cache_data.home_map_content_base64:
-                    self._home_map_content = {
-                        k: self._map_content.parse_map_content(base64.b64decode(v))
-                        for k, v in cache_data.home_map_content_base64.items()
-                    }
-                else:
-                    self._home_map_content = {
-                        k: self._map_content.parse_map_content(v) for k, v in cache_data.home_map_content.items()
-                    }
+                self._home_map_content = {
+                    k: self._map_content.parse_map_content(base64.b64decode(v))
+                    for k, v in (device_cache_data.home_map_content_base64 or {}).items()
+                }
             except (ValueError, RoborockException) as ex:
                 _LOGGER.warning("Failed to parse cached home map content, will re-discover: %s", ex)
                 self._home_map_content = {}
@@ -223,15 +218,14 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
         self, home_map_info: dict[int, CombinedMapInfo], home_map_content: dict[int, MapContent]
     ) -> None:
         """Update the entire home cache with new map info and content."""
-        cache_data = await self._cache.get()
-        cache_data.home_map_info = home_map_info
-        cache_data.home_map_content_base64 = {
+        device_cache_data = await self._device_cache.get()
+        device_cache_data.home_map_info = home_map_info
+        device_cache_data.home_map_content_base64 = {
             k: base64.b64encode(v.raw_api_response).decode("utf-8")
             for k, v in home_map_content.items()
             if v.raw_api_response
         }
-        cache_data.home_map_content = {}
-        await self._cache.set(cache_data)
+        await self._device_cache.set(device_cache_data)
         self._home_map_info = home_map_info
         self._home_map_content = home_map_content
 
@@ -247,21 +241,17 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
         # completed and we want to keep it fresh. Otherwise just update the
         # in memory map below.
         if update_cache:
-            cache_data = await self._cache.get()
-            cache_data.home_map_info[map_flag] = map_info
-            # Migrate existing cached content to base64 if needed
-            if cache_data.home_map_content and not cache_data.home_map_content_base64:
-                cache_data.home_map_content_base64 = {
-                    k: base64.b64encode(v).decode("utf-8") for k, v in cache_data.home_map_content.items()
-                }
-                cache_data.home_map_content = {}
+            device_cache_data = await self._device_cache.get()
+            if device_cache_data.home_map_info is None:
+                device_cache_data.home_map_info = {}
+            device_cache_data.home_map_info[map_flag] = map_info
             if map_content.raw_api_response:
-                if cache_data.home_map_content_base64 is None:
-                    cache_data.home_map_content_base64 = {}
-                cache_data.home_map_content_base64[map_flag] = base64.b64encode(map_content.raw_api_response).decode(
-                    "utf-8"
-                )
-            await self._cache.set(cache_data)
+                if device_cache_data.home_map_content_base64 is None:
+                    device_cache_data.home_map_content_base64 = {}
+                device_cache_data.home_map_content_base64[map_flag] = base64.b64encode(
+                    map_content.raw_api_response
+                ).decode("utf-8")
+            await self._device_cache.set(device_cache_data)
 
         if self._home_map_info is None:
             self._home_map_info = {}

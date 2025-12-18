@@ -6,7 +6,10 @@ and restart the connection if too many timeouts occur in succession.
 """
 
 import datetime
+import logging
 from collections.abc import Awaitable, Callable
+
+_LOGGER = logging.getLogger(__name__)
 
 # Number of consecutive timeouts before considering the connection unhealthy.
 TIMEOUT_THRESHOLD = 3
@@ -45,7 +48,13 @@ class HealthManager:
         self._consecutive_timeouts += 1
         if self._consecutive_timeouts >= TIMEOUT_THRESHOLD:
             now = datetime.datetime.now(datetime.UTC)
-            if self._last_restart is None or now - self._last_restart >= RESTART_COOLDOWN:
+            since_last = (now - self._last_restart) if self._last_restart else None
+            if since_last is None or since_last >= RESTART_COOLDOWN:
+                _LOGGER.debug(
+                    "Restarting MQTT session after %d consecutive timeouts (duration since last restart %s)",
+                    self._consecutive_timeouts,
+                    since_last,
+                )
                 await self._restart()
                 self._last_restart = now
                 self._consecutive_timeouts = 0

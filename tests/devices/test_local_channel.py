@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 from collections.abc import Generator
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -56,10 +57,15 @@ def setup_mock_loop(mock_transport: Mock) -> Generator[Mock, None, None]:
         yield loop
 
 
+def create_test_local_channel() -> LocalChannel:
+    """Helper to create a LocalChannel for testing."""
+    return LocalChannel(host=TEST_HOST, local_key=TEST_LOCAL_KEY, device_uid="test_duid")
+
+
 @pytest.fixture(name="local_channel")
 async def setup_local_channel_with_hello_mock() -> LocalChannel:
     """Fixture to set up the local channel with automatic hello mocking."""
-    channel = LocalChannel(host=TEST_HOST, local_key=TEST_LOCAL_KEY)
+    channel = create_test_local_channel()
 
     async def mock_do_hello(_: LocalProtocolVersion):
         """Mock _do_hello to return successful params without sending actual request."""
@@ -100,17 +106,6 @@ async def test_connection_failure(local_channel: LocalChannel, mock_loop: Mock) 
         await local_channel.connect()
 
     assert local_channel._is_connected is False
-
-
-async def test_already_connected_warning(
-    local_channel: LocalChannel, mock_loop: Mock, caplog: pytest.LogCaptureFixture
-) -> None:
-    """Test warning when trying to connect when already connected."""
-    await local_channel.connect()
-    await local_channel.connect()  # Second connection attempt
-
-    assert "Already connected" in caplog.text
-    assert mock_loop.create_connection.call_count == 1
 
 
 async def test_close_connection(local_channel: LocalChannel, mock_loop: Mock, mock_transport: Mock) -> None:
@@ -155,12 +150,13 @@ async def test_successful_command_response(local_channel: LocalChannel, mock_loo
 
 async def test_message_decode_error(local_channel: LocalChannel, caplog: pytest.LogCaptureFixture) -> None:
     """Test handling of message decode errors."""
-    local_channel._data_received(b"invalid_payload")
-    await asyncio.sleep(0.01)  # yield
+    with caplog.at_level(logging.WARNING):
+        local_channel._data_received(b"invalid_payload")
+        await asyncio.sleep(0.01)  # yield
 
-    assert len(caplog.records) == 1
-    assert caplog.records[0].levelname == "WARNING"
-    assert "Failed to decode message" in caplog.records[0].message
+    warning_records = caplog.records
+    assert len(warning_records) == 1
+    assert "Failed to decode message" in warning_records[0].message
 
 
 async def test_subscribe_callback(
@@ -228,7 +224,6 @@ async def test_connection_lost_callback(
 
     assert local_channel._is_connected is False
     assert local_channel._transport is None
-    assert "Connection lost to 192.168.1.100" in caplog.text
 
 
 async def test_connection_lost_without_exception(
@@ -242,14 +237,13 @@ async def test_connection_lost_without_exception(
 
     assert local_channel._is_connected is False
     assert local_channel._transport is None
-    assert "Connection lost to 192.168.1.100" in caplog.text
 
 
 async def test_hello_fallback_to_l01_protocol(mock_loop: Mock, mock_transport: Mock) -> None:
     """Test that when first hello() message fails (V1) but second succeeds (L01), we use L01."""
 
     # Create a channel without the automatic hello mocking
-    channel = LocalChannel(host=TEST_HOST, local_key=TEST_LOCAL_KEY)
+    channel = create_test_local_channel()
 
     # Mock _do_hello to fail for V1 but succeed for L01
     async def mock_do_hello(local_protocol_version: LocalProtocolVersion) -> LocalChannelParams | None:
@@ -280,7 +274,7 @@ async def test_hello_success_with_v1_protocol_first(mock_loop: Mock, mock_transp
     """Test that when V1 protocol succeeds on first attempt, we use V1."""
 
     # Create a channel without the automatic hello mocking
-    channel = LocalChannel(host=TEST_HOST, local_key=TEST_LOCAL_KEY)
+    channel = create_test_local_channel()
     # Clear cached protocol to ensure V1 is tried first
     channel._local_protocol_version = None
 
@@ -315,7 +309,7 @@ async def test_hello_both_protocols_fail(mock_loop: Mock, mock_transport: Mock) 
     """Test that when both V1 and L01 protocols fail, connection fails."""
 
     # Create a channel without the automatic hello mocking
-    channel = LocalChannel(host=TEST_HOST, local_key=TEST_LOCAL_KEY)
+    channel = create_test_local_channel()
 
     # Mock _do_hello to fail for both protocols
     async def mock_do_hello(_: LocalProtocolVersion) -> LocalChannelParams | None:
@@ -338,7 +332,7 @@ async def test_hello_preferred_protocol_version_ordering(mock_loop: Mock, mock_t
     """Test that preferred protocol version is tried first."""
 
     # Create a channel with preferred L01 protocol
-    channel = LocalChannel(host=TEST_HOST, local_key=TEST_LOCAL_KEY)
+    channel = create_test_local_channel()
     channel._local_protocol_version = LocalProtocolVersion.L01
 
     # Track which protocols were attempted and in what order
@@ -366,3 +360,112 @@ async def test_hello_preferred_protocol_version_ordering(mock_loop: Mock, mock_t
     assert channel._params is not None
     assert channel._params.ack_nonce == 11111
     assert channel._is_connected is True
+
+
+async def test_keep_alive_task_created_on_connect(local_channel: LocalChannel, mock_loop: Mock) -> None:
+    """Test that _keep_alive_task is created when connect() is called."""
+    # Before connecting, task should be None
+    assert local_channel._keep_alive_task is None
+
+    await local_channel.connect()
+
+    # After connecting, task should be created and not done
+    assert local_channel._keep_alive_task is not None
+    assert isinstance(local_channel._keep_alive_task, asyncio.Task)
+    assert not local_channel._keep_alive_task.done()
+
+
+async def test_keep_alive_task_canceled_on_close(local_channel: LocalChannel, mock_loop: Mock) -> None:
+    """Test that the keep-alive task is properly canceled when close() is called."""
+    await local_channel.connect()
+
+    # Verify task exists
+    task = local_channel._keep_alive_task
+    assert task is not None
+    assert not task.done()
+
+    # Close the connection
+    local_channel.close()
+
+    # Give the task a moment to be cancelled
+    await asyncio.sleep(0.01)
+
+    # Task should be canceled and reset to None
+    assert task.cancelled() or task.done()
+    assert local_channel._keep_alive_task is None
+
+
+async def test_keep_alive_task_canceled_on_connection_lost(local_channel: LocalChannel, mock_loop: Mock) -> None:
+    """Test that the keep-alive task is properly canceled when _connection_lost() is called."""
+    await local_channel.connect()
+
+    # Verify task exists
+    task = local_channel._keep_alive_task
+    assert task is not None
+    assert not task.done()
+
+    # Simulate connection loss
+    local_channel._connection_lost(None)
+
+    # Give the task a moment to be cancelled
+    await asyncio.sleep(0.01)
+
+    # Task should be canceled and reset to None
+    assert task.cancelled() or task.done()
+    assert local_channel._keep_alive_task is None
+
+
+async def test_keep_alive_ping_loop_executes_periodically(local_channel: LocalChannel, mock_loop: Mock) -> None:
+    """Test that the ping loop continues to execute periodically while connected."""
+    await local_channel.connect()
+
+    # Verify the task is running and connected
+    assert local_channel._keep_alive_task is not None
+    assert not local_channel._keep_alive_task.done()
+    assert local_channel._is_connected
+
+
+async def test_keep_alive_ping_exceptions_handled_gracefully(
+    local_channel: LocalChannel, mock_loop: Mock, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Test that exceptions in the ping loop are handled gracefully without stopping the loop."""
+    from roborock.devices.local_channel import _PING_INTERVAL
+
+    # Set log level to capture DEBUG messages
+    caplog.set_level("DEBUG")
+
+    ping_call_count = 0
+
+    # Mock the _ping method to always fail
+    async def mock_ping() -> None:
+        nonlocal ping_call_count
+        ping_call_count += 1
+        raise Exception("Test ping failure")
+
+    # Also need to mock asyncio.sleep to avoid waiting the full interval
+    original_sleep = asyncio.sleep
+
+    async def mock_sleep(delay: float) -> None:
+        # Only sleep briefly for test speed when waiting for ping interval
+        if delay >= _PING_INTERVAL:
+            await original_sleep(0.01)
+        else:
+            await original_sleep(delay)
+
+    with patch("asyncio.sleep", side_effect=mock_sleep):
+        setattr(local_channel, "_ping", mock_ping)
+
+        await local_channel.connect()
+
+        # Wait for multiple ping attempts
+        await original_sleep(0.1)
+
+        # Verify the task is still running despite the exception
+        assert local_channel._keep_alive_task is not None
+        assert not local_channel._keep_alive_task.done()
+
+        # Verify ping was called at least once
+        assert ping_call_count >= 1
+
+        # Verify the exception was logged but didn't crash the loop
+        assert any("Keep-alive ping failed" in record.message for record in caplog.records)

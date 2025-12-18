@@ -155,12 +155,13 @@ async def test_message_decode_error(
     callback = Mock()
     unsub = await mqtt_channel.subscribe(callback)
 
-    mqtt_message_handler(b"invalid_payload")
-    await asyncio.sleep(0.01)  # yield
+    with caplog.at_level(logging.WARNING):
+        mqtt_message_handler(b"invalid_payload")
+        await asyncio.sleep(0.01)  # yield
 
-    assert len(caplog.records) == 1
-    assert caplog.records[0].levelname == "WARNING"
-    assert "Failed to decode message" in caplog.records[0].message
+    warning_records = caplog.records
+    assert len(warning_records) == 1
+    assert "Failed to decode message" in warning_records[0].message
     unsub()
 
 

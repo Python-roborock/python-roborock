@@ -13,11 +13,17 @@ from aioresponses import aioresponses
 
 from roborock import HomeData, UserData
 from roborock.data import DeviceData
+from roborock.mqtt.health_manager import HealthManager
 from roborock.protocols.v1_protocol import LocalProtocolVersion
 from roborock.roborock_message import RoborockMessage
 from roborock.version_1_apis.roborock_local_client_v1 import RoborockLocalClientV1
 from roborock.version_1_apis.roborock_mqtt_client_v1 import RoborockMqttClientV1
 from tests.mock_data import HOME_DATA_RAW, HOME_DATA_SCENES_RAW, TEST_LOCAL_API_HOST, USER_DATA
+
+# Fixtures for the newer APIs in subdirectories
+pytest_plugins = [
+    "tests.mqtt_fixtures",
+]
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -25,6 +31,128 @@ _LOGGER = logging.getLogger(__name__)
 # Used by fixtures to handle incoming requests and prepare responses
 RequestHandler = Callable[[bytes], bytes | None]
 QUEUE_TIMEOUT = 10
+
+# Fixed timestamp for deterministic tests for asserting on message contents
+FAKE_TIMESTAMP = 1755750946.721395
+
+
+class CapturedRequestLog:
+    """Log of requests and responses for snapshot assertions.
+
+    The log captures the raw bytes of each request and response along with
+    a label indicating the direction of the message.
+    """
+
+    def __init__(self) -> None:
+        """Initialize the request log."""
+        self.entries: list[tuple[str, bytes]] = []
+
+    def add_log_entry(self, label: str, data: bytes) -> None:
+        """Add a request entry."""
+        self.entries.append((label, data))
+
+    def __repr__(self):
+        """Return a string representation of the log entries.
+
+        This assumes that the client will behave in a request-response manner,
+        so each request is followed by a response. If a test uses non-deterministic
+        message order, this may not be accurate and the test would need to decode
+        the raw messages and remove any ordering assumptions.
+        """
+        lines = []
+        for label, data in self.entries:
+            lines.append(label)
+            lines.extend(self._hexdump(data))
+        return "\n".join(lines)
+
+    def _hexdump(self, data: bytes, bytes_per_line: int = 16) -> list[str]:
+        """Print a hexdump of the given bytes object in a tcpdump/hexdump -C style.
+
+        This makes the packets easier to read and compare in test snapshots.
+
+        Args:
+            data: The bytes object to print.
+            bytes_per_line: The number of bytes to display per line (default is 16).
+        """
+
+        # Use '.' for non-printable characters (ASCII < 32 or > 126)
+        def to_printable_ascii(byte_val):
+            return chr(byte_val) if 32 <= byte_val <= 126 else "."
+
+        offset = 0
+        lines = []
+        while offset < len(data):
+            chunk = data[offset : offset + bytes_per_line]
+            # Format the hex values, space-padded to ensure alignment
+            hex_values = " ".join(f"{byte:02x}" for byte in chunk)
+            # Pad hex string to a fixed width so ASCII column lines up
+            # 3 chars per byte ('xx ') for a full line of 16 bytes
+            padded_hex = f"{hex_values:<{bytes_per_line * 3}}"
+            # Format the ASCII values
+            ascii_values = "".join(to_printable_ascii(byte) for byte in chunk)
+            lines.append(f"{offset:08x}  {padded_hex} |{ascii_values}|")
+            offset += bytes_per_line
+        return lines
+
+
+@pytest.fixture
+def deterministic_message_fixtures() -> Generator[None, None, None]:
+    """Fixture to use predictable get_next_int and timestamp values for each test.
+
+    This test mocks out the functions used to generate requests that have some
+    entropy such as the nonces, timestamps, and request IDs. This makes the
+    generated messages deterministic so we can snapshot them in a test.
+    """
+
+    # Pick an arbitrary sequence number used for outgoing requests
+    next_int = 9090
+
+    def get_next_int(min_value: int, max_value: int) -> int:
+        nonlocal next_int
+        result = next_int
+        next_int += 1
+        if next_int > max_value:
+            next_int = min_value
+        return result
+
+    # Pick an arbitrary timestamp used for the message encryption
+    timestamp = FAKE_TIMESTAMP
+
+    def get_timestamp() -> int:
+        """Get a monotonically increasing timestamp for testing."""
+        nonlocal timestamp
+        timestamp += 1
+        return int(timestamp)
+
+    # Use predictable seeds for token_bytes
+    token_chr = "A"
+
+    def get_token_bytes(n: int) -> bytes:
+        nonlocal token_chr
+        result = token_chr.encode() * n
+        # Cycle to the next character
+        token_chr = chr(ord(token_chr) + 1)
+        if token_chr > "Z":
+            token_chr = "A"
+        return result
+
+    with (
+        patch("roborock.api.get_next_int", side_effect=get_next_int),
+        patch("roborock.devices.local_channel.get_next_int", side_effect=get_next_int),
+        patch("roborock.protocols.v1_protocol.get_next_int", side_effect=get_next_int),
+        patch("roborock.protocols.v1_protocol.get_timestamp", side_effect=get_timestamp),
+        patch("roborock.protocols.v1_protocol.secrets.token_bytes", side_effect=get_token_bytes),
+        patch("roborock.version_1_apis.roborock_local_client_v1.get_next_int", side_effect=get_next_int),
+        patch("roborock.roborock_message.get_next_int", side_effect=get_next_int),
+        patch("roborock.roborock_message.get_timestamp", side_effect=get_timestamp),
+    ):
+        yield
+
+
+@pytest.fixture(name="log")
+def log_fixture(deterministic_message_fixtures: None) -> CapturedRequestLog:
+    """Fixture that creates a captured request log."""
+    return CapturedRequestLog()
 
 
 class FakeSocketHandler:
@@ -35,10 +163,11 @@ class FakeSocketHandler:
     handle request callback handles the incoming requests and prepares the responses.
     """
 
-    def __init__(self, handle_request: RequestHandler, response_queue: Queue[bytes]) -> None:
+    def __init__(self, handle_request: RequestHandler, response_queue: Queue[bytes], log: CapturedRequestLog) -> None:
         self.response_buf = io.BytesIO()
         self.handle_request = handle_request
         self.response_queue = response_queue
+        self.log = log
 
     def pending(self) -> int:
         """Return the number of bytes in the response buffer."""
@@ -60,10 +189,12 @@ class FakeSocketHandler:
     def handle_socket_send(self, client_request: bytes) -> int:
         """Receive an incoming request from the client."""
         _LOGGER.debug("Request: 0x%s", client_request.hex())
+        self.log.add_log_entry("[mqtt >]", client_request)
         if (response := self.handle_request(client_request)) is not None:
             # Enqueue a response to be sent back to the client in the buffer.
             # The buffer will be emptied when the client calls recv() on the socket
             _LOGGER.debug("Queued: 0x%s", response.hex())
+            self.log.add_log_entry("[mqtt <]", response)
             self.response_buf.write(response)
         return len(client_request)
 
@@ -108,9 +239,11 @@ def request_handler_fixture(received_requests: Queue[bytes], response_queue: Que
 
 
 @pytest.fixture(name="fake_socket_handler")
-def fake_socket_handler_fixture(request_handler: RequestHandler, response_queue: Queue[bytes]) -> FakeSocketHandler:
+def fake_socket_handler_fixture(
+    request_handler: RequestHandler, response_queue: Queue[bytes], log: CapturedRequestLog
+) -> FakeSocketHandler:
     """Fixture that creates a fake MQTT broker."""
-    return FakeSocketHandler(request_handler, response_queue)
+    return FakeSocketHandler(request_handler, response_queue, log)
 
 
 @pytest.fixture(name="mock_sock")
@@ -301,7 +434,9 @@ def skip_rate_limit():
 
 
 @pytest.fixture(name="mock_create_local_connection")
-def create_local_connection_fixture(request_handler: RequestHandler) -> Generator[None, None, None]:
+def create_local_connection_fixture(
+    request_handler: RequestHandler, log: CapturedRequestLog
+) -> Generator[None, None, None]:
     """Fixture that overrides the transport creation to wire it up to the mock socket."""
 
     async def create_connection(protocol_factory: Callable[[], Protocol], *args) -> tuple[Any, Any]:
@@ -310,8 +445,10 @@ def create_local_connection_fixture(request_handler: RequestHandler) -> Generato
         def handle_write(data: bytes) -> None:
             _LOGGER.debug("Received: %s", data)
             response = request_handler(data)
+            log.add_log_entry("[local >]", data)
             if response is not None:
                 _LOGGER.debug("Replying with %s", response)
+                log.add_log_entry("[local <]", response)
                 loop = asyncio.get_running_loop()
                 loop.call_soon(protocol.data_received, response)
 
@@ -364,6 +501,7 @@ class FakeChannel:
         self.close = MagicMock(side_effect=self._close)
         self.protocol_version = LocalProtocolVersion.V1
         self.restart = AsyncMock()
+        self.health_manager = HealthManager(self.restart)
 
     async def _connect(self) -> None:
         self._is_connected = True

@@ -313,7 +313,7 @@ class DeviceFeatures(RoborockBase):
     is_support_incremental_map: bool = field(metadata={"new_feature_str_mask": (4194304, 8)})
     is_offline_map_supported: bool = field(metadata={"new_feature_str_mask": (16384, 8)})
     is_super_deep_wash_supported: bool = field(metadata={"new_feature_str_mask": (32768, 8)})
-    is_ces2022_supported: bool = field(metadata={"new_feature_str_mask": (65536, 8)})
+    is_ces_2022_supported: bool = field(metadata={"new_feature_str_mask": (65536, 8)})
     is_dss_believable: bool = field(metadata={"new_feature_str_mask": (131072, 8)})
     is_main_brush_up_down_supported_from_str: bool = field(metadata={"new_feature_str_mask": (262144, 8)})
     is_goto_pure_clean_path_supported: bool = field(metadata={"new_feature_str_mask": (524288, 8)})

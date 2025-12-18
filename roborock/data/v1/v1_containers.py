@@ -39,6 +39,7 @@ from roborock.exceptions import RoborockException
 
 from ..containers import RoborockBase, RoborockBaseTimer, _attr_repr
 from .v1_code_mappings import (
+    CleanFluidStatus,
     ClearWaterBoxStatus,
     DirtyWaterBoxStatus,
     DustBagStatus,
@@ -231,9 +232,12 @@ class Status(RoborockBase):
         return None
 
     @property
-    def clean_fluid_status(self) -> int | None:
+    def clean_fluid_status(self) -> CleanFluidStatus | None:
         if self.dss:
-            return (self.dss >> 10) & 3
+            value = (self.dss >> 10) & 3
+            if value == 0:
+                return None  # Feature not supported by this device
+            return CleanFluidStatus(value)
         return None
 
     @property
@@ -714,7 +718,7 @@ class AppInitStatus(RoborockBase):
     local_info: AppInitStatusLocalInfo
     feature_info: list[int]
     new_feature_info: int
-    new_feature_info_str: str
+    new_feature_info_str: str = ""
     new_feature_info_2: int | None = None
     carriage_type: int | None = None
     dsp_version: str | None = None

@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 from roborock.data import NetworkInfo
-from roborock.devices.cache import Cache
+from roborock.devices.cache import DeviceCache
 from roborock.devices.traits.v1 import common
 from roborock.roborock_typing import RoborockCommand
 
@@ -24,19 +24,19 @@ class NetworkInfoTrait(NetworkInfo, common.V1TraitMixin):
 
     command = RoborockCommand.GET_NETWORK_INFO
 
-    def __init__(self, device_uid: str, cache: Cache) -> None:  # pylint: disable=super-init-not-called
+    def __init__(self, device_uid: str, device_cache: DeviceCache) -> None:  # pylint: disable=super-init-not-called
         """Initialize the trait."""
         self._device_uid = device_uid
-        self._cache = cache
+        self._device_cache = device_cache
         self.ip = ""
 
     async def refresh(self) -> None:
         """Refresh the network info from the cache."""
 
-        cache_data = await self._cache.get()
-        if cache_data.network_info and (network_info := cache_data.network_info.get(self._device_uid)):
+        device_cache_data = await self._device_cache.get()
+        if device_cache_data.network_info:
             _LOGGER.debug("Using cached network info for device %s", self._device_uid)
-            self._update_trait_values(network_info)
+            self._update_trait_values(device_cache_data.network_info)
             return
 
         # Load from device if not in cache
@@ -44,8 +44,9 @@ class NetworkInfoTrait(NetworkInfo, common.V1TraitMixin):
         await super().refresh()
 
         # Update the cache with the new network info
-        cache_data.network_info[self._device_uid] = self
-        await self._cache.set(cache_data)
+        device_cache_data = await self._device_cache.get()
+        device_cache_data.network_info = self
+        await self._device_cache.set(device_cache_data)
 
     def _parse_response(self, response: common.V1ResponseData) -> NetworkInfo:
         """Parse the response from the device into a NetworkInfo."""

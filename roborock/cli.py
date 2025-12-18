@@ -42,7 +42,7 @@ from pyshark.capture.live_capture import LiveCapture, UnknownInterfaceException 
 from pyshark.packet.packet import Packet  # type: ignore
 
 from roborock import SHORT_MODEL_TO_ENUM, RoborockCommand
-from roborock.data import CombinedMapInfo, DeviceData, HomeData, NetworkInfo, RoborockBase, UserData
+from roborock.data import DeviceData, RoborockBase, UserData
 from roborock.device_features import DeviceFeatures
 from roborock.devices.cache import Cache, CacheData
 from roborock.devices.device import RoborockDevice
@@ -116,10 +116,8 @@ class ConnectionCache(RoborockBase):
 
     user_data: UserData
     email: str
-    home_data: HomeData | None = None
-    network_info: dict[str, NetworkInfo] | None = None
-    home_map_info: dict[int, CombinedMapInfo] | None = None
-    trait_data: dict[str, Any] | None = None
+    # TODO: Used new APIs for cache file storage
+    cache_data: CacheData | None = None
 
 
 class DeviceConnectionManager:
@@ -134,10 +132,10 @@ class DeviceConnectionManager:
     async def ensure_device_manager(self) -> DeviceManager:
         """Ensure device manager is initialized."""
         if self.device_manager is None:
-            cache_data = self.context.cache_data()
+            connection_cache = self.context.connection_cache()
             user_params = UserParams(
-                username=cache_data.email,
-                user_data=cache_data.user_data,
+                username=connection_cache.email,
+                user_data=connection_cache.user_data,
             )
             self.device_manager = await create_device_manager(user_params, cache=self.context)
             # Cache devices for quick lookup
@@ -164,7 +162,8 @@ class RoborockContext(Cache):
     """Context that handles both CLI and session modes internally."""
 
     roborock_file = Path("~/.roborock").expanduser()
-    _cache_data: ConnectionCache | None = None
+    roborock_cache_file = Path("~/.roborock.cache").expanduser()
+    _connection_cache: ConnectionCache | None = None
 
     def __init__(self):
         self.reload()
@@ -177,22 +176,22 @@ class RoborockContext(Cache):
             with open(self.roborock_file) as f:
                 data = json.load(f)
                 if data:
-                    self._cache_data = ConnectionCache.from_dict(data)
+                    self._connection_cache = ConnectionCache.from_dict(data)
 
-    def update(self, cache_data: ConnectionCache):
-        data = json.dumps(cache_data.as_dict(), default=vars, indent=4)
+    def update(self, connection_cache: ConnectionCache):
+        data = json.dumps(connection_cache.as_dict(), default=vars, indent=4)
         with open(self.roborock_file, "w") as f:
             f.write(data)
         self.reload()
 
     def validate(self):
-        if self._cache_data is None:
+        if self._connection_cache is None:
             raise RoborockException("You must login first")
 
-    def cache_data(self) -> ConnectionCache:
+    def connection_cache(self) -> ConnectionCache:
         """Get the cache data."""
         self.validate()
-        return cast(ConnectionCache, self._cache_data)
+        return cast(ConnectionCache, self._connection_cache)
 
     def start_session_mode(self):
         """Start session mode with a background event loop."""
@@ -229,19 +228,21 @@ class RoborockContext(Cache):
 
     async def refresh_devices(self) -> ConnectionCache:
         """Refresh device data from server (always fetches fresh data)."""
-        cache_data = self.cache_data()
-        client = RoborockApiClient(cache_data.email)
-        home_data = await client.get_home_data_v3(cache_data.user_data)
-        cache_data.home_data = home_data
-        self.update(cache_data)
-        return cache_data
+        connection_cache = self.connection_cache()
+        client = RoborockApiClient(connection_cache.email)
+        home_data = await client.get_home_data_v3(connection_cache.user_data)
+        if connection_cache.cache_data is None:
+            connection_cache.cache_data = CacheData()
+        connection_cache.cache_data.home_data = home_data
+        self.update(connection_cache)
+        return connection_cache
 
     async def get_devices(self) -> ConnectionCache:
         """Get device data (uses cache if available, fetches if needed)."""
-        cache_data = self.cache_data()
-        if not cache_data.home_data:
-            cache_data = await self.refresh_devices()
-        return cache_data
+        connection_cache = self.connection_cache()
+        if (connection_cache.cache_data is None) or (connection_cache.cache_data.home_data is None):
+            connection_cache = await self.refresh_devices()
+        return connection_cache
 
     async def cleanup(self):
         """Clean up resources (mainly for session mode)."""
@@ -266,22 +267,16 @@ class RoborockContext(Cache):
     async def get(self) -> CacheData:
         """Get cached value."""
         _LOGGER.debug("Getting cache data")
-        connection_cache = self.cache_data()
-        return CacheData(
-            home_data=connection_cache.home_data,
-            network_info=connection_cache.network_info or {},
-            home_map_info=connection_cache.home_map_info,
-            trait_data=connection_cache.trait_data or {},
-        )
+        connection_cache = self.connection_cache()
+        if connection_cache.cache_data is not None:
+            return connection_cache.cache_data
+        return CacheData()
 
     async def set(self, value: CacheData) -> None:
         """Set value in the cache."""
         _LOGGER.debug("Setting cache data")
-        connection_cache = self.cache_data()
-        connection_cache.home_data = value.home_data
-        connection_cache.network_info = value.network_info
-        connection_cache.home_map_info = value.home_map_info
-        connection_cache.trait_data = value.trait_data
+        connection_cache = self.connection_cache()
+        connection_cache.cache_data = value
         self.update(connection_cache)
 
 
@@ -356,9 +351,9 @@ async def discover(ctx):
     """Discover devices."""
     context: RoborockContext = ctx.obj
     # Use the explicit refresh method for the discover command
-    cache_data = await context.refresh_devices()
+    connection_cache = await context.refresh_devices()
 
-    home_data = cache_data.home_data
+    home_data = connection_cache.cache_data.home_data
     click.echo(f"Discovered devices {', '.join([device.name for device in home_data.get_all_devices()])}")
 
 
@@ -367,9 +362,9 @@ async def discover(ctx):
 @async_command
 async def list_devices(ctx):
     context: RoborockContext = ctx.obj
-    cache_data = await context.get_devices()
+    connection_cache = await context.get_devices()
 
-    home_data = cache_data.home_data
+    home_data = connection_cache.cache_data.home_data
 
     device_name_id = {device.name: device.duid for device in home_data.get_all_devices()}
     click.echo(json.dumps(device_name_id, indent=4))
@@ -381,10 +376,10 @@ async def list_devices(ctx):
 @async_command
 async def list_scenes(ctx, device_id):
     context: RoborockContext = ctx.obj
-    cache_data = await context.get_devices()
+    connection_cache = await context.get_devices()
 
-    client = RoborockApiClient(cache_data.email)
-    scenes = await client.get_scenes(cache_data.user_data, device_id)
+    client = RoborockApiClient(connection_cache.email)
+    scenes = await client.get_scenes(connection_cache.user_data, device_id)
     output_list = []
     for scene in scenes:
         output_list.append(scene.as_dict())
@@ -397,10 +392,10 @@ async def list_scenes(ctx, device_id):
 @async_command
 async def execute_scene(ctx, scene_id):
     context: RoborockContext = ctx.obj
-    cache_data = await context.get_devices()
+    connection_cache = await context.get_devices()
 
-    client = RoborockApiClient(cache_data.email)
-    await client.execute_scene(cache_data.user_data, scene_id)
+    client = RoborockApiClient(connection_cache.email)
+    await client.execute_scene(connection_cache.user_data, scene_id)
 
 
 async def _v1_trait(context: RoborockContext, device_id: str, display_func: Callable[[], V1TraitMixin]) -> Trait:
@@ -820,9 +815,9 @@ async def get_device_info(ctx: click.Context):
     """
     click.echo("Discovering devices...")
     context: RoborockContext = ctx.obj
-    cache_data = await context.get_devices()
+    connection_cache = await context.get_devices()
 
-    home_data = cache_data.home_data
+    home_data = connection_cache.cache_data.home_data
 
     all_devices = home_data.get_all_devices()
     if not all_devices:
@@ -837,7 +832,7 @@ async def get_device_info(ctx: click.Context):
         click.echo(f"  - Processing {device.name} ({device.duid})")
         product_info = home_data.product_map[device.product_id]
         device_data = DeviceData(device, product_info.model)
-        mqtt_client = RoborockMqttClientV1(cache_data.user_data, device_data)
+        mqtt_client = RoborockMqttClientV1(connection_cache.user_data, device_data)
 
         try:
             init_status_result = await mqtt_client.send_command(

@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import datetime
 import logging
+import math
+import time
 from asyncio import TimerHandle
 from collections.abc import Callable, Coroutine, MutableMapping
 from typing import Any, TypeVar
@@ -97,3 +99,11 @@ def get_next_int(min_val: int, max_val: int) -> int:
         counter_map[(min_val, max_val)] = min_val
     counter_map[(min_val, max_val)] += 1
     return counter_map[(min_val, max_val)] % max_val + min_val
+
+
+def get_timestamp() -> int:
+    """Get the current timestamp in seconds since epoch.
+
+    This is separated out to allow for easier mocking in tests.
+    """
+    return math.floor(time.time())

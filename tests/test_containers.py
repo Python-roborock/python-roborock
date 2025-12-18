@@ -1,18 +1,21 @@
 """Test cases for the containers module."""
 
+import dataclasses
 from dataclasses import dataclass
 from typing import Any
 
+import pytest
 from syrupy import SnapshotAssertion
 
 from roborock import CleanRecord, CleanSummary, Consumable, DnDTimer, HomeData, S7MaxVStatus, UserData
-from roborock.data import RoborockBase, RoborockCategory
+from roborock.data import AppInitStatus, HomeDataDevice, RoborockBase, RoborockCategory
 from roborock.data.b01_q7 import (
     B01Fault,
     B01Props,
     SCWindMapping,
     WorkStatusMapping,
 )
+from roborock.data.containers import _camelize, _decamelize
 from roborock.data.v1 import (
     MultiMapsList,
     RoborockDockErrorCode,
@@ -56,6 +59,16 @@ class ComplexObject(RoborockBase):
     nested_dict: dict[str, SimpleObject] | None = None
     nested_list: list[SimpleObject] | None = None
     any: Any | None = None
+    nested_int_dict: dict[int, SimpleObject] | None = None
+
+
+@dataclass
+class BoolFeatures(RoborockBase):
+    """Complex object for testing serialization."""
+
+    my_flag_supported: bool | None = None
+    my_flag_2_supported: bool | None = None
+    is_ces_2022_supported: bool | None = None
 
 
 def test_simple_object() -> None:
@@ -80,6 +93,9 @@ def test_complex_object() -> None:
             "nested1": SimpleObject(name="Nested1", value=1),
             "nested2": SimpleObject(name="Nested2", value=2),
         },
+        nested_int_dict={
+            10: SimpleObject(name="IntKey1", value=10),
+        },
         nested_list=[SimpleObject(name="Nested3", value=3), SimpleObject(name="Nested4", value=4)],
         any="This can be anything",
     )
@@ -91,6 +107,9 @@ def test_complex_object() -> None:
         "nestedDict": {
             "nested1": {"name": "Nested1", "value": 1},
             "nested2": {"name": "Nested2", "value": 2},
+        },
+        "nestedIntDict": {
+            10: {"name": "IntKey1", "value": 10},
         },
         "nestedList": [
             {"name": "Nested3", "value": 3},
@@ -107,11 +126,33 @@ def test_complex_object() -> None:
         "nested1": SimpleObject(name="Nested1", value=1),
         "nested2": SimpleObject(name="Nested2", value=2),
     }
+    assert deserialized.nested_int_dict == {
+        10: SimpleObject(name="IntKey1", value=10),
+    }
     assert deserialized.nested_list == [
         SimpleObject(name="Nested3", value=3),
         SimpleObject(name="Nested4", value=4),
     ]
     assert deserialized.any == "This can be anything"
+
+
+@pytest.mark.parametrize(
+    ("data"),
+    [
+        {
+            "nested_int_dict": {10: {"name": "IntKey1", "value": 10}},
+        },
+        {
+            "nested_int_dict": {"10": {"name": "IntKey1", "value": 10}},
+        },
+    ],
+)
+def test_from_dict_key_types(data: dict) -> None:
+    """Test serialization and deserialization of a complex object."""
+    obj = ComplexObject.from_dict(data)
+    assert obj.nested_int_dict == {
+        10: SimpleObject(name="IntKey1", value=10),
+    }
 
 
 def test_ignore_unknown_keys() -> None:
@@ -428,6 +469,7 @@ def test_b01props_deserialization():
     assert deserialized.fault == B01Fault.F_510
     assert deserialized.status == WorkStatusMapping.SWEEP_MOPING_2
     assert deserialized.wind == SCWindMapping.SUPER_STRONG
+    assert deserialized.net_status is not None
     assert deserialized.net_status.ip == "192.168.1.102"
 
 
@@ -494,3 +536,114 @@ def test_accurate_map_flag() -> None:
         }
     )
     assert s.current_map is None
+
+
+def test_boolean_features() -> None:
+    """Test serialization and deserialization of BoolFeatures."""
+    obj = BoolFeatures(my_flag_supported=True, my_flag_2_supported=False, is_ces_2022_supported=True)
+    serialized = obj.as_dict()
+    assert serialized == {
+        "myFlagSupported": True,
+        "myFlag2Supported": False,
+        "isCes2022Supported": True,
+    }
+    deserialized = BoolFeatures.from_dict(serialized)
+    assert dataclasses.asdict(deserialized) == {
+        "my_flag_supported": True,
+        "my_flag_2_supported": False,
+        "is_ces_2022_supported": True,
+    }
+
+
+@pytest.mark.parametrize(
+    "input_str,expected",
+    [
+        ("simpleTest", "simple_test"),
+        ("testValue", "test_value"),
+        ("anotherExampleHere", "another_example_here"),
+        ("isCes2022Supported", "is_ces_2022_supported"),
+        ("isThreeDMappingInnerTestSupported", "is_three_d_mapping_inner_test_supported"),
+    ],
+)
+def test_decamelize_function(input_str: str, expected: str) -> None:
+    """Test the _decamelize function."""
+
+    assert _decamelize(input_str) == expected
+    assert _camelize(expected) == input_str
+
+
+def test_offline_device() -> None:
+    """Test that a HomeDataDevice response from an offline device is handled correctly."""
+    data = {
+        "duid": "xxxxxx",
+        "name": "S6 Pure",
+        "localKey": "yyyyy",
+        "productId": "zzzzz",
+        "activeTime": 1765277892,
+        "timeZoneId": "Europe/Moscow",
+        "iconUrl": "",
+        "share": False,
+        "online": False,
+        "pv": "1.0",
+        "tuyaMigrated": False,
+        "extra": "{}",
+        "deviceStatus": {},
+        "silentOtaSwitch": False,
+        "f": False,
+    }
+    device = HomeDataDevice.from_dict(data)
+    assert device.duid == "xxxxxx"
+    assert device.name == "S6 Pure"
+    assert device.local_key == "yyyyy"
+    assert device.product_id == "zzzzz"
+    assert device.active_time == 1765277892
+    assert device.time_zone_id == "Europe/Moscow"
+    assert not device.online
+    assert device.fv is None
+
+
+def test_partial_app_init_status() -> None:
+    """Test that a partial AppInitStatus response is handled correctly."""
+    app_init_status = AppInitStatus.from_dict(
+        {
+            "local_info": {
+                "name": "custom_A.03.0096_FCC",
+                "bom": "A.03.0096",
+                "location": "us",
+                "language": "en",
+                "wifiplan": "US",
+                "timezone": "US/Pacific",
+                "logserver": "awsusor0.fds.api.xiaomi.com",
+                "featureset": 1,
+            },
+            "feature_info": [111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125],
+            "new_feature_info": 10738169343,
+            "status_info": {
+                "state": 8,
+                "battery": 100,
+                "clean_time": 251,
+                "clean_area": 3847500,
+                "error_code": 0,
+                "in_cleaning": 0,
+                "in_returning": 0,
+                "in_fresh_state": 1,
+                "lab_status": 3,
+                "water_box_status": 0,
+                "map_status": 7,
+                "is_locating": 0,
+                "lock_status": 0,
+                "water_box_mode": 203,
+                "distance_off": 0,
+                "water_box_carriage_status": 0,
+                "mop_forbidden_enable": 0,
+                "camera_status": 3495,
+                "is_exploring": 0,
+                "home_sec_status": 0,
+                "home_sec_enable_password": 1,
+                "adbumper_status": [0, 0, 0],
+            },
+        }
+    )
+    assert app_init_status.local_info.name == "custom_A.03.0096_FCC"
+    assert app_init_status.feature_info == [111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125]
+    assert app_init_status.new_feature_info_str == ""

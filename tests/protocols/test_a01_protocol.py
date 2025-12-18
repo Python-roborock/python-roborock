@@ -4,6 +4,8 @@ import json
 from typing import Any
 
 import pytest
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import unpad
 
 from roborock.exceptions import RoborockException
 from roborock.protocols.a01_protocol import decode_rpc_response, encode_mqtt_payload
@@ -52,6 +54,20 @@ def test_encode_mqtt_payload_empty_data():
     assert decoded_data == {}
 
 
+def test_value_encoder():
+    """Test that value_encoder is applied to all values."""
+    data: dict[RoborockDyadDataProtocol | RoborockZeoProtocol, Any] = {RoborockDyadDataProtocol.ID_QUERY: [101, 102]}
+
+    result = encode_mqtt_payload(data, value_encoder=json.dumps)
+
+    # Decode manually to check the raw JSON structure
+    decoded_json = json.loads(unpad(result.payload, AES.block_size).decode())
+
+    # ID_QUERY (10000) should be a string "[101, 102]", not a list [101, 102]
+    assert decoded_json["dps"]["10000"] == "[101, 102]"
+    assert isinstance(decoded_json["dps"]["10000"], str)
+
+
 def test_encode_mqtt_payload_complex_data():
     """Test encoding with complex nested data."""
     data: dict[RoborockDyadDataProtocol | RoborockZeoProtocol, Any] = {
@@ -76,6 +92,8 @@ def test_encode_mqtt_payload_complex_data():
     assert decoded_data == {
         201: {
             "nested": {"deep": {"value": 123}},
+            # Note: The list inside the dictionary is NOT converted because
+            # our fix only targets top-level list values in the dps map
             "list": [1, 2, 3, "test"],
             "boolean": True,
             "null": None,

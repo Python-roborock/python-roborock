@@ -5,7 +5,17 @@ from roborock.protocols.v1_protocol import ParamsType
 
 
 class CommandTrait:
-    """Trait for sending commands to Roborock devices."""
+    """Trait for sending commands to Roborock devices.
+
+    This trait allows sending raw commands directly to the device. It is particularly
+    useful for:
+    1.  **Cleaning Control**: Sending commands like `app_start`, `app_stop`, `app_pause`,
+        or `app_charge` which don't belong to a specific state trait.
+    2.  **Unsupported Features**: Accessing device functionality that hasn't been
+        mapped to a specific trait yet.
+
+    See `roborock.roborock_typing.RoborockCommand` for a list of available commands.
+    """
 
     def __post_init__(self) -> None:
         """Post-initialization to set up the RPC channel.

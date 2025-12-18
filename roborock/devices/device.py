@@ -11,9 +11,11 @@ from abc import ABC
 from collections.abc import Callable, Mapping
 from typing import Any, TypeVar, cast
 
+from roborock.callbacks import CallbackList
 from roborock.data import HomeDataDevice, HomeDataProduct
 from roborock.exceptions import RoborockException
 from roborock.roborock_message import RoborockMessage
+from roborock.util import RoborockLoggerAdapter
 
 from .channel import Channel
 from .traits import Trait
@@ -22,6 +24,7 @@ from .traits.traits_mixin import TraitsMixin
 _LOGGER = logging.getLogger(__name__)
 
 __all__ = [
+    "DeviceReadyCallback",
     "RoborockDevice",
 ]
 
@@ -29,6 +32,10 @@ __all__ = [
 MIN_BACKOFF_INTERVAL = datetime.timedelta(seconds=10)
 MAX_BACKOFF_INTERVAL = datetime.timedelta(minutes=30)
 BACKOFF_MULTIPLIER = 1.5
+START_ATTEMPT_TIMEOUT = datetime.timedelta(seconds=5)
+
+
+DeviceReadyCallback = Callable[["RoborockDevice"], None]
 
 
 class RoborockDevice(ABC, TraitsMixin):
@@ -58,12 +65,15 @@ class RoborockDevice(ABC, TraitsMixin):
         """
         TraitsMixin.__init__(self, trait)
         self._duid = device_info.duid
+        self._logger = RoborockLoggerAdapter(self._duid, _LOGGER)
         self._name = device_info.name
         self._device_info = device_info
         self._product = product
         self._channel = channel
         self._connect_task: asyncio.Task[None] | None = None
         self._unsub: Callable[[], None] | None = None
+        self._ready_callbacks = CallbackList["RoborockDevice"]()
+        self._has_connected = False
 
     @property
     def duid(self) -> str:
@@ -107,50 +117,90 @@ class RoborockDevice(ABC, TraitsMixin):
         """
         return self._channel.is_local_connected
 
-    def start_connect(self) -> None:
+    def add_ready_callback(self, callback: DeviceReadyCallback) -> Callable[[], None]:
+        """Add a callback to be notified when the device is ready.
+
+        A device is considered ready when it has successfully connected. It may go
+        offline later, but this callback will only be called once when the device
+        first connects.
+
+        The callback will be called immediately if the device has already previously
+        connected.
+        """
+        remove = self._ready_callbacks.add_callback(callback)
+        if self._has_connected:
+            callback(self)
+
+        return remove
+
+    async def start_connect(self) -> None:
         """Start a background task to connect to the device.
 
-        This will attempt to connect to the device using the appropriate protocol
-        channel. If the connection fails, it will retry with exponential backoff.
+        This will give a moment for the first connection attempt to start so
+        that the device will have connections established -- however, this will
+        never directly fail.
+
+        If the connection fails, it will retry in the background with
+        exponential backoff.
 
         Once connected, the device will remain connected until `close()` is
         called. The device will automatically attempt to reconnect if the connection
         is lost.
         """
+        # The future will be set to True if the first attempt succeeds, False if
+        # it fails, or an exception if an unexpected error occurs.
+        # We use this to wait a short time for the first attempt to complete. We
+        # don't actually care about the result, just that we waited long enough.
+        start_attempt: asyncio.Future[bool] = asyncio.Future()
 
         async def connect_loop() -> None:
-            backoff = MIN_BACKOFF_INTERVAL
             try:
+                backoff = MIN_BACKOFF_INTERVAL
                 while True:
                     try:
                         await self.connect()
+                        if not start_attempt.done():
+                            start_attempt.set_result(True)
+                        self._has_connected = True
+                        self._ready_callbacks(self)
                         return
                     except RoborockException as e:
-                        _LOGGER.info("Failed to connect to device %s: %s", self.name, e)
-                        _LOGGER.info(
-                            "Retrying connection to device %s in %s seconds", self.name, backoff.total_seconds()
-                        )
+                        if not start_attempt.done():
+                            start_attempt.set_result(False)
+                        self._logger.info("Failed to connect (retry %s): %s", backoff.total_seconds(), e)
                         await asyncio.sleep(backoff.total_seconds())
                         backoff = min(backoff * BACKOFF_MULTIPLIER, MAX_BACKOFF_INTERVAL)
+                    except Exception as e:  # pylint: disable=broad-except
+                        if not start_attempt.done():
+                            start_attempt.set_exception(e)
+                        self._logger.exception("Uncaught error during connect: %s", e)
+                        return
             except asyncio.CancelledError:
-                _LOGGER.info("connect_loop for device %s was cancelled", self.name)
-                # Clean exit on cancellation
-                return
+                self._logger.debug("connect_loop was cancelled for device %s", self.duid)
+            finally:
+                if not start_attempt.done():
+                    start_attempt.set_result(False)
 
         self._connect_task = asyncio.create_task(connect_loop())
+
+        try:
+            async with asyncio.timeout(START_ATTEMPT_TIMEOUT.total_seconds()):
+                await start_attempt
+        except TimeoutError:
+            self._logger.debug("Initial connection attempt took longer than expected, will keep trying in background")
 
     async def connect(self) -> None:
         """Connect to the device using the appropriate protocol channel."""
         if self._unsub:
             raise ValueError("Already connected to the device")
         unsub = await self._channel.subscribe(self._on_message)
-        _LOGGER.info("Connected to V1 device %s", self.name)
         if self.v1_properties is not None:
             try:
                 await self.v1_properties.discover_features()
             except RoborockException:
                 unsub()
                 raise
+        self._logger.info("Connected to device")
         self._unsub = unsub
 
     async def close(self) -> None:
@@ -167,7 +217,7 @@ class RoborockDevice(ABC, TraitsMixin):
 
     def _on_message(self, message: RoborockMessage) -> None:
         """Handle incoming messages from the device."""
-        _LOGGER.debug("Received message from device: %s", message)
+        self._logger.debug("Received message from device: %s", message)
 
     def diagnostic_data(self) -> dict[str, Any]:
         """Return diagnostics information about the device."""
@@ -183,7 +233,23 @@ class RoborockDevice(ABC, TraitsMixin):
 
 T = TypeVar("T")
 
-REDACT_KEYS = {"duid", "localKey", "mac", "bssid", "sn", "ip"}
+REDACT_KEYS = {
+    # Potential identifiers
+    "duid",
+    "localKey",
+    "mac",
+    "bssid",
+    "sn",
+    "ip",
+    "u",
+    "s",
+    "h",
+    "k",
+    # Large binary blobs are entirely omitted
+    "imageContent",
+    "mapData",
+    "rawApiResponse",
+}
 REDACTED = "**REDACTED**"
 
 

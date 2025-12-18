@@ -145,7 +145,7 @@ class RoborockClientA01(RoborockClient, ABC):
                     continue
                 for data_point_number, data_point in data_points.items():
                     self._logger.debug("received msg with dps, protocol: %s, %s", data_point_number, protocol)
-                    if converted_response := self.value_converter(data_point_number, data_point):
+                    if (converted_response := self.value_converter(data_point_number, data_point)) is not None:
                         queue = self._waiting_queue.get(int(data_point_number))
                         if queue and queue.protocol == protocol:
                             queue.set_result(converted_response)

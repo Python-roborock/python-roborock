@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from collections.abc import Callable
 from typing import Any, overload
 
 from roborock.exceptions import RoborockException
@@ -29,6 +30,7 @@ _ID_QUERY = int(RoborockDyadDataProtocol.ID_QUERY)
 async def send_decoded_command(
     mqtt_channel: MqttChannel,
     params: dict[RoborockDyadDataProtocol, Any],
+    value_encoder: Callable[[Any], Any] | None = None,
 ) -> dict[RoborockDyadDataProtocol, Any]: ...
 
 
@@ -36,16 +38,18 @@ async def send_decoded_command(
 async def send_decoded_command(
     mqtt_channel: MqttChannel,
     params: dict[RoborockZeoProtocol, Any],
+    value_encoder: Callable[[Any], Any] | None = None,
 ) -> dict[RoborockZeoProtocol, Any]: ...
 
 
 async def send_decoded_command(
     mqtt_channel: MqttChannel,
     params: dict[RoborockDyadDataProtocol, Any] | dict[RoborockZeoProtocol, Any],
+    value_encoder: Callable[[Any], Any] | None = None,
 ) -> dict[RoborockDyadDataProtocol, Any] | dict[RoborockZeoProtocol, Any]:
     """Send a command on the MQTT channel and get a decoded response."""
     _LOGGER.debug("Sending MQTT command: %s", params)
-    roborock_message = encode_mqtt_payload(params)
+    roborock_message = encode_mqtt_payload(params, value_encoder)
 
     # For commands that set values: send the command and do not
     # block waiting for a response. Queries are handled below.

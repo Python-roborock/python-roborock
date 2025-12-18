@@ -203,3 +203,52 @@ async def test_missing_country_login(mock_rest) -> None:
     assert ud is not None
     # Ensure we have no surprise REST calls.
     assert len(mock_rest.requests) == 3
+
+
+async def test_get_schedules(mock_rest) -> None:
+    """Test that we can get schedules."""
+    api = RoborockApiClient(username="test_user@gmail.com")
+    ud = await api.pass_login("password")
+
+    # Mock the response
+    mock_rest.get(
+        "https://api-us.roborock.com/user/devices/123456/jobs",
+        status=200,
+        payload={
+            "api": None,
+            "result": [
+                {
+                    "id": 3878757,
+                    "cron": "03 13 15 12 ?",
+                    "repeated": False,
+                    "enabled": True,
+                    "param": {
+                        "id": 1,
+                        "method": "server_scheduled_start",
+                        "params": [
+                            {
+                                "repeat": 1,
+                                "water_box_mode": 202,
+                                "segments": "0",
+                                "fan_power": 102,
+                                "mop_mode": 300,
+                                "clean_mop": 1,
+                                "map_index": -1,
+                                "name": "1765735413736",
+                            }
+                        ],
+                    },
+                }
+            ],
+            "status": "ok",
+            "success": True,
+        },
+    )
+
+    schedules = await api.get_schedules(ud, "123456")
+    assert len(schedules) == 1
+    schedule = schedules[0]
+    assert schedule.id == 3878757
+    assert schedule.cron == "03 13 15 12 ?"
+    assert schedule.repeated is False
+    assert schedule.enabled is True

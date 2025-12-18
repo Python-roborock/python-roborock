@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+from typing import Any
 
 # All data is based on a U.S. customer with a Roborock S7 MaxV Ultra
 USER_EMAIL = "user@domain.com"
@@ -119,7 +120,7 @@ HOME_DATA_SCENES_RAW = [
         "type": "WORKFLOW",
     }
 ]
-HOME_DATA_RAW = {
+HOME_DATA_RAW: dict[str, Any] = {
     "id": 123456,
     "name": "My Home",
     "lon": None,

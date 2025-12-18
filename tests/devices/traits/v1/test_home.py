@@ -8,7 +8,7 @@ import pytest
 
 from roborock.data.containers import CombinedMapInfo
 from roborock.data.v1.v1_code_mappings import RoborockStateCode
-from roborock.devices.cache import CacheData, InMemoryCache
+from roborock.devices.cache import DeviceCache, DeviceCacheData, InMemoryCache
 from roborock.devices.device import RoborockDevice
 from roborock.devices.traits.v1.home import HomeTrait
 from roborock.devices.traits.v1.map_content import MapContentTrait
@@ -89,10 +89,16 @@ def no_sleep() -> Iterator[None]:
         yield
 
 
-@pytest.fixture
-def cache():
+@pytest.fixture(name="cache")
+def cache_fixture():
     """Create an in-memory cache for testing."""
     return InMemoryCache()
+
+
+@pytest.fixture(name="device_cache")
+def device_cache_fixture(cache: InMemoryCache) -> DeviceCache:
+    """Create a DeviceCache instance for testing."""
+    return DeviceCache(duid="abc123", cache=cache)
 
 
 @pytest.fixture(autouse=True)
@@ -134,10 +140,14 @@ def rooms_trait(device: RoborockDevice) -> RoomsTrait:
 
 @pytest.fixture
 def home_trait(
-    status_trait: StatusTrait, maps_trait: MapsTrait, map_content_trait: MapContentTrait, rooms_trait: RoomsTrait, cache
+    status_trait: StatusTrait,
+    maps_trait: MapsTrait,
+    map_content_trait: MapContentTrait,
+    rooms_trait: RoomsTrait,
+    device_cache: DeviceCache,
 ) -> HomeTrait:
     """Create a HomeTrait instance with mocked dependencies."""
-    return HomeTrait(status_trait, maps_trait, map_content_trait, rooms_trait, cache)
+    return HomeTrait(status_trait, maps_trait, map_content_trait, rooms_trait, device_cache)
 
 
 @pytest.fixture(autouse=True)
@@ -162,6 +172,7 @@ async def test_discover_home_empty_cache(
     mock_rpc_channel: AsyncMock,
     mock_mqtt_rpc_channel: AsyncMock,
     mock_map_rpc_channel: AsyncMock,
+    device_cache: DeviceCache,
 ) -> None:
     """Test discovering home when cache is empty."""
     # Setup mocks for the discovery process
@@ -229,22 +240,18 @@ async def test_discover_home_empty_cache(
     assert current_map_data.name == "Ground Floor"
 
     # Verify the persistent cache has been updated
-    cache_data = await home_trait._cache.get()
-    assert len(cache_data.home_map_info) == 2
-    assert len(cache_data.home_map_content_base64) == 2
-    assert len(cache_data.home_map_content) == 0
+    device_cache_data = await device_cache.get()
+    assert device_cache_data.home_map_info is not None
+    assert len(device_cache_data.home_map_info) == 2
+    assert device_cache_data.home_map_content_base64 is not None
+    assert len(device_cache_data.home_map_content_base64) == 2
 
 
 @pytest.mark.parametrize(
-    "cache_data",
+    "device_cache_data",
     [
-        CacheData(
+        DeviceCacheData(
             home_map_info={0: CombinedMapInfo(map_flag=0, name="Dummy", rooms=[])},
-            home_map_content={0: MAP_BYTES_RESPONSE_1},
-        ),
-        CacheData(
-            home_map_info={0: CombinedMapInfo(map_flag=0, name="Dummy", rooms=[])},
-            home_map_content={},
             home_map_content_base64={0: base64.b64encode(MAP_BYTES_RESPONSE_1).decode("utf-8")},
         ),
     ],
@@ -253,11 +260,12 @@ async def test_discover_home_with_existing_cache(
     home_trait: HomeTrait,
     mock_rpc_channel: AsyncMock,
     mock_mqtt_rpc_channel: AsyncMock,
-    cache_data: CacheData,
+    device_cache_data: DeviceCacheData,
+    device_cache: DeviceCache,
 ) -> None:
     """Test that discovery is skipped when cache already exists."""
     # Pre-populate the cache
-    await home_trait._cache.set(cache_data)
+    await device_cache.set(device_cache_data)
 
     # Call discover_home
     await home_trait.discover_home()
@@ -278,17 +286,18 @@ async def test_discover_home_with_existing_cache(
 
 async def test_existing_home_cache_invalid_bytes(
     home_trait: HomeTrait,
+    device_cache: DeviceCache,
     mock_rpc_channel: AsyncMock,
     mock_mqtt_rpc_channel: AsyncMock,
     mock_map_rpc_channel: AsyncMock,
 ) -> None:
     """Test that discovery is skipped when cache already exists."""
     # Pre-populate the cache.
-    cache_data = await home_trait._cache.get()
+    cache_data = await device_cache.get()
     cache_data.home_map_info = {0: CombinedMapInfo(map_flag=0, name="Dummy", rooms=[])}
     # We override the map bytes parser to raise an exception above.
-    cache_data.home_map_content = {0: MAP_BYTES_RESPONSE_1}
-    await home_trait._cache.set(cache_data)
+    cache_data.home_map_content_base64 = {0: base64.b64encode(MAP_BYTES_RESPONSE_1).decode("utf-8")}
+    await device_cache.set(cache_data)
 
     # Setup mocks for the discovery process
     mock_rpc_channel.send_command.side_effect = [
@@ -343,7 +352,7 @@ async def test_discover_home_no_maps(
 
 
 async def test_refresh_updates_current_map_cache(
-    cache: InMemoryCache,
+    device_cache: DeviceCache,
     status_trait: StatusTrait,
     home_trait: HomeTrait,
     mock_rpc_channel: AsyncMock,
@@ -352,10 +361,12 @@ async def test_refresh_updates_current_map_cache(
 ) -> None:
     """Test that refresh updates the cache for the current map."""
     # Pre-populate cache with some data
-    cache_data = await cache.get()
+    cache_data = await device_cache.get()
     cache_data.home_map_info = {0: CombinedMapInfo(map_flag=0, name="Old Ground Floor", rooms=[])}
-    cache_data.home_map_content = {0: MAP_BYTES_RESPONSE_2}  # Pre-existing different map bytes
-    await cache.set(cache_data)
+    cache_data.home_map_content_base64 = {
+        0: base64.b64encode(MAP_BYTES_RESPONSE_2).decode()
+    }  # Pre-existing different map bytes
+    await device_cache.set(cache_data)
     await home_trait.discover_home()  # Load cache into trait
     # Verify initial cache state
     assert home_trait.home_map_info
@@ -434,6 +445,7 @@ async def test_discover_home_device_busy_cleaning(
     mock_rpc_channel: AsyncMock,
     mock_mqtt_rpc_channel: AsyncMock,
     mock_map_rpc_channel: AsyncMock,
+    device_cache: DeviceCache,
 ) -> None:
     """Test that discovery raises RoborockDeviceBusy when device is cleaning.
 
@@ -483,9 +495,9 @@ async def test_discover_home_device_busy_cleaning(
 
     # Verify the persistent cache has not been updated since discovery
     # has not fully completed.
-    cache_data = await home_trait._cache.get()
+    cache_data = await device_cache.get()
     assert not cache_data.home_map_info
-    assert not cache_data.home_map_content
+    assert not cache_data.home_map_content_base64
 
     # Set the status trait state to idle which will mean we can attempt discovery
     # on the next refresh. This should have the result of updating the
@@ -519,10 +531,11 @@ async def test_discover_home_device_busy_cleaning(
     assert home_trait.home_map_content.keys() == {0, 123}
 
     # Verify the persistent cache has been updated
-    cache_data = await home_trait._cache.get()
-    assert len(cache_data.home_map_info) == 2
-    assert len(cache_data.home_map_content_base64) == 2
-    assert len(cache_data.home_map_content) == 0
+    device_cache_data = await device_cache.get()
+    assert device_cache_data.home_map_info is not None
+    assert len(device_cache_data.home_map_info) == 2
+    assert device_cache_data.home_map_content_base64 is not None
+    assert len(device_cache_data.home_map_content_base64) == 2
 
 
 async def test_single_map_no_switching(
