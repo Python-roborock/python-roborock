@@ -1,7 +1,10 @@
 """Traits for Q7 B01 devices.
 Potentially other devices may fall into this category in the future."""
 
+from typing import Any
+
 from roborock import B01Props
+from roborock.data.b01_q7.b01_q7_code_mappings import SCWindMapping, WaterLevelMapping
 from roborock.devices.b01_channel import send_decoded_command
 from roborock.devices.mqtt_channel import MqttChannel
 from roborock.devices.traits import Trait
@@ -23,9 +26,29 @@ class Q7PropertiesApi(Trait):
     async def query_values(self, props: list[RoborockB01Props]) -> B01Props | None:
         """Query the device for the values of the given Q7 properties."""
         result = await send_decoded_command(
-            self._channel, dps=10000, command=RoborockB01Q7Methods.GET_PROP, params={"property": props}
+            self._channel,
+            dps=10000,
+            command=RoborockB01Q7Methods.GET_PROP,
+            params={"property": props},
         )
         return B01Props.from_dict(result)
+
+    async def set_prop(self, prop: RoborockB01Props, value: Any) -> dict[str, Any]:
+        """Set a property on the device."""
+        return await send_decoded_command(
+            self._channel,
+            dps=10000,
+            command=RoborockB01Q7Methods.SET_PROP,
+            params={prop: value},
+        )
+
+    async def set_fan_speed(self, fan_speed: SCWindMapping) -> dict[str, Any]:
+        """Set the fan speed (wind)."""
+        return await self.set_prop(RoborockB01Props.WIND, fan_speed.code)
+
+    async def set_water_level(self, water_level: WaterLevelMapping) -> dict[str, Any]:
+        """Set the water level (water)."""
+        return await self.set_prop(RoborockB01Props.WATER, water_level.code)
 
 
 def create(channel: MqttChannel) -> Q7PropertiesApi:
