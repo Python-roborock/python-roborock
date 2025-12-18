@@ -28,12 +28,15 @@ async def send_decoded_command(
     dps: int,
     command: CommandType,
     params: ParamsType,
-) -> dict[str, Any]:
-    """Send a command on the MQTT channel and get a decoded response."""
+) -> Any:
+    """Send a command on the MQTT channel and get a decoded response.
+
+    Note: B01 "set" commands may return a scalar (e.g. 0/"ok") rather than a dict.
+    """
     _LOGGER.debug("Sending MQTT command: %s", params)
     msg_id = str(get_next_int(100000000000, 999999999999))
     roborock_message = encode_mqtt_payload(dps, command, params, msg_id)
-    future: asyncio.Future[dict[str, Any]] = asyncio.get_running_loop().create_future()
+    future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
 
     def find_response(response_message: RoborockMessage) -> None:
         """Handle incoming messages and resolve the future."""
@@ -59,10 +62,7 @@ async def send_decoded_command(
                 _LOGGER.debug("Received query response: %s", inner)
                 data = inner.get("data")
                 if not future.done():
-                    if isinstance(data, dict):
-                        future.set_result(data)
-                    else:
-                        future.set_exception(RoborockException(f"Unexpected data type for response: {data}"))
+                    future.set_result(data)
 
     unsub = await mqtt_channel.subscribe(find_response)
 

@@ -280,11 +280,14 @@ class RoborockCommand(str, Enum):
 class RoborockB01Q7Methods(StrEnum):
     """Methods used by the Roborock Q7 model."""
 
+    # NOTE: In the Q7 Hermes dump these appear as suffixes and are also used
+    # with an "event." prefix at runtime (see `hermes/.../module_524.js`).
     ADD_CLEAN_FAILED_POST = "add_clean_failed.post"
+    EVENT_ADD_CLEAN_FAILED_POST = "event.add_clean_failed.post"
     CLEAN_FINISH_POST = "clean_finish.post"
+    EVENT_CLEAN_FINISH_POST = "event.clean_finish.post"
     EVENT_BUILD_MAP_FINISH_POST = "event.BuildMapFinish.post"
     EVENT_MAP_CHANGE_POST = "event.map_change.post"
-    EVENT_TYPE = "event.type"
     EVENT_WORK_APPOINT_CLEAN_FAILED_POST = "event.work_appoint_clean_failed.post"
     START_CLEAN_POST = "startClean.post"
     ADD_ORDER = "service.add_order"
@@ -338,7 +341,6 @@ class RoborockB01Q7Methods(StrEnum):
     GET_PREFERENCE = "service.get_preference"
     GET_RECORD_LIST = "service.get_record_list"
     GET_ORDER = "service.get_order"
-    EVENT_ORDER_LIST_POST = "event.order_list.post"
     POST_PROP = "prop.post"
 
 

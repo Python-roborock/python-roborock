@@ -28,7 +28,10 @@ def encode_mqtt_payload(dps: int, command: CommandType, params: ParamsType, msg_
             dps: {
                 "method": str(command),
                 "msgId": msg_id,
-                "params": params or [],
+                # Important: some B01 methods use an empty object `{}` (not `[]`) for
+                # "no params", and some setters legitimately send `0` which is falsy.
+                # Only default to `[]` when params is actually None.
+                "params": params if params is not None else [],
             }
         }
     }

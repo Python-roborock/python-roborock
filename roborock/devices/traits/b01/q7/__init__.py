@@ -36,9 +36,11 @@ class Q7PropertiesApi(Trait):
             command=RoborockB01Q7Methods.GET_PROP,
             params={"property": props},
         )
+        if not isinstance(result, dict):
+            raise TypeError(f"Unexpected response type for GET_PROP: {type(result).__name__}: {result!r}")
         return B01Props.from_dict(result)
 
-    async def set_prop(self, prop: RoborockB01Props, value: Any) -> dict[str, Any]:
+    async def set_prop(self, prop: RoborockB01Props, value: Any) -> Any:
         """Set a property on the device."""
         return await send_decoded_command(
             self._channel,
@@ -47,15 +49,15 @@ class Q7PropertiesApi(Trait):
             params={prop: value},
         )
 
-    async def set_fan_speed(self, fan_speed: SCWindMapping) -> dict[str, Any]:
+    async def set_fan_speed(self, fan_speed: SCWindMapping) -> Any:
         """Set the fan speed (wind)."""
         return await self.set_prop(RoborockB01Props.WIND, fan_speed.code)
 
-    async def set_water_level(self, water_level: WaterLevelMapping) -> dict[str, Any]:
+    async def set_water_level(self, water_level: WaterLevelMapping) -> Any:
         """Set the water level (water)."""
         return await self.set_prop(RoborockB01Props.WATER, water_level.code)
 
-    async def start_clean(self) -> dict[str, Any]:
+    async def start_clean(self) -> Any:
         """Start cleaning."""
         return await send_decoded_command(
             self._channel,
@@ -68,7 +70,7 @@ class Q7PropertiesApi(Trait):
             },
         )
 
-    async def pause_clean(self) -> dict[str, Any]:
+    async def pause_clean(self) -> Any:
         """Pause cleaning."""
         return await send_decoded_command(
             self._channel,
@@ -81,7 +83,7 @@ class Q7PropertiesApi(Trait):
             },
         )
 
-    async def stop_clean(self) -> dict[str, Any]:
+    async def stop_clean(self) -> Any:
         """Stop cleaning."""
         return await send_decoded_command(
             self._channel,
@@ -94,7 +96,7 @@ class Q7PropertiesApi(Trait):
             },
         )
 
-    async def return_to_dock(self) -> dict[str, Any]:
+    async def return_to_dock(self) -> Any:
         """Return to dock."""
         return await send_decoded_command(
             self._channel,
@@ -103,7 +105,7 @@ class Q7PropertiesApi(Trait):
             params={},
         )
 
-    async def find_me(self) -> dict[str, Any]:
+    async def find_me(self) -> Any:
         """Locate the robot."""
         return await send_decoded_command(
             self._channel,

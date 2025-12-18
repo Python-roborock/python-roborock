@@ -24,7 +24,6 @@ class SCWindMapping(RoborockModeEnum):
     STANDARD = ("balanced", 1)
     STRONG = ("turbo", 2)
     SUPER_STRONG = ("max", 3)
-    MAX = ("max_plus", 4)
 
 
 class WaterLevelMapping(RoborockModeEnum):
