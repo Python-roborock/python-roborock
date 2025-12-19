@@ -21,10 +21,21 @@ CommandType = RoborockB01Q7Methods | str
 ParamsType = list | dict | int | None
 
 
-def encode_mqtt_payload(dps: int, command: CommandType, params: ParamsType, msg_id: str) -> RoborockMessage:
-    """Encode payload for B01 commands over MQTT."""
-    dps_data = {
-        "dps": {
+def encode_b01_mqtt_payload(dps: dict[int, Any]) -> RoborockMessage:
+    """Encode payload for B01 commands over MQTT with arbitrary DPs."""
+    dps_data = {"dps": dps}
+    payload = pad(json.dumps(dps_data).encode("utf-8"), AES.block_size)
+    return RoborockMessage(
+        protocol=RoborockMessageProtocol.RPC_REQUEST,
+        version=B01_VERSION,
+        payload=payload,
+    )
+
+
+def encode_q7_payload(dps: int, command: CommandType, params: ParamsType, msg_id: str) -> RoborockMessage:
+    """Encode payload for Q7 commands over MQTT."""
+    return encode_b01_mqtt_payload(
+        {
             dps: {
                 "method": str(command),
                 "msgId": msg_id,
@@ -34,12 +45,6 @@ def encode_mqtt_payload(dps: int, command: CommandType, params: ParamsType, msg_
                 "params": params if params is not None else [],
             }
         }
-    }
-    payload = pad(json.dumps(dps_data).encode("utf-8"), AES.block_size)
-    return RoborockMessage(
-        protocol=RoborockMessageProtocol.RPC_REQUEST,
-        version=B01_VERSION,
-        payload=payload,
     )
 
 
