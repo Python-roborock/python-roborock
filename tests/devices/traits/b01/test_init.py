@@ -6,7 +6,13 @@ import pytest
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 
-from roborock.data.b01_q7 import WorkStatusMapping
+from roborock.data.b01_q7 import (
+    CleanTaskTypeMapping,
+    SCDeviceCleanParam,
+    SCWindMapping,
+    WaterLevelMapping,
+    WorkStatusMapping,
+)
 from roborock.devices.b01_channel import send_decoded_command
 from roborock.devices.traits.b01.q7 import Q7PropertiesApi
 from roborock.exceptions import RoborockException
@@ -164,3 +170,113 @@ async def test_send_decoded_command_non_dict_response(fake_channel: FakeChannel)
 
         with pytest.raises(RoborockException, match="Unexpected data type for response"):
             await send_decoded_command(fake_channel, 10000, "prop.get", [])  # type: ignore[arg-type]
+
+
+async def test_q7_api_set_fan_speed(q7_api: Q7PropertiesApi, fake_channel: FakeChannel):
+    """Test setting fan speed."""
+    msg_id = "12345"
+    with patch("roborock.devices.b01_channel.get_next_int", return_value=int(msg_id)):
+        fake_channel.response_queue.append(build_b01_message({"result": "ok"}, msg_id=msg_id))
+        await q7_api.set_fan_speed(SCWindMapping.STRONG)
+
+    assert len(fake_channel.published_messages) == 1
+    message = fake_channel.published_messages[0]
+    payload_data = json.loads(unpad(message.payload, AES.block_size))
+    assert payload_data["dps"]["10000"]["method"] == "prop.set"
+    assert payload_data["dps"]["10000"]["params"] == {RoborockB01Props.WIND: SCWindMapping.STRONG.code}
+
+
+async def test_q7_api_set_water_level(q7_api: Q7PropertiesApi, fake_channel: FakeChannel):
+    """Test setting water level."""
+    msg_id = "12346"
+    with patch("roborock.devices.b01_channel.get_next_int", return_value=int(msg_id)):
+        fake_channel.response_queue.append(build_b01_message({"result": "ok"}, msg_id=msg_id))
+        await q7_api.set_water_level(WaterLevelMapping.HIGH)
+
+    assert len(fake_channel.published_messages) == 1
+    message = fake_channel.published_messages[0]
+    payload_data = json.loads(unpad(message.payload, AES.block_size))
+    assert payload_data["dps"]["10000"]["method"] == "prop.set"
+    assert payload_data["dps"]["10000"]["params"] == {RoborockB01Props.WATER: WaterLevelMapping.HIGH.code}
+
+
+async def test_q7_api_start_clean(q7_api: Q7PropertiesApi, fake_channel: FakeChannel):
+    """Test starting cleaning."""
+    msg_id = "12347"
+    with patch("roborock.devices.b01_channel.get_next_int", return_value=int(msg_id)):
+        fake_channel.response_queue.append(build_b01_message({"result": "ok"}, msg_id=msg_id))
+        await q7_api.start_clean()
+
+    assert len(fake_channel.published_messages) == 1
+    message = fake_channel.published_messages[0]
+    payload_data = json.loads(unpad(message.payload, AES.block_size))
+    assert payload_data["dps"]["10000"]["method"] == "service.set_room_clean"
+    assert payload_data["dps"]["10000"]["params"] == {
+        "clean_type": CleanTaskTypeMapping.ALL.code,
+        "ctrl_value": SCDeviceCleanParam.START.code,
+        "room_ids": [],
+    }
+
+
+async def test_q7_api_pause_clean(q7_api: Q7PropertiesApi, fake_channel: FakeChannel):
+    """Test pausing cleaning."""
+    msg_id = "12348"
+    with patch("roborock.devices.b01_channel.get_next_int", return_value=int(msg_id)):
+        fake_channel.response_queue.append(build_b01_message({"result": "ok"}, msg_id=msg_id))
+        await q7_api.pause_clean()
+
+    assert len(fake_channel.published_messages) == 1
+    message = fake_channel.published_messages[0]
+    payload_data = json.loads(unpad(message.payload, AES.block_size))
+    assert payload_data["dps"]["10000"]["method"] == "service.set_room_clean"
+    assert payload_data["dps"]["10000"]["params"] == {
+        "clean_type": CleanTaskTypeMapping.ALL.code,
+        "ctrl_value": SCDeviceCleanParam.PAUSE.code,
+        "room_ids": [],
+    }
+
+
+async def test_q7_api_stop_clean(q7_api: Q7PropertiesApi, fake_channel: FakeChannel):
+    """Test stopping cleaning."""
+    msg_id = "12349"
+    with patch("roborock.devices.b01_channel.get_next_int", return_value=int(msg_id)):
+        fake_channel.response_queue.append(build_b01_message({"result": "ok"}, msg_id=msg_id))
+        await q7_api.stop_clean()
+
+    assert len(fake_channel.published_messages) == 1
+    message = fake_channel.published_messages[0]
+    payload_data = json.loads(unpad(message.payload, AES.block_size))
+    assert payload_data["dps"]["10000"]["method"] == "service.set_room_clean"
+    assert payload_data["dps"]["10000"]["params"] == {
+        "clean_type": CleanTaskTypeMapping.ALL.code,
+        "ctrl_value": SCDeviceCleanParam.STOP.code,
+        "room_ids": [],
+    }
+
+
+async def test_q7_api_return_to_dock(q7_api: Q7PropertiesApi, fake_channel: FakeChannel):
+    """Test returning to dock."""
+    msg_id = "12350"
+    with patch("roborock.devices.b01_channel.get_next_int", return_value=int(msg_id)):
+        fake_channel.response_queue.append(build_b01_message({"result": "ok"}, msg_id=msg_id))
+        await q7_api.return_to_dock()
+
+    assert len(fake_channel.published_messages) == 1
+    message = fake_channel.published_messages[0]
+    payload_data = json.loads(unpad(message.payload, AES.block_size))
+    assert payload_data["dps"]["10000"]["method"] == "service.start_recharge"
+    assert payload_data["dps"]["10000"]["params"] == {}
+
+
+async def test_q7_api_find_me(q7_api: Q7PropertiesApi, fake_channel: FakeChannel):
+    """Test locating the device."""
+    msg_id = "12351"
+    with patch("roborock.devices.b01_channel.get_next_int", return_value=int(msg_id)):
+        fake_channel.response_queue.append(build_b01_message({"result": "ok"}, msg_id=msg_id))
+        await q7_api.find_me()
+
+    assert len(fake_channel.published_messages) == 1
+    message = fake_channel.published_messages[0]
+    payload_data = json.loads(unpad(message.payload, AES.block_size))
+    assert payload_data["dps"]["10000"]["method"] == "service.find_device"
+    assert payload_data["dps"]["10000"]["params"] == {}

@@ -61,6 +61,11 @@ async def send_decoded_command(
             if isinstance(inner, dict) and inner.get("msgId") == msg_id:
                 _LOGGER.debug("Received query response: %s", inner)
                 data = inner.get("data")
+                # All get commands should be dicts
+                if command.endswith(".get") and not isinstance(data, dict):
+                    if not future.done():
+                        future.set_exception(RoborockException("Unexpected data type for response"))
+                    return
                 if not future.done():
                     future.set_result(data)
 
