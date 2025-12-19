@@ -28,13 +28,19 @@ class Q7PropertiesApi(Trait):
         """Initialize the B01Props API."""
         self._channel = channel
 
-    async def query_values(self, props: list[RoborockB01Props]) -> B01Props | None:
-        """Query the device for the values of the given Q7 properties."""
-        result = await send_decoded_command(
+    async def send(self, command: RoborockB01Q7Methods, params: dict) -> Any:
+        return await send_decoded_command(
             self._channel,
             dps=10000,
-            command=RoborockB01Q7Methods.GET_PROP,
-            params={"property": props},
+            command=command,
+            params=params,
+        )
+
+    async def query_values(self, props: list[RoborockB01Props]) -> B01Props | None:
+        """Query the device for the values of the given Q7 properties."""
+        result = await self.send(
+            RoborockB01Q7Methods.GET_PROP,
+            {"property": props},
         )
         if not isinstance(result, dict):
             raise TypeError(f"Unexpected response type for GET_PROP: {type(result).__name__}: {result!r}")
@@ -42,9 +48,7 @@ class Q7PropertiesApi(Trait):
 
     async def set_prop(self, prop: RoborockB01Props, value: Any) -> Any:
         """Set a property on the device."""
-        return await send_decoded_command(
-            self._channel,
-            dps=10000,
+        await self.send(
             command=RoborockB01Q7Methods.SET_PROP,
             params={prop: value},
         )
@@ -59,9 +63,7 @@ class Q7PropertiesApi(Trait):
 
     async def start_clean(self) -> Any:
         """Start cleaning."""
-        return await send_decoded_command(
-            self._channel,
-            dps=10000,
+        return await self.send(
             command=RoborockB01Q7Methods.SET_ROOM_CLEAN,
             params={
                 "clean_type": CleanTaskTypeMapping.ALL.code,
@@ -72,9 +74,7 @@ class Q7PropertiesApi(Trait):
 
     async def pause_clean(self) -> Any:
         """Pause cleaning."""
-        return await send_decoded_command(
-            self._channel,
-            dps=10000,
+        return await self.send(
             command=RoborockB01Q7Methods.SET_ROOM_CLEAN,
             params={
                 "clean_type": CleanTaskTypeMapping.ALL.code,
@@ -85,9 +85,7 @@ class Q7PropertiesApi(Trait):
 
     async def stop_clean(self) -> Any:
         """Stop cleaning."""
-        return await send_decoded_command(
-            self._channel,
-            dps=10000,
+        return await self.send(
             command=RoborockB01Q7Methods.SET_ROOM_CLEAN,
             params={
                 "clean_type": CleanTaskTypeMapping.ALL.code,
@@ -98,18 +96,14 @@ class Q7PropertiesApi(Trait):
 
     async def return_to_dock(self) -> Any:
         """Return to dock."""
-        return await send_decoded_command(
-            self._channel,
-            dps=10000,
+        return await self.send(
             command=RoborockB01Q7Methods.START_RECHARGE,
             params={},
         )
 
     async def find_me(self) -> Any:
         """Locate the robot."""
-        return await send_decoded_command(
-            self._channel,
-            dps=10000,
+        return await self.send(
             command=RoborockB01Q7Methods.FIND_DEVICE,
             params={},
         )
