@@ -276,7 +276,7 @@ class EncryptionAdapter(Construct):
         if context.version == b"A01":
             iv = md5hex(format(context.random, "08x") + A01_HASH)[8:24]
             decipher = AES.new(bytes(context.search("local_key"), "utf-8"), AES.MODE_CBC, bytes(iv, "utf-8"))
-            return decipher.encrypt(pad(obj, AES.block_size))
+            return decipher.encrypt(obj)
         elif context.version == b"B01":
             iv = md5hex(f"{context.random:08x}" + B01_HASH)[9:25]
             decipher = AES.new(bytes(context.search("local_key"), "utf-8"), AES.MODE_CBC, bytes(iv, "utf-8"))
@@ -300,7 +300,7 @@ class EncryptionAdapter(Construct):
         if context.version == b"A01":
             iv = md5hex(format(context.random, "08x") + A01_HASH)[8:24]
             decipher = AES.new(bytes(context.search("local_key"), "utf-8"), AES.MODE_CBC, bytes(iv, "utf-8"))
-            return unpad(decipher.decrypt(obj), AES.block_size)
+            return decipher.decrypt(obj)
         elif context.version == b"B01":
             iv = md5hex(f"{context.random:08x}" + B01_HASH)[9:25]
             decipher = AES.new(bytes(context.search("local_key"), "utf-8"), AES.MODE_CBC, bytes(iv, "utf-8"))
