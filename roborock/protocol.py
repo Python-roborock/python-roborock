@@ -163,12 +163,12 @@ class Utils:
         return digest[:12]
 
     @staticmethod
-    def _l01_aad(timestamp: int, nonce: int, sequence: int, connect_nonce: int, ack_nonce: int) -> bytes:
+    def _l01_aad(timestamp: int, nonce: int, sequence: int, connect_nonce: int, ack_nonce: int | None = None) -> bytes:
         """Derive AAD for L01 protocol."""
         return (
             sequence.to_bytes(4, "big")
             + connect_nonce.to_bytes(4, "big")
-            + ack_nonce.to_bytes(4, "big")
+            + (ack_nonce.to_bytes(4, "big") if ack_nonce is not None else b"")
             + nonce.to_bytes(4, "big")
             + timestamp.to_bytes(4, "big")
         )
@@ -181,7 +181,7 @@ class Utils:
         sequence: int,
         nonce: int,
         connect_nonce: int,
-        ack_nonce: int,
+        ack_nonce: int | None = None,
     ) -> bytes:
         """Encrypt plaintext for L01 protocol using AES-256-GCM."""
         if not isinstance(plaintext, bytes):

@@ -12,6 +12,7 @@ from collections.abc import AsyncGenerator, Callable
 from queue import Queue
 
 import pytest
+import syrupy
 
 from roborock.mqtt.roborock_session import create_mqtt_session
 from roborock.mqtt.session import MqttSession
@@ -19,6 +20,7 @@ from roborock.protocol import MessageParser
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 from tests import mqtt_packet
 from tests.fixtures.mqtt import FAKE_PARAMS, Subscriber
+from tests.fixtures.logging import CapturedRequestLog
 from tests.mock_data import LOCAL_KEY
 
 
@@ -54,7 +56,12 @@ async def session_fixture(
         await session.close()
 
 
-async def test_session_e2e_receive_message(push_mqtt_response: Callable[[bytes], None], session: MqttSession) -> None:
+async def test_session_e2e_receive_message(
+    push_mqtt_response: Callable[[bytes], None],
+    session: MqttSession,
+    log: CapturedRequestLog,
+    snapshot: syrupy.SnapshotAssertion,
+) -> None:
     """Test receiving a real Roborock message through the session."""
     assert session.connected
 
@@ -89,11 +96,15 @@ async def test_session_e2e_receive_message(push_mqtt_response: Callable[[bytes],
     # The payload in parsed_msg should be the decrypted bytes
     assert parsed_msg.payload == b'{"result":"ok"}'
 
+    assert snapshot == log
+
 
 async def test_session_e2e_publish_message(
     push_mqtt_response: Callable[[bytes], None],
     mqtt_received_requests: Queue,
     session: MqttSession,
+    log: CapturedRequestLog,
+    snapshot: syrupy.SnapshotAssertion,
 ) -> None:
     """Test publishing a real Roborock message."""
 
@@ -117,3 +128,5 @@ async def test_session_e2e_publish_message(
             break
 
     assert found, "Published payload not found in sent requests"
+
+    assert snapshot == log

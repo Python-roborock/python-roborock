@@ -69,6 +69,7 @@ class FakeMqttSocketHandler:
             # Enqueue a response to be sent back to the client in the buffer.
             # The buffer will be emptied when the client calls recv() on the socket
             _LOGGER.debug("Queued: 0x%s", response.hex())
+            self.log.add_log_entry("[mqtt <]", response)
             self.response_buf.write(response)
 
 
