@@ -28,14 +28,6 @@ class Q7PropertiesApi(Trait):
         """Initialize the B01Props API."""
         self._channel = channel
 
-    async def send(self, command: RoborockB01Q7Methods, params: dict) -> Any:
-        return await send_decoded_command(
-            self._channel,
-            dps=10000,
-            command=command,
-            params=params,
-        )
-
     async def query_values(self, props: list[RoborockB01Props]) -> B01Props | None:
         """Query the device for the values of the given Q7 properties."""
         result = await self.send(
@@ -106,6 +98,15 @@ class Q7PropertiesApi(Trait):
         return await self.send(
             command=RoborockB01Q7Methods.FIND_DEVICE,
             params={},
+        )
+
+    async def send(self, command: RoborockB01Q7Methods, params: dict) -> Any:
+        """Send a command to the device."""
+        return await send_decoded_command(
+            self._channel,
+            dps=10000,
+            command=command,
+            params=params,
         )
 
 
