@@ -172,6 +172,39 @@ async def test_send_decoded_command_non_dict_response(fake_channel: FakeChannel)
             await send_decoded_command(fake_channel, 10000, "prop.get", [])  # type: ignore[arg-type]
 
 
+async def test_send_decoded_command_error_code(fake_channel: FakeChannel):
+    """Test that non-zero error codes from device are properly handled."""
+    msg_id = "999888777"
+    error_code = 5001
+
+    dps_payload = {
+        "dps": {
+            "10000": json.dumps(
+                {
+                    "msgId": msg_id,
+                    "code": error_code,
+                    "data": {},
+                }
+            )
+        }
+    }
+    message = RoborockMessage(
+        protocol=RoborockMessageProtocol.RPC_RESPONSE,
+        payload=pad(
+            json.dumps(dps_payload).encode(),
+            AES.block_size,
+        ),
+        version=b"B01",
+        seq=2022,
+    )
+
+    fake_channel.response_queue.append(message)
+
+    with patch("roborock.devices.b01_channel.get_next_int", return_value=int(msg_id)):
+        with pytest.raises(RoborockException, match=f"B01 command failed with code {error_code}"):
+            await send_decoded_command(fake_channel, 10000, "prop.get", [])  # type: ignore[arg-type]
+
+
 async def test_q7_api_set_fan_speed(q7_api: Q7PropertiesApi, fake_channel: FakeChannel):
     """Test setting fan speed."""
     msg_id = "12345"
