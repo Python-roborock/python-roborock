@@ -22,12 +22,6 @@ TEST_DEVICE_UID = "test_device_uid"
 TEST_RANDOM = 23
 
 
-@pytest.fixture
-def auto_deterministic_message_fixtures(deterministic_message_fixtures: None) -> None:
-    """Auto-use deterministic message fixtures for all tests in this module."""
-    pass
-
-
 @pytest.fixture(name="mock_create_local_connection")
 def create_local_connection_fixture(
     local_async_request_handler: AsyncLocalRequestHandler, log: CapturedRequestLog
@@ -74,7 +68,7 @@ def build_raw_response(
     connect_nonce: int | None = None,
     ack_nonce: int | None = None,
 ) -> bytes:
-    """Build an encoded RPC response message."""
+    """Build an encoded response message."""
     message = RoborockMessage(
         protocol=protocol,
         random=23,
@@ -183,7 +177,14 @@ async def test_l01_session(
     log: CapturedRequestLog,
     snapshot: syrupy.SnapshotAssertion,
 ) -> None:
-    """Test connecting to a device that speaks the L01 protocol.."""
+    """Test connecting to a device that speaks the L01 protocol.
+    
+    Note that this test currently has a delay because the actual local client
+    will delay before retrying with L01 after a failed 1.0 attempt. This should
+    also be improved in the actual client itself, but likely requires a closer
+    look at the actual device response in that scenario or moving to a serial
+    request/response behavior rather than publish/subscribe.
+    """
     # Client first attempts 1.0 and we reply with a fake invalid response. The
     # response is arbitrary, and this could be improved by capturing a real L01
     # device response to a 1.0 message.
