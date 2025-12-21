@@ -28,11 +28,8 @@ async def send_decoded_command(
     dps: int,
     command: CommandType,
     params: ParamsType,
-) -> Any:
-    """Send a command on the MQTT channel and get a decoded response.
-
-    Note: B01 "set" commands may return a scalar (e.g. 0/"ok") rather than a dict.
-    """
+) -> dict | None:
+    """Send a command on the MQTT channel and get a decoded response."""
     msg_id = str(get_next_int(100000000000, 999999999999))
     _LOGGER.debug(
         "Sending B01 MQTT command: dps=%s method=%s msg_id=%s params=%s",
