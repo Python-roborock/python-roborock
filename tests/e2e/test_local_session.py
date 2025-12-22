@@ -178,7 +178,7 @@ async def test_l01_session(
     snapshot: syrupy.SnapshotAssertion,
 ) -> None:
     """Test connecting to a device that speaks the L01 protocol.
-    
+
     Note that this test currently has a delay because the actual local client
     will delay before retrying with L01 after a failed 1.0 attempt. This should
     also be improved in the actual client itself, but likely requires a closer
