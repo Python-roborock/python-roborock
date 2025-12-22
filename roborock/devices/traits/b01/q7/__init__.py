@@ -38,24 +38,24 @@ class Q7PropertiesApi(Trait):
             raise TypeError(f"Unexpected response type for GET_PROP: {type(result).__name__}: {result!r}")
         return B01Props.from_dict(result)
 
-    async def set_prop(self, prop: RoborockB01Props, value: Any) -> Any:
+    async def set_prop(self, prop: RoborockB01Props, value: Any) -> None:
         """Set a property on the device."""
         await self.send(
             command=RoborockB01Q7Methods.SET_PROP,
             params={prop: value},
         )
 
-    async def set_fan_speed(self, fan_speed: SCWindMapping) -> Any:
+    async def set_fan_speed(self, fan_speed: SCWindMapping) -> None:
         """Set the fan speed (wind)."""
-        return await self.set_prop(RoborockB01Props.WIND, fan_speed.code)
+        await self.set_prop(RoborockB01Props.WIND, fan_speed.code)
 
-    async def set_water_level(self, water_level: WaterLevelMapping) -> Any:
+    async def set_water_level(self, water_level: WaterLevelMapping) -> None:
         """Set the water level (water)."""
-        return await self.set_prop(RoborockB01Props.WATER, water_level.code)
+        await self.set_prop(RoborockB01Props.WATER, water_level.code)
 
-    async def start_clean(self) -> Any:
+    async def start_clean(self) -> None:
         """Start cleaning."""
-        return await self.send(
+        await self.send(
             command=RoborockB01Q7Methods.SET_ROOM_CLEAN,
             params={
                 "clean_type": CleanTaskTypeMapping.ALL.code,
@@ -64,9 +64,9 @@ class Q7PropertiesApi(Trait):
             },
         )
 
-    async def pause_clean(self) -> Any:
+    async def pause_clean(self) -> None:
         """Pause cleaning."""
-        return await self.send(
+        await self.send(
             command=RoborockB01Q7Methods.SET_ROOM_CLEAN,
             params={
                 "clean_type": CleanTaskTypeMapping.ALL.code,
@@ -75,9 +75,9 @@ class Q7PropertiesApi(Trait):
             },
         )
 
-    async def stop_clean(self) -> Any:
+    async def stop_clean(self) -> None:
         """Stop cleaning."""
-        return await self.send(
+        await self.send(
             command=RoborockB01Q7Methods.SET_ROOM_CLEAN,
             params={
                 "clean_type": CleanTaskTypeMapping.ALL.code,
@@ -86,16 +86,16 @@ class Q7PropertiesApi(Trait):
             },
         )
 
-    async def return_to_dock(self) -> Any:
+    async def return_to_dock(self) -> None:
         """Return to dock."""
-        return await self.send(
+        await self.send(
             command=RoborockB01Q7Methods.START_RECHARGE,
             params={},
         )
 
-    async def find_me(self) -> Any:
+    async def find_me(self) -> None:
         """Locate the robot."""
-        return await self.send(
+        await self.send(
             command=RoborockB01Q7Methods.FIND_DEVICE,
             params={},
         )

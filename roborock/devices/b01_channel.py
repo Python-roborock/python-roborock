@@ -28,7 +28,7 @@ async def send_decoded_command(
     dps: int,
     command: CommandType,
     params: ParamsType,
-) -> dict | None:
+) -> dict[str, Any] | None:
     """Send a command on the MQTT channel and get a decoded response."""
     msg_id = str(get_next_int(100000000000, 999999999999))
     _LOGGER.debug(
@@ -104,6 +104,17 @@ async def send_decoded_command(
         raise RoborockException(
             f"B01 command timed out after {_TIMEOUT}s (method={command}, msg_id={msg_id}, dps={dps}, params={params})"
         ) from ex
+    except RoborockException as ex:
+        _LOGGER.warning(
+            "Error sending B01 decoded command (method=%s msg_id=%s dps=%s params=%s): %s",
+            command,
+            msg_id,
+            dps,
+            params,
+            ex,
+        )
+        raise
+
     except Exception as ex:
         _LOGGER.exception(
             "Error sending B01 decoded command (method=%s msg_id=%s dps=%s params=%s): %s",
