@@ -81,6 +81,7 @@ def device_fixture(
             mock_map_rpc_channel,
             web_api_client,
             device_cache=device_cache,
+            region=USER_DATA.region,
         ),
     )
 
