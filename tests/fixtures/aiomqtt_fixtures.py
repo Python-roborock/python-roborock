@@ -16,15 +16,6 @@ from roborock.roborock_message import RoborockMessage
 from .mqtt import FakeMqttSocketHandler, Subscriber
 
 
-FAKE_PARAMS = MqttParams(
-    host="localhost",
-    port=1883,
-    tls=False,
-    username="username",
-    password="password",
-    timeout=10.0,
-)
-
 @pytest.fixture(name="mock_aiomqtt_client")
 async def mock_aiomqtt_client_fixture() -> AsyncGenerator[None, None]:
     """Fixture to patch the MQTT underlying sync client.
