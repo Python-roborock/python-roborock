@@ -10,10 +10,7 @@ from unittest.mock import patch
 import paho.mqtt.client as mqtt
 import pytest
 
-from roborock.mqtt.session import MqttParams
-from roborock.roborock_message import RoborockMessage
-
-from .mqtt import FakeMqttSocketHandler, Subscriber
+from .mqtt import FakeMqttSocketHandler
 
 
 @pytest.fixture(name="mock_aiomqtt_client")
