@@ -25,9 +25,8 @@ FAKE_PARAMS = MqttParams(
     timeout=10.0,
 )
 
-
-@pytest.fixture(name="mock_mqtt_client")
-async def mock_mqtt_client_fixture() -> AsyncGenerator[None, None]:
+@pytest.fixture(name="mock_aiomqtt_client")
+async def mock_aiomqtt_client_fixture() -> AsyncGenerator[None, None]:
     """Fixture to patch the MQTT underlying sync client.
 
     The tests use fake sockets, so this ensures that the async mqtt client does not
