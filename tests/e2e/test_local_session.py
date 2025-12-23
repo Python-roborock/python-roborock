@@ -1,9 +1,7 @@
 """End-to-end tests for LocalChannel using fake sockets."""
 
 import asyncio
-from collections.abc import AsyncGenerator, Generator, Callable
-from unittest.mock import patch, Mock
-from typing import Any
+from collections.abc import AsyncGenerator
 
 import pytest
 import syrupy
@@ -14,7 +12,6 @@ from roborock.protocols.v1_protocol import LocalProtocolVersion
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 from tests.fixtures.logging import CapturedRequestLog
 from tests.fixtures.mqtt import Subscriber
-from tests.fixtures.local_async_fixtures import AsyncLocalRequestHandler
 from tests.mock_data import LOCAL_KEY
 
 TEST_HOST = "192.168.1.100"
@@ -22,39 +19,8 @@ TEST_DEVICE_UID = "test_device_uid"
 TEST_RANDOM = 23
 
 
-@pytest.fixture(name="mock_create_local_connection")
-def create_local_connection_fixture(
-    local_async_request_handler: AsyncLocalRequestHandler, log: CapturedRequestLog
-) -> Generator[None, None, None]:
-    """Fixture that overrides the transport creation to wire it up to the mock socket."""
-
-    async def create_connection(protocol_factory: Callable[[], asyncio.Protocol], *args, **kwargs) -> tuple[Any, Any]:
-        protocol = protocol_factory()
-
-        async def handle_write(data: bytes) -> None:
-            log.add_log_entry("[local >]", data)
-            response = await local_async_request_handler(data)
-            if response is not None:
-                log.add_log_entry("[local <]", response)
-                # Call data_received directly to avoid loop scheduling issues in test
-                protocol.data_received(response)
-
-        closed = asyncio.Event()
-
-        mock_transport = Mock()
-        mock_transport.write = handle_write
-        mock_transport.close = closed.set
-        mock_transport.is_reading = lambda: not closed.is_set()
-
-        return (mock_transport, protocol)
-
-    with patch("roborock.devices.local_channel.asyncio.get_running_loop") as mock_loop:
-        mock_loop.return_value.create_connection.side_effect = create_connection
-        yield
-
-
 @pytest.fixture(name="local_channel")
-async def local_channel_fixture(mock_create_local_connection: None) -> AsyncGenerator[LocalChannel, None]:
+async def local_channel_fixture(mock_async_create_local_connection: None) -> AsyncGenerator[LocalChannel, None]:
     channel = LocalChannel(host=TEST_HOST, local_key=LOCAL_KEY, device_uid=TEST_DEVICE_UID)
     yield channel
     channel.close()
@@ -88,9 +54,7 @@ async def test_connect(
 ) -> None:
     """Test connecting to the device."""
     # Queue HELLO response with payload to ensure it can be parsed
-    local_response_queue.put_nowait(
-        build_raw_response(RoborockMessageProtocol.HELLO_RESPONSE, 1, payload=b"ok")
-    )
+    local_response_queue.put_nowait(build_raw_response(RoborockMessageProtocol.HELLO_RESPONSE, 1, payload=b"ok"))
 
     await local_channel.connect()
 
@@ -120,9 +84,7 @@ async def test_send_command(
 ) -> None:
     """Test sending a command."""
     # Queue HELLO response
-    local_response_queue.put_nowait(
-        build_raw_response(RoborockMessageProtocol.HELLO_RESPONSE, 1, payload=b"ok")
-    )
+    local_response_queue.put_nowait(build_raw_response(RoborockMessageProtocol.HELLO_RESPONSE, 1, payload=b"ok"))
 
     await local_channel.connect()
 
@@ -138,7 +100,9 @@ async def test_send_command(
         payload=b'{"method":"get_status"}',
     )
     # Prepare a fake response to the command.
-    response_queue.put(build_raw_response(RoborockMessageProtocol.RPC_RESPONSE, cmd_seq, payload=b'{"status": "ok"}'))
+    local_response_queue.put_nowait(
+        build_raw_response(RoborockMessageProtocol.RPC_RESPONSE, cmd_seq, payload=b'{"status": "ok"}')
+    )
 
     subscriber = Subscriber()
     unsub = await local_channel.subscribe(subscriber.append)
@@ -208,7 +172,7 @@ async def test_l01_session(
     assert local_channel.is_connected
 
     # Verify 1.0 HELLO request
-    request_bytes = local_received_requests.get()
+    request_bytes = await local_received_requests.get()
     # Protocol is at offset 19 (2 bytes)
     # Prefix(4) + Version(3) + Seq(4) + Random(4) + Timestamp(4) = 19
     assert len(request_bytes) >= 21
@@ -216,7 +180,7 @@ async def test_l01_session(
     assert int.from_bytes(protocol_bytes, "big") == RoborockMessageProtocol.HELLO_REQUEST
 
     # Verify L01 HELLO request
-    request_bytes = local_received_requests.get()
+    request_bytes = await local_received_requests.get()
     # Protocol is at offset 19 (2 bytes)
     # Prefix(4) + Version(3) + Seq(4) + Random(4) + Timestamp(4) = 19
     assert len(request_bytes) >= 21

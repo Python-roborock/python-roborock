@@ -7,6 +7,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from .logging import CapturedRequestLog
+
 _LOGGER = logging.getLogger(__name__)
 
 AsyncLocalRequestHandler = Callable[[bytes], Awaitable[bytes | None]]
@@ -48,6 +50,7 @@ def local_request_handler_fixture(
 @pytest.fixture(name="mock_async_create_local_connection")
 def create_local_connection_fixture(
     local_async_request_handler: AsyncLocalRequestHandler,
+    log: CapturedRequestLog,
 ) -> Generator[None, None, None]:
     """Fixture that overrides the transport creation to wire it up to the mock socket."""
 
@@ -57,9 +60,11 @@ def create_local_connection_fixture(
         protocol = protocol_factory()
 
         async def handle_write(data: bytes) -> None:
+            log.add_log_entry("[local >]", data)
             response = await local_async_request_handler(data)
             if response is not None:
                 # Call data_received directly to avoid loop scheduling issues in test
+                log.add_log_entry("[local <]", response)
                 protocol.data_received(response)
 
         def start_handle_write(data: bytes) -> None:

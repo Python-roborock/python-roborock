@@ -19,8 +19,8 @@ from roborock.mqtt.session import MqttSession
 from roborock.protocol import MessageParser
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 from tests import mqtt_packet
-from tests.fixtures.mqtt import FAKE_PARAMS, Subscriber
 from tests.fixtures.logging import CapturedRequestLog
+from tests.fixtures.mqtt import FAKE_PARAMS, Subscriber
 from tests.mock_data import LOCAL_KEY
 
 
