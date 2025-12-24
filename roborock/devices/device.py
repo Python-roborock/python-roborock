@@ -33,7 +33,9 @@ __all__ = [
 MIN_BACKOFF_INTERVAL = datetime.timedelta(seconds=10)
 MAX_BACKOFF_INTERVAL = datetime.timedelta(minutes=30)
 BACKOFF_MULTIPLIER = 1.5
-START_ATTEMPT_TIMEOUT = datetime.timedelta(seconds=5)
+# Give time for the NETWORK_INFO fetch and V1 hello attempt
+# and potential fallback to L01.
+START_ATTEMPT_TIMEOUT = datetime.timedelta(seconds=15)
 
 
 DeviceReadyCallback = Callable[["RoborockDevice"], None]

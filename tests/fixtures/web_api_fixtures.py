@@ -62,6 +62,11 @@ def mock_rest_fixture(skip_rate_limit: Any) -> aioresponses:
             status=200,
             payload={"api": None, "code": 200, "result": HOME_DATA_RAW, "status": "ok", "success": True},
         )
+        mocked.get(
+            re.compile(r"https://api-.*\.roborock\.com/v3/user/homes*"),
+            status=200,
+            payload={"api": None, "code": 200, "result": HOME_DATA_RAW, "status": "ok", "success": True},
+        )
         mocked.post(
             re.compile(r"https://api-.*\.roborock\.com/nc/prepare"),
             status=200,
