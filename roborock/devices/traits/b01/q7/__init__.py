@@ -10,7 +10,7 @@ from roborock.data.b01_q7.b01_q7_code_mappings import (
     SCWindMapping,
     WaterLevelMapping,
 )
-from roborock.devices.b01_channel import send_decoded_command
+from roborock.devices.b01_channel import CommandType, ParamsType, send_decoded_command
 from roborock.devices.mqtt_channel import MqttChannel
 from roborock.devices.traits import Trait
 from roborock.roborock_message import RoborockB01Props
@@ -100,7 +100,7 @@ class Q7PropertiesApi(Trait):
             params={},
         )
 
-    async def send(self, command: RoborockB01Q7Methods, params: dict) -> Any:
+    async def send(self, command: CommandType, params: ParamsType) -> Any:
         """Send a command to the device."""
         return await send_decoded_command(
             self._channel,
