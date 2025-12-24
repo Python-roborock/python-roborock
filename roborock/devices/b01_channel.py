@@ -12,7 +12,7 @@ from roborock.protocols.b01_protocol import (
     CommandType,
     ParamsType,
     decode_rpc_response,
-    encode_mqtt_payload,
+    encode_q7_payload,
 )
 from roborock.roborock_message import RoborockMessage
 from roborock.util import get_next_int
@@ -31,6 +31,7 @@ async def send_decoded_command(
 ) -> dict[str, Any] | None:
     """Send a command on the MQTT channel and get a decoded response."""
     msg_id = str(get_next_int(100000000000, 999999999999))
+    roborock_message = encode_q7_payload(dps, command, params, msg_id)
     _LOGGER.debug(
         "Sending B01 MQTT command: dps=%s method=%s msg_id=%s params=%s",
         dps,
@@ -38,7 +39,6 @@ async def send_decoded_command(
         msg_id,
         params,
     )
-    roborock_message = encode_mqtt_payload(dps, command, params, msg_id)
     future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
 
     def find_response(response_message: RoborockMessage) -> None:

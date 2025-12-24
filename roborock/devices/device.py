@@ -65,6 +65,7 @@ class RoborockDevice(ABC, TraitsMixin):
         protocol channel. Use `close()` to clean up all connections.
         """
         TraitsMixin.__init__(self, trait)
+        self._trait = trait
         self._duid = device_info.duid
         self._logger = RoborockLoggerAdapter(duid=self._duid, logger=_LOGGER)
         self._name = device_info.name
@@ -215,10 +216,24 @@ class RoborockDevice(ABC, TraitsMixin):
         if self._unsub:
             self._unsub()
             self._unsub = None
+        close_trait = getattr(self._trait, "close", None)
+        if callable(close_trait):
+            try:
+                result = close_trait()
+                if asyncio.iscoroutine(result):
+                    await result
+            except Exception as ex:  # noqa: BLE001
+                self._logger.debug("Error closing trait: %s", ex)
 
     def _on_message(self, message: RoborockMessage) -> None:
         """Handle incoming messages from the device."""
         self._logger.debug("Received message from device: %s", message)
+        on_message = getattr(self._trait, "on_message", None)
+        if callable(on_message):
+            try:
+                on_message(message)
+            except Exception as ex:  # noqa: BLE001
+                self._logger.debug("Error in trait on_message handler: %s", ex)
 
     def diagnostic_data(self) -> dict[str, Any]:
         """Return diagnostics information about the device."""
