@@ -26,6 +26,10 @@ repos:
         rev: v2.2.6
         hooks:
             -   id: codespell
+                exclude: >
+                    (?x)^(
+                        .*\.ambr
+                    )$
     -   repo: https://github.com/charliermarsh/ruff-pre-commit
         rev: v0.13.2
         hooks:
