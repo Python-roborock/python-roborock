@@ -64,11 +64,27 @@ class RoborockModeEnum(StrEnum):
         return member
 
     @classmethod
-    def from_code(cls, code: int):
+    def from_code(cls, code: int) -> RoborockModeEnum:
         for member in cls:
             if member.code == code:
                 return member
         raise ValueError(f"{code} is not a valid code for {cls.__name__}")
+
+    @classmethod
+    def from_value(cls, value: str) -> RoborockModeEnum:
+        """Find enum member by string value (case-insensitive)."""
+        for member in cls:
+            if member.value.lower() == value.lower():
+                return member
+        raise ValueError(f"{value} is not a valid value for {cls.__name__}")
+
+    @classmethod
+    def from_name(cls, name: str) -> RoborockModeEnum:
+        """Find enum member by name (case-insensitive)."""
+        for member in cls:
+            if member.name.lower() == name.lower():
+                return member
+        raise ValueError(f"{name} is not a valid name for {cls.__name__}")
 
     @classmethod
     def keys(cls) -> list[str]:
