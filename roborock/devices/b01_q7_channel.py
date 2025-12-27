@@ -8,7 +8,7 @@ import logging
 from typing import Any
 
 from roborock.exceptions import RoborockException
-from roborock.protocols.b01_protocol import (
+from roborock.protocols.b01_q7_protocol import (
     CommandType,
     ParamsType,
     decode_rpc_response,

@@ -1,4 +1,5 @@
-from collections.abc import Callable
+import asyncio
+from collections.abc import AsyncGenerator, Callable
 from unittest.mock import AsyncMock, MagicMock
 
 from roborock.mqtt.health_manager import HealthManager
@@ -51,3 +52,14 @@ class FakeChannel:
         """Simulate subscribing to messages."""
         self.subscribers.append(callback)
         return lambda: self.subscribers.remove(callback)
+
+    async def subscribe_stream(self) -> AsyncGenerator[RoborockMessage, None]:
+        """Subscribe to the device's response topic and stream messages."""
+        message_queue: asyncio.Queue[RoborockMessage] = asyncio.Queue()
+        unsub = await self.subscribe(message_queue.put_nowait)
+        try:
+            while True:
+                message = await message_queue.get()
+                yield message
+        finally:
+            unsub()
