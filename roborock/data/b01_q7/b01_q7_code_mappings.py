@@ -20,19 +20,19 @@ class WorkStatusMapping(RoborockModeEnum):
 class SCWindMapping(RoborockModeEnum):
     """Maps suction power levels."""
 
-    SILENCE = ("quiet", 0)
-    STANDARD = ("balanced", 1)
-    STRONG = ("turbo", 2)
-    SUPER_STRONG = ("max", 3)
+    SILENCE = ("quiet", 1)
+    STANDARD = ("balanced", 2)
+    STRONG = ("turbo", 3)
+    SUPER_STRONG = ("max", 4)
+    SUPER_STRONG_PLUS = ("max_plus", 5)
 
 
 class WaterLevelMapping(RoborockModeEnum):
     """Maps water flow levels."""
 
-    LOW = ("low", 0)
-    MEDIUM = ("medium", 1)
-    HIGH = ("high", 2)
-
+    LOW = ("low", 1)
+    MEDIUM = ("medium", 2)
+    HIGH = ("high", 3)
 
 class CleanTypeMapping(RoborockModeEnum):
     """Maps the type of cleaning (Vacuum, Mop, or both)."""
