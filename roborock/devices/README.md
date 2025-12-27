@@ -490,7 +490,7 @@ For each V1 command:
 | **RPC Abstraction** | `RpcChannel` with strategies | Helper functions |
 | **Strategy Pattern** | ✅ Multi-strategy (Local → MQTT) | ❌ Direct MQTT only |
 | **Health Manager** | ✅ Tracks local/MQTT health | ❌ Not needed |
-| **Code Location** | `v1_channel.py` | `a01_channel.py`, `b01_channel.py` |
+| **Code Location** | `v1_channel.py` | `a01_channel.py`, `b01_q7_channel.py` |
 
 #### Health Management (V1 Only)
 
@@ -572,7 +572,7 @@ roborock/
 │   ├── local_channel.py       # Local TCP channel implementation
 │   ├── v1_channel.py          # V1 protocol channel with RPC strategies
 │   ├── a01_channel.py         # A01 protocol helpers
-│   ├── b01_channel.py         # B01 protocol helpers
+│   ├── b01_q7_channel.py      # B01 Q7 protocol helpers
 │   └── traits/                # Device-specific command traits
 │       └── v1/                # V1 device traits
 │           ├── __init__.py    # Trait initialization
@@ -585,7 +585,7 @@ roborock/
 ├── protocols/                  # Protocol encoders/decoders
 │   ├── v1_protocol.py         # V1 JSON RPC protocol
 │   ├── a01_protocol.py        # A01 protocol
-│   ├── b01_protocol.py        # B01 protocol
+│   ├── b01_q7_protocol.py     # B01 Q7 protocol
 │   └── ...
 └── data/                       # Data containers and mappings
     ├── containers.py          # Status, HomeData, etc.

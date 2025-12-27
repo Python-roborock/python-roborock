@@ -1,4 +1,7 @@
 import json
+import math
+import time
+from collections.abc import Generator
 from typing import Any
 from unittest.mock import patch
 
@@ -13,35 +16,44 @@ from roborock.data.b01_q7 import (
     WaterLevelMapping,
     WorkStatusMapping,
 )
-from roborock.devices.b01_channel import send_decoded_command
+from roborock.devices.b01_q7_channel import send_decoded_command
 from roborock.devices.traits.b01.q7 import Q7PropertiesApi
 from roborock.exceptions import RoborockException
-from roborock.protocols.b01_protocol import B01_VERSION
+from roborock.protocols.b01_q7_protocol import B01_VERSION, Q7RequestMessage
 from roborock.roborock_message import RoborockB01Props, RoborockMessage, RoborockMessageProtocol
 from tests.fixtures.channel_fixtures import FakeChannel
 
 
-def build_b01_message(message: dict[Any, Any], msg_id: str = "123456789", seq: int = 2020) -> RoborockMessage:
-    """Build an encoded B01 RPC response message."""
-    dps_payload = {
-        "dps": {
-            "10000": json.dumps(
-                {
-                    "msgId": msg_id,
-                    "data": message,
-                }
-            )
+class B01MessageBuilder:
+    """Helper class to build B01 RPC response messages for tests."""
+
+    def __init__(self) -> None:
+        self.msg_id = 123456789
+        self.seq = 2020
+
+    def build(self, data: dict[str, Any] | str, code: int | None = None) -> RoborockMessage:
+        """Build an encoded B01 RPC response message."""
+        message: dict[str, Any] = {
+            "msgId": str(self.msg_id),
+            "data": data,
         }
-    }
-    return RoborockMessage(
-        protocol=RoborockMessageProtocol.RPC_RESPONSE,
-        payload=pad(
-            json.dumps(dps_payload).encode(),
-            AES.block_size,
-        ),
-        version=b"B01",
-        seq=seq,
-    )
+        if code is not None:
+            message["code"] = code
+        return self._build_dps(message)
+
+    def _build_dps(self, message: dict[str, Any] | str) -> RoborockMessage:
+        """Build an encoded B01 RPC response message."""
+        dps_payload = {"dps": {"10000": json.dumps(message)}}
+        self.seq += 1
+        return RoborockMessage(
+            protocol=RoborockMessageProtocol.RPC_RESPONSE,
+            payload=pad(
+                json.dumps(dps_payload).encode(),
+                AES.block_size,
+            ),
+            version=b"B01",
+            seq=self.seq,
+        )
 
 
 @pytest.fixture(name="fake_channel")
@@ -54,10 +66,31 @@ def q7_api_fixture(fake_channel: FakeChannel) -> Q7PropertiesApi:
     return Q7PropertiesApi(fake_channel)  # type: ignore[arg-type]
 
 
-async def test_q7_api_query_values(q7_api: Q7PropertiesApi, fake_channel: FakeChannel):
-    """Test that Q7PropertiesApi correctly converts raw values."""
-    expected_msg_id = "123456789"
+@pytest.fixture(name="expected_msg_id", autouse=True)
+def next_message_id_fixture() -> Generator[int, None, None]:
+    """Fixture to patch get_next_int to return the expected message ID.
 
+    We pick an arbitrary number, but just need it to ensure we can craft a fake
+    response with the message id matched to the outgoing RPC.
+    """
+    expected_msg_id = math.floor(time.time())
+
+    # Patch get_next_int to return our expected msg_id so the channel waits for it
+    with patch("roborock.protocols.b01_q7_protocol.get_next_int", return_value=expected_msg_id):
+        yield expected_msg_id
+
+
+@pytest.fixture(name="message_builder")
+def message_builder_fixture(expected_msg_id: int) -> B01MessageBuilder:
+    builder = B01MessageBuilder()
+    builder.msg_id = expected_msg_id
+    return builder
+
+
+async def test_q7_api_query_values(
+    q7_api: Q7PropertiesApi, fake_channel: FakeChannel, message_builder: B01MessageBuilder
+):
+    """Test that Q7PropertiesApi correctly converts raw values."""
     # We need to construct the expected result based on the mappings
     # status: 1 -> WAITING_FOR_ORDERS
     # wind: 1 -> STANDARD
@@ -67,17 +100,15 @@ async def test_q7_api_query_values(q7_api: Q7PropertiesApi, fake_channel: FakeCh
         "battery": 100,
     }
 
-    # Patch get_next_int to return our expected msg_id so the channel waits for it
-    with patch("roborock.devices.b01_channel.get_next_int", return_value=int(expected_msg_id)):
-        # Queue the response
-        fake_channel.response_queue.append(build_b01_message(response_data, msg_id=expected_msg_id))
+    # Queue the response
+    fake_channel.response_queue.append(message_builder.build(response_data))
 
-        result = await q7_api.query_values(
-            [
-                RoborockB01Props.STATUS,
-                RoborockB01Props.WIND,
-            ]
-        )
+    result = await q7_api.query_values(
+        [
+            RoborockB01Props.STATUS,
+            RoborockB01Props.WIND,
+        ]
+    )
 
     assert result is not None
     assert result.status == WorkStatusMapping.WAITING_FOR_ORDERS
@@ -102,7 +133,7 @@ async def test_q7_api_query_values(q7_api: Q7PropertiesApi, fake_channel: FakeCh
     assert "10000" in payload_data["dps"]
     inner = payload_data["dps"]["10000"]
     assert inner["method"] == "prop.get"
-    assert inner["msgId"] == expected_msg_id
+    assert inner["msgId"] == str(message_builder.msg_id)
     assert inner["params"] == {"property": [RoborockB01Props.STATUS, RoborockB01Props.WIND]}
 
 
@@ -127,90 +158,42 @@ async def test_q7_response_value_mapping(
     expected_status: WorkStatusMapping,
     q7_api: Q7PropertiesApi,
     fake_channel: FakeChannel,
+    message_builder: B01MessageBuilder,
 ):
     """Test Q7PropertiesApi value mapping for different statuses."""
-    msg_id = "987654321"
+    fake_channel.response_queue.append(message_builder.build(response_data))
 
-    with patch("roborock.devices.b01_channel.get_next_int", return_value=int(msg_id)):
-        fake_channel.response_queue.append(build_b01_message(response_data, msg_id=msg_id))
-
-        result = await q7_api.query_values(query)
+    result = await q7_api.query_values(query)
 
     assert result is not None
 
 
-async def test_send_decoded_command_non_dict_response(fake_channel: FakeChannel):
+async def test_send_decoded_command_non_dict_response(fake_channel: FakeChannel, message_builder: B01MessageBuilder):
     """Test validity of handling non-dict responses (should not timeout)."""
-    msg_id = "123456789"
-
-    dps_payload = {
-        "dps": {
-            "10000": json.dumps(
-                {
-                    "msgId": msg_id,
-                    "data": "some_string_error",
-                }
-            )
-        }
-    }
-    message = RoborockMessage(
-        protocol=RoborockMessageProtocol.RPC_RESPONSE,
-        payload=pad(
-            json.dumps(dps_payload).encode(),
-            AES.block_size,
-        ),
-        version=b"B01",
-        seq=2021,
-    )
-
+    message = message_builder.build("some_string_error")
     fake_channel.response_queue.append(message)
 
-    with patch("roborock.devices.b01_channel.get_next_int", return_value=int(msg_id)):
-        # Use a random string for command type to avoid needing import
+    # Use a random string for command type to avoid needing import
 
-        with pytest.raises(RoborockException, match="Unexpected data type for response"):
-            await send_decoded_command(fake_channel, 10000, "prop.get", [])  # type: ignore[arg-type]
+    with pytest.raises(RoborockException, match="Unexpected data type for response"):
+        await send_decoded_command(fake_channel, Q7RequestMessage(dps=10000, command="prop.get", params=[]))  # type: ignore[arg-type]
 
 
-async def test_send_decoded_command_error_code(fake_channel: FakeChannel):
+async def test_send_decoded_command_error_code(fake_channel: FakeChannel, message_builder: B01MessageBuilder):
     """Test that non-zero error codes from device are properly handled."""
-    msg_id = "999888777"
-    error_code = 5001
-
-    dps_payload = {
-        "dps": {
-            "10000": json.dumps(
-                {
-                    "msgId": msg_id,
-                    "code": error_code,
-                    "data": {},
-                }
-            )
-        }
-    }
-    message = RoborockMessage(
-        protocol=RoborockMessageProtocol.RPC_RESPONSE,
-        payload=pad(
-            json.dumps(dps_payload).encode(),
-            AES.block_size,
-        ),
-        version=b"B01",
-        seq=2022,
-    )
-
+    message = message_builder.build({}, code=5001)
     fake_channel.response_queue.append(message)
 
-    with patch("roborock.devices.b01_channel.get_next_int", return_value=int(msg_id)):
-        with pytest.raises(RoborockException, match=f"B01 command failed with code {error_code}"):
-            await send_decoded_command(fake_channel, 10000, "prop.get", [])  # type: ignore[arg-type]
+    with pytest.raises(RoborockException, match="B01 command failed with code 5001"):
+        await send_decoded_command(fake_channel, Q7RequestMessage(dps=10000, command="prop.get", params=[]))  # type: ignore[arg-type]
 
 
-async def test_q7_api_set_fan_speed(q7_api: Q7PropertiesApi, fake_channel: FakeChannel):
+async def test_q7_api_set_fan_speed(
+    q7_api: Q7PropertiesApi, fake_channel: FakeChannel, message_builder: B01MessageBuilder
+):
     """Test setting fan speed."""
-    msg_id = "12345"
-    with patch("roborock.devices.b01_channel.get_next_int", return_value=int(msg_id)):
-        fake_channel.response_queue.append(build_b01_message({"result": "ok"}, msg_id=msg_id))
-        await q7_api.set_fan_speed(SCWindMapping.STRONG)
+    fake_channel.response_queue.append(message_builder.build({"result": "ok"}))
+    await q7_api.set_fan_speed(SCWindMapping.STRONG)
 
     assert len(fake_channel.published_messages) == 1
     message = fake_channel.published_messages[0]
@@ -219,12 +202,12 @@ async def test_q7_api_set_fan_speed(q7_api: Q7PropertiesApi, fake_channel: FakeC
     assert payload_data["dps"]["10000"]["params"] == {RoborockB01Props.WIND: SCWindMapping.STRONG.code}
 
 
-async def test_q7_api_set_water_level(q7_api: Q7PropertiesApi, fake_channel: FakeChannel):
+async def test_q7_api_set_water_level(
+    q7_api: Q7PropertiesApi, fake_channel: FakeChannel, message_builder: B01MessageBuilder
+):
     """Test setting water level."""
-    msg_id = "12346"
-    with patch("roborock.devices.b01_channel.get_next_int", return_value=int(msg_id)):
-        fake_channel.response_queue.append(build_b01_message({"result": "ok"}, msg_id=msg_id))
-        await q7_api.set_water_level(WaterLevelMapping.HIGH)
+    fake_channel.response_queue.append(message_builder.build({"result": "ok"}))
+    await q7_api.set_water_level(WaterLevelMapping.HIGH)
 
     assert len(fake_channel.published_messages) == 1
     message = fake_channel.published_messages[0]
@@ -233,12 +216,12 @@ async def test_q7_api_set_water_level(q7_api: Q7PropertiesApi, fake_channel: Fak
     assert payload_data["dps"]["10000"]["params"] == {RoborockB01Props.WATER: WaterLevelMapping.HIGH.code}
 
 
-async def test_q7_api_start_clean(q7_api: Q7PropertiesApi, fake_channel: FakeChannel):
+async def test_q7_api_start_clean(
+    q7_api: Q7PropertiesApi, fake_channel: FakeChannel, message_builder: B01MessageBuilder
+):
     """Test starting cleaning."""
-    msg_id = "12347"
-    with patch("roborock.devices.b01_channel.get_next_int", return_value=int(msg_id)):
-        fake_channel.response_queue.append(build_b01_message({"result": "ok"}, msg_id=msg_id))
-        await q7_api.start_clean()
+    fake_channel.response_queue.append(message_builder.build({"result": "ok"}))
+    await q7_api.start_clean()
 
     assert len(fake_channel.published_messages) == 1
     message = fake_channel.published_messages[0]
@@ -251,12 +234,12 @@ async def test_q7_api_start_clean(q7_api: Q7PropertiesApi, fake_channel: FakeCha
     }
 
 
-async def test_q7_api_pause_clean(q7_api: Q7PropertiesApi, fake_channel: FakeChannel):
+async def test_q7_api_pause_clean(
+    q7_api: Q7PropertiesApi, fake_channel: FakeChannel, message_builder: B01MessageBuilder
+):
     """Test pausing cleaning."""
-    msg_id = "12348"
-    with patch("roborock.devices.b01_channel.get_next_int", return_value=int(msg_id)):
-        fake_channel.response_queue.append(build_b01_message({"result": "ok"}, msg_id=msg_id))
-        await q7_api.pause_clean()
+    fake_channel.response_queue.append(message_builder.build({"result": "ok"}))
+    await q7_api.pause_clean()
 
     assert len(fake_channel.published_messages) == 1
     message = fake_channel.published_messages[0]
@@ -269,12 +252,12 @@ async def test_q7_api_pause_clean(q7_api: Q7PropertiesApi, fake_channel: FakeCha
     }
 
 
-async def test_q7_api_stop_clean(q7_api: Q7PropertiesApi, fake_channel: FakeChannel):
+async def test_q7_api_stop_clean(
+    q7_api: Q7PropertiesApi, fake_channel: FakeChannel, message_builder: B01MessageBuilder
+):
     """Test stopping cleaning."""
-    msg_id = "12349"
-    with patch("roborock.devices.b01_channel.get_next_int", return_value=int(msg_id)):
-        fake_channel.response_queue.append(build_b01_message({"result": "ok"}, msg_id=msg_id))
-        await q7_api.stop_clean()
+    fake_channel.response_queue.append(message_builder.build({"result": "ok"}))
+    await q7_api.stop_clean()
 
     assert len(fake_channel.published_messages) == 1
     message = fake_channel.published_messages[0]
@@ -287,12 +270,12 @@ async def test_q7_api_stop_clean(q7_api: Q7PropertiesApi, fake_channel: FakeChan
     }
 
 
-async def test_q7_api_return_to_dock(q7_api: Q7PropertiesApi, fake_channel: FakeChannel):
+async def test_q7_api_return_to_dock(
+    q7_api: Q7PropertiesApi, fake_channel: FakeChannel, message_builder: B01MessageBuilder
+):
     """Test returning to dock."""
-    msg_id = "12350"
-    with patch("roborock.devices.b01_channel.get_next_int", return_value=int(msg_id)):
-        fake_channel.response_queue.append(build_b01_message({"result": "ok"}, msg_id=msg_id))
-        await q7_api.return_to_dock()
+    fake_channel.response_queue.append(message_builder.build({"result": "ok"}))
+    await q7_api.return_to_dock()
 
     assert len(fake_channel.published_messages) == 1
     message = fake_channel.published_messages[0]
@@ -301,12 +284,10 @@ async def test_q7_api_return_to_dock(q7_api: Q7PropertiesApi, fake_channel: Fake
     assert payload_data["dps"]["10000"]["params"] == {}
 
 
-async def test_q7_api_find_me(q7_api: Q7PropertiesApi, fake_channel: FakeChannel):
+async def test_q7_api_find_me(q7_api: Q7PropertiesApi, fake_channel: FakeChannel, message_builder: B01MessageBuilder):
     """Test locating the device."""
-    msg_id = "12351"
-    with patch("roborock.devices.b01_channel.get_next_int", return_value=int(msg_id)):
-        fake_channel.response_queue.append(build_b01_message({"result": "ok"}, msg_id=msg_id))
-        await q7_api.find_me()
+    fake_channel.response_queue.append(message_builder.build({"result": "ok"}))
+    await q7_api.find_me()
 
     assert len(fake_channel.published_messages) == 1
     message = fake_channel.published_messages[0]
