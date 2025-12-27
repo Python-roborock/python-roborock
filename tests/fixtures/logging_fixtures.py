@@ -51,12 +51,10 @@ def deterministic_message_fixtures() -> Generator[None, None, None]:
         return result
 
     with (
-        patch("roborock.api.get_next_int", side_effect=get_next_int),
         patch("roborock.devices.local_channel.get_next_int", side_effect=get_next_int),
         patch("roborock.protocols.v1_protocol.get_next_int", side_effect=get_next_int),
         patch("roborock.protocols.v1_protocol.get_timestamp", side_effect=get_timestamp),
         patch("roborock.protocols.v1_protocol.secrets.token_bytes", side_effect=get_token_bytes),
-        patch("roborock.version_1_apis.roborock_local_client_v1.get_next_int", side_effect=get_next_int),
         patch("roborock.roborock_message.get_next_int", side_effect=get_next_int),
         patch("roborock.roborock_message.get_timestamp", side_effect=get_timestamp),
     ):
