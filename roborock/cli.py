@@ -91,7 +91,14 @@ def async_command(func):
         context: RoborockContext = ctx.obj
 
         async def run():
-            return await func(*args, **kwargs)
+            try:
+                await func(*args, **kwargs)
+            except Exception as err:
+                _LOGGER.exception("Uncaught exception in command")
+                click.echo(f"Error: {err}", err=True)
+            finally:
+                if not context.is_session_mode():
+                    await context.cleanup()
 
         if context.is_session_mode():
             # Session mode - run in the persistent loop
