@@ -468,7 +468,7 @@ def test_b01props_deserialization():
     assert isinstance(deserialized, B01Props)
     assert deserialized.fault == B01Fault.F_510
     assert deserialized.status == WorkStatusMapping.SWEEP_MOPING_2
-    assert deserialized.wind == SCWindMapping.SUPER_STRONG
+    assert deserialized.wind == SCWindMapping.STRONG
     assert deserialized.net_status is not None
     assert deserialized.net_status.ip == "192.168.1.102"
 
