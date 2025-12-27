@@ -13,8 +13,7 @@ from roborock.devices.cache import InMemoryCache
 from roborock.devices.device import RoborockDevice
 from roborock.devices.device_manager import UserParams, create_device_manager, create_web_api_wrapper
 from roborock.exceptions import RoborockException
-
-from .. import mock_data
+from tests import mock_data
 
 USER_DATA = UserData.from_dict(mock_data.USER_DATA)
 USER_PARAMS = UserParams(username="test_user", user_data=USER_DATA)

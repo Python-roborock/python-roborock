@@ -13,8 +13,7 @@ from roborock.devices.mqtt_channel import MqttChannel
 from roborock.mqtt.session import MqttParams
 from roborock.protocol import create_mqtt_decoder, create_mqtt_encoder
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
-
-from .. import mock_data
+from tests import mock_data
 
 USER_DATA = UserData.from_dict(mock_data.USER_DATA)
 TEST_MQTT_PARAMS = MqttParams(
