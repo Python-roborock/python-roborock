@@ -93,10 +93,10 @@ async def test_q7_api_query_values(
     """Test that Q7PropertiesApi correctly converts raw values."""
     # We need to construct the expected result based on the mappings
     # status: 1 -> WAITING_FOR_ORDERS
-    # wind: 1 -> STANDARD
+    # wind: 2 -> STANDARD
     response_data = {
         "status": 1,
-        "wind": 1,
+        "wind": 2,
         "battery": 100,
     }
 
@@ -112,10 +112,10 @@ async def test_q7_api_query_values(
 
     assert result is not None
     assert result.status == WorkStatusMapping.WAITING_FOR_ORDERS
-    # wind might be mapped to SCWindMapping.STANDARD (1)
+    # wind might be mapped to SCWindMapping.STANDARD (2)
     # let's verify checking the prop definition in B01Props
     # wind: SCWindMapping | None = None
-    # SCWindMapping.STANDARD is 1 ('balanced')
+    # SCWindMapping.STANDARD is 2 ('balanced')
     from roborock.data.b01_q7 import SCWindMapping
 
     assert result.wind == SCWindMapping.STANDARD
