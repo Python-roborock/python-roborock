@@ -43,6 +43,7 @@ from pyshark.packet.packet import Packet  # type: ignore
 
 from roborock import SHORT_MODEL_TO_ENUM, RoborockCommand
 from roborock.data import DeviceData, RoborockBase, UserData
+from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
 from roborock.device_features import DeviceFeatures
 from roborock.devices.cache import Cache, CacheData
 from roborock.devices.device import RoborockDevice
@@ -91,7 +92,13 @@ def async_command(func):
         context: RoborockContext = ctx.obj
 
         async def run():
-            return await func(*args, **kwargs)
+            try:
+                await func(*args, **kwargs)
+            except Exception:
+                _LOGGER.exception("Uncaught exception in command")
+                click.echo(f"Error: {sys.exc_info()[1]}", err=True)
+            finally:
+                await context.cleanup()
 
         if context.is_session_mode():
             # Session mode - run in the persistent loop
@@ -739,6 +746,16 @@ async def network_info(ctx, device_id: str):
     await _display_v1_trait(context, device_id, lambda v1: v1.network_info)
 
 
+def _parse_b01_q10_command(cmd: str) -> B01_Q10_DP | None:
+    """Parse B01_Q10 command from either enum name or value."""
+    for func in (B01_Q10_DP.from_code, B01_Q10_DP.from_name, B01_Q10_DP.from_value):
+        try:
+            return func(cmd)
+        except ValueError:
+            continue
+    return None
+
+
 @click.command()
 @click.option("--device_id", required=True)
 @click.option("--cmd", required=True)
@@ -749,12 +766,20 @@ async def command(ctx, cmd, device_id, params):
     context: RoborockContext = ctx.obj
     device_manager = await context.get_device_manager()
     device = await device_manager.get_device(device_id)
-    if device.v1_properties is None:
-        raise RoborockException(f"Device {device.name} does not support V1 protocol")
-    command_trait: Trait = device.v1_properties.command
-    result = await command_trait.send(cmd, json.loads(params) if params is not None else None)
-    if result:
-        click.echo(dump_json(result))
+    if device.v1_properties is not None:
+        command_trait: Trait = device.v1_properties.command
+        result = await command_trait.send(cmd, json.loads(params) if params is not None else {})
+        if result:
+            click.echo(dump_json(result))
+    elif device.b01_q10_properties is not None:
+        # Parse B01_Q10_DP from either enum name or the value
+        if (cmd_value := _parse_b01_q10_command(cmd)) is None:
+            raise RoborockException(f"Invalid command {cmd} for B01_Q10 device")
+        await device.b01_q10_properties.send(cmd_value, json.loads(params) if params is not None else {})
+        # Q10 commands don't have a specific time to respond, so wait a bit
+        await asyncio.sleep(5)
+    else:
+        raise RoborockException(f"Device {device.name} does not support sending raw commands")
 
 
 @click.command()

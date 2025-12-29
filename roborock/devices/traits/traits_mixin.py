@@ -34,6 +34,9 @@ class TraitsMixin:
     b01_q7_properties: b01.Q7PropertiesApi | None = None
     """B01 Q7 properties trait, if supported."""
 
+    b01_q10_properties: b01.Q10PropertiesApi | None = None
+    """B01 Q10 properties trait, if supported."""
+
     def __init__(self, trait: Trait) -> None:
         """Initialize the TraitsMixin with the given trait.
 

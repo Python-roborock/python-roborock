@@ -1,7 +1,8 @@
 """Modules for communicating with specific Roborock devices over MQTT."""
 
+import asyncio
 import logging
-from collections.abc import Callable
+from collections.abc import AsyncGenerator, Callable
 
 from roborock.callbacks import decoder_callback
 from roborock.data import HomeDataDevice, RRiot, UserData
@@ -72,6 +73,21 @@ class MqttChannel(Channel):
         """
         dispatch = decoder_callback(self._decoder, callback, _LOGGER)
         return await self._mqtt_session.subscribe(self._subscribe_topic, dispatch)
+
+    async def subscribe_stream(self) -> AsyncGenerator[RoborockMessage, None]:
+        """Subscribe to the device's message stream.
+
+        This is useful for processing all incoming messages in an async for loop,
+        when they are not necessarily associated with a specific request.
+        """
+        message_queue: asyncio.Queue[RoborockMessage] = asyncio.Queue()
+        unsub = await self.subscribe(message_queue.put_nowait)
+        try:
+            while True:
+                message = await message_queue.get()
+                yield message
+        finally:
+            unsub()
 
     async def publish(self, message: RoborockMessage) -> None:
         """Publish a command message.

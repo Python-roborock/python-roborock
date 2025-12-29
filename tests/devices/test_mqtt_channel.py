@@ -269,3 +269,34 @@ async def test_concurrent_subscribers_with_callback_exception(
     # Unsubscribe all remaining subscribers
     unsub1()
     unsub2()
+
+
+async def test_subscribe_stream(mqtt_session: Mock, mqtt_channel: MqttChannel) -> None:
+    """Test multiple concurrent subscribers receive all messages."""
+
+    messages: asyncio.Queue[RoborockMessage] = asyncio.Queue()
+
+    async def task() -> None:
+        async for message in mqtt_channel.subscribe_stream():
+            await messages.put(message)
+
+    subscriber_task = asyncio.create_task(task())
+    await asyncio.sleep(0.01)  # yield
+
+    handler = mqtt_session.subscribe.call_args_list[0][0][1]
+
+    # Simulate receiving messages - each handler should decode the message independently
+    handler(ENCODER(TEST_REQUEST))
+    handler(ENCODER(TEST_REQUEST))
+    handler(ENCODER(TEST_REQUEST))
+
+    async with asyncio.timeout(10):
+        resp = await messages.get()
+        assert resp == TEST_REQUEST
+        resp = await messages.get()
+        assert resp == TEST_REQUEST
+        resp = await messages.get()
+        assert resp == TEST_REQUEST
+        assert messages.empty()
+
+    subscriber_task.cancel()
