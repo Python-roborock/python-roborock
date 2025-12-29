@@ -34,6 +34,7 @@ class WaterLevelMapping(RoborockModeEnum):
     MEDIUM = ("medium", 2)
     HIGH = ("high", 3)
 
+
 class CleanTypeMapping(RoborockModeEnum):
     """Maps the type of cleaning (Vacuum, Mop, or both)."""
 
