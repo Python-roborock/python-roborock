@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from collections import namedtuple
 from enum import Enum, IntEnum, StrEnum
+from typing import Self
 
 _LOGGER = logging.getLogger(__name__)
 completed_warnings = set()
@@ -56,7 +57,7 @@ class RoborockModeEnum(StrEnum):
 
     code: int
 
-    def __new__(cls, value: str, code: int) -> RoborockModeEnum:
+    def __new__(cls, value: str, code: int) -> Self:
         """Creates a new enum member."""
         member = str.__new__(cls, value)
         member._value_ = value
@@ -64,14 +65,14 @@ class RoborockModeEnum(StrEnum):
         return member
 
     @classmethod
-    def from_code(cls, code: int) -> RoborockModeEnum:
+    def from_code(cls, code: int) -> Self:
         for member in cls:
             if member.code == code:
                 return member
         raise ValueError(f"{code} is not a valid code for {cls.__name__}")
 
     @classmethod
-    def from_value(cls, value: str) -> RoborockModeEnum:
+    def from_value(cls, value: str) -> Self:
         """Find enum member by string value (case-insensitive)."""
         for member in cls:
             if member.value.lower() == value.lower():
@@ -79,7 +80,7 @@ class RoborockModeEnum(StrEnum):
         raise ValueError(f"{value} is not a valid value for {cls.__name__}")
 
     @classmethod
-    def from_name(cls, name: str) -> RoborockModeEnum:
+    def from_name(cls, name: str) -> Self:
         """Find enum member by name (case-insensitive)."""
         for member in cls:
             if member.name.lower() == name.lower():
