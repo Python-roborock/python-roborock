@@ -186,6 +186,7 @@ async def create_device_manager(
     session: aiohttp.ClientSession | None = None,
     ready_callback: DeviceReadyCallback | None = None,
     mqtt_session_unauthorized_hook: SessionUnauthorizedHook | None = None,
+    prefer_cache: bool = True,
 ) -> DeviceManager:
     """Convenience function to create and initialize a DeviceManager.
 
@@ -198,6 +199,7 @@ async def create_device_manager(
         mqtt_session_unauthorized_hook: Optional hook for MQTT session unauthorized
           events which may indicate rate limiting or revoked credentials. The
           caller may use this to refresh authentication tokens as needed.
+        prefer_cache: Whether to prefer cached device data over always fetching it from the API.
 
     Returns:
         An initialized DeviceManager with discovered devices.
@@ -259,5 +261,5 @@ async def create_device_manager(
         return dev
 
     manager = DeviceManager(web_api, device_creator, mqtt_session=mqtt_session, cache=cache, diagnostics=diagnostics)
-    await manager.discover_devices()
+    await manager.discover_devices(prefer_cache)
     return manager
