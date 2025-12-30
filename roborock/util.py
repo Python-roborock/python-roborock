@@ -1,89 +1,34 @@
 from __future__ import annotations
 
-import asyncio
-import datetime
 import logging
 import math
 import time
-from asyncio import TimerHandle
-from collections.abc import Callable, Coroutine, MutableMapping
+from collections.abc import MutableMapping
 from typing import Any, TypeVar
 
-from roborock import RoborockException
+from roborock.diagnostics import redact_device_uid
 
 T = TypeVar("T")
-DEFAULT_TIME_ZONE: datetime.tzinfo | None = datetime.datetime.now().astimezone().tzinfo
 
 
 def unpack_list(value: list[T], size: int) -> list[T | None]:
     return (value + [None] * size)[:size]  # type: ignore
 
 
-def parse_datetime_to_roborock_datetime(
-    start_datetime: datetime.datetime, end_datetime: datetime.datetime
-) -> tuple[datetime.datetime, datetime.datetime]:
-    now = datetime.datetime.now(DEFAULT_TIME_ZONE)
-    start_datetime = start_datetime.replace(
-        year=now.year, month=now.month, day=now.day, second=0, microsecond=0, tzinfo=DEFAULT_TIME_ZONE
-    )
-    end_datetime = end_datetime.replace(
-        year=now.year, month=now.month, day=now.day, second=0, microsecond=0, tzinfo=DEFAULT_TIME_ZONE
-    )
-    if start_datetime > end_datetime:
-        end_datetime += datetime.timedelta(days=1)
-    elif end_datetime < now:
-        start_datetime += datetime.timedelta(days=1)
-        end_datetime += datetime.timedelta(days=1)
-
-    return start_datetime, end_datetime
-
-
-def parse_time_to_datetime(
-    start_time: datetime.time, end_time: datetime.time
-) -> tuple[datetime.datetime, datetime.datetime]:
-    """Help to handle time data."""
-    start_datetime = datetime.datetime.now(DEFAULT_TIME_ZONE).replace(
-        hour=start_time.hour, minute=start_time.minute, second=0, microsecond=0
-    )
-    end_datetime = datetime.datetime.now(DEFAULT_TIME_ZONE).replace(
-        hour=end_time.hour, minute=end_time.minute, second=0, microsecond=0
-    )
-
-    return parse_datetime_to_roborock_datetime(start_datetime, end_datetime)
-
-
-class RepeatableTask:
-    def __init__(self, callback: Callable[[], Coroutine], interval: int):
-        self.callback = callback
-        self.interval = interval
-        self._task: TimerHandle | None = None
-
-    async def _run_task(self):
-        response = None
-        try:
-            response = await self.callback()
-        except RoborockException:
-            pass
-        loop = asyncio.get_running_loop()
-        self._task = loop.call_later(self.interval, self._run_task_soon)
-        return response
-
-    def _run_task_soon(self):
-        asyncio.create_task(self._run_task())
-
-    def cancel(self):
-        if self._task:
-            self._task.cancel()
-
-    async def reset(self):
-        self.cancel()
-        return await self._run_task()
-
-
 class RoborockLoggerAdapter(logging.LoggerAdapter):
-    def __init__(self, prefix: str, logger: logging.Logger) -> None:
-        super().__init__(logger, {})
-        self.prefix = prefix
+    def __init__(
+        self,
+        duid: str | None = None,
+        name: str | None = None,
+        logger: logging.Logger | None = None,
+    ) -> None:
+        super().__init__(logger or logging.getLogger(__name__), {})
+        if name is not None:
+            self.prefix = name
+        elif duid is not None:
+            self.prefix = redact_device_uid(duid)
+        else:
+            raise ValueError("Either duid or name must be provided")
 
     def process(self, msg: str, kwargs: MutableMapping[str, Any]) -> tuple[str, MutableMapping[str, Any]]:
         return f"[{self.prefix}] {msg}", kwargs

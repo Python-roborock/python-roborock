@@ -163,12 +163,12 @@ class Utils:
         return digest[:12]
 
     @staticmethod
-    def _l01_aad(timestamp: int, nonce: int, sequence: int, connect_nonce: int, ack_nonce: int) -> bytes:
+    def _l01_aad(timestamp: int, nonce: int, sequence: int, connect_nonce: int, ack_nonce: int | None = None) -> bytes:
         """Derive AAD for L01 protocol."""
         return (
             sequence.to_bytes(4, "big")
             + connect_nonce.to_bytes(4, "big")
-            + ack_nonce.to_bytes(4, "big")
+            + (ack_nonce.to_bytes(4, "big") if ack_nonce is not None else b"")
             + nonce.to_bytes(4, "big")
             + timestamp.to_bytes(4, "big")
         )
@@ -181,7 +181,7 @@ class Utils:
         sequence: int,
         nonce: int,
         connect_nonce: int,
-        ack_nonce: int,
+        ack_nonce: int | None = None,
     ) -> bytes:
         """Encrypt plaintext for L01 protocol using AES-256-GCM."""
         if not isinstance(plaintext, bytes):
@@ -276,7 +276,7 @@ class EncryptionAdapter(Construct):
         if context.version == b"A01":
             iv = md5hex(format(context.random, "08x") + A01_HASH)[8:24]
             decipher = AES.new(bytes(context.search("local_key"), "utf-8"), AES.MODE_CBC, bytes(iv, "utf-8"))
-            return decipher.encrypt(pad(obj, AES.block_size))
+            return decipher.encrypt(obj)
         elif context.version == b"B01":
             iv = md5hex(f"{context.random:08x}" + B01_HASH)[9:25]
             decipher = AES.new(bytes(context.search("local_key"), "utf-8"), AES.MODE_CBC, bytes(iv, "utf-8"))
@@ -300,7 +300,7 @@ class EncryptionAdapter(Construct):
         if context.version == b"A01":
             iv = md5hex(format(context.random, "08x") + A01_HASH)[8:24]
             decipher = AES.new(bytes(context.search("local_key"), "utf-8"), AES.MODE_CBC, bytes(iv, "utf-8"))
-            return unpad(decipher.decrypt(obj), AES.block_size)
+            return decipher.decrypt(obj)
         elif context.version == b"B01":
             iv = md5hex(f"{context.random:08x}" + B01_HASH)[9:25]
             decipher = AES.new(bytes(context.search("local_key"), "utf-8"), AES.MODE_CBC, bytes(iv, "utf-8"))

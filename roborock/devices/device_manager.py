@@ -20,7 +20,7 @@ from roborock.diagnostics import Diagnostics
 from roborock.exceptions import RoborockException
 from roborock.map.map_parser import MapParserConfig
 from roborock.mqtt.roborock_session import create_lazy_mqtt_session
-from roborock.mqtt.session import MqttSession
+from roborock.mqtt.session import MqttSession, SessionUnauthorizedHook
 from roborock.protocol import create_mqtt_params
 from roborock.web_api import RoborockApiClient, UserWebApiClient
 
@@ -49,6 +49,10 @@ class DeviceVersion(enum.StrEnum):
     A01 = "A01"
     B01 = "B01"
     UNKNOWN = "unknown"
+
+
+class UnsupportedDeviceError(RoborockException):
+    """Exception raised when a device is unsupported."""
 
 
 class DeviceManager:
@@ -95,11 +99,19 @@ class DeviceManager:
         # These are connected serially to avoid overwhelming the MQTT broker
         new_devices = {}
         start_tasks = []
+        supported_devices_counter = self._diagnostics.subkey("supported_devices")
+        unsupported_devices_counter = self._diagnostics.subkey("unsupported_devices")
         for duid, (device, product) in device_products.items():
             _LOGGER.debug("[%s] Discovered device %s %s", duid, product.summary_info(), device.summary_info())
             if duid in self._devices:
                 continue
-            new_device = self._device_creator(home_data, device, product)
+            try:
+                new_device = self._device_creator(home_data, device, product)
+            except UnsupportedDeviceError:
+                _LOGGER.info("Skipping unsupported device %s %s", product.summary_info(), device.summary_info())
+                unsupported_devices_counter.increment(device.pv or "unknown")
+                continue
+            supported_devices_counter.increment(device.pv or "unknown")
             start_tasks.append(new_device.start_connect())
             new_devices[duid] = new_device
 
@@ -173,6 +185,8 @@ async def create_device_manager(
     map_parser_config: MapParserConfig | None = None,
     session: aiohttp.ClientSession | None = None,
     ready_callback: DeviceReadyCallback | None = None,
+    mqtt_session_unauthorized_hook: SessionUnauthorizedHook | None = None,
+    prefer_cache: bool = True,
 ) -> DeviceManager:
     """Convenience function to create and initialize a DeviceManager.
 
@@ -182,6 +196,10 @@ async def create_device_manager(
         map_parser_config: Optional configuration for parsing maps.
         session: Optional aiohttp ClientSession to use for HTTP requests.
         ready_callback: Optional callback to be notified when a device is ready.
+        mqtt_session_unauthorized_hook: Optional hook for MQTT session unauthorized
+          events which may indicate rate limiting or revoked credentials. The
+          caller may use this to refresh authentication tokens as needed.
+        prefer_cache: Whether to prefer cached device data over always fetching it from the API.
 
     Returns:
         An initialized DeviceManager with discovered devices.
@@ -196,6 +214,7 @@ async def create_device_manager(
 
     mqtt_params = create_mqtt_params(user_data.rriot)
     mqtt_params.diagnostics = diagnostics.subkey("mqtt_session")
+    mqtt_params.unauthorized_hook = mqtt_session_unauthorized_hook
     mqtt_session = await create_lazy_mqtt_session(mqtt_params)
 
     def device_creator(home_data: HomeData, device: HomeDataDevice, product: HomeDataProduct) -> RoborockDevice:
@@ -224,16 +243,16 @@ async def create_device_manager(
                 channel = create_mqtt_channel(user_data, mqtt_params, mqtt_session, device)
                 model_part = product.model.split(".")[-1]
                 if "ss" in model_part:
-                    raise NotImplementedError(
-                        f"Device {device.name} has unsupported version B01_{product.model.strip('.')[-1]}"
-                    )
+                    trait = b01.q10.create(channel)
                 elif "sc" in model_part:
                     # Q7 devices start with 'sc' in their model naming.
                     trait = b01.q7.create(channel)
                 else:
-                    raise NotImplementedError(f"Device {device.name} has unsupported B01 model: {product.model}")
+                    raise UnsupportedDeviceError(f"Device {device.name} has unsupported B01 model: {product.model}")
             case _:
-                raise NotImplementedError(f"Device {device.name} has unsupported version {device.pv}")
+                raise UnsupportedDeviceError(
+                    f"Device {device.name} has unsupported version {device.pv} {product.model}"
+                )
 
         dev = RoborockDevice(device, product, channel, trait)
         if ready_callback:
@@ -241,5 +260,5 @@ async def create_device_manager(
         return dev
 
     manager = DeviceManager(web_api, device_creator, mqtt_session=mqtt_session, cache=cache, diagnostics=diagnostics)
-    await manager.discover_devices()
+    await manager.discover_devices(prefer_cache)
     return manager

@@ -27,7 +27,7 @@ class MqttChannel(Channel):
     def __init__(self, mqtt_session: MqttSession, duid: str, local_key: str, rriot: RRiot, mqtt_params: MqttParams):
         self._mqtt_session = mqtt_session
         self._duid = duid
-        self._logger = RoborockLoggerAdapter(duid, _LOGGER)
+        self._logger = RoborockLoggerAdapter(duid=duid, logger=_LOGGER)
         self._local_key = local_key
         self._rriot = rriot
         self._mqtt_params = mqtt_params
@@ -87,7 +87,7 @@ class MqttChannel(Channel):
         try:
             return await self._mqtt_session.publish(self._publish_topic, encoded_msg)
         except MqttSessionException as e:
-            self._logger.exception("Error publishing MQTT message: %s", e)
+            self._logger.debug("Error publishing MQTT message: %s", e)
             raise RoborockException(f"Failed to publish MQTT message: {e}") from e
 
     async def restart(self) -> None:

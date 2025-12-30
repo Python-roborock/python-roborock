@@ -10,14 +10,11 @@ from Crypto.Util.Padding import unpad
 from freezegun import freeze_time
 from syrupy import SnapshotAssertion
 
-from roborock.protocols.b01_protocol import (
-    decode_rpc_response,
-    encode_mqtt_payload,
-)
+from roborock.protocols.b01_q7_protocol import Q7RequestMessage, decode_rpc_response, encode_mqtt_payload
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 
-TESTDATA_PATH = pathlib.Path("tests/protocols/testdata/b01_protocol")
-TESTDATA_FILES = list(TESTDATA_PATH.glob("**/*.json"))
+TESTDATA_PATH = pathlib.Path("tests/protocols/testdata/b01_q7_protocol")
+TESTDATA_FILES = list(TESTDATA_PATH.glob("*.json"))
 TESTDATA_IDS = [x.stem for x in TESTDATA_FILES]
 
 
@@ -54,14 +51,14 @@ def test_decode_rpc_payload(filename: str, snapshot: SnapshotAssertion) -> None:
             10000,
             "prop.get",
             {"property": ["status", "fault"]},
-            "123456789",
+            123456789,
         ),
     ],
 )
-def test_encode_mqtt_payload(dps: int, command: str, params: dict[str, list[str]], msg_id: str) -> None:
+def test_encode_mqtt_payload(dps: int, command: str, params: dict[str, list[str]], msg_id: int) -> None:
     """Test encoding of MQTT payload for B01 commands."""
 
-    message = encode_mqtt_payload(dps, command, params, msg_id)
+    message = encode_mqtt_payload(Q7RequestMessage(dps, command, params, msg_id))
     assert isinstance(message, RoborockMessage)
     assert message.protocol == RoborockMessageProtocol.RPC_REQUEST
     assert message.version == b"B01"
@@ -70,5 +67,5 @@ def test_encode_mqtt_payload(dps: int, command: str, params: dict[str, list[str]
     decoded_json = json.loads(unpadded.decode("utf-8"))
 
     assert decoded_json["dps"][str(dps)]["method"] == command
-    assert decoded_json["dps"][str(dps)]["msgId"] == msg_id
+    assert decoded_json["dps"][str(dps)]["msgId"] == str(msg_id)
     assert decoded_json["dps"][str(dps)]["params"] == params

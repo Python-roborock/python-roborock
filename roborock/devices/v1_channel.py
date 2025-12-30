@@ -178,7 +178,7 @@ class V1Channel(Channel):
     ) -> None:
         """Initialize the V1Channel."""
         self._device_uid = device_uid
-        self._logger = RoborockLoggerAdapter(device_uid, _LOGGER)
+        self._logger = RoborockLoggerAdapter(duid=device_uid, logger=_LOGGER)
         self._security_data = security_data
         self._mqtt_channel = mqtt_channel
         self._local_session = local_session

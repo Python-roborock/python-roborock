@@ -11,8 +11,7 @@ from roborock.roborock_message import (
     RoborockMessage,
     RoborockMessageProtocol,
 )
-
-from ..conftest import FakeChannel
+from tests.fixtures.channel_fixtures import FakeChannel
 
 
 @pytest.fixture

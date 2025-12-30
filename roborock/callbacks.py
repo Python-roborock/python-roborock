@@ -121,7 +121,7 @@ def decoder_callback(
 
     def wrapper(data: K) -> None:
         if not (messages := decoder(data)):
-            logger.warning("Failed to decode message: %s", data)
+            logger.debug("Failed to decode message: %s", data)
             return
         for message in messages:
             logger.debug("Decoded message: %s", message)

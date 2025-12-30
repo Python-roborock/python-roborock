@@ -13,8 +13,7 @@ from roborock.devices.mqtt_channel import MqttChannel
 from roborock.mqtt.session import MqttParams
 from roborock.protocol import create_mqtt_decoder, create_mqtt_encoder
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
-
-from .. import mock_data
+from tests import mock_data
 
 USER_DATA = UserData.from_dict(mock_data.USER_DATA)
 TEST_MQTT_PARAMS = MqttParams(
@@ -159,9 +158,7 @@ async def test_message_decode_error(
         mqtt_message_handler(b"invalid_payload")
         await asyncio.sleep(0.01)  # yield
 
-    warning_records = caplog.records
-    assert len(warning_records) == 1
-    assert "Failed to decode message" in warning_records[0].message
+    assert callback.call_count == 0
     unsub()
 
 

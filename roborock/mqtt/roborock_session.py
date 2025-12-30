@@ -18,7 +18,7 @@ import aiomqtt
 from aiomqtt import MqttCodeError, MqttError, TLSParameters
 
 from roborock.callbacks import CallbackMap
-from roborock.diagnostics import Diagnostics
+from roborock.diagnostics import Diagnostics, redact_topic_name
 
 from .health_manager import HealthManager
 from .session import MqttParams, MqttSession, MqttSessionException, MqttSessionUnauthorized
@@ -31,7 +31,7 @@ TOPIC_KEEPALIVE = datetime.timedelta(seconds=60)
 
 # Exponential backoff parameters
 MIN_BACKOFF_INTERVAL = datetime.timedelta(seconds=10)
-MAX_BACKOFF_INTERVAL = datetime.timedelta(minutes=30)
+MAX_BACKOFF_INTERVAL = datetime.timedelta(hours=6)
 BACKOFF_MULTIPLIER = 1.5
 
 
@@ -79,6 +79,7 @@ class RoborockMqttSession(MqttSession):
         self._idle_timers: dict[str, asyncio.Task[None]] = {}
         self._diagnostics = params.diagnostics
         self._health_manager = HealthManager(self.restart)
+        self._unauthorized_hook = params.unauthorized_hook
 
     @property
     def connected(self) -> bool:
@@ -199,7 +200,20 @@ class RoborockMqttSession(MqttSession):
                         _LOGGER.debug("Received message: %s", message)
                         with self._diagnostics.timer("dispatch_message"):
                             self._listeners(message.topic.value, message.payload)
+        except MqttCodeError as err:
+            self._diagnostics.increment(f"connect_failure:{err.rc}")
+            if start_future and not start_future.done():
+                _LOGGER.debug("MQTT error starting session: %s", err)
+                start_future.set_exception(err)
+            else:
+                _LOGGER.debug("MQTT error: %s", err)
+            if err.rc == MqttReasonCode.RC_ERROR_UNAUTHORIZED and self._unauthorized_hook:
+                _LOGGER.info("MQTT unauthorized/rate-limit error received, setting backoff to maximum")
+                self._unauthorized_hook()
+                self._backoff = MAX_BACKOFF_INTERVAL
+            raise
         except MqttError as err:
+            self._diagnostics.increment("connect_failure:unknown")
             if start_future and not start_future.done():
                 _LOGGER.info("MQTT error starting session: %s", err)
                 start_future.set_exception(err)
@@ -207,6 +221,7 @@ class RoborockMqttSession(MqttSession):
                 _LOGGER.info("MQTT error: %s", err)
             raise
         except Exception as err:
+            self._diagnostics.increment("connect_failure:uncaught")
             # This error is thrown when the MQTT loop is cancelled
             # and the generator is not stopped.
             if "generator didn't stop" in str(err) or "generator didn't yield" in str(err):
@@ -241,7 +256,7 @@ class RoborockMqttSession(MqttSession):
                     self._client = client
                     for topic in self._client_subscribed_topics:
                         self._diagnostics.increment("resubscribe")
-                        _LOGGER.debug("Re-establishing subscription to topic %s", topic)
+                        _LOGGER.debug("Re-establishing subscription to topic %s", redact_topic_name(topic))
                         # TODO: If this fails it will break the whole connection. Make
                         # this retry again in the background with backoff.
                         await client.subscribe(topic)
@@ -261,13 +276,13 @@ class RoborockMqttSession(MqttSession):
         unsubscription for the idle timeout period. If a new subscription comes in during the
         timeout, the timer is cancelled and the subscription is reused.
         """
-        _LOGGER.debug("Subscribing to topic %s", topic)
+        _LOGGER.debug("Subscribing to topic %s", redact_topic_name(topic))
 
         # If there is an idle timer for this topic, cancel it (reuse subscription)
         if idle_timer := self._idle_timers.pop(topic, None):
             self._diagnostics.increment("unsubscribe_idle_cancel")
             idle_timer.cancel()
-            _LOGGER.debug("Cancelled idle timer for topic %s (reused subscription)", topic)
+            _LOGGER.debug("Cancelled idle timer for topic %s (reused subscription)", redact_topic_name(topic))
 
         unsub = self._listeners.add_callback(topic, callback)
 

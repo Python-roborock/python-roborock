@@ -10,6 +10,8 @@ from roborock.mqtt.health_manager import HealthManager
 
 DEFAULT_TIMEOUT = 30.0
 
+SessionUnauthorizedHook = Callable[[], None]
+
 
 @dataclass
 class MqttParams:
@@ -39,6 +41,14 @@ class MqttParams:
     This defaults to a new Diagnostics object, but the common case is the
     caller will provide their own (e.g., from a DeviceManager) so that the
     shared MQTT session diagnostics are included in the overall diagnostics.
+    """
+
+    unauthorized_hook: SessionUnauthorizedHook | None = None
+    """Optional hook invoked when an unauthorized error is received.
+
+    This may be invoked by the background reconnect logic when an
+    unauthorized error is received from the broker. The caller may use
+    this hook to refresh credentials or take other actions as needed.
     """
 
 

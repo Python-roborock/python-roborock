@@ -1,0 +1,91 @@
+# serializer version: 1
+# name: test_decode_rpc_payload[dpBattery]
+  '''
+  {
+    "dpBattery": 100
+  }
+  '''
+# ---
+# name: test_decode_rpc_payload[dpRequetdps]
+  '''
+  {
+    "dpStatus": 8,
+    "dpBattery": 100,
+    "dpfunLevel": 2,
+    "dpWaterLevel": 1,
+    "dpMainBrushLife": 0,
+    "dpSideBrushLife": 0,
+    "dpFilterLife": 0,
+    "dpCleanCount": 1,
+    "dpCleanMode": 1,
+    "dpCleanTaskType": 0,
+    "dpBackType": 5,
+    "dpBreakpointClean": 0,
+    "dpValleyPointCharging": false,
+    "dpRobotCountryCode": "us",
+    "dpUserPlan": 0,
+    "dpNotDisturb": 1,
+    "dpVolume": 74,
+    "dpTotalCleanArea": 0,
+    "dpTotalCleanCount": 0,
+    "dpTotalCleanTime": 0,
+    "dpDustSwitch": 1,
+    "dpMopState": 1,
+    "dpAutoBoost": 0,
+    "dpChildLock": 0,
+    "dpDustSetting": 0,
+    "dpMapSaveSwitch": true,
+    "dpRecendCleanRecord": false,
+    "dpCleanTime": 0,
+    "dpMultiMapSwitch": 1,
+    "dpSensorLife": 0,
+    "dpCleanArea": 0,
+    "dpCarpetCleanType": 0,
+    "dpCleanLine": 0,
+    "dpTimeZone": {
+      "timeZoneCity": "America/Los_Angeles",
+      "timeZoneSec": -28800
+    },
+    "dpAreaUnit": 0,
+    "dpNetInfo": {
+      "ipAdress": "1.1.1.2",
+      "mac": "99:AA:88:BB:77:CC",
+      "signal": -50,
+      "wifiName": "wifi-network-name"
+    },
+    "dpRobotType": 1,
+    "dpLineLaserObstacleAvoidance": 1,
+    "dpCleanProgess": 100,
+    "dpGroundClean": 0,
+    "dpFault": 0,
+    "dpNotDisturbExpand": {
+      "disturb_dust_enable": 1,
+      "disturb_light": 1,
+      "disturb_resume_clean": 1,
+      "disturb_voice": 1
+    },
+    "dpTimerType": 1,
+    "dpAddCleanState": 0
+  }
+  '''
+# ---
+# name: test_decode_rpc_payload[dpStatus-dpCleanTaskType]
+  '''
+  {
+    "dpStatus": 8,
+    "dpCleanTaskType": 0
+  }
+  '''
+# ---
+# name: test_encode_mqtt_payload[dpRequetdps-None]
+  b'{"dps": {"102": {}}}'
+# ---
+# name: test_encode_mqtt_payload[dpRequetdps-params0]
+  b'{"dps": {"102": {}}}'
+# ---
+# name: test_encode_mqtt_payload[dpStartClean-params2]
+  b'{"dps": {"201": {"cmd": 1}}}'
+# ---
+# name: test_encode_mqtt_payload[dpWaterLevel-2]
+  b'{"dps": {"124": 2}}'
+# ---

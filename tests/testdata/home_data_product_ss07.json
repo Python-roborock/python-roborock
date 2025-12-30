@@ -1,0 +1,210 @@
+
+{
+    "id": "product-id-q10-ss07",
+    "name": "Roborock Q10 Series",
+    "model": "roborock.vacuum.ss07",
+    "category": "robot.vacuum.cleaner",
+    "capability": 0,
+    "schema": [
+        {
+            "id": 101,
+            "name": "RPC Request",
+            "code": "rpc_request",
+            "mode": "rw",
+            "type": "RAW",
+            "property": "null"
+        },
+        {
+            "id": 102,
+            "name": "RPC Response",
+            "code": "rpc_response",
+            "mode": "rw",
+            "type": "RAW",
+            "property": "null"
+        },
+        {
+            "id": 120,
+            "name": "\u9519\u8bef\u4ee3\u7801",
+            "code": "error_code",
+            "mode": "ro",
+            "type": "ENUM",
+            "property": "{\"range\": []}"
+        },
+        {
+            "id": 121,
+            "name": "\u8bbe\u5907\u72b6\u6001",
+            "code": "state",
+            "mode": "ro",
+            "type": "VALUE",
+            "property": "null"
+        },
+        {
+            "id": 122,
+            "name": "\u8bbe\u5907\u7535\u91cf",
+            "code": "battery",
+            "mode": "ro",
+            "type": "ENUM",
+            "property": "{\"range\": []}"
+        },
+        {
+            "id": 123,
+            "name": "\u5438\u529b\u6863\u4f4d",
+            "code": "fan_power",
+            "mode": "rw",
+            "type": "ENUM",
+            "property": "{\"range\": []}"
+        },
+        {
+            "id": 124,
+            "name": "\u62d6\u5730\u6863\u4f4d",
+            "code": "water_box_mode",
+            "mode": "rw",
+            "type": "RAW",
+            "property": "null"
+        },
+        {
+            "id": 125,
+            "name": "\u4e3b\u5237\u5bff\u547d",
+            "code": "main_brush_life",
+            "mode": "ro",
+            "type": "ENUM",
+            "property": "{\"range\": []}"
+        },
+        {
+            "id": 126,
+            "name": "\u8fb9\u5237\u5bff\u547d",
+            "code": "side_brush_life",
+            "mode": "ro",
+            "type": "ENUM",
+            "property": "{\"range\": []}"
+        },
+        {
+            "id": 127,
+            "name": "\u6ee4\u7f51\u5bff\u547d",
+            "code": "filter_life",
+            "mode": "ro",
+            "type": "ENUM",
+            "property": "{\"range\": []}"
+        },
+        {
+            "id": 135,
+            "name": "\u79bb\u7ebf\u539f\u56e0",
+            "code": "offline_status",
+            "mode": "ro",
+            "type": "ENUM",
+            "property": "{\"range\": []}"
+        },
+        {
+            "id": 136,
+            "name": "\u6e05\u6d01\u6b21\u6570",
+            "code": "clean_times",
+            "mode": "rw",
+            "type": "ENUM",
+            "property": "{\"range\": []}"
+        },
+        {
+            "id": 137,
+            "name": "\u626b\u62d6\u6a21\u5f0f",
+            "code": "cleaning_preference",
+            "mode": "rw",
+            "type": "ENUM",
+            "property": "{\"range\": []}"
+        },
+        {
+            "id": 138,
+            "name": "\u6e05\u6d01\u4efb\u52a1\u7c7b\u578b",
+            "code": "clean_task_type",
+            "mode": "ro",
+            "type": "ENUM",
+            "property": "{\"range\": []}"
+        },
+        {
+            "id": 139,
+            "name": "\u8fd4\u56de\u57fa\u7ad9\u7c7b\u578b",
+            "code": "back_type",
+            "mode": "ro",
+            "type": "ENUM",
+            "property": "{\"range\": []}"
+        },
+        {
+            "id": 140,
+            "name": "\u57fa\u7ad9\u4efb\u52a1\u7c7b\u578b",
+            "code": "dock_task_type",
+            "mode": "ro",
+            "type": "ENUM",
+            "property": "{\"range\": []}"
+        },
+        {
+            "id": 141,
+            "name": "\u6e05\u6d01\u8fdb\u5ea6",
+            "code": "cleaning_progress",
+            "mode": "ro",
+            "type": "ENUM",
+            "property": "{\"range\": []}"
+        },
+        {
+            "id": 142,
+            "name": "\u7a9c\u8d27\u4fe1\u606f",
+            "code": "fc_state",
+            "mode": "ro",
+            "type": "RAW",
+            "property": "null"
+        },
+        {
+            "id": 201,
+            "name": "\u542f\u52a8\u6e05\u6d01\u4efb\u52a1",
+            "code": "start_clean_task",
+            "mode": "wo",
+            "type": "ENUM",
+            "property": "{\"range\": []}"
+        },
+        {
+            "id": 202,
+            "name": "\u8fd4\u56de\u57fa\u7ad9\u4efb\u52a1",
+            "code": "start_back_dock_task",
+            "mode": "wo",
+            "type": "ENUM",
+            "property": "{\"range\": []}"
+        },
+        {
+            "id": 203,
+            "name": "\u542f\u52a8\u57fa\u7ad9\u4efb\u52a1",
+            "code": "start_dock_task",
+            "mode": "wo",
+            "type": "ENUM",
+            "property": "{\"range\": []}"
+        },
+        {
+            "id": 204,
+            "name": "\u6682\u505c\u4efb\u52a1",
+            "code": "pause",
+            "mode": "wo",
+            "type": "RAW",
+            "property": "null"
+        },
+        {
+            "id": 205,
+            "name": "\u7ee7\u7eed\u4efb\u52a1",
+            "code": "resume",
+            "mode": "wo",
+            "type": "RAW",
+            "property": "null"
+        },
+        {
+            "id": 206,
+            "name": "\u7ed3\u675f\u4efb\u52a1",
+            "code": "stop",
+            "mode": "wo",
+            "type": "RAW",
+            "property": "null"
+        },
+        {
+            "id": 207,
+            "name": "\u7528\u6237\u6539\u5584\u8ba1\u5212",
+            "code": "ceip",
+            "mode": "rw",
+            "type": "ENUM",
+            "property": "{\"range\": [\"0,1\"]}"
+        }
+    ]
+}

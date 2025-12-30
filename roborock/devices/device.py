@@ -8,11 +8,12 @@ import asyncio
 import datetime
 import logging
 from abc import ABC
-from collections.abc import Callable, Mapping
-from typing import Any, TypeVar, cast
+from collections.abc import Callable
+from typing import Any
 
 from roborock.callbacks import CallbackList
 from roborock.data import HomeDataDevice, HomeDataProduct
+from roborock.diagnostics import redact_device_data
 from roborock.exceptions import RoborockException
 from roborock.roborock_message import RoborockMessage
 from roborock.util import RoborockLoggerAdapter
@@ -32,7 +33,9 @@ __all__ = [
 MIN_BACKOFF_INTERVAL = datetime.timedelta(seconds=10)
 MAX_BACKOFF_INTERVAL = datetime.timedelta(minutes=30)
 BACKOFF_MULTIPLIER = 1.5
-START_ATTEMPT_TIMEOUT = datetime.timedelta(seconds=5)
+# Give time for the NETWORK_INFO fetch and V1 hello attempt
+# and potential fallback to L01.
+START_ATTEMPT_TIMEOUT = datetime.timedelta(seconds=15)
 
 
 DeviceReadyCallback = Callable[["RoborockDevice"], None]
@@ -65,7 +68,7 @@ class RoborockDevice(ABC, TraitsMixin):
         """
         TraitsMixin.__init__(self, trait)
         self._duid = device_info.duid
-        self._logger = RoborockLoggerAdapter(self._duid, _LOGGER)
+        self._logger = RoborockLoggerAdapter(duid=self._duid, logger=_LOGGER)
         self._name = device_info.name
         self._device_info = device_info
         self._product = product
@@ -223,52 +226,9 @@ class RoborockDevice(ABC, TraitsMixin):
         """Return diagnostics information about the device."""
         extra: dict[str, Any] = {}
         if self.v1_properties:
-            extra["traits"] = _redact_data(self.v1_properties.as_dict())
+            extra["traits"] = redact_device_data(self.v1_properties.as_dict())
         return {
-            "device": _redact_data(self.device_info.as_dict()),
-            "product": _redact_data(self.product.as_dict()),
+            "device": redact_device_data(self.device_info.as_dict()),
+            "product": redact_device_data(self.product.as_dict()),
             **extra,
         }
-
-
-T = TypeVar("T")
-
-REDACT_KEYS = {
-    # Potential identifiers
-    "duid",
-    "localKey",
-    "mac",
-    "bssid",
-    "sn",
-    "ip",
-    "u",
-    "s",
-    "h",
-    "k",
-    # Large binary blobs are entirely omitted
-    "imageContent",
-    "mapData",
-    "rawApiResponse",
-}
-REDACTED = "**REDACTED**"
-
-
-def _redact_data(data: T) -> T | dict[str, Any]:
-    """Redact sensitive data in a dict."""
-    if not isinstance(data, (Mapping, list)):
-        return data
-
-    if isinstance(data, list):
-        return cast(T, [_redact_data(item) for item in data])
-
-    redacted = {**data}
-
-    for key, value in redacted.items():
-        if key in REDACT_KEYS:
-            redacted[key] = REDACTED
-        elif isinstance(value, dict):
-            redacted[key] = _redact_data(value)
-        elif isinstance(value, list):
-            redacted[key] = [_redact_data(item) for item in value]
-
-    return redacted

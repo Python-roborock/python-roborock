@@ -1,11 +1,23 @@
 import re
+from typing import Any
 
 import aiohttp
+import pytest
 from aioresponses.compat import normalize_url
 
 from roborock import HomeData, HomeDataScene, UserData
 from roborock.web_api import IotLoginInfo, RoborockApiClient
 from tests.mock_data import HOME_DATA_RAW, USER_DATA
+
+pytest_plugins = [
+    "tests.fixtures.web_api_fixtures",
+]
+
+
+@pytest.fixture(autouse=True)
+def auto_mock_rest_fixture(mock_rest: Any) -> None:
+    """Auto use the mock rest fixture for all tests in this module."""
+    pass
 
 
 async def test_pass_login_flow() -> None:

@@ -25,9 +25,8 @@ from roborock.protocol import (
 from roborock.protocols.v1_protocol import MapResponse, SecurityData, V1RpcChannel
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 from roborock.roborock_typing import RoborockCommand
-
-from .. import mock_data
-from ..conftest import FakeChannel
+from tests import mock_data
+from tests.fixtures.channel_fixtures import FakeChannel
 
 USER_DATA = UserData.from_dict(mock_data.USER_DATA)
 TEST_DEVICE_UID = "abc123"
