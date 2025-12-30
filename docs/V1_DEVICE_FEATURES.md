@@ -1432,4 +1432,3 @@ These features are determined by hardware capabilities and product variant.
 **Feature:** Customized Clean Settings
 **Description:** Advanced customization for mop-equipped models.
 **Impact:** Detailed control over mopping parameters.
-
