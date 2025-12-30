@@ -2,8 +2,6 @@
 
 This document provides comprehensive documentation for each `DeviceFeature` in the python-roborock library, explaining what each feature supports in the Roborock app and vacuum functionality.
 
-**Source:** Reverse engineered from `hermes/com.roborock.tanos` decompiled Android app code.
-
 ## Table of Contents
 - [Overview](#overview)
 - [Feature Detection Systems](#feature-detection-systems)
@@ -1435,30 +1433,3 @@ These features are determined by hardware capabilities and product variant.
 **Description:** Advanced customization for mop-equipped models.
 **Impact:** Detailed control over mopping parameters.
 
----
-
-## Summary
-
-This documentation covers **178 distinct device features** across the Roborock ecosystem:
-
-- **27** robotNewFeatures (lower 32-bit) features
-- **17** robotNewFeatures (upper 32-bit) features
-- **27** new_feature_info_str mask-based features
-- **88** new_feature_info_str bit-indexed features
-- **7** robotFeatures array-based features
-- **10** model-specific features
-- **8** product/hardware features
-
-Each feature flag enables specific functionality in the Roborock app and affects vacuum behavior, UI options, or dock capabilities. Understanding these features is crucial for:
-
-1. **Home Assistant Integration** - Knowing which features to expose and support
-2. **API Development** - Understanding available commands and capabilities
-3. **Device Compatibility** - Determining which features work with which models
-4. **User Documentation** - Explaining what features are available
-5. **Troubleshooting** - Diagnosing why certain features may not work
-
----
-
-**Generated:** 2025-12-30
-**Source:** RR_API/hermes/com.roborock.tanos decompiled code analysis
-**Library:** python-roborock/roborock/device_features.py
