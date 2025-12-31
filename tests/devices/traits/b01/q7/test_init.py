@@ -16,7 +16,7 @@ from roborock.data.b01_q7 import (
     WaterLevelMapping,
     WorkStatusMapping,
 )
-from roborock.devices.b01_q7_channel import send_decoded_command
+from roborock.devices.rpc.b01_q7_channel import send_decoded_command
 from roborock.devices.traits.b01.q7 import Q7PropertiesApi
 from roborock.exceptions import RoborockException
 from roborock.protocols.b01_q7_protocol import B01_VERSION, Q7RequestMessage

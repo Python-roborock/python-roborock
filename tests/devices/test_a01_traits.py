@@ -10,8 +10,6 @@ from roborock.roborock_message import RoborockDyadDataProtocol, RoborockZeoProto
 def mock_channel():
     channel = Mock()
     channel.send_command = AsyncMock()
-    # Mocking send_decoded_command if it was a method on channel, but it's a standalone function imported in traits.
-    # However, in traits/__init__.py it is imported as: from roborock.devices.a01_channel import send_decoded_command
     return channel
 
 

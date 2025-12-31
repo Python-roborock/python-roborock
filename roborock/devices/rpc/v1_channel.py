@@ -12,6 +12,10 @@ from dataclasses import dataclass
 from typing import Any, TypeVar
 
 from roborock.data import HomeDataDevice, NetworkInfo, RoborockBase, UserData
+from roborock.devices.cache import DeviceCache
+from roborock.devices.transport.channel import Channel
+from roborock.devices.transport.local_channel import LocalChannel, LocalSession, create_local_session
+from roborock.devices.transport.mqtt_channel import MqttChannel
 from roborock.exceptions import RoborockException
 from roborock.mqtt.health_manager import HealthManager
 from roborock.mqtt.session import MqttParams, MqttSession
@@ -31,11 +35,6 @@ from roborock.protocols.v1_protocol import (
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 from roborock.roborock_typing import RoborockCommand
 from roborock.util import RoborockLoggerAdapter
-
-from .cache import DeviceCache
-from .channel import Channel
-from .local_channel import LocalChannel, LocalSession, create_local_session
-from .mqtt_channel import MqttChannel
 
 _LOGGER = logging.getLogger(__name__)
 

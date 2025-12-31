@@ -6,7 +6,7 @@ from collections.abc import AsyncGenerator
 import pytest
 import syrupy
 
-from roborock.devices.local_channel import LocalChannel
+from roborock.devices.transport.local_channel import LocalChannel
 from roborock.protocol import MessageParser, create_local_decoder
 from roborock.protocols.v1_protocol import LocalProtocolVersion
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol

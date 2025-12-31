@@ -564,30 +564,40 @@ The new design:
 ```
 roborock/
 ├── devices/                    # Device management and channels
-│   ├── device_manager.py      # High-level device lifecycle
-│   ├── channel.py             # Base Channel interface
-│   ├── mqtt_channel.py        # MQTT channel implementation
-│   ├── local_channel.py       # Local TCP channel implementation
-│   ├── v1_channel.py          # V1 protocol channel with RPC strategies
-│   ├── a01_channel.py         # A01 protocol helpers
-│   ├── b01_q7_channel.py      # B01 Q7 protocol helpers
-│   └── traits/                # Device-specific command traits
-│       └── v1/                # V1 device traits
-│           ├── __init__.py    # Trait initialization
-│           ├── clean.py       # Cleaning commands
-│           ├── map.py         # Map management
+│   ├── device_manager.py       # High-level device lifecycle
+│   ├── transport/              # Module for network connections to devices
+│   |   ├── channel.py          # Base Channel interface
+│   |   ├── mqtt_channel.py     # MQTT channel implementation
+│   |   ├── local_channel.py    # Local TCP channel implementation
+│   |   └── ...
+│   ├── rpc/                    # Application-level protocol/device-specific glue
+│   |   ├── v1_channel.py       # V1 protocol channel with RPC strategies
+│   |   ├── a01_channel.py      # A01 protocol helpers
+│   |   ├── b01_q7_channel.py   # B01 Q7 protocol helpers
+│   |   ├── b01_q10_channel.py  # B01 Q10 protocol helpers
+│   |   └── ...
+│   └── traits/                 # High-level device-specific command traits
+│       └── v1/                 # V1 device traits
+│           ├── __init__.py     # Trait initialization
+│           ├── clean.py        # Cleaning commands
+│           ├── map.py          # Map management
 │           └── ...
-├── mqtt/                       # MQTT session management
+├── mqtt/                      # MQTT session management
 │   ├── session.py             # Base session interface
 │   └── roborock_session.py    # MQTT session with idle timeout
-├── protocols/                  # Protocol encoders/decoders
+├── protocols/                 # Low level protocol encoders/decoders
 │   ├── v1_protocol.py         # V1 JSON RPC protocol
 │   ├── a01_protocol.py        # A01 protocol
 │   ├── b01_q7_protocol.py     # B01 Q7 protocol
 │   └── ...
-└── data/                       # Data containers and mappings
+└── data/                      # Data containers and mappings
     ├── containers.py          # Status, HomeData, etc.
-    └── v1/                    # V1-specific data structures
+    ├── v1/                    # V1-specific data structures
+    ├── dyad/                  # Dyad-specific data structures
+    ├── zeo/                   # Zeo-specific data structures
+    ├── b01_q7/                # B01 Q7-specific data structures
+    ├── b01_q10/               # B01 Q10-specific data structures
+    └── ...
 ```
 
 ### Threading Model

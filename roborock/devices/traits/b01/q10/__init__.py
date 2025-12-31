@@ -2,9 +2,9 @@
 
 from typing import Any
 
-from roborock.devices.b01_q7_channel import send_decoded_command
-from roborock.devices.mqtt_channel import MqttChannel
+from roborock.devices.rpc.b01_q7_channel import send_decoded_command
 from roborock.devices.traits import Trait
+from roborock.devices.transport.mqtt_channel import MqttChannel
 
 from .command import CommandTrait
 

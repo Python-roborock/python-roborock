@@ -1,8 +1,8 @@
 from typing import Any
 
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
-from roborock.devices.b01_q10_channel import send_command
-from roborock.devices.mqtt_channel import MqttChannel
+from roborock.devices.rpc.b01_q10_channel import send_command
+from roborock.devices.transport.mqtt_channel import MqttChannel
 from roborock.protocols.b01_q10_protocol import ParamsType
 
 

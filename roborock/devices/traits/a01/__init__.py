@@ -48,9 +48,9 @@ from roborock.data.zeo.zeo_code_mappings import (
     ZeoState,
     ZeoTemperature,
 )
-from roborock.devices.a01_channel import send_decoded_command
-from roborock.devices.mqtt_channel import MqttChannel
+from roborock.devices.rpc.a01_channel import send_decoded_command
 from roborock.devices.traits import Trait
+from roborock.devices.transport.mqtt_channel import MqttChannel
 from roborock.roborock_message import RoborockDyadDataProtocol, RoborockZeoProtocol
 
 __init__ = [

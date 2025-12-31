@@ -25,10 +25,10 @@ from roborock.protocol import create_mqtt_params
 from roborock.web_api import RoborockApiClient, UserWebApiClient
 
 from .cache import Cache, DeviceCache, NoCache
-from .channel import Channel
-from .mqtt_channel import create_mqtt_channel
+from .rpc.v1_channel import create_v1_channel
 from .traits import Trait, a01, b01, v1
-from .v1_channel import create_v1_channel
+from .transport.channel import Channel
+from .transport.mqtt_channel import create_mqtt_channel
 
 _LOGGER = logging.getLogger(__name__)
 

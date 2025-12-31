@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from roborock.devices.local_channel import LocalChannel, LocalChannelParams
+from roborock.devices.transport.local_channel import LocalChannel, LocalChannelParams
 from roborock.exceptions import RoborockConnectionException, RoborockException
 from roborock.protocol import create_local_decoder, create_local_encoder
 from roborock.protocols.v1_protocol import LocalProtocolVersion
@@ -52,7 +52,7 @@ def setup_mock_loop(mock_transport: Mock) -> Generator[Mock, None, None]:
     loop = Mock()
     loop.create_connection = AsyncMock(return_value=(mock_transport, Mock()))
 
-    with patch("roborock.devices.local_channel.get_running_loop", return_value=loop):
+    with patch("roborock.devices.transport.local_channel.get_running_loop", return_value=loop):
         yield loop
 
 
@@ -427,7 +427,7 @@ async def test_keep_alive_ping_exceptions_handled_gracefully(
     local_channel: LocalChannel, mock_loop: Mock, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Test that exceptions in the ping loop are handled gracefully without stopping the loop."""
-    from roborock.devices.local_channel import _PING_INTERVAL
+    from roborock.devices.transport.local_channel import _PING_INTERVAL
 
     # Set log level to capture DEBUG messages
     caplog.set_level("DEBUG")

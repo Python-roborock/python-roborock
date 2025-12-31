@@ -5,13 +5,12 @@ from __future__ import annotations
 import logging
 
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
+from roborock.devices.transport.mqtt_channel import MqttChannel
 from roborock.exceptions import RoborockException
 from roborock.protocols.b01_q10_protocol import (
     ParamsType,
     encode_mqtt_payload,
 )
-
-from .mqtt_channel import MqttChannel
 
 _LOGGER = logging.getLogger(__name__)
 

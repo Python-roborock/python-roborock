@@ -5,6 +5,7 @@ import logging
 from collections.abc import Callable
 from typing import Any, overload
 
+from roborock.devices.transport.mqtt_channel import MqttChannel
 from roborock.exceptions import RoborockException
 from roborock.protocols.a01_protocol import (
     decode_rpc_response,
@@ -15,8 +16,6 @@ from roborock.roborock_message import (
     RoborockMessage,
     RoborockZeoProtocol,
 )
-
-from .mqtt_channel import MqttChannel
 
 _LOGGER = logging.getLogger(__name__)
 _TIMEOUT = 10.0

@@ -18,9 +18,9 @@ from roborock.exceptions import RoborockException
 from roborock.roborock_message import RoborockMessage
 from roborock.util import RoborockLoggerAdapter
 
-from .channel import Channel
 from .traits import Trait
 from .traits.traits_mixin import TraitsMixin
+from .transport.channel import Channel
 
 _LOGGER = logging.getLogger(__name__)
 
