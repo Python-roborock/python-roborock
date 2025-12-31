@@ -34,7 +34,11 @@ class DeviceFeaturesTrait(DeviceFeatures, common.V1TraitMixin):
             return
         # Save cached device features
         await super().refresh()
-        cache_data.device_features = self
+        # Create a pure DeviceFeatures instance without runtime objects
+        device_features_data = DeviceFeatures()
+        for field in fields(DeviceFeatures):
+            setattr(device_features_data, field.name, getattr(self, field.name))
+        cache_data.device_features = device_features_data
         await self._device_cache.set(cache_data)
 
     def _parse_response(self, response: common.V1ResponseData) -> DeviceFeatures:
