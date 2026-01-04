@@ -115,14 +115,14 @@ wheels = [
 
 [[package]]
 name = "aiomqtt"
-version = "2.4.0"
+version = "2.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "paho-mqtt" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/45/9a/863bc34c64bc4acb9720a9950bfc77d6f324640cdf1f420bb5d9ee624975/aiomqtt-2.4.0.tar.gz", hash = "sha256:ab0f18fc5b7ffaa57451c407417d674db837b00a9c7d953cccd02be64f046c17", size = 82718, upload-time = "2025-05-03T20:21:27.748Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/db/b5/798e4855d17f0f3a2e2ed21c07473fcb4bb45993116693d0f68553927e2c/aiomqtt-2.5.0.tar.gz", hash = "sha256:70e181c140a54ae736394efe2b9e865f665551a5417f6957456cc46010487b21", size = 86453, upload-time = "2026-01-04T16:46:51.079Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/98/0c/2720665998d97d3a9521c03b138a22247e035ba54c4738e934da33c68699/aiomqtt-2.4.0-py3-none-any.whl", hash = "sha256:721296e2b79df5f6c7c4dfc91700ae0166953a4127735c92637859619dbd84e4", size = 15908, upload-time = "2025-05-03T20:21:26.337Z" },
+    { url = "https://files.pythonhosted.org/packages/84/24/1d5d7d89906db1a94b5029942c2fd909cf8e8551b288f56c03053d5615f8/aiomqtt-2.5.0-py3-none-any.whl", hash = "sha256:65dabeafeeee7b88864361ae9a118d81bd27082093f32f670a5c5fab17de8cf2", size = 15983, upload-time = "2026-01-04T16:46:49.736Z" },
 ]
 
 [[package]]
@@ -1356,7 +1356,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.8.2,<4" },
-    { name = "aiomqtt", specifier = ">=2.3.2,<3" },
+    { name = "aiomqtt", specifier = ">=2.5.0,<3" },
     { name = "click", specifier = ">=8" },
     { name = "click-shell", specifier = "~=2.1" },
     { name = "construct", specifier = ">=2.10.57,<3" },
