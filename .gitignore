@@ -19,3 +19,7 @@ docs/_build/
 
 # GitHub App credentials
 gha-creds-*.json
+
+# pickle files
+*.p
+*.pickle
