@@ -74,11 +74,11 @@ class RoborockApiClient:
         self._device_identifier = secrets.token_urlsafe(16)
         self.session = session
         self._iot_login_info: IotLoginInfo | None = None
+        self._base_urls = BASE_URLS if base_url is None else [base_url]
 
     async def _get_iot_login_info(self) -> IotLoginInfo:
         if self._iot_login_info is None:
-            valid_urls = BASE_URLS if self._base_url is None else [self._base_url]
-            for iot_url in valid_urls:
+            for iot_url in self._base_urls:
                 url_request = PreparedRequest(iot_url, self.session)
                 response = await url_request.request(
                     "post",
@@ -269,6 +269,10 @@ class RoborockApiClient:
                 raise RoborockAccountDoesNotExist("Account does not exist - check your login and try again.")
             elif response_code == 9002:
                 raise RoborockTooFrequentCodeRequests("You have attempted to request too many codes. Try again later")
+            elif response_code == 3030 and len(self._base_urls) > 1:
+                self._base_urls = self._base_urls[1:]
+                self._iot_login_info = None
+                return await self.request_code_v4()
             else:
                 raise RoborockException(f"{code_response.get('msg')} - response code: {code_response.get('code')}")
 
