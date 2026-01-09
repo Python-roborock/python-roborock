@@ -6,16 +6,22 @@ until the API is stable.
 
 import asyncio
 import datetime
+import json
 import logging
 from abc import ABC
 from collections.abc import Callable
 from typing import Any
 
 from roborock.callbacks import CallbackList
-from roborock.data import HomeDataDevice, HomeDataProduct
+from roborock.data import HomeDataDevice, HomeDataProduct, RoborockErrorCode, RoborockStateCode
 from roborock.diagnostics import redact_device_data
 from roborock.exceptions import RoborockException
-from roborock.roborock_message import RoborockMessage
+from roborock.roborock_message import (
+    ROBOROCK_DATA_STATUS_PROTOCOL,
+    RoborockDataProtocol,
+    RoborockMessage,
+    RoborockMessageProtocol,
+)
 from roborock.util import RoborockLoggerAdapter
 
 from .traits import Trait
@@ -219,8 +225,77 @@ class RoborockDevice(ABC, TraitsMixin):
             self._unsub = None
 
     def _on_message(self, message: RoborockMessage) -> None:
-        """Handle incoming messages from the device."""
+        """Handle incoming messages from the device.
+
+        Note: Protocol updates (data points) are only sent via cloud/MQTT, not local connection.
+        """
         self._logger.debug("Received message from device: %s", message)
+        if self.v1_properties is None:
+            # Ensure we are only doing below logic for set-up V1 devices.
+            return
+
+        # Only process messages that can contain protocol updates
+        # RPC_RESPONSE (102), GENERAL_REQUEST (4), and GENERAL_RESPONSE (5)
+        if message.protocol not in {
+            RoborockMessageProtocol.RPC_RESPONSE,
+            RoborockMessageProtocol.GENERAL_RESPONSE,
+        }:
+            return
+
+        if not message.payload:
+            return
+
+        try:
+            payload = json.loads(message.payload.decode())
+            dps = payload.get("dps", {})
+
+            if not dps:
+                return
+
+            # Process each data point in the message
+            for data_point_number, data_point in dps.items():
+                # Skip RPC responses (102) as they're handled by the RPC channel
+                if data_point_number == "102":
+                    continue
+
+                try:
+                    data_protocol = RoborockDataProtocol(int(data_point_number))
+                    self._logger.debug(f"Got device update for {data_protocol.name}: {data_point}")
+                    self._handle_protocol_update(data_protocol, data_point)
+                except ValueError:
+                    # Unknown protocol number
+                    self._logger.debug(
+                        f"Got unknown data protocol {data_point_number}, data: {data_point}. "
+                        f"This may allow for faster updates in the future."
+                    )
+        except (json.JSONDecodeError, UnicodeDecodeError, KeyError) as ex:
+            self._logger.debug(f"Failed to parse protocol message: {ex}")
+
+    def _handle_protocol_update(self, protocol: RoborockDataProtocol, data_point: Any) -> None:
+        """Handle a protocol update for a specific data protocol.
+
+        Args:
+            protocol: The data protocol number.
+            data_point: The data value for this protocol.
+        """
+        # Handle status protocol updates
+        if protocol in ROBOROCK_DATA_STATUS_PROTOCOL and self.v1_properties and self.v1_properties.status:
+            # Update the specific field in the status trait
+            match protocol:
+                case RoborockDataProtocol.ERROR_CODE:
+                    self.v1_properties.status.error_code = RoborockErrorCode(data_point)
+                case RoborockDataProtocol.STATE:
+                    self.v1_properties.status.state = RoborockStateCode(data_point)
+                case RoborockDataProtocol.BATTERY:
+                    self.v1_properties.status.battery = data_point
+                case RoborockDataProtocol.CHARGE_STATUS:
+                    self.v1_properties.status.charge_status = data_point
+                case _:
+                    # There is also fan power and water box mode, but for now those are skipped
+                    return
+
+            self._logger.debug("Updated status.%s to %s", protocol.name.lower(), data_point)
+            self.v1_properties.status.notify_update()
 
     def diagnostic_data(self) -> dict[str, Any]:
         """Return diagnostics information about the device."""
