@@ -57,8 +57,8 @@ class RoborockApiClient:
     ]
     _HOME_DATA_RATES = [
         Rate(1, Duration.SECOND),
-        Rate(5, Duration.MINUTE),
-        Rate(15, Duration.HOUR),
+        Rate(3, Duration.MINUTE),
+        Rate(5, Duration.HOUR),
         Rate(40, Duration.DAY),
     ]
 
