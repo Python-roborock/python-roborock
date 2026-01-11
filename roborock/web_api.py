@@ -62,7 +62,7 @@ class RoborockApiClient:
         Rate(40, Duration.DAY),
     ]
 
-    _login_limiter = Limiter(_LOGIN_RATES)
+    _login_limiter = Limiter(_LOGIN_RATES, max_delay=1000)
     _home_data_limiter = Limiter(_HOME_DATA_RATES)
 
     def __init__(
@@ -205,7 +205,7 @@ class RoborockApiClient:
 
     async def request_code(self) -> None:
         try:
-            self._login_limiter.try_acquire("login")
+            await self._login_limiter.try_acquire_async("login")
         except BucketFullException as ex:
             _LOGGER.info(ex.meta_info)
             raise RoborockRateLimit("Reached maximum requests for login. Please try again later.") from ex
@@ -239,7 +239,7 @@ class RoborockApiClient:
             _LOGGER.info("No country code or country found, trying old version of request code.")
             return await self.request_code()
         try:
-            self._login_limiter.try_acquire("login")
+            await self._login_limiter.try_acquire_async("login")
         except BucketFullException as ex:
             _LOGGER.info(ex.meta_info)
             raise RoborockRateLimit("Reached maximum requests for login. Please try again later.") from ex
@@ -367,7 +367,7 @@ class RoborockApiClient:
 
     async def pass_login(self, password: str) -> UserData:
         try:
-            self._login_limiter.try_acquire("login")
+            await self._login_limiter.try_acquire_async("login")
         except BucketFullException as ex:
             _LOGGER.info(ex.meta_info)
             raise RoborockRateLimit("Reached maximum requests for login. Please try again later.") from ex
