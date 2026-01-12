@@ -230,7 +230,6 @@ async def test_thirty_thirty_cycling(mock_rest) -> None:
     client = RoborockApiClient("test@example.com")
     await client.request_code_v4()
 
-    print(mock_rest.requests)
     assert (
         len(
             mock_rest.requests[
