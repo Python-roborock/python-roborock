@@ -320,9 +320,9 @@ async def login(ctx, email, password):
         user_data = await client.pass_login(password)
     else:
         print(f"Requesting code for {email}")
-        await client.request_code_v4()
+        await client.request_code()
         code = click.prompt("A code has been sent to your email, please enter the code", type=str)
-        user_data = await client.code_login_v4(code)
+        user_data = await client.code_login(code)
         print("Login successful")
     context.update(ConnectionCache(user_data=user_data, email=email))
 
