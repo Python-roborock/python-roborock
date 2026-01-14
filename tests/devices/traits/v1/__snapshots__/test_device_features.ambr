@@ -1,0 +1,31 @@
+# serializer version: 1
+# name: test_is_attribute_supported[home_data_device_s5e.json]
+  dict({
+    'battery': True,
+    'charge_status': True,
+    'dry_status': True,
+    'fan_power': True,
+    'state': True,
+    'water_box_mode': True,
+  })
+# ---
+# name: test_is_attribute_supported[home_data_device_s7_maxv.json]
+  dict({
+    'battery': True,
+    'charge_status': True,
+    'dry_status': True,
+    'fan_power': True,
+    'state': True,
+    'water_box_mode': True,
+  })
+# ---
+# name: test_is_attribute_supported[home_data_device_saros_10r.json]
+  dict({
+    'battery': True,
+    'charge_status': True,
+    'dry_status': True,
+    'fan_power': True,
+    'state': True,
+    'water_box_mode': True,
+  })
+# ---

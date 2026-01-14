@@ -195,6 +195,25 @@ def test_home_data():
     assert schema[0].type == "RAW"
     assert schema[0].product_property is None
     assert schema[0].desc is None
+    assert product.supported_schema_codes == {
+        "additional_props",
+        "battery",
+        "charge_status",
+        "drying_status",
+        "error_code",
+        "fan_power",
+        "filter_life",
+        "main_brush_life",
+        "rpc_request_code",
+        "rpc_response",
+        "side_brush_life",
+        "state",
+        "task_cancel_in_motion",
+        "task_cancel_low_power",
+        "task_complete",
+        "water_box_mode",
+    }
+
     device = hd.devices[0]
     assert device.duid == "abc123"
     assert device.name == "Roborock S7 MaxV"

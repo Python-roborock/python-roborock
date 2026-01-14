@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from roborock.data import HomeData, UserData
-from roborock.devices.mqtt_channel import MqttChannel
+from roborock.devices.transport.mqtt_channel import MqttChannel
 from roborock.mqtt.session import MqttParams
 from roborock.protocol import create_mqtt_decoder, create_mqtt_encoder
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol

@@ -13,8 +13,8 @@ import pytest
 
 from roborock.data import NetworkInfo, RoborockStateCode, S5MaxStatus, UserData
 from roborock.devices.cache import DeviceCache, DeviceCacheData, InMemoryCache
-from roborock.devices.local_channel import LocalSession
-from roborock.devices.v1_channel import V1Channel
+from roborock.devices.rpc.v1_channel import V1Channel
+from roborock.devices.transport.local_channel import LocalSession
 from roborock.exceptions import RoborockException
 from roborock.protocol import (
     create_local_decoder,
@@ -107,7 +107,7 @@ def setup_mock_request_id() -> Iterator[None]:
 @pytest.fixture(name="mock_create_map_response_decoder")
 def setup_mock_map_decoder() -> Iterator[Mock]:
     """Mock the map response decoder to control its behavior in tests."""
-    with patch("roborock.devices.v1_channel.create_map_response_decoder") as mock_create_decoder:
+    with patch("roborock.devices.rpc.v1_channel.create_map_response_decoder") as mock_create_decoder:
         yield mock_create_decoder
 
 

@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from roborock.devices.a01_channel import send_decoded_command
+from roborock.devices.rpc.a01_channel import send_decoded_command
 from roborock.protocols.a01_protocol import encode_mqtt_payload
 from roborock.roborock_message import (
     RoborockDyadDataProtocol,

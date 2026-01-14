@@ -3,6 +3,7 @@
     "name": "Zeo One",
     "fv": "01.00.94",
     "productId": "product-id-zeo-one",
+    "localKey": "key123key123key1",
     "activeTime": 1699964128,
     "timeZoneId": "Europe/Berlin",
     "iconUrl": "",

@@ -15,14 +15,20 @@ from typing import Any
 
 import pytest
 import syrupy
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad
 
+from roborock.data.b01_q7 import WorkStatusMapping
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
 from roborock.data.containers import UserData
+from roborock.data.zeo.zeo_code_mappings import ZeoState
 from roborock.devices.cache import Cache, InMemoryCache
 from roborock.devices.device_manager import DeviceManager, UserParams, create_device_manager
 from roborock.protocol import MessageParser
+from roborock.protocols.a01_protocol import A01_VERSION
+from roborock.protocols.b01_q7_protocol import B01_VERSION
 from roborock.protocols.v1_protocol import LocalProtocolVersion
-from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
+from roborock.roborock_message import RoborockB01Props, RoborockMessage, RoborockMessageProtocol, RoborockZeoProtocol
 from roborock.web_api import RoborockApiClient
 from tests import mock_data, mqtt_packet
 from tests.fixtures.logging import CapturedRequestLog
@@ -33,7 +39,7 @@ TEST_CODE = 1234
 
 # The topic used for the user + device. This is determined from the fake Home
 # data API response.
-TEST_TOPIC = "rr/m/o/user123/19648f94/abc123"
+TEST_TOPIC_FORMAT = "rr/m/o/user123/19648f94/{duid}"
 TEST_RANDOM = 23
 TEST_HOST = mock_data.TEST_LOCAL_API_HOST
 NETWORK_INFO = {
@@ -113,36 +119,29 @@ class ResponseBuilder:
         self.connect_nonce: int | None = None
         self.ack_nonce: int | None = None
         self.protocol = RoborockMessageProtocol.RPC_RESPONSE
-        self.version = LocalProtocolVersion.V1
+        self.version: bytes = LocalProtocolVersion.V1.value.encode()
 
-    def build(
+    def build_v1(
         self,
         payload: bytes,
         protocol: RoborockMessageProtocol | None = None,
     ) -> bytes:
         """Build an encoded response message."""
         self.seq_counter += 1
-        return MessageParser.build(
-            RoborockMessage(
-                protocol=protocol if protocol is not None else self.protocol,
-                random=TEST_RANDOM,
-                seq=self.seq_counter,
+        return self._encrypt(
+            self._build_roborock_message(
                 payload=payload,
-                version=self.version.value.encode(),
+                protocol=protocol if protocol is not None else self.protocol,
             ),
-            local_key=LOCAL_KEY,
-            connect_nonce=self.connect_nonce,
-            ack_nonce=self.ack_nonce,
         )
 
-    def build_rpc(
+    def build_v1_rpc(
         self,
         data: dict[str, Any],
-        protocol: RoborockMessageProtocol | None = None,
     ) -> bytes:
         """Build an encoded RPC response message."""
         self.timestamp_counter += 1
-        return self.build(
+        return self.build_v1(
             payload=json.dumps(
                 {
                     "t": self.timestamp_counter,
@@ -151,7 +150,58 @@ class ResponseBuilder:
                     },
                 }
             ).encode(),
-            protocol=protocol,
+        )
+
+    def build_a01_rpc(self, data: dict[str, Any]) -> bytes:
+        """Build an encoded A01 RPC response message."""
+        self.timestamp_counter += 1
+        return self._encrypt(
+            self._build_roborock_message(
+                payload=pad(json.dumps({"dps": data}).encode(), AES.block_size),
+            ),
+        )
+
+    def build_b01_q7_rpc(self, data: dict[str, Any] | str, code: int | None = None, msg_id: int | None = None) -> bytes:
+        """Build an encoded B01 RPC response message."""
+        message: dict[str, Any] = {
+            "msgId": str(msg_id),
+            "data": data,
+        }
+        if code is not None:
+            message["code"] = code
+        return self._build_b01_dps(message)
+
+    def _build_b01_dps(self, message: dict[str, Any] | str) -> bytes:
+        """Build an encoded B01 RPC response message given an inner message."""
+        dps_payload = {"dps": {"10000": json.dumps(message)}}
+        self.seq_counter += 1
+        return self._encrypt(
+            self._build_roborock_message(
+                payload=json.dumps(dps_payload).encode(),
+            ),
+        )
+
+    def _build_roborock_message(
+        self,
+        payload: bytes,
+        protocol: RoborockMessageProtocol | None = None,
+    ) -> RoborockMessage:
+        """Build a Roborock message."""
+        return RoborockMessage(
+            protocol=protocol if protocol is not None else self.protocol,
+            random=TEST_RANDOM,
+            seq=self.seq_counter,
+            payload=payload,
+            version=self.version,
+        )
+
+    def _encrypt(self, message: RoborockMessage) -> bytes:
+        """Encrypt a message."""
+        return MessageParser.build(
+            message,
+            local_key=LOCAL_KEY,
+            connect_nonce=self.connect_nonce,
+            ack_nonce=self.ack_nonce,
         )
 
 
@@ -173,11 +223,12 @@ async def test_v1_device(
 
     # Prepare MQTT requests
     response_builder = ResponseBuilder()
+    test_topic = TEST_TOPIC_FORMAT.format(duid="abc123")
     mqtt_responses: list[bytes] = [
         *MQTT_DEFAULT_RESPONSES,
         # ACK the GET_NETWORK_INFO call. id is deterministic based on deterministic_message_fixtures
         mqtt_packet.gen_publish(
-            TEST_TOPIC, mid=2, payload=response_builder.build_rpc(data={"id": 9090, "result": NETWORK_INFO})
+            test_topic, mid=2, payload=response_builder.build_v1_rpc(data={"id": 9090, "result": NETWORK_INFO})
         ),
     ]
     for response in mqtt_responses:
@@ -187,10 +238,10 @@ async def test_v1_device(
     response_builder.seq_counter = 0
     local_responses: list[bytes] = [
         # Queue HELLO response
-        response_builder.build(protocol=RoborockMessageProtocol.HELLO_RESPONSE, payload=b"ok"),
+        response_builder.build_v1(protocol=RoborockMessageProtocol.HELLO_RESPONSE, payload=b"ok"),
         # Feature discovery part 1 & 2
-        response_builder.build_rpc(data={"id": 9094, "result": [mock_data.APP_GET_INIT_STATUS]}),
-        response_builder.build_rpc(data={"id": 9097, "result": [mock_data.STATUS]}),
+        response_builder.build_v1_rpc(data={"id": 9094, "result": [mock_data.APP_GET_INIT_STATUS]}),
+        response_builder.build_v1_rpc(data={"id": 9097, "result": [mock_data.STATUS]}),
     ]
     for payload in local_responses:
         local_response_queue.put_nowait(payload)
@@ -238,7 +289,7 @@ async def test_v1_device(
     # Prepare local device responses.
     response_builder.seq_counter = 0
     local_response_queue.put_nowait(
-        response_builder.build(protocol=RoborockMessageProtocol.HELLO_RESPONSE, payload=b"ok")
+        response_builder.build_v1(protocol=RoborockMessageProtocol.HELLO_RESPONSE, payload=b"ok")
     )
 
     device_manager = await device_manager_factory(user_params)
@@ -267,7 +318,7 @@ async def test_v1_device(
     assert device.v1_properties.status.state_name is None
 
     # Exercise a GET_STATUS call. id is deterministic based on deterministic_message_fixtures
-    local_response_queue.put_nowait(response_builder.build_rpc(data={"id": 9101, "result": [mock_data.STATUS]}))
+    local_response_queue.put_nowait(response_builder.build_v1_rpc(data={"id": 9101, "result": [mock_data.STATUS]}))
 
     # Verify GET_STATUS response
     await device.v1_properties.status.refresh()
@@ -288,11 +339,12 @@ async def test_l01_device(
     """Test the device manager end to end flow with a l01 device."""
     # Prepare MQTT requests
     mqtt_response_builder = ResponseBuilder()
+    test_topic = TEST_TOPIC_FORMAT.format(duid="abc123")
     mqtt_responses: list[bytes] = [
         *MQTT_DEFAULT_RESPONSES,
         # ACK the GET_NETWORK_INFO call. id is deterministic based on deterministic_message_fixtures
         mqtt_packet.gen_publish(
-            TEST_TOPIC, mid=2, payload=mqtt_response_builder.build_rpc(data={"id": 9090, "result": NETWORK_INFO})
+            test_topic, mid=2, payload=mqtt_response_builder.build_v1_rpc(data={"id": 9090, "result": NETWORK_INFO})
         ),
     ]
     for response in mqtt_responses:
@@ -300,20 +352,20 @@ async def test_l01_device(
 
     # Prepare local device responses. The ids are deterministic based on deterministic_message_fixtures
     local_response_builder = ResponseBuilder()
-    local_response_builder.version = LocalProtocolVersion.L01
+    local_response_builder.version = LocalProtocolVersion.L01.value.encode()
     local_response_builder.connect_nonce = 9093
     local_responses: list[bytes] = [
-        # Initial V01 Hello request will fail and cause a retry with L01
+        # Initial V1.0 Hello request will fail and cause a retry with L01
         b"\x00",
         # Queue HELLO response with L01
-        local_response_builder.build(protocol=RoborockMessageProtocol.HELLO_RESPONSE, payload=b"ok"),
+        local_response_builder.build_v1(protocol=RoborockMessageProtocol.HELLO_RESPONSE, payload=b"ok"),
     ]
     # Feature discovery requests are sent with an ack nonce based on the random sent in HELLO_RESPONSE
     local_response_builder.ack_nonce = TEST_RANDOM
     local_responses.extend(
         [
-            local_response_builder.build_rpc(data={"id": 9094, "result": [mock_data.APP_GET_INIT_STATUS]}),
-            local_response_builder.build_rpc(data={"id": 9097, "result": [mock_data.STATUS]}),
+            local_response_builder.build_v1_rpc(data={"id": 9094, "result": [mock_data.APP_GET_INIT_STATUS]}),
+            local_response_builder.build_v1_rpc(data={"id": 9097, "result": [mock_data.STATUS]}),
         ]
     )
     for payload in local_responses:
@@ -390,5 +442,120 @@ async def test_q10_device(
     await command.send(B01_Q10_DP.REQUETDPS, params={})
 
     # In the future here we can verify receiving requests from the device
+
+    assert snapshot == log
+
+
+@pytest.mark.parametrize(
+    "home_data",
+    [
+        (
+            {
+                **HOME_DATA_RAW,
+                "devices": [mock_data.Q7_DEVICE_DATA],
+                "products": [mock_data.SC01_PRODUCT_DATA],
+            }
+        )
+    ],
+)
+async def test_q7_device(
+    mock_rest: Any,
+    push_mqtt_response: Callable[[bytes], None],
+    log: CapturedRequestLog,
+    device_manager_factory: Callable[[UserParams], Awaitable[DeviceManager]],
+    home_data: dict[str, Any],
+    snapshot: syrupy.SnapshotAssertion,
+) -> None:
+    """Test the device manager end to end flow with a B01 Q10 device."""
+    # Prepare MQTT requests
+    response_builder = ResponseBuilder()
+    response_builder.version = B01_VERSION
+    test_topic = TEST_TOPIC_FORMAT.format(duid="device-id-q7")
+    mqtt_responses: list[bytes] = [
+        *MQTT_DEFAULT_RESPONSES,
+        # ACK the Query status call sent below. id is deterministic based on deterministic_message_fixtures
+        mqtt_packet.gen_publish(
+            test_topic, mid=2, payload=response_builder.build_b01_q7_rpc({"status": 2}, msg_id=9090)
+        ),
+        # ACK the start clean call sent below. id is deterministic based on deterministic_message_fixtures
+        mqtt_packet.gen_publish(test_topic, mid=2, payload=response_builder.build_b01_q7_rpc("ok", msg_id=9093)),
+    ]
+    for response in mqtt_responses:
+        push_mqtt_response(response)
+
+    # Create the device manager
+    device_manager = await device_manager_factory(TEST_USER_PARAMS)
+
+    # The mocked Home Data API returns a single v1 device
+    devices = await device_manager.get_devices()
+    assert len(devices) == 1
+    device = devices[0]
+    assert device.duid == "device-id-q7"
+    assert device.name == "Roborock Q7"
+    assert device.is_connected
+    assert not device.is_local_connected  # Q7 does not support local connections
+
+    # Query a value from the device.
+    assert device.b01_q7_properties
+    props = await device.b01_q7_properties.query_values([RoborockB01Props.STATUS])
+    assert props
+    assert props.status == WorkStatusMapping.PAUSED
+
+    # Send a command and block on an OK response.
+    await device.b01_q7_properties.start_clean()
+
+    assert snapshot == log
+
+
+@pytest.mark.parametrize(
+    "home_data",
+    [
+        (
+            {
+                **HOME_DATA_RAW,
+                "devices": [mock_data.ZEO_ONE_DEVICE_DATA],
+                "products": [mock_data.A102_PRODUCT_DATA],
+            }
+        )
+    ],
+)
+async def test_a01_device(
+    mock_rest: Any,
+    push_mqtt_response: Callable[[bytes], None],
+    log: CapturedRequestLog,
+    device_manager_factory: Callable[[UserParams], Awaitable[DeviceManager]],
+    home_data: dict[str, Any],
+    snapshot: syrupy.SnapshotAssertion,
+) -> None:
+    """Test the device manager end to end flow with an A01 device."""
+    # Prepare MQTT requests
+    response_builder = ResponseBuilder()
+    response_builder.version = A01_VERSION
+    test_topic = TEST_TOPIC_FORMAT.format(duid="zeo_duid")
+    mqtt_responses: list[bytes] = [
+        *MQTT_DEFAULT_RESPONSES,
+        # ACK the Query state call sent below. id is deterministic based on deterministic_message_fixtures
+        mqtt_packet.gen_publish(test_topic, mid=2, payload=response_builder.build_a01_rpc({"203": 6})),
+    ]
+    for response in mqtt_responses:
+        push_mqtt_response(response)
+
+    # Create the device manager
+    device_manager = await device_manager_factory(TEST_USER_PARAMS)
+
+    # The mocked Home Data API returns a single v1 device
+    devices = await device_manager.get_devices()
+    assert len(devices) == 1
+    device = devices[0]
+    assert device.duid == "zeo_duid"
+    assert device.name == "Zeo One"
+    assert device.is_connected
+    assert not device.is_local_connected  # Washing Machine does not support local connections
+
+    # Query a value from the device.
+    assert device.zeo
+    props: dict[RoborockZeoProtocol, Any] = await device.zeo.query_values([RoborockZeoProtocol.STATE])
+    assert props
+    assert props[RoborockZeoProtocol.STATE] == ZeoState.spinning.name
 
     assert snapshot == log

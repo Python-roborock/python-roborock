@@ -7,6 +7,7 @@ import json
 import logging
 from typing import Any
 
+from roborock.devices.transport.mqtt_channel import MqttChannel
 from roborock.exceptions import RoborockException
 from roborock.protocols.b01_q7_protocol import (
     Q7RequestMessage,
@@ -14,8 +15,6 @@ from roborock.protocols.b01_q7_protocol import (
     encode_mqtt_payload,
 )
 from roborock.roborock_message import RoborockMessage
-
-from .mqtt_channel import MqttChannel
 
 _LOGGER = logging.getLogger(__name__)
 _TIMEOUT = 10.0

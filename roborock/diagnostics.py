@@ -101,30 +101,50 @@ REDACT_KEYS = {
     "imageContent",
     "mapData",
     "rawApiResponse",
+    # Home data
+    "id",  # We want to redact home_data.id but keep some other ids, see below
+    "name",
+    "productId",
+    "ipAddress",
+    "wifiName",
+    "lat",
+    "long",
+}
+KEEP_KEYS = {
+    # Product information not unique per user
+    "product.id",
+    "product.schema.id",
+    "product.schema.name",
+    # Room ids are likely unique per user, but don't seem too sensitive and are
+    # useful for debugging
+    "rooms.id",
 }
 DEVICE_UID = "duid"
 REDACTED = "**REDACTED**"
 
 
-def redact_device_data(data: T) -> T | dict[str, Any]:
+def redact_device_data(data: T, path: str = "") -> T | dict[str, Any]:
     """Redact sensitive data in a dict."""
     if not isinstance(data, (Mapping, list)):
         return data
 
     if isinstance(data, list):
-        return cast(T, [redact_device_data(item) for item in data])
+        return cast(T, [redact_device_data(item, path) for item in data])
 
     redacted = {**data}
 
     for key, value in redacted.items():
-        if key in REDACT_KEYS:
+        curr_path = f"{path}.{key}" if path else key
+        if key in KEEP_KEYS or curr_path in KEEP_KEYS:
+            continue
+        if key in REDACT_KEYS or curr_path in REDACT_KEYS:
             redacted[key] = REDACTED
         elif key == DEVICE_UID and isinstance(value, str):
             redacted[key] = redact_device_uid(value)
         elif isinstance(value, dict):
-            redacted[key] = redact_device_data(value)
+            redacted[key] = redact_device_data(value, curr_path)
         elif isinstance(value, list):
-            redacted[key] = [redact_device_data(item) for item in value]
+            redacted[key] = [redact_device_data(item, curr_path) for item in value]
 
     return redacted
 

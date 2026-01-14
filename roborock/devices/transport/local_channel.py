@@ -8,10 +8,10 @@ from dataclasses import dataclass
 from roborock.callbacks import CallbackList, decoder_callback
 from roborock.exceptions import RoborockConnectionException, RoborockException
 from roborock.protocol import create_local_decoder, create_local_encoder
+from roborock.protocols.v1_protocol import LocalProtocolVersion
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
+from roborock.util import RoborockLoggerAdapter, get_next_int
 
-from ..protocols.v1_protocol import LocalProtocolVersion
-from ..util import RoborockLoggerAdapter, get_next_int
 from .channel import Channel
 
 _LOGGER = logging.getLogger(__name__)

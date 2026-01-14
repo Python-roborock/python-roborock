@@ -1,0 +1,31 @@
+{
+    "duid": "device-uid-s5e",
+    "name": "Roborock Downstairs",
+    "localKey": "key123key123key1",
+    "productId": "73EnOOM2NhDujvnvb7hvvv",
+    "fv": "02.16.62",
+    "activeTime": 1633770040,
+    "timeZoneId": "America/Los_Angeles",
+    "iconUrl": "",
+    "share": false,
+    "online": true,
+    "pv": "1.0",
+    "tuyaUuid": "tuya-uuid-s5e",
+    "tuyaMigrated": true,
+    "extra": "{\"xxxx\": \"xxxx\", \"roTuyaDid\": \"tuya-did-s5e\", \"roTuyaActiveTime\": 1601112710}",
+    "sn": "sn123sn123sn123sn123",
+    "featureSet": "0",
+    "newFeatureSet": "0000000000002000",
+    "deviceStatus": {
+        "121": 8,
+        "122": 100,
+        "123": 102,
+        "124": 202,
+        "125": 17,
+        "126": 0,
+        "127": 0,
+        "120": 0
+    },
+    "silentOtaSwitch": false,
+    "f": false
+}

@@ -79,7 +79,7 @@ def create_local_connection_fixture(
 
         return (mock_transport, protocol)
 
-    with patch("roborock.devices.local_channel.get_running_loop") as mock_loop:
+    with patch("roborock.devices.transport.local_channel.get_running_loop") as mock_loop:
         mock_loop.return_value.create_connection.side_effect = create_connection
         yield
 

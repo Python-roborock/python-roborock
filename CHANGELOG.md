@@ -2,6 +2,143 @@
 
 <!-- version list -->
 
+## v4.4.0 (2026-01-12)
+
+### Features
+
+- Iterate possible iot domains on 3030 error
+  ([#733](https://github.com/Python-roborock/python-roborock/pull/733),
+  [`f2e1d51`](https://github.com/Python-roborock/python-roborock/commit/f2e1d5156dd905e296d5ed38605d4fd6f97bfbb4))
+
+
+## v4.3.0 (2026-01-10)
+
+### Chores
+
+- Add function to create field metadata
+  ([#740](https://github.com/Python-roborock/python-roborock/pull/740),
+  [`bdc1591`](https://github.com/Python-roborock/python-roborock/commit/bdc159192cfb2afa02199171288a20b228abb7f6))
+
+- Simplify supported_schema_codes
+  ([#740](https://github.com/Python-roborock/python-roborock/pull/740),
+  [`bdc1591`](https://github.com/Python-roborock/python-roborock/commit/bdc159192cfb2afa02199171288a20b228abb7f6))
+
+- Update pydoc for DeviceFeaturesTrait
+  ([#740](https://github.com/Python-roborock/python-roborock/pull/740),
+  [`bdc1591`](https://github.com/Python-roborock/python-roborock/commit/bdc159192cfb2afa02199171288a20b228abb7f6))
+
+- Update test descrition ([#740](https://github.com/Python-roborock/python-roborock/pull/740),
+  [`bdc1591`](https://github.com/Python-roborock/python-roborock/commit/bdc159192cfb2afa02199171288a20b228abb7f6))
+
+- Update to use StrEnum ([#740](https://github.com/Python-roborock/python-roborock/pull/740),
+  [`bdc1591`](https://github.com/Python-roborock/python-roborock/commit/bdc159192cfb2afa02199171288a20b228abb7f6))
+
+### Features
+
+- Add an approach for determining if a dataclass field is supported
+  ([#740](https://github.com/Python-roborock/python-roborock/pull/740),
+  [`bdc1591`](https://github.com/Python-roborock/python-roborock/commit/bdc159192cfb2afa02199171288a20b228abb7f6))
+
+
+## v4.2.2 (2026-01-09)
+
+### Bug Fixes
+
+- Decrease home data rate limits
+  ([#741](https://github.com/Python-roborock/python-roborock/pull/741),
+  [`29eb984`](https://github.com/Python-roborock/python-roborock/commit/29eb984d22494b08f26ec6e220b7c823b67d3242))
+
+### Chores
+
+- Add additional Home data to diagnostics
+  ([#723](https://github.com/Python-roborock/python-roborock/pull/723),
+  [`c29dfc8`](https://github.com/Python-roborock/python-roborock/commit/c29dfc81f4de1bb293b2918482cf681197ef3698))
+
+- Add CONTRIBUTING.md ([#734](https://github.com/Python-roborock/python-roborock/pull/734),
+  [`881b7d6`](https://github.com/Python-roborock/python-roborock/commit/881b7d687789c57eec20bf9011a195b4befff129))
+
+- Add CONTRIBUTINGmd ([#734](https://github.com/Python-roborock/python-roborock/pull/734),
+  [`881b7d6`](https://github.com/Python-roborock/python-roborock/commit/881b7d687789c57eec20bf9011a195b4befff129))
+
+- Add s5e device and product data examples
+  ([#737](https://github.com/Python-roborock/python-roborock/pull/737),
+  [`586bb3f`](https://github.com/Python-roborock/python-roborock/commit/586bb3f77e4655d4aae2d201746980b1c227160d))
+
+- Add Saros 10R API response data
+  ([#726](https://github.com/Python-roborock/python-roborock/pull/726),
+  [`fafc8d8`](https://github.com/Python-roborock/python-roborock/commit/fafc8d86833a2aac3ee69c7a1f353f83551eeb6f))
+
+- Fix diagnostic lint issues ([#723](https://github.com/Python-roborock/python-roborock/pull/723),
+  [`c29dfc8`](https://github.com/Python-roborock/python-roborock/commit/c29dfc81f4de1bb293b2918482cf681197ef3698))
+
+- Fix mock data lint ([#726](https://github.com/Python-roborock/python-roborock/pull/726),
+  [`fafc8d8`](https://github.com/Python-roborock/python-roborock/commit/fafc8d86833a2aac3ee69c7a1f353f83551eeb6f))
+
+- Fix schema redaction ([#723](https://github.com/Python-roborock/python-roborock/pull/723),
+  [`c29dfc8`](https://github.com/Python-roborock/python-roborock/commit/c29dfc81f4de1bb293b2918482cf681197ef3698))
+
+- Improve redaction logic to support more complex paths
+  ([#723](https://github.com/Python-roborock/python-roborock/pull/723),
+  [`c29dfc8`](https://github.com/Python-roborock/python-roborock/commit/c29dfc81f4de1bb293b2918482cf681197ef3698))
+
+- Remove duplicate data in test_q7_device
+  ([#736](https://github.com/Python-roborock/python-roborock/pull/736),
+  [`cd6cbbe`](https://github.com/Python-roborock/python-roborock/commit/cd6cbbe1be22a619a88d76783c60c936dbbc744d))
+
+- Update device snapshots and lint errors
+  ([#723](https://github.com/Python-roborock/python-roborock/pull/723),
+  [`c29dfc8`](https://github.com/Python-roborock/python-roborock/commit/c29dfc81f4de1bb293b2918482cf681197ef3698))
+
+- Update e2e tests for q7 to use different product data
+  ([#736](https://github.com/Python-roborock/python-roborock/pull/736),
+  [`cd6cbbe`](https://github.com/Python-roborock/python-roborock/commit/cd6cbbe1be22a619a88d76783c60c936dbbc744d))
+
+- Update end to end q7 tests ([#736](https://github.com/Python-roborock/python-roborock/pull/736),
+  [`cd6cbbe`](https://github.com/Python-roborock/python-roborock/commit/cd6cbbe1be22a619a88d76783c60c936dbbc744d))
+
+- Update steps to activate virtual environment
+  ([#734](https://github.com/Python-roborock/python-roborock/pull/734),
+  [`881b7d6`](https://github.com/Python-roborock/python-roborock/commit/881b7d687789c57eec20bf9011a195b4befff129))
+
+- Use built-in as_dict method for creating diagnostic data
+  ([#723](https://github.com/Python-roborock/python-roborock/pull/723),
+  [`c29dfc8`](https://github.com/Python-roborock/python-roborock/commit/c29dfc81f4de1bb293b2918482cf681197ef3698))
+
+
+## v4.2.1 (2026-01-05)
+
+### Bug Fixes
+
+- Bump aiomqtt ([#730](https://github.com/Python-roborock/python-roborock/pull/730),
+  [`21af4f3`](https://github.com/Python-roborock/python-roborock/commit/21af4f30412d96eb5ac53f372b74b0e03ca6580e))
+
+### Chores
+
+- Add a01 and b01 q7 byte level tests
+  ([#724](https://github.com/Python-roborock/python-roborock/pull/724),
+  [`f20ade9`](https://github.com/Python-roborock/python-roborock/commit/f20ade97843241aa286405c4eacbb9f1939cbdf3))
+
+- Add docs for v1 device features
+  ([#727](https://github.com/Python-roborock/python-roborock/pull/727),
+  [`f031acf`](https://github.com/Python-roborock/python-roborock/commit/f031acffa2381c2eb9e4af6fbf7967ae22b1d7dc))
+
+- Documentation cleanup and updates
+  ([#725](https://github.com/Python-roborock/python-roborock/pull/725),
+  [`bbeb0d9`](https://github.com/Python-roborock/python-roborock/commit/bbeb0d95e11274bd024cfac23988f01acf814888))
+
+- Remove empty line in device features documentation
+  ([#727](https://github.com/Python-roborock/python-roborock/pull/727),
+  [`f031acf`](https://github.com/Python-roborock/python-roborock/commit/f031acffa2381c2eb9e4af6fbf7967ae22b1d7dc))
+
+- Remove some information from the summart
+  ([#727](https://github.com/Python-roborock/python-roborock/pull/727),
+  [`f031acf`](https://github.com/Python-roborock/python-roborock/commit/f031acffa2381c2eb9e4af6fbf7967ae22b1d7dc))
+
+- Restructure the channel modules
+  ([#728](https://github.com/Python-roborock/python-roborock/pull/728),
+  [`9fcc0a8`](https://github.com/Python-roborock/python-roborock/commit/9fcc0a8ca075097b7d903a57cc0fc33ed149bd97))
+
+
 ## v4.2.0 (2025-12-30)
 
 ### Chores

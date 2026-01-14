@@ -16,7 +16,7 @@ from roborock.data.b01_q7 import (
     WaterLevelMapping,
     WorkStatusMapping,
 )
-from roborock.devices.b01_q7_channel import send_decoded_command
+from roborock.devices.rpc.b01_q7_channel import send_decoded_command
 from roborock.devices.traits.b01.q7 import Q7PropertiesApi
 from roborock.exceptions import RoborockException
 from roborock.protocols.b01_q7_protocol import B01_VERSION, Q7RequestMessage
@@ -166,6 +166,7 @@ async def test_q7_response_value_mapping(
     result = await q7_api.query_values(query)
 
     assert result is not None
+    assert result.status == expected_status
 
 
 async def test_send_decoded_command_non_dict_response(fake_channel: FakeChannel, message_builder: B01MessageBuilder):
