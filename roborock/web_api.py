@@ -361,7 +361,7 @@ class RoborockApiClient:
                 )
             if response_code == 3039:
                 raise RoborockAccountDoesNotExist(
-                    "This code does not exists - please ensure that you selected the right region and email."
+                    "This account does not exist - please ensure that you selected the right region and email."
                 )
             raise RoborockException(f"{login_response.get('msg')} - response code: {response_code}")
         user_data = login_response.get("data")
