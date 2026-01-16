@@ -203,3 +203,49 @@ class B01Props(RoborockBase):
     def work_mode_name(self) -> str | None:
         """Returns the name of the current work mode."""
         return self.work_mode.value if self.work_mode is not None else None
+
+
+@dataclass
+class CleanRecordDetail(RoborockBase):
+    """Represents a single clean record detail (from `record_list[].detail`)."""
+
+    record_start_time: int | None = None
+    method: int | None = None
+    record_use_time: int | None = None
+    clean_count: int | None = None
+    record_clean_area: int | None = None
+    record_clean_mode: int | None = None
+    record_clean_way: int | None = None
+    record_task_status: int | None = None
+    record_faultcode: int | None = None
+    record_dust_num: int | None = None
+    clean_current_map: int | None = None
+    record_map_url: str | None = None
+
+
+@dataclass
+class CleanRecordListItem(RoborockBase):
+    """Represents an entry in the clean record list returned by `service.get_record_list`."""
+
+    url: str | None = None
+    detail: str | dict | None = None
+
+
+@dataclass
+class CleanRecordList(RoborockBase):
+    """Represents the clean record list response from `service.get_record_list`."""
+
+    total_area: int | None = None
+    total_time: int | None = None
+    total_count: int | None = None
+    record_list: list[CleanRecordListItem] = field(default_factory=list)
+
+
+@dataclass
+class CleanRecordSummary(RoborockBase):
+    """Represents clean record totals for B01/Q7 devices."""
+
+    total_area: int | None = None
+    total_time: int | None = None
+    total_count: int | None = None
+    last_record_detail: CleanRecordDetail | None = None
