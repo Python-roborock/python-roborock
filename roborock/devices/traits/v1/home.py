@@ -37,20 +37,6 @@ _LOGGER = logging.getLogger(__name__)
 MAP_SLEEP = 3
 
 
-def _extract_api_error_code(err: RoborockException) -> int | None:
-    """Extract an API error code from a RoborockException, if present.
-
-    V1 RPC error responses typically look like: {"code": -10007, "message": "..."}.
-    """
-    if not err.args:
-        return None
-    payload = err.args[0]
-    if isinstance(payload, dict):
-        code = payload.get("code")
-        return code if isinstance(code, int) else None
-    return None
-
-
 class HomeTrait(RoborockBase, common.V1TraitMixin):
     """Trait that represents a full view of the home layout."""
 
@@ -170,7 +156,7 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
                     # Some firmware revisions return -10007 ("invalid status"/action locked) when attempting
                     # to switch maps while the device is in a state that forbids it. Treat this as a
                     # "busy" condition so callers can fall back to refreshing the current map only.
-                    if _extract_api_error_code(ex) == -10007:
+                    if common.extract_v1_api_error_code(ex) == -10007:
                         raise RoborockDeviceBusy("Cannot switch maps right now (device action locked)") from ex
                     raise
                 await asyncio.sleep(MAP_SLEEP)
