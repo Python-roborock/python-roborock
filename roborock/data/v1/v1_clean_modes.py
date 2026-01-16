@@ -17,7 +17,7 @@ class VacuumModes(RoborockModeEnum):
     MAX = ("max", 104)
     MAX_PLUS = ("max_plus", 108)
     CARPET = ("carpet", 107)
-    OFF_RAISE_MAIN_BRUSH = ("off", 109)
+    OFF_RAISE_MAIN_BRUSH = ("off_raise_main_brush", 109)
     CUSTOMIZED = ("custom", 106)
     SMART_MODE = ("smart_mode", 110)
 
