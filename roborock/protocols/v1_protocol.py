@@ -154,26 +154,37 @@ def decode_rpc_response(message: RoborockMessage) -> ResponseMessage:
         ) from e
 
     request_id: int | None = data_point_response.get("id")
-    exc: RoborockException | None = None
+    api_error: RoborockException | None = None
     if error := data_point_response.get("error"):
-        exc = RoborockException(error)
+        api_error = RoborockException(error)
+
     if (result := data_point_response.get("result")) is None:
-        exc = RoborockException(f"Invalid V1 message format: missing 'result' in data point for {message.payload!r}")
+        # Some firmware versions return an error-only response (no "result" key).
+        # Preserve that error instead of overwriting it with a parsing exception.
+        if api_error is None:
+            api_error = RoborockException(
+                f"Invalid V1 message format: missing 'result' in data point for {message.payload!r}"
+            )
     else:
         _LOGGER.debug("Decoded V1 message result: %s", result)
         if isinstance(result, str):
             if result == "unknown_method":
-                exc = RoborockUnsupportedFeature("The method called is not recognized by the device.")
+                api_error = RoborockUnsupportedFeature("The method called is not recognized by the device.")
             elif result != "ok":
-                exc = RoborockException(f"Unexpected API Result: {result}")
+                api_error = RoborockException(f"Unexpected API Result: {result}")
             result = {}
         if not isinstance(result, dict | list | int):
-            raise RoborockException(
-                f"Invalid V1 message format: 'result' was unexpected type {type(result)}. {message.payload!r}"
-            )
-    if not request_id and exc:
-        raise exc
-    return ResponseMessage(request_id=request_id, data=result, api_error=exc)
+            # If we already have an API error, prefer returning a response object
+            # rather than failing to decode the message entirely.
+            if api_error is None:
+                raise RoborockException(
+                    f"Invalid V1 message format: 'result' was unexpected type {type(result)}. {message.payload!r}"
+                )
+            result = {}
+
+    if not request_id and api_error:
+        raise api_error
+    return ResponseMessage(request_id=request_id, data=result, api_error=api_error)
 
 
 @dataclass

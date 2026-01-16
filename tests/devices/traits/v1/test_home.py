@@ -538,6 +538,50 @@ async def test_discover_home_device_busy_cleaning(
     assert len(device_cache_data.home_map_content_base64) == 2
 
 
+async def test_refresh_falls_back_when_map_switch_action_locked(
+    status_trait: StatusTrait,
+    home_trait: HomeTrait,
+    mock_rpc_channel: AsyncMock,
+    mock_mqtt_rpc_channel: AsyncMock,
+    mock_map_rpc_channel: AsyncMock,
+    device_cache: DeviceCache,
+) -> None:
+    """Test that refresh falls back to current map when map switching is locked."""
+    # Discovery attempt: we can list maps, but switching maps fails with -10007.
+    mock_mqtt_rpc_channel.send_command.side_effect = [
+        MULTI_MAP_LIST_DATA,  # Maps refresh during discover_home()
+        RoborockException({"code": -10007, "message": "invalid status"}),  # LOAD_MULTI_MAP action locked
+        MULTI_MAP_LIST_DATA,  # Maps refresh during refresh() fallback
+    ]
+
+    # Fallback refresh should still be able to refresh the current map.
+    mock_rpc_channel.send_command.side_effect = [
+        ROOM_MAPPING_DATA_MAP_0,  # Rooms for current map
+    ]
+    mock_map_rpc_channel.send_command.side_effect = [
+        MAP_BYTES_RESPONSE_1,  # Map bytes for current map
+    ]
+
+    await home_trait.refresh()
+
+    current_data = home_trait.current_map_data
+    assert current_data is not None
+    assert current_data.map_flag == 0
+    assert current_data.name == "Ground Floor"
+
+    assert home_trait.home_map_info is not None
+    assert home_trait.home_map_info.keys() == {0}
+    assert home_trait.home_map_content is not None
+    assert home_trait.home_map_content.keys() == {0}
+    map_0_content = home_trait.home_map_content[0]
+    assert map_0_content.image_content == TEST_IMAGE_CONTENT_1
+
+    # Discovery did not complete, so the persistent cache should not be updated.
+    cache_data = await device_cache.get()
+    assert not cache_data.home_map_info
+    assert not cache_data.home_map_content_base64
+
+
 async def test_single_map_no_switching(
     home_trait: HomeTrait,
     mock_rpc_channel: AsyncMock,
