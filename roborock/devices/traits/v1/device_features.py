@@ -39,11 +39,12 @@ class DeviceFeaturesTrait(DeviceFeatures, common.V1TraitMixin):
             raise ValueError(f"Field {field_name} not found in {cls}")
 
         requires_schema_code = dataclass_field.metadata.get("requires_schema_code", None)
-        if requires_schema_code is None:
-            # We assume the field is supported
-            return True
-        # If the field requires a protocol that is not supported, we return False
-        return requires_schema_code in self._product.supported_schema_codes
+        if requires_schema_code is not None:
+            return requires_schema_code in self._product.supported_schema_codes
+        requires_supported_feature = dataclass_field.metadata.get("requires_supported_feature", None)
+        if requires_supported_feature is not None:
+            return getattr(self, requires_supported_feature)
+        return True
 
     async def refresh(self) -> None:
         """Refresh the contents of this trait.

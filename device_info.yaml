@@ -1,61 +1,68 @@
 roborock.vacuum.a15:
-  Protocol Version: '1.0'
+  Protocol Version: "1.0"
   Product Nickname: TANOSS
   New Feature Info: 636084721975295
-  New Feature Info Str: '0000000000002000'
+  New Feature Info Str: "0000000000002000"
   Feature Info:
-  - 111
-  - 112
-  - 113
-  - 114
-  - 115
-  - 116
-  - 117
-  - 118
-  - 119
-  - 120
-  - 122
-  - 123
-  - 124
-  - 125
+    - 111
+    - 112
+    - 113
+    - 114
+    - 115
+    - 116
+    - 117
+    - 118
+    - 119
+    - 120
+    - 122
+    - 123
+    - 124
+    - 125
 roborock.vacuum.a87:
-  Protocol Version: '1.0'
+  Protocol Version: "1.0"
   Product Nickname: PEARLPLUS
   New Feature Info: 4499197267967999
   New Feature Info Str: 508A977F7EFEFFFF
   Feature Info:
-  - 111
-  - 112
-  - 113
-  - 114
-  - 115
-  - 116
-  - 117
-  - 118
-  - 119
-  - 120
-  - 121
-  - 122
-  - 123
-  - 124
-  - 125
+    - 111
+    - 112
+    - 113
+    - 114
+    - 115
+    - 116
+    - 117
+    - 118
+    - 119
+    - 120
+    - 121
+    - 122
+    - 123
+    - 124
+    - 125
 roborock.vacuum.s5e:
-  Protocol Version: '1.0'
+  Protocol Version: "1.0"
   Product Nickname: RUBYSLITE
   New Feature Info: 633887780925447
-  New Feature Info Str: '0000000000002000'
+  New Feature Info Str: "0000000000002000"
   Feature Info:
-  - 111
-  - 112
-  - 113
-  - 114
-  - 115
-  - 116
-  - 117
-  - 118
-  - 119
-  - 120
-  - 122
-  - 123
-  - 124
-  - 125
+    - 111
+    - 112
+    - 113
+    - 114
+    - 115
+    - 116
+    - 117
+    - 118
+    - 119
+    - 120
+    - 122
+    - 123
+    - 124
+    - 125
+roborock.vacuum.a144:
+  Protocol Version: "1.0"
+  Product Nickname: CORALPRO
+  New Feature Info: 4499197267967999
+  New Feature Info Str: "0000000000ED3EDDCFFF8F7F7EFEFFFF"
+  # We don't have this value populated yet
+  Feature Info: []

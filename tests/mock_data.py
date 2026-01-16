@@ -5,6 +5,8 @@ import json
 import pathlib
 from typing import Any
 
+import yaml
+
 # All data is based on a U.S. customer with a Roborock S7 MaxV Ultra
 USER_EMAIL = "user@domain.com"
 
@@ -140,6 +142,18 @@ Q7_DEVICE_DATA = DEVICES["home_data_device_q7.json"]
 Q10_DEVICE_DATA = DEVICES["home_data_device_q10.json"]
 ZEO_ONE_DEVICE_DATA = DEVICES["home_data_device_zeo_one.json"]
 SAROS_10R_DEVICE_DATA = DEVICES["home_data_device_saros_10r.json"]
+
+# Additional Device Features info from YAML. In the future we can merge these
+# all into a similar format or get from diagnostrics.
+_DEVICE_INFO_DATA = yaml.safe_load(pathlib.Path("device_info.yaml").read_text())
+DEVICE_INFO = {
+    product_model: {
+        "new_feature_info": data.get("New Feature Info"),
+        "new_feature_info_str": data.get("New Feature Info Str"),
+        "feature_info": data.get("Feature Info"),
+    }
+    for product_model, data in _DEVICE_INFO_DATA.items()
+}
 
 
 HOME_DATA_RAW: dict[str, Any] = {
