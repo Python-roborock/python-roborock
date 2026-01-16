@@ -167,6 +167,22 @@
         }),
         'traits': dict({
           'device_features': dict({
+            'featureInfo': list([
+              111,
+              112,
+              113,
+              114,
+              115,
+              116,
+              117,
+              118,
+              119,
+              120,
+              122,
+              123,
+              124,
+              125,
+            ]),
             'isActivateVideoChargingAndStandbySupported': False,
             'isAnalysisSupported': True,
             'isAnyStateTransitGotoSupported': False,
@@ -339,6 +355,8 @@
             'isWaterUpDownDrainSupported': False,
             'isWifiManageSupported': False,
             'isWorkdayHolidaySupported': False,
+            'newFeatureInfo': 633887780925447,
+            'newFeatureInfoStr': '0000000000002000',
           }),
           'led_status': dict({
             'status': 0,
