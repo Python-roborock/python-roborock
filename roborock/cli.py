@@ -44,7 +44,7 @@ from pyshark.packet.packet import Packet  # type: ignore
 from roborock import RoborockCommand
 from roborock.data import RoborockBase, UserData
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
-from roborock.data.code_mappings import SHORT_MODEL_TO_ENUM, RoborockProductNickname
+from roborock.data.code_mappings import SHORT_MODEL_TO_ENUM
 from roborock.device_features import DeviceFeatures
 from roborock.devices.cache import Cache, CacheData
 from roborock.devices.device import RoborockDevice
@@ -861,7 +861,7 @@ def _parse_diagnostic_file(diagnostic_path: Path) -> dict[str, dict[str, Any]]:
     if not coordinators:
         return all_products_data
 
-    for coordinator_id, coordinator_data in coordinators.items():
+    for coordinator_data in coordinators.values():
         device_data = coordinator_data.get("device", {})
         product_data = coordinator_data.get("product", {})
 
@@ -870,11 +870,11 @@ def _parse_diagnostic_file(diagnostic_path: Path) -> dict[str, dict[str, Any]]:
             continue
         # Derive product nickname from model
         short_model = model.split(".")[-1]
-        product_nickname = SHORT_MODEL_TO_ENUM.get(short_model, RoborockProductNickname.PEARLPLUS)
+        product_nickname = SHORT_MODEL_TO_ENUM.get(short_model)
 
         current_product_data: dict[str, Any] = {
-            "Protocol Version": device_data.get("pv"),
-            "Product Nickname": product_nickname.name,
+            "protocol_version": device_data.get("pv"),
+            "product_nickname": product_nickname.name if product_nickname else "Unknown",
         }
 
         # Get feature info from the device_features trait (preferred location)
@@ -884,17 +884,17 @@ def _parse_diagnostic_file(diagnostic_path: Path) -> dict[str, dict[str, Any]]:
         # newFeatureInfo is the integer
         new_feature_info = device_features.get("newFeatureInfo")
         if new_feature_info is not None:
-            current_product_data["New Feature Info"] = new_feature_info
+            current_product_data["new_feature_info"] = new_feature_info
 
         # newFeatureInfoStr is the hex string
         new_feature_info_str = device_features.get("newFeatureInfoStr")
         if new_feature_info_str:
-            current_product_data["New Feature Info Str"] = new_feature_info_str
+            current_product_data["new_feature_info_str"] = new_feature_info_str
 
         # featureInfo is the list of feature codes
         feature_info = device_features.get("featureInfo")
         if feature_info:
-            current_product_data["Feature Info"] = feature_info
+            current_product_data["feature_info"] = feature_info
 
         # Build product dict from diagnostic product data
         if product_data:
@@ -904,7 +904,7 @@ def _parse_diagnostic_file(diagnostic_path: Path) -> dict[str, dict[str, Any]]:
                 if key in product_data:
                     product_dict[key] = product_data[key]
             if product_dict:
-                current_product_data["Product"] = product_dict
+                current_product_data["product"] = product_dict
 
         all_products_data[model] = current_product_data
 
@@ -965,17 +965,7 @@ async def get_device_info(ctx: click.Context, record: bool, device_info_file: st
 
         click.echo(f"Found {len(all_products_data)} device(s) in diagnostic file.")
 
-        # Filter out already recorded models if recording
-        if record:
-            all_products_data = {
-                model: data for model, data in all_products_data.items() if model not in existing_device_info
-            }
-            if not all_products_data:
-                click.echo("No new device info to record (all models already exist).")
-                return
-
     else:
-        # Original behavior: connect to devices
         click.echo("Discovering devices...")
 
         if record:
@@ -1000,16 +990,15 @@ async def get_device_info(ctx: click.Context, record: bool, device_info_file: st
             click.echo(f"  - Processing {device.name} ({device.duid})")
 
             model = device.product.model
-            if record and model in existing_device_info:
-                click.echo(f"    - Device info already recorded for {model}")
-                continue
             if model in all_products_data:
                 click.echo(f"    - Skipping duplicate model {model}")
                 continue
 
             current_product_data = {
-                "Protocol Version": device.device_info.pv,
-                "Product Nickname": device.product.product_nickname.name,
+                "protocol_version": device.device_info.pv,
+                "product_nickname": device.product.product_nickname.name
+                if device.product.product_nickname
+                else "Unknown",
             }
             if device.v1_properties is not None:
                 try:
@@ -1022,15 +1011,15 @@ async def get_device_info(ctx: click.Context, record: bool, device_info_file: st
                 init_status_result = result[0] if result else {}
                 current_product_data.update(
                     {
-                        "New Feature Info": init_status_result.get("new_feature_info"),
-                        "New Feature Info Str": init_status_result.get("new_feature_info_str"),
-                        "Feature Info": init_status_result.get("feature_info"),
+                        "new_feature_info": init_status_result.get("new_feature_info"),
+                        "new_feature_info_str": init_status_result.get("new_feature_info_str"),
+                        "feature_info": init_status_result.get("feature_info"),
                     }
                 )
 
             product_data = device.product.as_dict()
             if product_data:
-                current_product_data["Product"] = product_data
+                current_product_data["product"] = product_data
 
             all_products_data[model] = current_product_data
 
@@ -1082,19 +1071,19 @@ def update_docs(data_file: str, output_file: str):
     for model, data in product_data_from_yaml.items():
         # Reconstruct the DeviceFeatures object from the raw data in the YAML file
         device_features = DeviceFeatures.from_feature_flags(
-            new_feature_info=data.get("New Feature Info"),
-            new_feature_info_str=data.get("New Feature Info Str"),
-            feature_info=data.get("Feature Info"),
-            product_nickname=data.get("Product Nickname"),
+            new_feature_info=data.get("new_feature_info"),
+            new_feature_info_str=data.get("new_feature_info_str"),
+            feature_info=data.get("feature_info"),
+            product_nickname=data.get("product_nickname"),
         )
         features_dict = asdict(device_features)
 
         # This dictionary will hold the final data for the markdown table row
         current_product_data = {
-            "Product Nickname": data.get("Product Nickname", ""),
-            "Protocol Version": data.get("Protocol Version", ""),
-            "New Feature Info": data.get("New Feature Info", ""),
-            "New Feature Info Str": data.get("New Feature Info Str", ""),
+            "product_nickname": data.get("product_nickname", ""),
+            "protocol_version": data.get("protocol_version", ""),
+            "new_feature_info": data.get("new_feature_info", ""),
+            "new_feature_info_str": data.get("new_feature_info_str", ""),
         }
 
         # Populate features from the calculated DeviceFeatures object
@@ -1103,7 +1092,7 @@ def update_docs(data_file: str, output_file: str):
             if is_supported:
                 current_product_data[feature] = "X"
 
-        supported_codes = data.get("Feature Info", [])
+        supported_codes = data.get("feature_info", [])
         if isinstance(supported_codes, list):
             for code in supported_codes:
                 feature_name = str(code)
@@ -1117,10 +1106,10 @@ def update_docs(data_file: str, output_file: str):
         """Writes the data into a markdown table (products as columns)."""
         sorted_products = sorted(product_features.keys())
         special_rows = [
-            "Product Nickname",
-            "Protocol Version",
-            "New Feature Info",
-            "New Feature Info Str",
+            "product_nickname",
+            "protocol_version",
+            "new_feature_info",
+            "new_feature_info_str",
         ]
         # Regular features are the remaining keys, sorted alphabetically
         # We filter out the special rows to avoid duplicating them.

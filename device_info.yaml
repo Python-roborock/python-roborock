@@ -1,9 +1,9 @@
 roborock.vacuum.a117:
-  Protocol Version: '1.0'
-  Product Nickname: PEARLPLUSS
-  New Feature Info: 4499197267967999
-  New Feature Info Str: 000000000000000BC2FF8F7F7EFEFFFF
-  Feature Info:
+  protocol_version: '1.0'
+  product_nickname: PEARLPLUSS
+  new_feature_info: 4499197267967999
+  new_feature_info_str: 000000000000000BC2FF8F7F7EFEFFFF
+  feature_info:
   - 111
   - 112
   - 113
@@ -19,7 +19,7 @@ roborock.vacuum.a117:
   - 123
   - 124
   - 125
-  Product:
+  product:
     id: 3hVxBJoGbDP2kv93Pcc1pb
     name: Roborock Qrevo Master
     model: roborock.vacuum.a117
@@ -120,11 +120,11 @@ roborock.vacuum.a117:
       mode: ro
       type: RAW
 roborock.vacuum.a15:
-  Protocol Version: '1.0'
-  Product Nickname: TANOSS
-  New Feature Info: 636084721975295
-  New Feature Info Str: '0000000000002000'
-  Feature Info:
+  protocol_version: '1.0'
+  product_nickname: TANOSS
+  new_feature_info: 636084721975295
+  new_feature_info_str: '0000000000002000'
+  feature_info:
   - 111
   - 112
   - 113
@@ -139,7 +139,7 @@ roborock.vacuum.a15:
   - 123
   - 124
   - 125
-  Product:
+  product:
     id: 1YYW18rpgyAJTISwb1NM91
     name: S7
     model: roborock.vacuum.a15
@@ -240,11 +240,11 @@ roborock.vacuum.a15:
       mode: ro
       type: RAW
 roborock.vacuum.a87:
-  Protocol Version: '1.0'
-  Product Nickname: PEARLPLUS
-  New Feature Info: 4499197267967999
-  New Feature Info Str: 508A977F7EFEFFFF
-  Feature Info:
+  protocol_version: '1.0'
+  product_nickname: PEARLPLUS
+  new_feature_info: 4499197267967999
+  new_feature_info_str: 508A977F7EFEFFFF
+  feature_info:
   - 111
   - 112
   - 113
@@ -260,7 +260,7 @@ roborock.vacuum.a87:
   - 123
   - 124
   - 125
-  Product:
+  product:
     id: 5gUei3OIJIXVD3eD85Balg
     name: Roborock Qrevo MaxV
     model: roborock.vacuum.a87
@@ -361,11 +361,11 @@ roborock.vacuum.a87:
       mode: ro
       type: RAW
 roborock.vacuum.s5e:
-  Protocol Version: '1.0'
-  Product Nickname: RUBYSLITE
-  New Feature Info: 633887780925447
-  New Feature Info Str: '0000000000002000'
-  Feature Info:
+  protocol_version: '1.0'
+  product_nickname: RUBYSLITE
+  new_feature_info: 633887780925447
+  new_feature_info_str: '0000000000002000'
+  feature_info:
   - 111
   - 112
   - 113
@@ -381,9 +381,9 @@ roborock.vacuum.s5e:
   - 124
   - 125
 roborock.vacuum.sc05:
-  Protocol Version: B01
-  Product Nickname: PEARLPLUS
-  Product:
+  protocol_version: B01
+  product_nickname: PEARLPLUS
+  product:
     id: 5ayEx3aKgStqZZ0v5IpMBP
     name: Roborock Q7 Series
     model: roborock.vacuum.sc05
