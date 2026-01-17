@@ -866,13 +866,8 @@ def _parse_diagnostic_file(diagnostic_path: Path) -> dict[str, dict[str, Any]]:
         product_data = coordinator_data.get("product", {})
 
         model = product_data.get("model")
-        if not model:
+        if not model or model in all_products_data:
             continue
-
-        # Skip duplicate models
-        if model in all_products_data:
-            continue
-
         # Derive product nickname from model
         short_model = model.split(".")[-1]
         product_nickname = SHORT_MODEL_TO_ENUM.get(short_model, RoborockProductNickname.PEARLPLUS)
