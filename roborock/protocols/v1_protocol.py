@@ -13,7 +13,7 @@ from enum import StrEnum
 from typing import Any, Protocol, TypeVar, overload
 
 from roborock.data import RoborockBase, RRiot
-from roborock.exceptions import RoborockException, RoborockUnsupportedFeature
+from roborock.exceptions import RoborockException, RoborockInvalidStatus, RoborockUnsupportedFeature
 from roborock.protocol import Utils
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 from roborock.roborock_typing import RoborockCommand
@@ -106,6 +106,24 @@ class RequestMessage:
 
 ResponseData = dict[str, Any] | list | int
 
+# V1 RPC error code mappings to specific exception types
+_V1_ERROR_CODE_EXCEPTIONS: dict[int, type[RoborockException]] = {
+    -10007: RoborockInvalidStatus,  # "invalid status" - device action locked
+}
+
+
+def _create_api_error(error: Any) -> RoborockException:
+    """Create an appropriate exception for a V1 RPC error response.
+
+    Maps known error codes to specific exception types for easier handling
+    at higher levels.
+    """
+    if isinstance(error, dict):
+        code = error.get("code")
+        if isinstance(code, int) and (exc_type := _V1_ERROR_CODE_EXCEPTIONS.get(code)):
+            return exc_type(error)
+    return RoborockException(error)
+
 
 @dataclass(kw_only=True, frozen=True)
 class ResponseMessage:
@@ -156,7 +174,7 @@ def decode_rpc_response(message: RoborockMessage) -> ResponseMessage:
     request_id: int | None = data_point_response.get("id")
     api_error: RoborockException | None = None
     if error := data_point_response.get("error"):
-        api_error = RoborockException(error)
+        api_error = _create_api_error(error)
 
     if (result := data_point_response.get("result")) is None:
         # Some firmware versions return an error-only response (no "result" key).

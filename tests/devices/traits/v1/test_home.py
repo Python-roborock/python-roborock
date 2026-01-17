@@ -15,7 +15,7 @@ from roborock.devices.traits.v1.map_content import MapContentTrait
 from roborock.devices.traits.v1.maps import MapsTrait
 from roborock.devices.traits.v1.rooms import RoomsTrait
 from roborock.devices.traits.v1.status import StatusTrait
-from roborock.exceptions import RoborockDeviceBusy, RoborockException
+from roborock.exceptions import RoborockDeviceBusy, RoborockException, RoborockInvalidStatus
 from roborock.map.map_parser import ParsedMapData
 from roborock.roborock_typing import RoborockCommand
 from tests import mock_data
@@ -550,7 +550,7 @@ async def test_refresh_falls_back_when_map_switch_action_locked(
     # Discovery attempt: we can list maps, but switching maps fails with -10007.
     mock_mqtt_rpc_channel.send_command.side_effect = [
         MULTI_MAP_LIST_DATA,  # Maps refresh during discover_home()
-        RoborockException({"code": -10007, "message": "invalid status"}),  # LOAD_MULTI_MAP action locked
+        RoborockInvalidStatus({"code": -10007, "message": "invalid status"}),  # LOAD_MULTI_MAP action locked
         MULTI_MAP_LIST_DATA,  # Maps refresh during refresh() fallback
     ]
 

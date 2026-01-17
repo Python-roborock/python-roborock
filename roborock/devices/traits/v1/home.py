@@ -24,7 +24,7 @@ from roborock.data import CombinedMapInfo, RoborockBase
 from roborock.data.v1.v1_code_mappings import RoborockStateCode
 from roborock.devices.cache import DeviceCache
 from roborock.devices.traits.v1 import common
-from roborock.exceptions import RoborockDeviceBusy, RoborockException
+from roborock.exceptions import RoborockDeviceBusy, RoborockException, RoborockInvalidStatus
 from roborock.roborock_typing import RoborockCommand
 
 from .map_content import MapContent, MapContentTrait
@@ -152,13 +152,10 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
                 _LOGGER.debug("Loading map %s", map_info.map_flag)
                 try:
                     await self._maps_trait.set_current_map(map_info.map_flag)
-                except RoborockException as ex:
-                    # Some firmware revisions return -10007 ("invalid status"/action locked) when attempting
-                    # to switch maps while the device is in a state that forbids it. Treat this as a
-                    # "busy" condition so callers can fall back to refreshing the current map only.
-                    if common.extract_v1_api_error_code(ex) == -10007:
-                        raise RoborockDeviceBusy("Cannot switch maps right now (device action locked)") from ex
-                    raise
+                except RoborockInvalidStatus as ex:
+                    # Device is in a state that forbids map switching. Translate to
+                    # "busy" so callers can fall back to refreshing the current map only.
+                    raise RoborockDeviceBusy("Cannot switch maps right now (device action locked)") from ex
                 await asyncio.sleep(MAP_SLEEP)
 
             map_content = await self._refresh_map_content()

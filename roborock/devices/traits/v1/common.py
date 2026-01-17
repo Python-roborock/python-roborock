@@ -9,27 +9,12 @@ from dataclasses import dataclass, fields
 from typing import ClassVar, Self
 
 from roborock.data import RoborockBase
-from roborock.exceptions import RoborockException
 from roborock.protocols.v1_protocol import V1RpcChannel
 from roborock.roborock_typing import RoborockCommand
 
 _LOGGER = logging.getLogger(__name__)
 
 V1ResponseData = dict | list | int | str
-
-
-def extract_v1_api_error_code(err: RoborockException) -> int | None:
-    """Extract a V1 RPC API error code from a RoborockException, if present.
-
-    V1 RPC error responses typically look like: {"code": -10007, "message": "..."}.
-    """
-    if not err.args:
-        return None
-    payload = err.args[0]
-    if isinstance(payload, dict):
-        code = payload.get("code")
-        return code if isinstance(code, int) else None
-    return None
 
 
 @dataclass
