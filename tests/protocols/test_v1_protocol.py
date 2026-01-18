@@ -275,6 +275,28 @@ def test_decode_no_request_id():
         decode_rpc_response(message)
 
 
+def test_decode_error_without_result() -> None:
+    """Test decoding an error-only V1 RPC response (no 'result' key)."""
+    payload = (
+        b'{"t":1768419740,"dps":{"102":"{\\"id\\":20062,\\"error\\":{\\"code\\":-10007,'
+        b'\\"message\\":\\"invalid status\\"}}"}}'
+    )
+    message = RoborockMessage(
+        protocol=RoborockMessageProtocol.GENERAL_RESPONSE,
+        payload=payload,
+        seq=12750,
+        version=b"1.0",
+        random=97431,
+        timestamp=1768419740,
+    )
+    decoded_message = decode_rpc_response(message)
+    assert decoded_message.request_id == 20062
+    assert decoded_message.data == {}
+    assert decoded_message.api_error
+    assert isinstance(decoded_message.api_error.args[0], dict)
+    assert decoded_message.api_error.args[0]["code"] == -10007
+
+
 def test_invalid_unicode() -> None:
     """Test an error while decoding unicode bytes"""
     message = RoborockMessage(

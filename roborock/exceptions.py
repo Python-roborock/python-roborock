@@ -87,5 +87,9 @@ class RoborockDeviceBusy(RoborockException):
     """Class for Roborock device busy exceptions."""
 
 
+class RoborockInvalidStatus(RoborockException):
+    """Class for Roborock invalid status exceptions (device action locked)."""
+
+
 class RoborockUnsupportedFeature(RoborockException):
     """Class for Roborock unsupported feature exceptions."""

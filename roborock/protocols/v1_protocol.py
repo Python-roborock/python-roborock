@@ -13,7 +13,7 @@ from enum import StrEnum
 from typing import Any, Protocol, TypeVar, overload
 
 from roborock.data import RoborockBase, RRiot
-from roborock.exceptions import RoborockException, RoborockUnsupportedFeature
+from roborock.exceptions import RoborockException, RoborockInvalidStatus, RoborockUnsupportedFeature
 from roborock.protocol import Utils
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 from roborock.roborock_typing import RoborockCommand
@@ -106,6 +106,24 @@ class RequestMessage:
 
 ResponseData = dict[str, Any] | list | int
 
+# V1 RPC error code mappings to specific exception types
+_V1_ERROR_CODE_EXCEPTIONS: dict[int, type[RoborockException]] = {
+    -10007: RoborockInvalidStatus,  # "invalid status" - device action locked
+}
+
+
+def _create_api_error(error: Any) -> RoborockException:
+    """Create an appropriate exception for a V1 RPC error response.
+
+    Maps known error codes to specific exception types for easier handling
+    at higher levels.
+    """
+    if isinstance(error, dict):
+        code = error.get("code")
+        if isinstance(code, int) and (exc_type := _V1_ERROR_CODE_EXCEPTIONS.get(code)):
+            return exc_type(error)
+    return RoborockException(error)
+
 
 @dataclass(kw_only=True, frozen=True)
 class ResponseMessage:
@@ -154,26 +172,38 @@ def decode_rpc_response(message: RoborockMessage) -> ResponseMessage:
         ) from e
 
     request_id: int | None = data_point_response.get("id")
-    exc: RoborockException | None = None
+    api_error: RoborockException | None = None
     if error := data_point_response.get("error"):
-        exc = RoborockException(error)
+        api_error = _create_api_error(error)
+
     if (result := data_point_response.get("result")) is None:
-        exc = RoborockException(f"Invalid V1 message format: missing 'result' in data point for {message.payload!r}")
+        # Some firmware versions return an error-only response (no "result" key).
+        # Preserve that error instead of overwriting it with a parsing exception.
+        if api_error is None:
+            api_error = RoborockException(
+                f"Invalid V1 message format: missing 'result' in data point for {message.payload!r}"
+            )
+        result = {}
     else:
         _LOGGER.debug("Decoded V1 message result: %s", result)
         if isinstance(result, str):
             if result == "unknown_method":
-                exc = RoborockUnsupportedFeature("The method called is not recognized by the device.")
+                api_error = RoborockUnsupportedFeature("The method called is not recognized by the device.")
             elif result != "ok":
-                exc = RoborockException(f"Unexpected API Result: {result}")
+                api_error = RoborockException(f"Unexpected API Result: {result}")
             result = {}
         if not isinstance(result, dict | list | int):
-            raise RoborockException(
-                f"Invalid V1 message format: 'result' was unexpected type {type(result)}. {message.payload!r}"
-            )
-    if not request_id and exc:
-        raise exc
-    return ResponseMessage(request_id=request_id, data=result, api_error=exc)
+            # If we already have an API error, prefer returning a response object
+            # rather than failing to decode the message entirely.
+            if api_error is None:
+                raise RoborockException(
+                    f"Invalid V1 message format: 'result' was unexpected type {type(result)}. {message.payload!r}"
+                )
+            result = {}
+
+    if not request_id and api_error:
+        raise api_error
+    return ResponseMessage(request_id=request_id, data=result, api_error=api_error)
 
 
 @dataclass
