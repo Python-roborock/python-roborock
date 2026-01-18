@@ -62,7 +62,7 @@ class StatusTrait(StatusV2, common.V1TraitMixin):
         return self.mop_route_mapping.get(self.mop_mode)
 
     def _parse_response(self, response: common.V1ResponseData) -> Self:
-        """Parse the response from the device into a CleanSummary."""
+        """Parse the response from the device into a StatusV2-based status object."""
         if isinstance(response, list):
             response = response[0]
         if isinstance(response, dict):
