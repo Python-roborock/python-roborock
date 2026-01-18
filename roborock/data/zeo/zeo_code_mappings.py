@@ -21,6 +21,7 @@ class ZeoState(RoborockEnum):
     aftercare = 12
     waiting_for_aftercare = 13
 
+
 class ZeoProgram(RoborockEnum):
     standard = 1
     quick = 2
