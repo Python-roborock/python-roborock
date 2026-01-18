@@ -111,6 +111,9 @@ class RoborockModeEnum(StrEnum):
             return self.code == other
         return super().__eq__(other)
 
+    def __hash__(self) -> int:
+        return hash((self.code, self._value_))
+
 
 ProductInfo = namedtuple("ProductInfo", ["nickname", "short_models"])
 
