@@ -11,6 +11,7 @@ from Crypto.Util.Padding import pad, unpad
 
 from roborock.data.b01_q7 import (
     CleanTaskTypeMapping,
+    CleanTypeMapping,
     SCDeviceCleanParam,
     SCWindMapping,
     WaterLevelMapping,
@@ -215,6 +216,32 @@ async def test_q7_api_set_water_level(
     payload_data = json.loads(unpad(message.payload, AES.block_size))
     assert payload_data["dps"]["10000"]["method"] == "prop.set"
     assert payload_data["dps"]["10000"]["params"] == {RoborockB01Props.WATER: WaterLevelMapping.HIGH.code}
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected_code"),
+    [
+        (CleanTypeMapping.VACUUM, 0),
+        (CleanTypeMapping.VAC_AND_MOP, 1),
+        (CleanTypeMapping.MOP, 2),
+    ],
+)
+async def test_q7_api_set_mode(
+    mode: CleanTypeMapping,
+    expected_code: int,
+    q7_api: Q7PropertiesApi,
+    fake_channel: FakeChannel,
+    message_builder: B01MessageBuilder,
+):
+    """Test setting cleaning mode (vacuum, mop, or both)."""
+    fake_channel.response_queue.append(message_builder.build({"result": "ok"}))
+    await q7_api.set_mode(mode)
+
+    assert len(fake_channel.published_messages) == 1
+    message = fake_channel.published_messages[0]
+    payload_data = json.loads(unpad(message.payload, AES.block_size))
+    assert payload_data["dps"]["10000"]["method"] == "prop.set"
+    assert payload_data["dps"]["10000"]["params"] == {RoborockB01Props.MODE: expected_code}
 
 
 async def test_q7_api_start_clean(

@@ -6,6 +6,7 @@ from typing import Any
 from roborock import B01Props
 from roborock.data.b01_q7.b01_q7_code_mappings import (
     CleanTaskTypeMapping,
+    CleanTypeMapping,
     SCDeviceCleanParam,
     SCWindMapping,
     WaterLevelMapping,
@@ -53,6 +54,10 @@ class Q7PropertiesApi(Trait):
     async def set_water_level(self, water_level: WaterLevelMapping) -> None:
         """Set the water level (water)."""
         await self.set_prop(RoborockB01Props.WATER, water_level.code)
+
+    async def set_mode(self, mode: CleanTypeMapping) -> None:
+        """Set the cleaning mode (vacuum, mop, or vacuum and mop)."""
+        await self.set_prop(RoborockB01Props.MODE, mode.code)
 
     async def start_clean(self) -> None:
         """Start cleaning."""
