@@ -1,0 +1,295 @@
+"""Module for communicating with Roborock devices over a local network."""
+
+import asyncio
+import logging
+from collections.abc import Callable
+from dataclasses import dataclass
+
+from roborock.callbacks import CallbackList, decoder_callback
+from roborock.exceptions import RoborockConnectionException, RoborockException
+from roborock.protocol import create_local_decoder, create_local_encoder
+from roborock.protocols.v1_protocol import LocalProtocolVersion
+from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
+from roborock.util import RoborockLoggerAdapter, get_next_int
+
+from .channel import Channel
+
+_LOGGER = logging.getLogger(__name__)
+_PORT = 58867
+_TIMEOUT = 5.0
+_PING_INTERVAL = 10
+
+
+@dataclass
+class LocalChannelParams:
+    """Parameters for local channel encoder/decoder."""
+
+    local_key: str
+    connect_nonce: int
+    ack_nonce: int | None
+
+
+@dataclass
+class _LocalProtocol(asyncio.Protocol):
+    """Callbacks for the Roborock local client transport."""
+
+    messages_cb: Callable[[bytes], None]
+    connection_lost_cb: Callable[[Exception | None], None]
+
+    def data_received(self, data: bytes) -> None:
+        """Called when data is received from the transport."""
+        self.messages_cb(data)
+
+    def connection_lost(self, exc: Exception | None) -> None:
+        """Called when the transport connection is lost."""
+        self.connection_lost_cb(exc)
+
+
+def get_running_loop() -> asyncio.AbstractEventLoop:
+    """Get the running event loop, extracted for mocking purposes."""
+    return asyncio.get_running_loop()
+
+
+class LocalChannel(Channel):
+    """Simple RPC-style channel for communicating with a device over a local network.
+
+    Handles request/response correlation and timeouts, but leaves message
+    format most parsing to higher-level components.
+    """
+
+    def __init__(self, host: str, local_key: str, device_uid: str) -> None:
+        self._host = host
+        self._logger = RoborockLoggerAdapter(duid=device_uid, logger=_LOGGER)
+        self._transport: asyncio.Transport | None = None
+        self._protocol: _LocalProtocol | None = None
+        self._subscribers: CallbackList[RoborockMessage] = CallbackList(self._logger)
+        self._is_connected = False
+        self._local_protocol_version: LocalProtocolVersion | None = None
+        self._keep_alive_task: asyncio.Task[None] | None = None
+        self._update_encoder_decoder(
+            LocalChannelParams(local_key=local_key, connect_nonce=get_next_int(10000, 32767), ack_nonce=None)
+        )
+
+    def _update_encoder_decoder(self, params: LocalChannelParams) -> None:
+        """Update the encoder and decoder with new parameters.
+
+        This is invoked once with an initial set of values used for protocol
+        negotiation. Once negotiation completes, it is updated again to set the
+        correct nonces for the follow up communications and updates the encoder
+        and decoder functions accordingly.
+        """
+        self._params = params
+        self._encoder = create_local_encoder(
+            local_key=params.local_key, connect_nonce=params.connect_nonce, ack_nonce=params.ack_nonce
+        )
+        self._decoder = create_local_decoder(
+            local_key=params.local_key, connect_nonce=params.connect_nonce, ack_nonce=params.ack_nonce
+        )
+        # Callback to decode messages and dispatch to subscribers
+        self._dispatch = decoder_callback(self._decoder, self._subscribers, self._logger)
+
+    async def _do_hello(self, local_protocol_version: LocalProtocolVersion) -> LocalChannelParams | None:
+        """Perform the initial handshaking and return encoder params if successful."""
+        self._logger.debug(
+            "Attempting to use the %s protocol for client %s...",
+            local_protocol_version,
+            self._host,
+        )
+        request = RoborockMessage(
+            protocol=RoborockMessageProtocol.HELLO_REQUEST,
+            version=local_protocol_version.encode(),
+            random=self._params.connect_nonce,
+            seq=1,
+        )
+        try:
+            response = await self._send_message(
+                roborock_message=request,
+                request_id=request.seq,
+                response_protocol=RoborockMessageProtocol.HELLO_RESPONSE,
+            )
+            self._logger.debug(
+                "Client %s speaks the %s protocol.",
+                self._host,
+                local_protocol_version,
+            )
+            return LocalChannelParams(
+                local_key=self._params.local_key, connect_nonce=self._params.connect_nonce, ack_nonce=response.random
+            )
+        except RoborockException as e:
+            self._logger.debug(
+                "Client %s did not respond or does not speak the %s protocol. %s",
+                self._host,
+                local_protocol_version,
+                e,
+            )
+            return None
+
+    async def _hello(self):
+        """Send hello to the device to negotiate protocol."""
+        attempt_versions = [LocalProtocolVersion.V1, LocalProtocolVersion.L01]
+        if self._local_protocol_version:
+            # Sort to try the preferred version first
+            attempt_versions.sort(key=lambda v: v != self._local_protocol_version)
+
+        for version in attempt_versions:
+            params = await self._do_hello(version)
+            if params is not None:
+                self._local_protocol_version = version
+                self._update_encoder_decoder(params)
+                return
+
+        raise RoborockException("Failed to connect to device with any known protocol")
+
+    async def _ping(self) -> None:
+        ping_message = RoborockMessage(
+            protocol=RoborockMessageProtocol.PING_REQUEST, version=self.protocol_version.encode()
+        )
+        await self._send_message(
+            roborock_message=ping_message,
+            request_id=ping_message.seq,
+            response_protocol=RoborockMessageProtocol.PING_RESPONSE,
+        )
+
+    async def _keep_alive_loop(self) -> None:
+        while self._is_connected:
+            try:
+                await asyncio.sleep(_PING_INTERVAL)
+                if self._is_connected:
+                    await self._ping()
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                self._logger.debug("Keep-alive ping failed", exc_info=True)
+                # Retry next interval
+
+    @property
+    def protocol_version(self) -> LocalProtocolVersion:
+        """Return the negotiated local protocol version, or a sensible default."""
+        if self._local_protocol_version is not None:
+            return self._local_protocol_version
+        return LocalProtocolVersion.V1
+
+    @property
+    def is_connected(self) -> bool:
+        """Check if the channel is currently connected."""
+        return self._is_connected
+
+    @property
+    def is_local_connected(self) -> bool:
+        """Check if the channel is currently connected locally."""
+        return self._is_connected
+
+    async def connect(self) -> None:
+        """Connect to the device and negotiate protocol."""
+        if self._is_connected:
+            self._logger.debug("Unexpected call to connect when already connected")
+            return
+        loop = get_running_loop()
+        protocol = _LocalProtocol(self._data_received, self._connection_lost)
+        try:
+            self._transport, self._protocol = await loop.create_connection(lambda: protocol, self._host, _PORT)
+            self._is_connected = True
+        except OSError as e:
+            raise RoborockConnectionException(f"Failed to connect to {self._host}:{_PORT}") from e
+
+        # Perform protocol negotiation
+        try:
+            await self._hello()
+            self._keep_alive_task = asyncio.create_task(self._keep_alive_loop())
+        except RoborockException:
+            # If protocol negotiation fails, clean up the connection state
+            self.close()
+            raise
+
+    def _data_received(self, data: bytes) -> None:
+        """Invoked when data is received on the stream."""
+        self._dispatch(data)
+
+    def close(self) -> None:
+        """Disconnect from the device."""
+        if self._keep_alive_task:
+            self._keep_alive_task.cancel()
+            self._keep_alive_task = None
+        if self._transport:
+            self._transport.close()
+        else:
+            self._logger.warning("Close called but transport is already None")
+        self._transport = None
+        self._is_connected = False
+
+    def _connection_lost(self, exc: Exception | None) -> None:
+        """Handle connection loss."""
+        self._logger.debug("Connection lost to %s", self._host, exc_info=exc)
+        if self._keep_alive_task:
+            self._keep_alive_task.cancel()
+            self._keep_alive_task = None
+        self._transport = None
+        self._is_connected = False
+
+    async def subscribe(self, callback: Callable[[RoborockMessage], None]) -> Callable[[], None]:
+        """Subscribe to all messages from the device."""
+        return self._subscribers.add_callback(callback)
+
+    async def publish(self, message: RoborockMessage) -> None:
+        """Send a command message.
+
+        The caller is responsible for associating the message with its response.
+        """
+        if not self._transport or not self._is_connected:
+            raise RoborockConnectionException("Not connected to device")
+
+        try:
+            encoded_msg = self._encoder(message)
+        except Exception as err:
+            self._logger.exception("Error encoding MQTT message: %s", err)
+            raise RoborockException(f"Failed to encode MQTT message: {err}") from err
+        try:
+            self._transport.write(encoded_msg)
+        except Exception as err:
+            self._logger.exception("Uncaught error sending command")
+            raise RoborockException(f"Failed to send message: {message}") from err
+
+    async def _send_message(
+        self,
+        roborock_message: RoborockMessage,
+        request_id: int,
+        response_protocol: int,
+    ) -> RoborockMessage:
+        """Send a raw message and wait for a raw response."""
+        future: asyncio.Future[RoborockMessage] = asyncio.Future()
+
+        def find_response(response_message: RoborockMessage) -> None:
+            if response_message.protocol == response_protocol and response_message.seq == request_id:
+                future.set_result(response_message)
+
+        unsub = await self.subscribe(find_response)
+        try:
+            await self.publish(roborock_message)
+            return await asyncio.wait_for(future, timeout=_TIMEOUT)
+        except TimeoutError as ex:
+            future.cancel()
+            raise RoborockException(f"Command timed out after {_TIMEOUT}s") from ex
+        finally:
+            unsub()
+
+
+# This module provides a factory function to create LocalChannel instances.
+#
+# TODO: Make a separate LocalSession and use it to manage retries with the host,
+# similar to how MqttSession works. For now this is a simple factory function
+# for creating channels.
+LocalSession = Callable[[str], LocalChannel]
+
+
+def create_local_session(local_key: str, device_uid: str) -> LocalSession:
+    """Creates a local session which can create local channels.
+
+    This plays a role similar to the MqttSession but is really just a factory
+    for creating LocalChannel instances with the same local key.
+    """
+
+    def create_local_channel(host: str) -> LocalChannel:
+        """Create a LocalChannel instance for the given host."""
+        return LocalChannel(host, local_key, device_uid)
+
+    return create_local_channel

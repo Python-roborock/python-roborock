@@ -1,6 +1,8 @@
 """Tests for diagnostics module."""
 
-from roborock.diagnostics import Diagnostics
+import pytest
+
+from roborock.diagnostics import Diagnostics, redact_device_uid, redact_topic_name
 
 
 def test_empty_diagnostics():
@@ -63,3 +65,37 @@ def test_reset_diagnostics():
     diag.reset()
 
     assert diag.as_dict() == {}
+
+
+@pytest.mark.parametrize(
+    "topic,expected",
+    [
+        (
+            "rr/m/o/1DuR4nbBzz3OPbv0NNamVP/b8632r9e/3zQRtuIfY14BrRTivxxcMd",
+            "rr/m/o/1DuR4nbBzz3OPbv0NNamVP/*****32r9e/*****xxcMd",
+        ),
+        ("rr/m/o/1DuR4nbBzz3OPbv0NNamVP//3zQRtuIfY14BrRTivxxcMd", "rr/m/o/1DuR4nbBzz3OPbv0NNamVP/*****/*****xxcMd"),
+        ("rr/m/o//b8632r9e/3zQRtuIfY14BrRTivxxcMd", "rr/m/o//*****32r9e/*****xxcMd"),
+        ("roborock/short/updates", "roborock/short/updates"),  # Too short to redact
+    ],
+)
+def test_redact_topic_name(topic: str, expected: str) -> None:
+    """Test redacting sensitive information from topic names."""
+
+    redacted = redact_topic_name(topic)
+    assert redacted == expected
+
+
+@pytest.mark.parametrize(
+    "duid,expected",
+    [
+        ("3zQRtuIfY14BrRTivxxcMd", "******xxcMd"),
+        ("3zQ", "******3zQ"),
+        ("", "******"),
+    ],
+)
+def test_redact_device(duid: str, expected: str) -> None:
+    """Test redacting sensitive information from device UIDs."""
+
+    redacted = redact_device_uid(duid)
+    assert redacted == expected

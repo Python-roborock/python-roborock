@@ -57,12 +57,12 @@ class RoborockApiClient:
     ]
     _HOME_DATA_RATES = [
         Rate(1, Duration.SECOND),
-        Rate(5, Duration.MINUTE),
-        Rate(15, Duration.HOUR),
+        Rate(3, Duration.MINUTE),
+        Rate(5, Duration.HOUR),
         Rate(40, Duration.DAY),
     ]
 
-    _login_limiter = Limiter(_LOGIN_RATES)
+    _login_limiter = Limiter(_LOGIN_RATES, max_delay=1000)
     _home_data_limiter = Limiter(_HOME_DATA_RATES)
 
     def __init__(
@@ -74,11 +74,11 @@ class RoborockApiClient:
         self._device_identifier = secrets.token_urlsafe(16)
         self.session = session
         self._iot_login_info: IotLoginInfo | None = None
+        self._base_urls = BASE_URLS if base_url is None else [base_url]
 
     async def _get_iot_login_info(self) -> IotLoginInfo:
         if self._iot_login_info is None:
-            valid_urls = BASE_URLS if self._base_url is None else [self._base_url]
-            for iot_url in valid_urls:
+            for iot_url in self._base_urls:
                 url_request = PreparedRequest(iot_url, self.session)
                 response = await url_request.request(
                     "post",
@@ -205,7 +205,7 @@ class RoborockApiClient:
 
     async def request_code(self) -> None:
         try:
-            self._login_limiter.try_acquire("login")
+            await self._login_limiter.try_acquire_async("login")
         except BucketFullException as ex:
             _LOGGER.info(ex.meta_info)
             raise RoborockRateLimit("Reached maximum requests for login. Please try again later.") from ex
@@ -239,7 +239,7 @@ class RoborockApiClient:
             _LOGGER.info("No country code or country found, trying old version of request code.")
             return await self.request_code()
         try:
-            self._login_limiter.try_acquire("login")
+            await self._login_limiter.try_acquire_async("login")
         except BucketFullException as ex:
             _LOGGER.info(ex.meta_info)
             raise RoborockRateLimit("Reached maximum requests for login. Please try again later.") from ex
@@ -269,6 +269,10 @@ class RoborockApiClient:
                 raise RoborockAccountDoesNotExist("Account does not exist - check your login and try again.")
             elif response_code == 9002:
                 raise RoborockTooFrequentCodeRequests("You have attempted to request too many codes. Try again later")
+            elif response_code == 3030 and len(self._base_urls) > 1:
+                self._base_urls = self._base_urls[1:]
+                self._iot_login_info = None
+                return await self.request_code_v4()
             else:
                 raise RoborockException(f"{code_response.get('msg')} - response code: {code_response.get('code')}")
 
@@ -355,6 +359,10 @@ class RoborockApiClient:
                 raise RoborockInvalidUserAgreement(
                     "User agreement must be accepted again - or you are attempting to use the Mi Home app account."
                 )
+            if response_code == 3039:
+                raise RoborockAccountDoesNotExist(
+                    "This account does not exist - please ensure that you selected the right region and email."
+                )
             raise RoborockException(f"{login_response.get('msg')} - response code: {response_code}")
         user_data = login_response.get("data")
         if not isinstance(user_data, dict):
@@ -363,7 +371,7 @@ class RoborockApiClient:
 
     async def pass_login(self, password: str) -> UserData:
         try:
-            self._login_limiter.try_acquire("login")
+            await self._login_limiter.try_acquire_async("login")
         except BucketFullException as ex:
             _LOGGER.info(ex.meta_info)
             raise RoborockRateLimit("Reached maximum requests for login. Please try again later.") from ex

@@ -12,18 +12,20 @@ from collections.abc import AsyncGenerator, Callable
 from queue import Queue
 
 import pytest
+import syrupy
 
 from roborock.mqtt.roborock_session import create_mqtt_session
 from roborock.mqtt.session import MqttSession
 from roborock.protocol import MessageParser
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 from tests import mqtt_packet
+from tests.fixtures.logging import CapturedRequestLog
+from tests.fixtures.mqtt import FAKE_PARAMS, Subscriber
 from tests.mock_data import LOCAL_KEY
-from tests.mqtt_fixtures import FAKE_PARAMS, Subscriber
 
 
 @pytest.fixture(autouse=True)
-def auto_mock_mqtt_client(mock_mqtt_client_fixture: None) -> None:
+def auto_mock_mqtt_client(mock_aiomqtt_client: None) -> None:
     """Automatically use the mock mqtt client fixture."""
 
 
@@ -33,7 +35,7 @@ def auto_fast_backoff(fast_backoff_fixture: None) -> None:
 
 
 @pytest.fixture(autouse=True)
-def mqtt_server_fixture(mock_create_connection: None, mock_select: None) -> None:
+def mqtt_server_fixture(mock_paho_mqtt_create_connection: None, mock_paho_mqtt_select: None) -> None:
     """Fixture to mock the MQTT connection.
 
     This is here to pull in the mock socket pixtures into all tests used here.
@@ -42,10 +44,10 @@ def mqtt_server_fixture(mock_create_connection: None, mock_select: None) -> None
 
 @pytest.fixture(name="session")
 async def session_fixture(
-    push_response: Callable[[bytes], None],
+    push_mqtt_response: Callable[[bytes], None],
 ) -> AsyncGenerator[MqttSession, None]:
     """Fixture to create a new connected MQTT session."""
-    push_response(mqtt_packet.gen_connack(rc=0, flags=2))
+    push_mqtt_response(mqtt_packet.gen_connack(rc=0, flags=2))
     session = await create_mqtt_session(FAKE_PARAMS)
     assert session.connected
     try:
@@ -54,12 +56,17 @@ async def session_fixture(
         await session.close()
 
 
-async def test_session_e2e_receive_message(push_response: Callable[[bytes], None], session: MqttSession) -> None:
+async def test_session_e2e_receive_message(
+    push_mqtt_response: Callable[[bytes], None],
+    session: MqttSession,
+    log: CapturedRequestLog,
+    snapshot: syrupy.SnapshotAssertion,
+) -> None:
     """Test receiving a real Roborock message through the session."""
     assert session.connected
 
     # Subscribe to the topic. We'll next construct and push a message.
-    push_response(mqtt_packet.gen_suback(mid=1))
+    push_mqtt_response(mqtt_packet.gen_suback(mid=1))
     subscriber = Subscriber()
     await session.subscribe("topic-1", subscriber.append)
 
@@ -71,12 +78,13 @@ async def test_session_e2e_receive_message(push_response: Callable[[bytes], None
     payload = MessageParser.build(msg, local_key=LOCAL_KEY, prefixed=False)
 
     # Simulate receiving the message from the broker
-    push_response(mqtt_packet.gen_publish("topic-1", mid=2, payload=payload))
+    push_mqtt_response(mqtt_packet.gen_publish("topic-1", mid=2, payload=payload))
 
     # Verify it was dispatched to the subscriber
     await subscriber.wait()
     assert len(subscriber.messages) == 1
     received_payload = subscriber.messages[0]
+    assert isinstance(received_payload, bytes)
     assert received_payload == payload
 
     # Verify the message payload contents
@@ -88,11 +96,15 @@ async def test_session_e2e_receive_message(push_response: Callable[[bytes], None
     # The payload in parsed_msg should be the decrypted bytes
     assert parsed_msg.payload == b'{"result":"ok"}'
 
+    assert snapshot == log
+
 
 async def test_session_e2e_publish_message(
-    push_response: Callable[[bytes], None],
-    received_requests: Queue,
+    push_mqtt_response: Callable[[bytes], None],
+    mqtt_received_requests: Queue,
     session: MqttSession,
+    log: CapturedRequestLog,
+    snapshot: syrupy.SnapshotAssertion,
 ) -> None:
     """Test publishing a real Roborock message."""
 
@@ -109,10 +121,12 @@ async def test_session_e2e_publish_message(
     # Verify what was sent to the broker
     # We expect the payload to be present in the sent bytes
     found = False
-    while not received_requests.empty():
-        request = received_requests.get()
+    while not mqtt_received_requests.empty():
+        request = mqtt_received_requests.get()
         if payload in request:
             found = True
             break
 
     assert found, "Published payload not found in sent requests"
+
+    assert snapshot == log

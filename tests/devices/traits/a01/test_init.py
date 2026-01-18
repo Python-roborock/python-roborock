@@ -8,7 +8,7 @@ from Crypto.Util.Padding import unpad
 
 from roborock.devices.traits.a01 import DyadApi, ZeoApi
 from roborock.roborock_message import RoborockDyadDataProtocol, RoborockMessageProtocol, RoborockZeoProtocol
-from tests.conftest import FakeChannel
+from tests.fixtures.channel_fixtures import FakeChannel
 from tests.protocols.common import build_a01_message
 
 

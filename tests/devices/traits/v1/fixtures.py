@@ -4,12 +4,11 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from roborock.data import HomeData, RoborockDockTypeCode, S7MaxVStatus, UserData
+from roborock.data import HomeData, HomeDataDevice, HomeDataProduct, RoborockDockTypeCode, S7MaxVStatus, UserData
 from roborock.devices.cache import Cache, DeviceCache, InMemoryCache
 from roborock.devices.device import RoborockDevice
 from roborock.devices.traits import v1
-
-from .... import mock_data
+from tests import mock_data
 
 USER_DATA = UserData.from_dict(mock_data.USER_DATA)
 HOME_DATA = HomeData.from_dict(mock_data.HOME_DATA_RAW)
@@ -58,6 +57,18 @@ def device_cache_fixture(roborock_cache: Cache) -> DeviceCache:
     return DeviceCache(HOME_DATA.devices[0].duid, roborock_cache)
 
 
+@pytest.fixture(name="device_info")
+def device_info_fixture() -> HomeDataDevice:
+    """Fixture to provide a DeviceInfo instance for tests."""
+    return HOME_DATA.devices[0]
+
+
+@pytest.fixture(name="products")
+def products_fixture() -> list[HomeDataProduct]:
+    """Fixture to provide a Product instance for tests."""
+    return [HomeDataProduct.from_dict(product) for product in mock_data.PRODUCTS.values()]
+
+
 @pytest.fixture(autouse=True, name="device")
 def device_fixture(
     channel: AsyncMock,
@@ -66,15 +77,18 @@ def device_fixture(
     mock_map_rpc_channel: AsyncMock,
     web_api_client: AsyncMock,
     device_cache: DeviceCache,
+    device_info: HomeDataDevice,
+    products: list[HomeDataProduct],
 ) -> RoborockDevice:
     """Fixture to set up the device for tests."""
+    product = next(filter(lambda product: product.id == device_info.product_id, products))
     return RoborockDevice(
-        device_info=HOME_DATA.devices[0],
-        product=HOME_DATA.products[0],
+        device_info=device_info,
+        product=product,
         channel=channel,
         trait=v1.create(
-            HOME_DATA.devices[0].duid,
-            HOME_DATA.products[0],
+            device_info.duid,
+            product,
             HOME_DATA,
             mock_rpc_channel,
             mock_mqtt_rpc_channel,

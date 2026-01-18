@@ -1,6 +1,6 @@
 [project]
 name = "python-roborock"
-version = "3.19.0"
+version = "4.5.0"
 description = "A package to control Roborock vacuums."
 authors = [{ name = "humbertogontijo", email = "humbertogontijo@users.noreply.github.com" }, {name="Lash-L"}, {name="allenporter"}]
 requires-python = ">=3.11, <4"
@@ -27,7 +27,7 @@ dependencies = [
     "construct>=2.10.57,<3",
     "vacuum-map-parser-roborock",
     "pyrate-limiter>=3.7.0,<4",
-    "aiomqtt>=2.3.2,<3",
+    "aiomqtt>=2.5.0,<3",
     "click-shell~=2.1",
 ]
 
@@ -44,7 +44,7 @@ dev = [
     "pytest",
     "pre-commit>=3.5,<5.0",
     "mypy",
-    "ruff==0.14.9",
+    "ruff==0.14.10",
     "codespell",
     "pyshark>=0.6,<0.7",
     "aioresponses>=0.7.7,<0.8",

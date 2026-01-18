@@ -7,14 +7,14 @@ from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+import syrupy
 
 from roborock.data import HomeData, UserData
 from roborock.devices.cache import InMemoryCache
 from roborock.devices.device import RoborockDevice
 from roborock.devices.device_manager import UserParams, create_device_manager, create_web_api_wrapper
 from roborock.exceptions import RoborockException
-
-from .. import mock_data
+from tests import mock_data
 
 USER_DATA = UserData.from_dict(mock_data.USER_DATA)
 USER_PARAMS = UserParams(username="test_user", user_data=USER_DATA)
@@ -350,7 +350,7 @@ async def test_start_connect_unexpected_error(home_data: HomeData, channel_failu
         await create_device_manager(USER_PARAMS)
 
 
-async def test_diagnostics_collection(home_data: HomeData) -> None:
+async def test_diagnostics_collection(home_data: HomeData, snapshot: syrupy.SnapshotAssertion) -> None:
     """Test that diagnostics are collected correctly in the DeviceManager."""
     device_manager = await create_device_manager(USER_PARAMS)
     devices = await device_manager.get_devices()
@@ -358,7 +358,65 @@ async def test_diagnostics_collection(home_data: HomeData) -> None:
 
     diagnostics = device_manager.diagnostic_data()
     assert diagnostics is not None
-    assert diagnostics.get("discover_devices") == 1
-    assert diagnostics.get("fetch_home_data") == 1
+    diagnostics_data = diagnostics.get("diagnostics")
+    assert diagnostics_data
+    assert diagnostics_data.get("discover_devices") == 1
+    assert diagnostics_data.get("fetch_home_data") == 1
+
+    assert snapshot == diagnostics
 
     await device_manager.close()
+
+
+async def test_unsupported_protocol_version() -> None:
+    """Test the DeviceManager with some supported and unsupported product IDs."""
+    with patch("roborock.devices.device_manager.UserWebApiClient.get_home_data") as mock_home_data:
+        home_data = HomeData.from_dict(
+            {
+                "id": 1,
+                "name": "Test Home",
+                "devices": [
+                    {
+                        "duid": "device-uid-1",
+                        "name": "Device 1",
+                        "pv": "1.0",
+                        "productId": "product-id-1",
+                        "localKey": mock_data.LOCAL_KEY,
+                    },
+                    {
+                        "duid": "device-uid-2",
+                        "name": "Device 2",
+                        "pv": "unknown-pv",  # Fake new protocol version we've never seen
+                        "productId": "product-id-2",
+                        "localKey": mock_data.LOCAL_KEY,
+                    },
+                ],
+                "products": [
+                    {
+                        "id": "product-id-1",
+                        "name": "Roborock S7 MaxV",
+                        "model": "roborock.vacuum.a27",
+                        "category": "robot.vacuum.cleaner",
+                    },
+                    {
+                        "id": "product-id-2",
+                        "name": "New Roborock Model",
+                        "model": "roborock.vacuum.newmodel",
+                        "category": "robot.vacuum.cleaner",
+                    },
+                ],
+            }
+        )
+        mock_home_data.return_value = home_data
+
+        device_manager = await create_device_manager(USER_PARAMS)
+        # Only the supported device should be created. The other device is ignored
+        devices = await device_manager.get_devices()
+        assert [device.duid for device in devices] == ["device-uid-1"]
+
+        # Verify diagnostics
+        diagnostics = device_manager.diagnostic_data()
+        diagnostics_data = diagnostics.get("diagnostics")
+        assert diagnostics_data
+        assert diagnostics_data.get("supported_devices") == {"1.0": 1}
+        assert diagnostics_data.get("unsupported_devices") == {"unknown-pv": 1}

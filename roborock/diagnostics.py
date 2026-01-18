@@ -15,7 +15,7 @@ import time
 from collections import Counter
 from collections.abc import Generator, Mapping
 from contextlib import contextmanager
-from typing import Any
+from typing import Any, TypeVar, cast
 
 
 class Diagnostics:
@@ -82,3 +82,85 @@ class Diagnostics:
         self._counter = Counter()
         for d in self._subkeys.values():
             d.reset()
+
+
+T = TypeVar("T")
+
+REDACT_KEYS = {
+    # Potential identifiers
+    "localKey",
+    "mac",
+    "bssid",
+    "sn",
+    "ip",
+    "u",
+    "s",
+    "h",
+    "k",
+    # Large binary blobs are entirely omitted
+    "imageContent",
+    "mapData",
+    "rawApiResponse",
+    # Home data
+    "id",  # We want to redact home_data.id but keep some other ids, see below
+    "name",
+    "productId",
+    "ipAddress",
+    "wifiName",
+    "lat",
+    "long",
+}
+KEEP_KEYS = {
+    # Product information not unique per user
+    "product.id",
+    "product.schema.id",
+    "product.schema.name",
+    # Room ids are likely unique per user, but don't seem too sensitive and are
+    # useful for debugging
+    "rooms.id",
+}
+DEVICE_UID = "duid"
+REDACTED = "**REDACTED**"
+
+
+def redact_device_data(data: T, path: str = "") -> T | dict[str, Any]:
+    """Redact sensitive data in a dict."""
+    if not isinstance(data, (Mapping, list)):
+        return data
+
+    if isinstance(data, list):
+        return cast(T, [redact_device_data(item, path) for item in data])
+
+    redacted = {**data}
+
+    for key, value in redacted.items():
+        curr_path = f"{path}.{key}" if path else key
+        if key in KEEP_KEYS or curr_path in KEEP_KEYS:
+            continue
+        if key in REDACT_KEYS or curr_path in REDACT_KEYS:
+            redacted[key] = REDACTED
+        elif key == DEVICE_UID and isinstance(value, str):
+            redacted[key] = redact_device_uid(value)
+        elif isinstance(value, dict):
+            redacted[key] = redact_device_data(value, curr_path)
+        elif isinstance(value, list):
+            redacted[key] = [redact_device_data(item, curr_path) for item in value]
+
+    return redacted
+
+
+def redact_topic_name(topic: str) -> str:
+    """Redact potentially identifying information from a topic name."""
+    parts = topic.split("/")
+    redacted_parts = parts[:4]
+    for part in parts[4:]:
+        if len(part) <= 5:
+            redacted_parts.append("*****")
+        else:
+            redacted_parts.append("*****" + part[-5:])
+    return "/".join(redacted_parts)
+
+
+def redact_device_uid(duid: str) -> str:
+    """Redact a device UID to hide identifying information."""
+    return "******" + duid[-5:]

@@ -1,0 +1,156 @@
+{
+    "id": "product-id-s7-maxv",
+    "name": "Roborock S7 MaxV",
+    "code": "a27",
+    "model": "roborock.vacuum.a27",
+    "iconUrl": null,
+    "attribute": null,
+    "capability": 0,
+    "category": "robot.vacuum.cleaner",
+    "schema": [
+        {
+            "id": "101",
+            "name": "rpc_request",
+            "code": "rpc_request_code",
+            "mode": "rw",
+            "type": "RAW",
+            "property": null,
+            "desc": null
+        },
+        {
+            "id": "102",
+            "name": "rpc_response",
+            "code": "rpc_response",
+            "mode": "rw",
+            "type": "RAW",
+            "property": null,
+            "desc": null
+        },
+        {
+            "id": "120",
+            "name": "错误代码",
+            "code": "error_code",
+            "mode": "ro",
+            "type": "ENUM",
+            "property": "{\"range\": []}",
+            "desc": null
+        },
+        {
+            "id": "121",
+            "name": "设备状态",
+            "code": "state",
+            "mode": "ro",
+            "type": "ENUM",
+            "property": "{\"range\": []}",
+            "desc": null
+        },
+        {
+            "id": "122",
+            "name": "设备电量",
+            "code": "battery",
+            "mode": "ro",
+            "type": "ENUM",
+            "property": "{\"range\": []}",
+            "desc": null
+        },
+        {
+            "id": "123",
+            "name": "清扫模式",
+            "code": "fan_power",
+            "mode": "rw",
+            "type": "ENUM",
+            "property": "{\"range\": []}",
+            "desc": null
+        },
+        {
+            "id": "124",
+            "name": "拖地模式",
+            "code": "water_box_mode",
+            "mode": "rw",
+            "type": "ENUM",
+            "property": "{\"range\": []}",
+            "desc": null
+        },
+        {
+            "id": "125",
+            "name": "主刷寿命",
+            "code": "main_brush_life",
+            "mode": "rw",
+            "type": "VALUE",
+            "property": "{\"max\": 100, \"min\": 0, \"step\": 1, \"unit\": null, \"scale\": 1}",
+            "desc": null
+        },
+        {
+            "id": "126",
+            "name": "边刷寿命",
+            "code": "side_brush_life",
+            "mode": "rw",
+            "type": "VALUE",
+            "property": "{\"max\": 100, \"min\": 0, \"step\": 1, \"unit\": null, \"scale\": 1}",
+            "desc": null
+        },
+        {
+            "id": "127",
+            "name": "滤网寿命",
+            "code": "filter_life",
+            "mode": "rw",
+            "type": "VALUE",
+            "property": "{\"max\": 100, \"min\": 0, \"step\": 1, \"unit\": null, \"scale\": 1}",
+            "desc": null
+        },
+        {
+            "id": "128",
+            "name": "额外状态",
+            "code": "additional_props",
+            "mode": "ro",
+            "type": "RAW",
+            "property": null,
+            "desc": null
+        },
+        {
+            "id": "130",
+            "name": "完成事件",
+            "code": "task_complete",
+            "mode": "ro",
+            "type": "RAW",
+            "property": null,
+            "desc": null
+        },
+        {
+            "id": "131",
+            "name": "电量不足任务取消",
+            "code": "task_cancel_low_power",
+            "mode": "ro",
+            "type": "RAW",
+            "property": null,
+            "desc": null
+        },
+        {
+            "id": "132",
+            "name": "运动中任务取消",
+            "code": "task_cancel_in_motion",
+            "mode": "ro",
+            "type": "RAW",
+            "property": null,
+            "desc": null
+        },
+        {
+            "id": "133",
+            "name": "充电状态",
+            "code": "charge_status",
+            "mode": "ro",
+            "type": "RAW",
+            "property": null,
+            "desc": null
+        },
+        {
+            "id": "134",
+            "name": "烘干状态",
+            "code": "drying_status",
+            "mode": "ro",
+            "type": "RAW",
+            "property": null,
+            "desc": null
+        }
+    ]
+}

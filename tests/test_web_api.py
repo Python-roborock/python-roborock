@@ -1,11 +1,24 @@
 import re
+from typing import Any
 
 import aiohttp
+import pytest
 from aioresponses.compat import normalize_url
 
 from roborock import HomeData, HomeDataScene, UserData
+from roborock.exceptions import RoborockAccountDoesNotExist
 from roborock.web_api import IotLoginInfo, RoborockApiClient
 from tests.mock_data import HOME_DATA_RAW, USER_DATA
+
+pytest_plugins = [
+    "tests.fixtures.web_api_fixtures",
+]
+
+
+@pytest.fixture(autouse=True)
+def auto_mock_rest_fixture(mock_rest: Any) -> None:
+    """Auto use the mock rest fixture for all tests in this module."""
+    pass
 
 
 async def test_pass_login_flow() -> None:
@@ -76,12 +89,48 @@ async def test_code_login_v4_flow(mock_rest) -> None:
     assert ud == UserData.from_dict(USER_DATA)
 
 
+async def test_code_login_v4_account_does_not_exist(mock_rest) -> None:
+    """Test that response code 3039 raises RoborockAccountDoesNotExist."""
+    mock_rest.clear()
+
+    mock_rest.post(
+        re.compile(r"https://.*iot\.roborock\.com/api/v1/getUrlByEmail.*"),
+        status=200,
+        payload={
+            "code": 200,
+            "data": {"country": "US", "countrycode": "1", "url": "https://usiot.roborock.com"},
+            "msg": "success",
+        },
+    )
+    mock_rest.post(
+        re.compile(r"https://.*iot\.roborock\.com/api/v4/email/code/send.*"),
+        status=200,
+        payload={"code": 200, "data": None, "msg": "success"},
+    )
+    mock_rest.post(
+        re.compile(r"https://.*iot\.roborock\.com/api/v3/key/sign.*"),
+        status=200,
+        payload={"code": 200, "data": {"k": "mock_k"}, "msg": "success"},
+    )
+    mock_rest.post(
+        re.compile(r"https://.*iot\.roborock\.com/api/v4/auth/email/login/code.*"),
+        status=200,
+        payload={"code": 3039, "data": None, "msg": "account does not exist"},
+    )
+
+    api = RoborockApiClient(username="test_user@gmail.com")
+    await api.request_code_v4()
+    with pytest.raises(RoborockAccountDoesNotExist) as exc_info:
+        await api.code_login_v4(4123, "US", 1)
+    assert "This account does not exist" in str(exc_info.value)
+
+
 async def test_url_cycling(mock_rest) -> None:
     """Test that we cycle through the URLs correctly."""
     # Clear mock rest so that we can override the patches.
     mock_rest.clear()
-    # 1. Mock US URL to return valid status but None for countrycode
 
+    # 1. Mock US URL to return valid status but None for countrycode
     mock_rest.post(
         re.compile("https://usiot.roborock.com/api/v1/getUrlByEmail.*"),
         status=200,
@@ -170,6 +219,79 @@ async def test_url_cycling(mock_rest) -> None:
     )
     # Make sure we just have the three we tested for above.
     assert len(mock_rest.requests) == 3
+
+
+async def test_thirty_thirty_cycling(mock_rest) -> None:
+    """Test that we cycle through the URLs correctly when users have deleted accounts in higher prio regions."""
+    # Clear mock rest so that we can override the patches.
+    mock_rest.clear()
+
+    mock_rest.post(
+        re.compile("https://usiot.roborock.com/api/v1/getUrlByEmail.*"),
+        status=200,
+        payload={
+            "code": 200,
+            "data": {"url": "https://usiot.roborock.com", "country": "US", "countrycode": 1},
+            "msg": "Account in deletion",
+        },
+    )
+
+    mock_rest.post(
+        re.compile("https://euiot.roborock.com/api/v1/getUrlByEmail.*"),
+        status=200,
+        payload={
+            "code": 200,
+            "data": {"url": "https://euiot.roborock.com", "country": "EU", "countrycode": 49},
+            "msg": "Success",
+        },
+    )
+
+    mock_rest.post(
+        re.compile("https://usiot.roborock.com/api/v4/email/code/send.*"),
+        status=200,
+        payload={
+            "code": 3030,
+        },
+    )
+    mock_rest.post(
+        re.compile("https://euiot.roborock.com/api/v4/email/code/send.*"),
+        status=200,
+        payload={
+            "code": 200,
+        },
+    )
+
+    mock_rest.post(re.compile("https://ruiot.roborock.com/api/v1/getUrlByEmail.*"), status=500)
+    mock_rest.post(re.compile("https://cniot.roborock.com/api/v1/getUrlByEmail.*"), status=500)
+
+    client = RoborockApiClient("test@example.com")
+    await client.request_code_v4()
+
+    assert (
+        len(
+            mock_rest.requests[
+                (
+                    "post",
+                    normalize_url("https://euiot.roborock.com/api/v4/email/code/send"),
+                )
+            ]
+        )
+        == 1
+    )
+    assert (
+        len(
+            mock_rest.requests[
+                (
+                    "post",
+                    normalize_url("https://usiot.roborock.com/api/v4/email/code/send"),
+                )
+            ]
+        )
+        == 1
+    )
+    # Assert that we didn't try on the Russian or Chinese regions
+    assert "https://ruiot.roborock.com/api/v4/email/code/send" not in mock_rest.requests
+    assert "https://cniot.roborock.com/api/v4/email/code/send" not in mock_rest.requests
 
 
 async def test_missing_country_login(mock_rest) -> None:
