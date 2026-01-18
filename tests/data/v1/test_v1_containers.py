@@ -12,6 +12,7 @@ from roborock.data.v1 import (
     RoborockMopModeS7,
     RoborockStateCode,
 )
+from roborock.data.v1.v1_code_mappings import ClearWaterBoxStatus, DirtyWaterBoxStatus, DustBagStatus
 from roborock.data.v1.v1_containers import (
     AppInitStatus,
     CleanRecord,
@@ -91,6 +92,14 @@ def test_status():
     assert s.fan_power == RoborockFanSpeedS7MaxV.balanced
     assert s.mop_mode == RoborockMopModeS7.standard
     assert s.water_box_mode == RoborockMopIntensityS7.intense
+    assert s.dss == 169
+    assert s.clear_water_box_status == ClearWaterBoxStatus.okay
+    assert s.dirty_water_box_status == DirtyWaterBoxStatus.okay
+    assert s.dust_bag_status == DustBagStatus.okay
+    assert s.water_box_filter_status == 0
+    assert s.clean_fluid_status is None
+    assert s.hatch_door_status == 0
+    assert s.dock_cool_fan_status == 0
 
 
 def test_current_map() -> None:

@@ -124,8 +124,8 @@ HOME_DATA_SCENES_RAW = [
 
 TESTDATA = pathlib.Path("tests/testdata")
 
-PRODUCTS = {file.name: json.load(file.open()) for file in TESTDATA.glob("home_data_product_*.json")}
-DEVICES = {file.name: json.load(file.open()) for file in TESTDATA.glob("home_data_device_*.json")}
+PRODUCTS = {file.name: json.load(file.open(encoding="utf-8")) for file in TESTDATA.glob("home_data_product_*.json")}
+DEVICES = {file.name: json.load(file.open(encoding="utf-8")) for file in TESTDATA.glob("home_data_device_*.json")}
 
 # Products
 A27_PRODUCT_DATA = PRODUCTS["home_data_product_a27.json"]
@@ -251,8 +251,8 @@ STATUS = {
     "charge_status": 1,
     "unsave_map_reason": 0,
     "unsave_map_flag": 0,
+    "dss": 169,
 }
-
 BASE_URL_REQUEST = {
     "code": 200,
     "msg": "success",
