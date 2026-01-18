@@ -121,7 +121,7 @@ def _requires_schema_code(requires_schema_code: str, default=None) -> Any:
 
 @dataclass
 class Status(RoborockBase):
-    """This status will be depreciated in favor of StatusV2."""
+    """This status will be deprecated in favor of StatusV2."""
 
     msg_ver: int | None = None
     msg_seq: int | None = None
@@ -395,9 +395,11 @@ class StatusV2(RoborockBase):
         return None
 
     @property
-    def clean_fluid_status(self) -> int | None:
+    def clean_fluid_status(self) -> CleanFluidStatus | None:
         if self.dss:
-            return (self.dss >> 10) & 3
+            value = (self.dss >> 10) & 3
+            if value == 0:
+                return None  # Feature not supported by this device
         return None
 
     @property
