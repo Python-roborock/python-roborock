@@ -544,6 +544,14 @@ class Consumable(RoborockBase):
 
 
 @dataclass
+class MultiMapsListRoom(RoborockBase):
+    id: int | None = None
+    tag: int | None = None
+    iot_name_id: str | None = None
+    iot_name: str | None = None
+
+
+@dataclass
 class MultiMapsListMapInfoBakMaps(RoborockBase):
     mapflag: Any | None = None
     add_time: Any | None = None
@@ -556,6 +564,7 @@ class MultiMapsListMapInfo(RoborockBase):
     add_time: Any | None = None
     length: Any | None = None
     bak_maps: list[MultiMapsListMapInfoBakMaps] | None = None
+    rooms: list[MultiMapsListRoom] | None = None
 
     @property
     def mapFlag(self) -> int:
