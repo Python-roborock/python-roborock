@@ -2,6 +2,20 @@
 
 <!-- version list -->
 
+## v4.5.0 (2026-01-14)
+
+### Chores
+
+- Add test ([#743](https://github.com/Python-roborock/python-roborock/pull/743),
+  [`e26e351`](https://github.com/Python-roborock/python-roborock/commit/e26e351474a006485c6a7b5a5dcdbbe9fab8572e))
+
+### Features
+
+- Raise no account error when bad login
+  ([#743](https://github.com/Python-roborock/python-roborock/pull/743),
+  [`e26e351`](https://github.com/Python-roborock/python-roborock/commit/e26e351474a006485c6a7b5a5dcdbbe9fab8572e))
+
+
 ## v4.4.0 (2026-01-12)
 
 ### Features

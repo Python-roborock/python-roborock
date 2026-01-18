@@ -6,6 +6,7 @@ import pytest
 from aioresponses.compat import normalize_url
 
 from roborock import HomeData, HomeDataScene, UserData
+from roborock.exceptions import RoborockAccountDoesNotExist
 from roborock.web_api import IotLoginInfo, RoborockApiClient
 from tests.mock_data import HOME_DATA_RAW, USER_DATA
 
@@ -86,6 +87,42 @@ async def test_code_login_v4_flow(mock_rest) -> None:
     await api.request_code_v4()
     ud = await api.code_login_v4(4123, "US", 1)
     assert ud == UserData.from_dict(USER_DATA)
+
+
+async def test_code_login_v4_account_does_not_exist(mock_rest) -> None:
+    """Test that response code 3039 raises RoborockAccountDoesNotExist."""
+    mock_rest.clear()
+
+    mock_rest.post(
+        re.compile(r"https://.*iot\.roborock\.com/api/v1/getUrlByEmail.*"),
+        status=200,
+        payload={
+            "code": 200,
+            "data": {"country": "US", "countrycode": "1", "url": "https://usiot.roborock.com"},
+            "msg": "success",
+        },
+    )
+    mock_rest.post(
+        re.compile(r"https://.*iot\.roborock\.com/api/v4/email/code/send.*"),
+        status=200,
+        payload={"code": 200, "data": None, "msg": "success"},
+    )
+    mock_rest.post(
+        re.compile(r"https://.*iot\.roborock\.com/api/v3/key/sign.*"),
+        status=200,
+        payload={"code": 200, "data": {"k": "mock_k"}, "msg": "success"},
+    )
+    mock_rest.post(
+        re.compile(r"https://.*iot\.roborock\.com/api/v4/auth/email/login/code.*"),
+        status=200,
+        payload={"code": 3039, "data": None, "msg": "account does not exist"},
+    )
+
+    api = RoborockApiClient(username="test_user@gmail.com")
+    await api.request_code_v4()
+    with pytest.raises(RoborockAccountDoesNotExist) as exc_info:
+        await api.code_login_v4(4123, "US", 1)
+    assert "This account does not exist" in str(exc_info.value)
 
 
 async def test_url_cycling(mock_rest) -> None:

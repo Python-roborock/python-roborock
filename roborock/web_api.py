@@ -359,6 +359,10 @@ class RoborockApiClient:
                 raise RoborockInvalidUserAgreement(
                     "User agreement must be accepted again - or you are attempting to use the Mi Home app account."
                 )
+            if response_code == 3039:
+                raise RoborockAccountDoesNotExist(
+                    "This account does not exist - please ensure that you selected the right region and email."
+                )
             raise RoborockException(f"{login_response.get('msg')} - response code: {response_code}")
         user_data = login_response.get("data")
         if not isinstance(user_data, dict):
