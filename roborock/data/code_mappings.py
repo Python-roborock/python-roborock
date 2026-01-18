@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from collections import namedtuple
 from enum import Enum, IntEnum, StrEnum
-from typing import Self
+from typing import Any, Self
 
 _LOGGER = logging.getLogger(__name__)
 completed_warnings = set()
@@ -103,6 +103,13 @@ class RoborockModeEnum(StrEnum):
     def keys(cls) -> list[str]:
         """Returns a list of all member values."""
         return [member.value for member in cls]
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, str):
+            return self.value == other or self.name == other
+        if isinstance(other, int):
+            return self.code == other
+        return super().__eq__(other)
 
 
 ProductInfo = namedtuple("ProductInfo", ["nickname", "short_models"])

@@ -12,7 +12,15 @@ from roborock.data.v1 import (
     RoborockMopModeS7,
     RoborockStateCode,
 )
-from roborock.data.v1.v1_containers import AppInitStatus, CleanRecord, CleanSummary, Consumable, DnDTimer, S7MaxVStatus
+from roborock.data.v1.v1_containers import (
+    AppInitStatus,
+    CleanRecord,
+    CleanSummary,
+    Consumable,
+    DnDTimer,
+    S7MaxVStatus,
+    StatusV2,
+)
 from tests.mock_data import (
     CLEAN_RECORD,
     CLEAN_SUMMARY,
@@ -99,6 +107,45 @@ def test_current_map() -> None:
 
     s.map_status = None
     assert not s.current_map
+
+
+def test_status_v2() -> None:
+    """Test that StatusV2 can be created from a dictionary."""
+    s = StatusV2.from_dict(STATUS)
+    assert s.msg_ver == 2
+    assert s.msg_seq == 458
+    assert s.state == RoborockStateCode.charging
+    assert s.battery == 100
+    assert s.clean_time == 1176
+    assert s.clean_area == 20965000
+    assert s.square_meter_clean_area == 21.0
+    assert s.error_code == RoborockErrorCode.none
+    assert s.error_code_name == "none"
+    assert s.state_name == "charging"
+    assert s.map_present == 1
+    assert s.in_cleaning == 0
+    assert s.fan_power == 102
+    assert s.water_box_mode == 203
+    assert s.mop_mode == 300
+    assert s.dock_type == RoborockDockTypeCode.empty_wash_fill_dock
+    assert s.dock_error_status == RoborockDockErrorCode.ok
+    assert s.current_map == 0
+
+
+def test_status_v2_current_map() -> None:
+    """Test the current map logic based on map status for StatusV2."""
+    s = StatusV2.from_dict(STATUS)
+    assert s.map_status == 3
+    assert s.current_map == 0
+
+    s.map_status = 7
+    assert s.current_map == 1
+
+    s.map_status = 11
+    assert s.current_map == 2
+
+    s.map_status = None
+    assert s.current_map is None
 
 
 def test_dnd_timer():

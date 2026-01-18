@@ -25,7 +25,7 @@ class StatusTrait(StatusV2, common.V1TraitMixin):
 
     @cached_property
     def fan_speed_mapping(self) -> dict[int, str]:
-        return {fan.code: fan.name for fan in self.fan_speed_options}
+        return {fan.code: fan.value for fan in self.fan_speed_options}
 
     @cached_property
     def water_mode_options(self) -> list[WaterModes]:
@@ -33,7 +33,7 @@ class StatusTrait(StatusV2, common.V1TraitMixin):
 
     @cached_property
     def water_mode_mapping(self) -> dict[int, str]:
-        return {mop.code: mop.name for mop in self.water_mode_options}
+        return {mop.code: mop.value for mop in self.water_mode_options}
 
     @cached_property
     def mop_route_options(self) -> list[CleanRoutes]:
@@ -41,7 +41,7 @@ class StatusTrait(StatusV2, common.V1TraitMixin):
 
     @cached_property
     def mop_route_mapping(self) -> dict[int, str]:
-        return {route.code: route.name for route in self.mop_route_options}
+        return {route.code: route.value for route in self.mop_route_options}
 
     @property
     def fan_speed_name(self) -> str | None:
