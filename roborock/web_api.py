@@ -62,7 +62,7 @@ class RoborockApiClient:
         Rate(40, Duration.DAY),
     ]
 
-    _login_limiter = Limiter(_LOGIN_RATES, max_delay=1000)
+    _login_limiter = Limiter(_LOGIN_RATES)
     _home_data_limiter = Limiter(_HOME_DATA_RATES)
 
     def __init__(

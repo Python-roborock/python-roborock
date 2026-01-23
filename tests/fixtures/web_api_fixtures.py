@@ -13,8 +13,9 @@ from tests.mock_data import HOME_DATA_RAW, HOME_DATA_SCENES_RAW, USER_DATA
 def skip_rate_limit() -> Generator[None, None, None]:
     """Don't rate limit tests as they aren't actually hitting the api."""
     with (
-        patch("roborock.web_api.RoborockApiClient._login_limiter.try_acquire"),
-        patch("roborock.web_api.RoborockApiClient._home_data_limiter.try_acquire"),
+        patch("roborock.web_api.RoborockApiClient._login_limiter.try_acquire", return_value=True),
+        patch("roborock.web_api.RoborockApiClient._login_limiter.try_acquire_async", return_value=True),
+        patch("roborock.web_api.RoborockApiClient._home_data_limiter.try_acquire", return_value=True),
     ):
         yield
 
