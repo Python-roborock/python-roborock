@@ -4,6 +4,7 @@ These tests exercise the custom enum methods using arbitrary enum values.
 
 import pytest
 
+from roborock import HomeDataProduct, RoborockCategory
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
 
 
@@ -49,3 +50,18 @@ def test_invalid_from_value() -> None:
     """Test invalid from_value method."""
     with pytest.raises(ValueError, match="invalid_value is not a valid value for B01_Q10_DP"):
         B01_Q10_DP.from_value("invalid_value")
+
+
+def test_homedata_product_unknown_category():
+    """Test that HomeDataProduct can handle unknown categories."""
+    data = {
+        "id": "unknown_cat_id",
+        "name": "Unknown Device",
+        "model": "roborock.vacuum.a87",
+        "category": "roborock.random.category",
+        "schema": [],
+    }
+
+    product = HomeDataProduct.from_dict(data)
+    assert product.id == "unknown_cat_id"
+    assert product.category == RoborockCategory.UNKNOWN
