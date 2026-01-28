@@ -5,6 +5,8 @@ from typing import Any
 
 from roborock import B01Props
 from roborock.data.b01_q7.b01_q7_code_mappings import (
+    CleanPathPreferenceMapping,
+    CleanRepeatMapping,
     CleanTaskTypeMapping,
     CleanTypeMapping,
     SCDeviceCleanParam,
@@ -58,6 +60,14 @@ class Q7PropertiesApi(Trait):
     async def set_mode(self, mode: CleanTypeMapping) -> None:
         """Set the cleaning mode (vacuum, mop, or vacuum and mop)."""
         await self.set_prop(RoborockB01Props.MODE, mode.code)
+
+    async def set_clean_path_preference(self, preference: CleanPathPreferenceMapping) -> None:
+        """Set the cleaning path preference (route)."""
+        await self.set_prop(RoborockB01Props.CLEAN_PATH_PREFERENCE, preference.code)
+
+    async def set_repeat_state(self, repeat: CleanRepeatMapping) -> None:
+        """Set the cleaning repeat state (cycles)."""
+        await self.set_prop(RoborockB01Props.REPEAT_STATE, repeat.code)
 
     async def start_clean(self) -> None:
         """Start cleaning."""

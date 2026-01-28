@@ -46,8 +46,15 @@ class CleanTypeMapping(RoborockModeEnum):
 class CleanRepeatMapping(RoborockModeEnum):
     """Maps the cleaning repeat parameter."""
 
-    ONCE = ("once", 0)
-    TWICE = ("twice", 1)
+    ONE = ("one", 0)
+    TWO = ("two", 1)
+
+
+class CleanPathPreferenceMapping(RoborockModeEnum):
+    """Maps the cleaning path preference parameter."""
+
+    BALANCED = ("balanced", 0)
+    DEEP = ("deep", 1)
 
 
 class SCDeviceCleanParam(RoborockModeEnum):

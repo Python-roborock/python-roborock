@@ -3,6 +3,8 @@ from dataclasses import dataclass, field
 from ..containers import RoborockBase
 from .b01_q7_code_mappings import (
     B01Fault,
+    CleanPathPreferenceMapping,
+    CleanRepeatMapping,
     CleanTypeMapping,
     SCWindMapping,
     WaterLevelMapping,
@@ -90,10 +92,10 @@ class B01Props(RoborockBase):
     mop_life: int | None = None
     main_sensor: int | None = None
     net_status: NetStatus | None = None
-    repeat_state: int | None = None
+    repeat_state: CleanRepeatMapping | None = None
     tank_state: int | None = None
     sweep_type: int | None = None
-    clean_path_preference: int | None = None
+    clean_path_preference: CleanPathPreferenceMapping | None = None
     cloth_state: int | None = None
     time_zone: int | None = None
     time_zone_info: str | None = None
@@ -205,3 +207,13 @@ class B01Props(RoborockBase):
     def work_mode_name(self) -> str | None:
         """Returns the name of the current work mode."""
         return self.work_mode.value if self.work_mode is not None else None
+
+    @property
+    def repeat_state_name(self) -> str | None:
+        """Returns the name of the current repeat state."""
+        return self.repeat_state.value if self.repeat_state is not None else None
+
+    @property
+    def clean_path_preference_name(self) -> str | None:
+        """Returns the name of the current clean path preference."""
+        return self.clean_path_preference.value if self.clean_path_preference is not None else None
