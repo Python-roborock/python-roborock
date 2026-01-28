@@ -3,7 +3,9 @@ from dataclasses import dataclass, field
 from ..containers import RoborockBase
 from .b01_q7_code_mappings import (
     B01Fault,
+    CleanTypeMapping,
     SCWindMapping,
+    WaterLevelMapping,
     WorkModeMapping,
     WorkStatusMapping,
 )
@@ -77,8 +79,8 @@ class B01Props(RoborockBase):
     status: WorkStatusMapping | None = None
     fault: B01Fault | None = None
     wind: SCWindMapping | None = None
-    water: int | None = None
-    mode: int | None = None
+    water: WaterLevelMapping | None = None
+    mode: CleanTypeMapping | None = None
     quantity: int | None = None
     alarm: int | None = None
     volume: int | None = None

@@ -44,6 +44,7 @@ from pyshark.packet.packet import Packet  # type: ignore
 from roborock import RoborockCommand
 from roborock.data import RoborockBase, UserData
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
+from roborock.data.code_mappings import SHORT_MODEL_TO_ENUM
 from roborock.device_features import DeviceFeatures
 from roborock.devices.cache import Cache, CacheData
 from roborock.devices.device import RoborockDevice
@@ -300,21 +301,28 @@ def cli(ctx, debug: int):
 @click.command()
 @click.option("--email", required=True)
 @click.option(
+    "--reauth",
+    is_flag=True,
+    default=False,
+    help="Re-authenticate even if cached credentials exist.",
+)
+@click.option(
     "--password",
     required=False,
     help="Password for the Roborock account. If not provided, an email code will be requested.",
 )
 @click.pass_context
 @async_command
-async def login(ctx, email, password):
+async def login(ctx, email, password, reauth):
     """Login to Roborock account."""
     context: RoborockContext = ctx.obj
-    try:
-        context.validate()
-        _LOGGER.info("Already logged in")
-        return
-    except RoborockException:
-        pass
+    if not reauth:
+        try:
+            context.validate()
+            _LOGGER.info("Already logged in")
+            return
+        except RoborockException:
+            pass
     client = RoborockApiClient(email)
     if password is not None:
         user_data = await client.pass_login(password)
@@ -834,59 +842,203 @@ async def parser(_, local_key, device_ip, file):
         )
 
 
+def _parse_diagnostic_file(diagnostic_path: Path) -> dict[str, dict[str, Any]]:
+    """Parse device info from a Home Assistant diagnostic file.
+
+    Args:
+        diagnostic_path: Path to the diagnostic JSON file.
+
+    Returns:
+        A dictionary mapping model names to device info dictionaries.
+    """
+    with open(diagnostic_path, encoding="utf-8") as f:
+        diagnostic_data = json.load(f)
+
+    all_products_data: dict[str, dict[str, Any]] = {}
+
+    # Navigate to coordinators in the diagnostic data
+    coordinators = diagnostic_data.get("data", {}).get("coordinators", {})
+    if not coordinators:
+        return all_products_data
+
+    for coordinator_data in coordinators.values():
+        device_data = coordinator_data.get("device", {})
+        product_data = coordinator_data.get("product", {})
+
+        model = product_data.get("model")
+        if not model or model in all_products_data:
+            continue
+        # Derive product nickname from model
+        short_model = model.split(".")[-1]
+        product_nickname = SHORT_MODEL_TO_ENUM.get(short_model)
+
+        current_product_data: dict[str, Any] = {
+            "protocol_version": device_data.get("pv"),
+            "product_nickname": product_nickname.name if product_nickname else "Unknown",
+        }
+
+        # Get feature info from the device_features trait (preferred location)
+        traits_data = coordinator_data.get("traits", {})
+        device_features = traits_data.get("device_features", {})
+
+        # newFeatureInfo is the integer
+        new_feature_info = device_features.get("newFeatureInfo")
+        if new_feature_info is not None:
+            current_product_data["new_feature_info"] = new_feature_info
+
+        # newFeatureInfoStr is the hex string
+        new_feature_info_str = device_features.get("newFeatureInfoStr")
+        if new_feature_info_str:
+            current_product_data["new_feature_info_str"] = new_feature_info_str
+
+        # featureInfo is the list of feature codes
+        feature_info = device_features.get("featureInfo")
+        if feature_info:
+            current_product_data["feature_info"] = feature_info
+
+        # Build product dict from diagnostic product data
+        if product_data:
+            # Convert to the format expected by device_info.yaml
+            product_dict: dict[str, Any] = {}
+            for key in ["id", "name", "model", "category", "capability", "schema"]:
+                if key in product_data:
+                    product_dict[key] = product_data[key]
+            if product_dict:
+                current_product_data["product"] = product_dict
+
+        all_products_data[model] = current_product_data
+
+    return all_products_data
+
+
 @click.command()
+@click.option(
+    "--record",
+    is_flag=True,
+    default=False,
+    help="Save new device info entries to the YAML file.",
+)
+@click.option(
+    "--device-info-file",
+    default="device_info.yaml",
+    help="Path to the YAML file with device and product data.",
+)
+@click.option(
+    "--diagnostic-file",
+    default=None,
+    help="Path to a Home Assistant diagnostic JSON file to parse instead of connecting to devices.",
+)
 @click.pass_context
 @async_command
-async def get_device_info(ctx: click.Context):
+async def get_device_info(ctx: click.Context, record: bool, device_info_file: str, diagnostic_file: str | None):
     """
     Connects to devices and prints their feature information in YAML format.
+
+    Can also parse device info from a Home Assistant diagnostic file using --diagnostic-file.
     """
-    click.echo("Discovering devices...")
     context: RoborockContext = ctx.obj
-    device_connection_manager = await context.get_device_manager()
-    device_manager = await device_connection_manager.ensure_device_manager()
-    devices = await device_manager.get_devices()
-    if not devices:
-        click.echo("No devices found.")
-        return
+    device_info_path = Path(device_info_file)
+    existing_device_info: dict[str, Any] = {}
 
-    click.echo(f"Found {len(devices)} devices. Fetching data...")
+    # Load existing device info if recording
+    if record:
+        click.echo(f"Using device info file: {device_info_path.resolve()}")
+        if device_info_path.exists():
+            with open(device_info_path, encoding="utf-8") as f:
+                data = yaml.safe_load(f)
+            if isinstance(data, dict):
+                existing_device_info = data
 
-    all_products_data = {}
+    # Parse from diagnostic file if provided
+    if diagnostic_file:
+        diagnostic_path = Path(diagnostic_file)
+        if not diagnostic_path.exists():
+            click.echo(f"Diagnostic file not found: {diagnostic_path}", err=True)
+            return
 
-    for device in devices:
-        click.echo(f"  - Processing {device.name} ({device.duid})")
+        click.echo(f"Parsing diagnostic file: {diagnostic_path.resolve()}")
+        all_products_data = _parse_diagnostic_file(diagnostic_path)
 
-        if device.product.model in all_products_data:
-            click.echo(f"    - Skipping duplicate model {device.product.model}")
-            continue
+        if not all_products_data:
+            click.echo("No device data found in diagnostic file.")
+            return
 
-        current_product_data = {
-            "Protocol Version": device.device_info.pv,
-            "Product Nickname": device.product.product_nickname.name,
-        }
-        if device.v1_properties is not None:
-            try:
-                result: list[dict[str, Any]] = await device.v1_properties.command.send(
-                    RoborockCommand.APP_GET_INIT_STATUS
-                )
-            except Exception as e:
-                click.echo(f"    - Error processing device {device.name}: {e}", err=True)
+        click.echo(f"Found {len(all_products_data)} device(s) in diagnostic file.")
+
+    else:
+        click.echo("Discovering devices...")
+
+        if record:
+            connection_cache = await context.get_devices()
+            home_data = connection_cache.cache_data.home_data if connection_cache.cache_data else None
+            if home_data is None:
+                click.echo("Home data not available.", err=True)
+                return
+
+        device_connection_manager = await context.get_device_manager()
+        device_manager = await device_connection_manager.ensure_device_manager()
+        devices = await device_manager.get_devices()
+        if not devices:
+            click.echo("No devices found.")
+            return
+
+        click.echo(f"Found {len(devices)} devices. Fetching data...")
+
+        all_products_data = {}
+
+        for device in devices:
+            click.echo(f"  - Processing {device.name} ({device.duid})")
+
+            model = device.product.model
+            if model in all_products_data:
+                click.echo(f"    - Skipping duplicate model {model}")
                 continue
-            init_status_result = result[0] if result else {}
-            current_product_data.update(
-                {
-                    "New Feature Info": init_status_result.get("new_feature_info"),
-                    "New Feature Info Str": init_status_result.get("new_feature_info_str"),
-                    "Feature Info": init_status_result.get("feature_info"),
-                }
-            )
 
-        all_products_data[device.product.model] = current_product_data
+            current_product_data = {
+                "protocol_version": device.device_info.pv,
+                "product_nickname": device.product.product_nickname.name
+                if device.product.product_nickname
+                else "Unknown",
+            }
+            if device.v1_properties is not None:
+                try:
+                    result: list[dict[str, Any]] = await device.v1_properties.command.send(
+                        RoborockCommand.APP_GET_INIT_STATUS
+                    )
+                except Exception as e:
+                    click.echo(f"    - Error processing device {device.name}: {e}", err=True)
+                    continue
+                init_status_result = result[0] if result else {}
+                current_product_data.update(
+                    {
+                        "new_feature_info": init_status_result.get("new_feature_info"),
+                        "new_feature_info_str": init_status_result.get("new_feature_info_str"),
+                        "feature_info": init_status_result.get("feature_info"),
+                    }
+                )
+
+            product_data = device.product.as_dict()
+            if product_data:
+                current_product_data["product"] = product_data
+
+            all_products_data[model] = current_product_data
+
+    if record:
+        if not all_products_data:
+            click.echo("No device info updates needed.")
+            return
+        updated_device_info = {**existing_device_info, **all_products_data}
+        device_info_path.parent.mkdir(parents=True, exist_ok=True)
+        ordered_data = dict(sorted(updated_device_info.items(), key=lambda item: item[0]))
+        with open(device_info_path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(ordered_data, f, sort_keys=False)
+        click.echo(f"Updated {device_info_path}.")
+        click.echo("\n--- Device Info Updates ---\n")
+        click.echo(yaml.safe_dump(all_products_data, sort_keys=False))
+        return
 
     if all_products_data:
         click.echo("\n--- Device Information (copy to your YAML file) ---\n")
-        # Use yaml.dump to print in a clean, copy-paste friendly format
         click.echo(yaml.dump(all_products_data, sort_keys=False))
 
 
@@ -919,19 +1071,19 @@ def update_docs(data_file: str, output_file: str):
     for model, data in product_data_from_yaml.items():
         # Reconstruct the DeviceFeatures object from the raw data in the YAML file
         device_features = DeviceFeatures.from_feature_flags(
-            new_feature_info=data.get("New Feature Info"),
-            new_feature_info_str=data.get("New Feature Info Str"),
-            feature_info=data.get("Feature Info"),
-            product_nickname=data.get("Product Nickname"),
+            new_feature_info=data.get("new_feature_info"),
+            new_feature_info_str=data.get("new_feature_info_str"),
+            feature_info=data.get("feature_info"),
+            product_nickname=data.get("product_nickname"),
         )
         features_dict = asdict(device_features)
 
         # This dictionary will hold the final data for the markdown table row
         current_product_data = {
-            "Product Nickname": data.get("Product Nickname", ""),
-            "Protocol Version": data.get("Protocol Version", ""),
-            "New Feature Info": data.get("New Feature Info", ""),
-            "New Feature Info Str": data.get("New Feature Info Str", ""),
+            "product_nickname": data.get("product_nickname", ""),
+            "protocol_version": data.get("protocol_version", ""),
+            "new_feature_info": data.get("new_feature_info", ""),
+            "new_feature_info_str": data.get("new_feature_info_str", ""),
         }
 
         # Populate features from the calculated DeviceFeatures object
@@ -940,7 +1092,7 @@ def update_docs(data_file: str, output_file: str):
             if is_supported:
                 current_product_data[feature] = "X"
 
-        supported_codes = data.get("Feature Info", [])
+        supported_codes = data.get("feature_info", [])
         if isinstance(supported_codes, list):
             for code in supported_codes:
                 feature_name = str(code)
@@ -954,10 +1106,10 @@ def update_docs(data_file: str, output_file: str):
         """Writes the data into a markdown table (products as columns)."""
         sorted_products = sorted(product_features.keys())
         special_rows = [
-            "Product Nickname",
-            "Protocol Version",
-            "New Feature Info",
-            "New Feature Info Str",
+            "product_nickname",
+            "protocol_version",
+            "new_feature_info",
+            "new_feature_info_str",
         ]
         # Regular features are the remaining keys, sorted alphabetically
         # We filter out the special rows to avoid duplicating them.

@@ -2,6 +2,71 @@
 
 <!-- version list -->
 
+## v4.8.0 (2026-01-27)
+
+### Features
+
+- Add the ability to set q7 mode
+  ([#748](https://github.com/Python-roborock/python-roborock/pull/748),
+  [`bf1f8af`](https://github.com/Python-roborock/python-roborock/commit/bf1f8af7bf39a15d546fbd420ff3979f7014042c))
+
+
+## v4.7.2 (2026-01-20)
+
+### Bug Fixes
+
+- Handle different error format for map status
+  ([#744](https://github.com/Python-roborock/python-roborock/pull/744),
+  [`9897379`](https://github.com/Python-roborock/python-roborock/commit/98973795af550ed7940c9c637c85adc84ec5a511))
+
+
+## v4.7.1 (2026-01-19)
+
+### Bug Fixes
+
+- Add rooms from map_info which is occassionally available
+  ([#750](https://github.com/Python-roborock/python-roborock/pull/750),
+  [`814054e`](https://github.com/Python-roborock/python-roborock/commit/814054ee4200c5f172d3f658843a9c8ee99c7f52))
+
+
+## v4.7.0 (2026-01-18)
+
+### Chores
+
+- Address PR comments ([#747](https://github.com/Python-roborock/python-roborock/pull/747),
+  [`a97e90a`](https://github.com/Python-roborock/python-roborock/commit/a97e90aa11b4e60732014d8d65265a334568f32c))
+
+- Include snapshots ([#747](https://github.com/Python-roborock/python-roborock/pull/747),
+  [`a97e90a`](https://github.com/Python-roborock/python-roborock/commit/a97e90aa11b4e60732014d8d65265a334568f32c))
+
+- **deps-dev**: Bump ruff from 0.14.10 to 0.14.11
+  ([#742](https://github.com/Python-roborock/python-roborock/pull/742),
+  [`9274642`](https://github.com/Python-roborock/python-roborock/commit/92746429ddb029e20073dab127598645a223c856))
+
+### Features
+
+- Add from diagnostics ([#747](https://github.com/Python-roborock/python-roborock/pull/747),
+  [`a97e90a`](https://github.com/Python-roborock/python-roborock/commit/a97e90aa11b4e60732014d8d65265a334568f32c))
+
+- Improve device_info ([#747](https://github.com/Python-roborock/python-roborock/pull/747),
+  [`a97e90a`](https://github.com/Python-roborock/python-roborock/commit/a97e90aa11b4e60732014d8d65265a334568f32c))
+
+
+## v4.6.0 (2026-01-18)
+
+### Chores
+
+- **deps**: Bump aiohttp from 3.13.2 to 3.13.3
+  ([#732](https://github.com/Python-roborock/python-roborock/pull/732),
+  [`e438364`](https://github.com/Python-roborock/python-roborock/commit/e438364e7619b2e9658cdffeace9b2b6e4e19269))
+
+### Features
+
+- Add 2 new states for zeostate in zeo_code_mappings
+  ([#689](https://github.com/Python-roborock/python-roborock/pull/689),
+  [`3482e4e`](https://github.com/Python-roborock/python-roborock/commit/3482e4eaafcea7dbc004c28e094e260cdf822e79))
+
+
 ## v4.5.0 (2026-01-14)
 
 ### Chores
