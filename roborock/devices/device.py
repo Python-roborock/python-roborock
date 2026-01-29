@@ -13,7 +13,7 @@ from collections.abc import Callable
 from typing import Any
 
 from roborock.callbacks import CallbackList
-from roborock.data import HomeDataDevice, HomeDataProduct, RoborockErrorCode, RoborockStateCode
+from roborock.data import HomeDataDevice, HomeDataProduct
 from roborock.diagnostics import redact_device_data
 from roborock.exceptions import RoborockException
 from roborock.roborock_message import (
@@ -235,7 +235,7 @@ class RoborockDevice(ABC, TraitsMixin):
             return
 
         # Only process messages that can contain protocol updates
-        # RPC_RESPONSE (102), GENERAL_REQUEST (4), and GENERAL_RESPONSE (5)
+        # RPC_RESPONSE (102), and GENERAL_RESPONSE (5)
         if message.protocol not in {
             RoborockMessageProtocol.RPC_RESPONSE,
             RoborockMessageProtocol.GENERAL_RESPONSE,
@@ -246,7 +246,7 @@ class RoborockDevice(ABC, TraitsMixin):
             return
 
         try:
-            payload = json.loads(message.payload.decode())
+            payload = json.loads(message.payload.decode("utf-8"))
             dps = payload.get("dps", {})
 
             if not dps:
@@ -260,7 +260,7 @@ class RoborockDevice(ABC, TraitsMixin):
 
                 try:
                     data_protocol = RoborockDataProtocol(int(data_point_number))
-                    self._logger.debug(f"Got device update for {data_protocol.name}: {data_point}")
+                    self._logger.debug("Got device update for %s: %s", data_protocol.name, data_point)
                     self._handle_protocol_update(data_protocol, data_point)
                 except ValueError:
                     # Unknown protocol number
@@ -269,7 +269,7 @@ class RoborockDevice(ABC, TraitsMixin):
                         f"This may allow for faster updates in the future."
                     )
         except (json.JSONDecodeError, UnicodeDecodeError, KeyError) as ex:
-            self._logger.debug(f"Failed to parse protocol message: {ex}")
+            self._logger.debug("Failed to parse protocol message: %s", ex)
 
     def _handle_protocol_update(self, protocol: RoborockDataProtocol, data_point: Any) -> None:
         """Handle a protocol update for a specific data protocol.
@@ -280,22 +280,9 @@ class RoborockDevice(ABC, TraitsMixin):
         """
         # Handle status protocol updates
         if protocol in ROBOROCK_DATA_STATUS_PROTOCOL and self.v1_properties and self.v1_properties.status:
-            # Update the specific field in the status trait
-            match protocol:
-                case RoborockDataProtocol.ERROR_CODE:
-                    self.v1_properties.status.error_code = RoborockErrorCode(data_point)
-                case RoborockDataProtocol.STATE:
-                    self.v1_properties.status.state = RoborockStateCode(data_point)
-                case RoborockDataProtocol.BATTERY:
-                    self.v1_properties.status.battery = data_point
-                case RoborockDataProtocol.CHARGE_STATUS:
-                    self.v1_properties.status.charge_status = data_point
-                case _:
-                    # There is also fan power and water box mode, but for now those are skipped
-                    return
-
-            self._logger.debug("Updated status.%s to %s", protocol.name.lower(), data_point)
-            self.v1_properties.status.notify_update()
+            if self.v1_properties.status.handle_protocol_update(protocol, data_point):
+                self._logger.debug("Updated status.%s to %s", protocol.name.lower(), data_point)
+                self.v1_properties.status.notify_update()
 
     def diagnostic_data(self) -> dict[str, Any]:
         """Return diagnostics information about the device."""
