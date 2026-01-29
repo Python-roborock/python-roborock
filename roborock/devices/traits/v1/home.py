@@ -20,11 +20,11 @@ import base64
 import logging
 from typing import Self
 
-from roborock.data import CombinedMapInfo, RoborockBase
+from roborock.data import CombinedMapInfo, NamedRoomMapping, RoborockBase
 from roborock.data.v1.v1_code_mappings import RoborockStateCode
 from roborock.devices.cache import DeviceCache
 from roborock.devices.traits.v1 import common
-from roborock.exceptions import RoborockDeviceBusy, RoborockException
+from roborock.exceptions import RoborockDeviceBusy, RoborockException, RoborockInvalidStatus
 from roborock.roborock_typing import RoborockCommand
 
 from .map_content import MapContent, MapContentTrait
@@ -117,10 +117,31 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
     async def _refresh_map_info(self, map_info) -> CombinedMapInfo:
         """Collect room data for a specific map and return CombinedMapInfo."""
         await self._rooms_trait.refresh()
+
+        rooms: dict[int, NamedRoomMapping] = {}
+        if map_info.rooms:
+            # Not all vacuums resopnd with rooms inside map_info.
+            for room in map_info.rooms:
+                if room.id is not None and room.iot_name_id is not None:
+                    rooms[room.id] = NamedRoomMapping(
+                        segment_id=room.id,
+                        iot_id=room.iot_name_id,
+                        name=room.iot_name or "Unknown",
+                    )
+
+        # Add rooms from rooms_trait. If room already exists and rooms_trait has "Unknown", don't override.
+        if self._rooms_trait.rooms:
+            for room in self._rooms_trait.rooms:
+                if room.segment_id is not None and room.name:
+                    if room.segment_id not in rooms or room.name != "Unknown":
+                        # Add the room to rooms if the room segment is not already in it
+                        # or if the room name isn't unknown.
+                        rooms[room.segment_id] = room
+
         return CombinedMapInfo(
             map_flag=map_info.map_flag,
             name=map_info.name,
-            rooms=self._rooms_trait.rooms or [],
+            rooms=list(rooms.values()),
         )
 
     async def _refresh_map_content(self) -> MapContent:
@@ -150,7 +171,12 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
             # We need to load each map to get its room data
             if len(sorted_map_infos) > 1:
                 _LOGGER.debug("Loading map %s", map_info.map_flag)
-                await self._maps_trait.set_current_map(map_info.map_flag)
+                try:
+                    await self._maps_trait.set_current_map(map_info.map_flag)
+                except RoborockInvalidStatus as ex:
+                    # Device is in a state that forbids map switching. Translate to
+                    # "busy" so callers can fall back to refreshing the current map only.
+                    raise RoborockDeviceBusy("Cannot switch maps right now (device action locked)") from ex
                 await asyncio.sleep(MAP_SLEEP)
 
             map_content = await self._refresh_map_content()

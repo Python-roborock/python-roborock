@@ -18,6 +18,8 @@ class ZeoState(RoborockEnum):
     cooling = 8
     under_delay_start = 9
     done = 10
+    aftercare = 12
+    waiting_for_aftercare = 13
 
 
 class ZeoProgram(RoborockEnum):

@@ -301,9 +301,11 @@ class RoborockDevice(ABC, TraitsMixin):
         """Return diagnostics information about the device."""
         extra: dict[str, Any] = {}
         if self.v1_properties:
-            extra["traits"] = redact_device_data(self.v1_properties.as_dict())
-        return {
-            "device": redact_device_data(self.device_info.as_dict()),
-            "product": redact_device_data(self.product.as_dict()),
-            **extra,
-        }
+            extra["traits"] = self.v1_properties.as_dict()
+        return redact_device_data(
+            {
+                "device": self.device_info.as_dict(),
+                "product": self.product.as_dict(),
+                **extra,
+            }
+        )

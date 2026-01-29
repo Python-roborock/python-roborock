@@ -16,7 +16,7 @@ from roborock.data import (
     UserData,
 )
 from roborock.devices.device import DeviceReadyCallback, RoborockDevice
-from roborock.diagnostics import Diagnostics
+from roborock.diagnostics import Diagnostics, redact_device_data
 from roborock.exceptions import RoborockException
 from roborock.map.map_parser import MapParserConfig
 from roborock.mqtt.roborock_session import create_lazy_mqtt_session
@@ -76,6 +76,7 @@ class DeviceManager:
         self._devices: dict[str, RoborockDevice] = {}
         self._mqtt_session = mqtt_session
         self._diagnostics = diagnostics
+        self._home_data: HomeData | None = None
 
     async def discover_devices(self, prefer_cache: bool = True) -> list[RoborockDevice]:
         """Discover all devices for the logged-in user."""
@@ -91,9 +92,9 @@ class DeviceManager:
                     raise
                 _LOGGER.debug("Failed to fetch home data, using cached data: %s", ex)
             await self._cache.set(cache_data)
-        home_data = cache_data.home_data
+        self._home_data = cache_data.home_data
 
-        device_products = home_data.device_products
+        device_products = self._home_data.device_products
         _LOGGER.debug("Discovered %d devices", len(device_products))
 
         # These are connected serially to avoid overwhelming the MQTT broker
@@ -106,7 +107,7 @@ class DeviceManager:
             if duid in self._devices:
                 continue
             try:
-                new_device = self._device_creator(home_data, device, product)
+                new_device = self._device_creator(self._home_data, device, product)
             except UnsupportedDeviceError:
                 _LOGGER.info("Skipping unsupported device %s %s", product.summary_info(), device.summary_info())
                 unsupported_devices_counter.increment(device.pv or "unknown")
@@ -136,7 +137,11 @@ class DeviceManager:
 
     def diagnostic_data(self) -> Mapping[str, Any]:
         """Return diagnostics information about the device manager."""
-        return self._diagnostics.as_dict()
+        return {
+            "home_data": redact_device_data(self._home_data.as_dict()) if self._home_data else None,
+            "devices": [device.diagnostic_data() for device in self._devices.values()],
+            "diagnostics": self._diagnostics.as_dict(),
+        }
 
 
 @dataclass

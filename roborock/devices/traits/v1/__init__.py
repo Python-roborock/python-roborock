@@ -44,6 +44,12 @@ optional traits:
         available features.
     - `requires_dock_type` - If set, this is a function that accepts a `RoborockDockTypeCode`
         and returns a boolean indicating whether the trait is supported for that dock type.
+
+Additionally, DeviceFeaturesTrait has a method `is_field_supported` that is used to
+check individual trait field values. This is a more fine grained version to allow
+optional fields in a dataclass, vs the above feature checks that apply to an entire
+trait. The `requires_schema_code` field metadata attribute is a string of the schema
+code in HomeDataProduct Schema that is required for the field to be supported.
 """
 
 import logging
@@ -189,7 +195,7 @@ class PropertiesApi(Trait):
         self.maps = MapsTrait(self.status)
         self.map_content = MapContentTrait(map_parser_config)
         self.home = HomeTrait(self.status, self.maps, self.map_content, self.rooms, self._device_cache)
-        self.device_features = DeviceFeaturesTrait(product.product_nickname, self._device_cache)
+        self.device_features = DeviceFeaturesTrait(product, self._device_cache)
         self.network_info = NetworkInfoTrait(device_uid, self._device_cache)
         self.routines = RoutinesTrait(device_uid, web_api)
 

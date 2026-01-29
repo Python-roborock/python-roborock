@@ -1,6 +1,7 @@
-from dataclasses import fields
+from dataclasses import Field, fields
 
-from roborock.data import AppInitStatus, RoborockProductNickname
+from roborock.data import AppInitStatus, HomeDataProduct, RoborockBase
+from roborock.data.v1.v1_containers import FieldNameBase
 from roborock.device_features import DeviceFeatures
 from roborock.devices.cache import DeviceCache
 from roborock.devices.traits.v1 import common
@@ -8,18 +9,41 @@ from roborock.roborock_typing import RoborockCommand
 
 
 class DeviceFeaturesTrait(DeviceFeatures, common.V1TraitMixin):
-    """Trait for managing Do Not Disturb (DND) settings on Roborock devices."""
+    """Trait for managing supported features on Roborock devices."""
 
     command = RoborockCommand.APP_GET_INIT_STATUS
 
-    def __init__(self, product_nickname: RoborockProductNickname, device_cache: DeviceCache) -> None:  # pylint: disable=super-init-not-called
-        """Initialize MapContentTrait."""
-        self._nickname = product_nickname
+    def __init__(self, product: HomeDataProduct, device_cache: DeviceCache) -> None:  # pylint: disable=super-init-not-called
+        """Initialize DeviceFeaturesTrait."""
+        self._product = product
+        self._nickname = product.product_nickname
         self._device_cache = device_cache
         # All fields of DeviceFeatures are required. Initialize them to False
         # so we have some known state.
         for field in fields(self):
             setattr(self, field.name, False)
+
+    def is_field_supported(self, cls: type[RoborockBase], field_name: FieldNameBase) -> bool:
+        """Determines if the specified field is supported by this device.
+
+        We use dataclass attributes on the field to specify the schema code that is required
+        for the field to be supported and it is compared against the list of
+        supported schema codes for the device returned in the product information.
+        """
+        dataclass_field: Field | None = None
+        for field in fields(cls):
+            if field.name == field_name:
+                dataclass_field = field
+                break
+        if dataclass_field is None:
+            raise ValueError(f"Field {field_name} not found in {cls}")
+
+        requires_schema_code = dataclass_field.metadata.get("requires_schema_code", None)
+        if requires_schema_code is None:
+            # We assume the field is supported
+            return True
+        # If the field requires a protocol that is not supported, we return False
+        return requires_schema_code in self._product.supported_schema_codes
 
     async def refresh(self) -> None:
         """Refresh the contents of this trait.

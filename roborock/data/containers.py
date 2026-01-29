@@ -232,6 +232,13 @@ class HomeDataProduct(RoborockBase):
         """Return a string with key product information for logging purposes."""
         return f"{self.name} (model={self.model}, category={self.category})"
 
+    @cached_property
+    def supported_schema_codes(self) -> set[str]:
+        """Return a set of fields that are supported by the device."""
+        if self.schema is None:
+            return set()
+        return {schema.code for schema in self.schema if schema.code is not None}
+
 
 @dataclass
 class HomeDataDevice(RoborockBase):

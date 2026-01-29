@@ -452,24 +452,8 @@ async def test_q10_device(
         (
             {
                 **HOME_DATA_RAW,
-                # Use a fake Q7 device and product profile as a placeholder
-                # until we add a json file based on the real one.
-                "devices": [
-                    {
-                        **mock_data.Q10_DEVICE_DATA,
-                        "name": "Roborock Q7 XX",
-                        "productId": "product-id-q7",
-                    },
-                ],
-                "products": [
-                    {
-                        **mock_data.SS07_PRODUCT_DATA,
-                        "id": "product-id-q7",
-                        "name": "Roborock Q7 Series",
-                        "model": "roborock.vacuum.scXX",
-                        "category": "robot.vacuum.cleaner",
-                    },
-                ],
+                "devices": [mock_data.Q7_DEVICE_DATA],
+                "products": [mock_data.SC01_PRODUCT_DATA],
             }
         )
     ],
@@ -486,7 +470,7 @@ async def test_q7_device(
     # Prepare MQTT requests
     response_builder = ResponseBuilder()
     response_builder.version = B01_VERSION
-    test_topic = TEST_TOPIC_FORMAT.format(duid="device-id-def456")
+    test_topic = TEST_TOPIC_FORMAT.format(duid="device-id-q7")
     mqtt_responses: list[bytes] = [
         *MQTT_DEFAULT_RESPONSES,
         # ACK the Query status call sent below. id is deterministic based on deterministic_message_fixtures
@@ -506,8 +490,8 @@ async def test_q7_device(
     devices = await device_manager.get_devices()
     assert len(devices) == 1
     device = devices[0]
-    assert device.duid == "device-id-def456"
-    assert device.name == "Roborock Q7 XX"
+    assert device.duid == "device-id-q7"
+    assert device.name == "Roborock Q7"
     assert device.is_connected
     assert not device.is_local_connected  # Q7 does not support local connections
 

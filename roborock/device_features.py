@@ -554,6 +554,11 @@ class DeviceFeatures(RoborockBase):
         metadata={"product_features": [ProductFeatures.MOP_SHAKE_MODULE, ProductFeatures.MOP_SPIN_MODULE]}
     )
 
+    # Raw feature info values from get_init_status for diagnostics
+    new_feature_info: int = field(default=0, repr=False)
+    new_feature_info_str: str = field(default="", repr=False)
+    feature_info: list[int] = field(default_factory=list, repr=False)
+
     @classmethod
     def from_feature_flags(
         cls,
@@ -571,9 +576,17 @@ class DeviceFeatures(RoborockBase):
         # RobotNewFeatures = new_feature_info
         # newFeatureInfoStr = new_feature_info_str
         # feature_info =robotFeatures
-        kwargs: dict[str, Any] = {}
+        kwargs: dict[str, Any] = {
+            # Store raw feature info for diagnostics
+            "new_feature_info": new_feature_info,
+            "new_feature_info_str": new_feature_info_str,
+            "feature_info": feature_info,
+        }
 
         for f in fields(cls):
+            # Skip raw feature info fields (already set above)
+            if f.name in ("new_feature_info", "new_feature_info_str", "feature_info"):
+                continue
             # Default all features to False.
             kwargs[f.name] = False
             if not f.metadata:
