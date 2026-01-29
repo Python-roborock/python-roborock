@@ -6,7 +6,6 @@ until the API is stable.
 
 import asyncio
 import datetime
-import json
 import logging
 from abc import ABC
 from collections.abc import Callable
@@ -16,12 +15,6 @@ from roborock.callbacks import CallbackList
 from roborock.data import HomeDataDevice, HomeDataProduct
 from roborock.diagnostics import redact_device_data
 from roborock.exceptions import RoborockException
-from roborock.roborock_message import (
-    ROBOROCK_DATA_STATUS_PROTOCOL,
-    RoborockDataProtocol,
-    RoborockMessage,
-    RoborockMessageProtocol,
-)
 from roborock.util import RoborockLoggerAdapter
 
 from .traits import Trait
@@ -81,6 +74,7 @@ class RoborockDevice(ABC, TraitsMixin):
         self._channel = channel
         self._connect_task: asyncio.Task[None] | None = None
         self._unsub: Callable[[], None] | None = None
+        self._v1_unsub: Callable[[], None] | None = None
         self._ready_callbacks = CallbackList["RoborockDevice"]()
         self._has_connected = False
 
@@ -202,15 +196,23 @@ class RoborockDevice(ABC, TraitsMixin):
         """Connect to the device using the appropriate protocol channel."""
         if self._unsub:
             raise ValueError("Already connected to the device")
-        unsub = await self._channel.subscribe(self._on_message)
+
         if self.v1_properties is not None:
             try:
+                # V1 layer subscribes to the channel and handles protocol updates.
+                # Note: V1Channel only allows one subscription, so the V1 layer
+                # is the sole subscriber for V1 devices.
+                self._v1_unsub = await self.v1_properties.subscribe_async(self._channel)
                 await self.v1_properties.discover_features()
             except RoborockException:
-                unsub()
+                if self._v1_unsub:
+                    self._v1_unsub()
                 raise
+        else:
+            # Non-V1 devices subscribe directly (no protocol update handling needed)
+            self._unsub = await self._channel.subscribe(lambda msg: None)
+
         self._logger.info("Connected to device")
-        self._unsub = unsub
 
     async def close(self) -> None:
         """Close all connections to the device."""
@@ -220,69 +222,12 @@ class RoborockDevice(ABC, TraitsMixin):
                 await self._connect_task
             except asyncio.CancelledError:
                 pass
+        if self._v1_unsub:
+            self._v1_unsub()
+            self._v1_unsub = None
         if self._unsub:
             self._unsub()
             self._unsub = None
-
-    def _on_message(self, message: RoborockMessage) -> None:
-        """Handle incoming messages from the device.
-
-        Note: Protocol updates (data points) are only sent via cloud/MQTT, not local connection.
-        """
-        self._logger.debug("Received message from device: %s", message)
-        if self.v1_properties is None:
-            # Ensure we are only doing below logic for set-up V1 devices.
-            return
-
-        # Only process messages that can contain protocol updates
-        # RPC_RESPONSE (102), and GENERAL_RESPONSE (5)
-        if message.protocol not in {
-            RoborockMessageProtocol.RPC_RESPONSE,
-            RoborockMessageProtocol.GENERAL_RESPONSE,
-        }:
-            return
-
-        if not message.payload:
-            return
-
-        try:
-            payload = json.loads(message.payload.decode("utf-8"))
-            dps = payload.get("dps", {})
-
-            if not dps:
-                return
-
-            # Process each data point in the message
-            for data_point_number, data_point in dps.items():
-                # Skip RPC responses (102) as they're handled by the RPC channel
-                if data_point_number == "102":
-                    continue
-
-                try:
-                    data_protocol = RoborockDataProtocol(int(data_point_number))
-                    self._logger.debug("Got device update for %s: %s", data_protocol.name, data_point)
-                    self._handle_protocol_update(data_protocol, data_point)
-                except ValueError:
-                    # Unknown protocol number
-                    self._logger.debug(
-                        f"Got unknown data protocol {data_point_number}, data: {data_point}. "
-                        f"This may allow for faster updates in the future."
-                    )
-        except (json.JSONDecodeError, UnicodeDecodeError, KeyError) as ex:
-            self._logger.debug("Failed to parse protocol message: %s", ex)
-
-    def _handle_protocol_update(self, protocol: RoborockDataProtocol, data_point: Any) -> None:
-        """Handle a protocol update for a specific data protocol.
-
-        Args:
-            protocol: The data protocol number.
-            data_point: The data value for this protocol.
-        """
-        # Handle status protocol updates
-        if protocol in ROBOROCK_DATA_STATUS_PROTOCOL and self.v1_properties and self.v1_properties.status:
-            if self.v1_properties.status.handle_protocol_update(protocol, data_point):
-                self._logger.debug("Updated status.%s to %s", protocol.name.lower(), data_point)
-                self.v1_properties.status.notify_update()
 
     def diagnostic_data(self) -> dict[str, Any]:
         """Return diagnostics information about the device."""

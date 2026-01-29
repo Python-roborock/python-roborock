@@ -11,7 +11,6 @@ from collections.abc import Callable
 from dataclasses import dataclass, fields
 from typing import ClassVar, Self
 
-from roborock.callbacks import CallbackList
 from roborock.data import RoborockBase
 from roborock.protocols.v1_protocol import V1RpcChannel
 from roborock.roborock_typing import RoborockCommand
@@ -19,7 +18,7 @@ from roborock.roborock_typing import RoborockCommand
 _LOGGER = logging.getLogger(__name__)
 
 V1ResponseData = dict | list | int | str
-V1TraitUpdateCallback = Callable[["V1TraitMixin"], None]
+V1TraitUpdateCallback = Callable[[], None]
 
 
 @dataclass
@@ -79,7 +78,7 @@ class V1TraitMixin(ABC):
         device setup code.
         """
         self._rpc_channel = None
-        self._update_callbacks: CallbackList[V1TraitMixin] = CallbackList()
+        self._update_callbacks: list[V1TraitUpdateCallback] = []
 
     @property
     def rpc_channel(self) -> V1RpcChannel:
@@ -106,17 +105,22 @@ class V1TraitMixin(ABC):
     def add_update_callback(self, callback: V1TraitUpdateCallback) -> Callable[[], None]:
         """Add a callback to be notified when the trait is updated.
 
-        The callback will be called with the updated trait instance whenever
-        a protocol message updates the trait.
+        The callback will be called whenever a protocol message updates the trait.
+        Callers should track which trait they subscribed to if needed.
 
         Returns:
             A callable that can be used to remove the callback.
         """
-        return self._update_callbacks.add_callback(callback)
+        self._update_callbacks.append(callback)
+        return lambda: self._update_callbacks.remove(callback)
 
     def notify_update(self) -> None:
         """Notify all registered callbacks that the trait has been updated."""
-        self._update_callbacks(self)
+        for callback in self._update_callbacks:
+            try:
+                callback()
+            except Exception:  # noqa: BLE001
+                _LOGGER.exception("Error in trait update callback")
 
 
 def _get_value_field(clazz: type[V1TraitMixin]) -> str:
