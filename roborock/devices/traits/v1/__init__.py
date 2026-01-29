@@ -52,7 +52,9 @@ trait. The `requires_schema_code` field metadata attribute is a string of the sc
 code in HomeDataProduct Schema that is required for the field to be supported.
 """
 
+import json
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field, fields
 from functools import cache
 from typing import Any, get_args
@@ -61,8 +63,15 @@ from roborock.data.containers import HomeData, HomeDataProduct, RoborockBase
 from roborock.data.v1.v1_code_mappings import RoborockDockTypeCode
 from roborock.devices.cache import DeviceCache
 from roborock.devices.traits import Trait
+from roborock.devices.transport.channel import Channel
 from roborock.map.map_parser import MapParserConfig
 from roborock.protocols.v1_protocol import V1RpcChannel
+from roborock.roborock_message import (
+    ROBOROCK_DATA_STATUS_PROTOCOL,
+    RoborockDataProtocol,
+    RoborockMessage,
+    RoborockMessageProtocol,
+)
 from roborock.web_api import UserWebApiClient
 
 from . import (
@@ -312,6 +321,79 @@ class PropertiesApi(Trait):
             if data:  # Don't omit unset traits
                 result[item.name] = data
         return result
+
+    async def subscribe_async(self, channel: Channel) -> Callable[[], None]:
+        """Subscribe to protocol updates from the channel.
+
+        This handles MQTT protocol updates for V1 devices, routing data point
+        updates to the appropriate traits.
+
+        Args:
+            channel: The channel to subscribe to for updates.
+
+        Returns:
+            A callable that can be used to unsubscribe from updates.
+        """
+
+        def on_message(message: RoborockMessage) -> None:
+            self._handle_message(message)
+
+        return await channel.subscribe(on_message)
+
+    def _handle_message(self, message: RoborockMessage) -> None:
+        """Handle incoming messages from the device.
+
+        Parses protocol updates and routes them to the appropriate traits.
+        """
+        # Only process messages that can contain protocol updates
+        # RPC_RESPONSE (102), and GENERAL_RESPONSE (5)
+        if message.protocol not in {
+            RoborockMessageProtocol.RPC_RESPONSE,
+            RoborockMessageProtocol.GENERAL_RESPONSE,
+        }:
+            return
+
+        if not message.payload:
+            return
+
+        try:
+            payload = json.loads(message.payload.decode("utf-8"))
+            dps = payload.get("dps", {})
+
+            if not dps:
+                return
+
+            # Process each data point in the message
+            for data_point_number, data_point in dps.items():
+                # Skip RPC responses (102) as they're handled by the RPC channel
+                if data_point_number == "102":
+                    continue
+
+                try:
+                    data_protocol = RoborockDataProtocol(int(data_point_number))
+                    _LOGGER.debug("Got device update for %s: %s", data_protocol.name, data_point)
+                    self._handle_protocol_update(data_protocol, data_point)
+                except ValueError:
+                    # Unknown protocol number
+                    _LOGGER.debug(
+                        f"Got unknown data protocol {data_point_number}, data: {data_point}. "
+                        f"This may allow for faster updates in the future."
+                    )
+        except (json.JSONDecodeError, UnicodeDecodeError, KeyError) as ex:
+            _LOGGER.debug("Failed to parse protocol message: %s", ex)
+
+    def _handle_protocol_update(self, protocol: RoborockDataProtocol, data_point: Any) -> None:
+        """Handle a protocol update for a specific data protocol.
+
+        Args:
+            protocol: The data protocol number.
+            data_point: The data value for this protocol.
+        """
+        # Handle status protocol updates
+        if protocol in ROBOROCK_DATA_STATUS_PROTOCOL and self.status:
+            if self.status.handle_protocol_update(protocol, data_point):
+                _LOGGER.debug("Updated status.%s to %s", protocol.name.lower(), data_point)
+                self.status.notify_update()
 
 
 def create(
