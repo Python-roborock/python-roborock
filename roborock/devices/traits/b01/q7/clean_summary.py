@@ -25,6 +25,11 @@ class CleanSummaryTrait(CleanRecordSummary, Trait):
     """B01/Q7 clean summary + clean record access (via record list service)."""
 
     def __init__(self, channel: MqttChannel) -> None:
+        """Initialize the clean summary trait.
+
+        Args:
+            channel: MQTT channel used to communicate with the device.
+        """
         super().__init__()
         self._channel = channel
 
@@ -64,7 +69,7 @@ class CleanSummaryTrait(CleanRecordSummary, Trait):
             return CleanRecordDetail.from_dict(parsed)
         if isinstance(detail, dict):
             return CleanRecordDetail.from_dict(detail)
-        raise TypeError(f"Unexpected B01 record detail type: {type(detail).__name__}: {detail!r}")
+        raise RoborockException(f"Unexpected B01 record detail type: {type(detail).__name__}: {detail!r}")
 
     async def get_clean_record_details(self, *, record_list: CleanRecordList | None = None) -> list[CleanRecordDetail]:
         """Return parsed record detail objects (newest-first)."""
@@ -77,6 +82,6 @@ class CleanSummaryTrait(CleanRecordSummary, Trait):
             if parsed is not None:
                 details.append(parsed)
 
-        # App treats the newest record as the end of the list
+        # The app returns the newest record at the end of record_list; reverse so newest is first (index 0).
         details.reverse()
         return details

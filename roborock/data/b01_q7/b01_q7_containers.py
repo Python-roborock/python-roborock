@@ -245,7 +245,7 @@ class CleanRecordList(RoborockBase):
 class CleanRecordSummary(RoborockBase):
     """Represents clean record totals for B01/Q7 devices."""
 
-    total_area: int | None = None
     total_time: int | None = None
+    total_area: int | None = None
     total_count: int | None = None
     last_record_detail: CleanRecordDetail | None = None
