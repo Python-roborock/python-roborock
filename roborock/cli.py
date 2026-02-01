@@ -442,10 +442,9 @@ async def _q10_vacuum_trait(context: RoborockContext, device_id: str):
     """Get VacuumTrait from Q10 device."""
     device_manager = await context.get_device_manager()
     device = await device_manager.get_device(device_id)
-    trait = device.traits.get("VacuumTrait")
-    if not trait:
-        raise RoborockUnsupportedFeature("Device does not have VacuumTrait. Is it a Q10?")
-    return trait
+    if device.b01_q10_properties is None:
+        raise RoborockUnsupportedFeature("Device does not support B01 Q10 protocol. Is it a Q10?")
+    return device.b01_q10_properties.vacuum
 
 
 @session.command()
@@ -1163,7 +1162,7 @@ async def q10_vacuum_start(ctx, device_id):
         await trait.start_clean()
         click.echo("Starting vacuum cleaning...")
     except RoborockUnsupportedFeature:
-        click.echo("Device does not have VacuumTrait. Is it a Q10?")
+        click.echo("Device does not support B01 Q10 protocol. Is it a Q10?")
     except RoborockException as e:
         click.echo(f"Error: {e}")
 
@@ -1180,7 +1179,7 @@ async def q10_vacuum_pause(ctx, device_id):
         await trait.pause_clean()
         click.echo("Pausing vacuum cleaning...")
     except RoborockUnsupportedFeature:
-        click.echo("Device does not have VacuumTrait. Is it a Q10?")
+        click.echo("Device does not support B01 Q10 protocol. Is it a Q10?")
     except RoborockException as e:
         click.echo(f"Error: {e}")
 
@@ -1197,7 +1196,7 @@ async def q10_vacuum_resume(ctx, device_id):
         await trait.resume_clean()
         click.echo("Resuming vacuum cleaning...")
     except RoborockUnsupportedFeature:
-        click.echo("Device does not have VacuumTrait. Is it a Q10?")
+        click.echo("Device does not support B01 Q10 protocol. Is it a Q10?")
     except RoborockException as e:
         click.echo(f"Error: {e}")
 
@@ -1214,7 +1213,7 @@ async def q10_vacuum_stop(ctx, device_id):
         await trait.stop_clean()
         click.echo("Stopping vacuum cleaning...")
     except RoborockUnsupportedFeature:
-        click.echo("Device does not have VacuumTrait. Is it a Q10?")
+        click.echo("Device does not support B01 Q10 protocol. Is it a Q10?")
     except RoborockException as e:
         click.echo(f"Error: {e}")
 
@@ -1231,7 +1230,7 @@ async def q10_vacuum_dock(ctx, device_id):
         await trait.return_to_dock()
         click.echo("Returning vacuum to dock...")
     except RoborockUnsupportedFeature:
-        click.echo("Device does not have VacuumTrait. Is it a Q10?")
+        click.echo("Device does not support B01 Q10 protocol. Is it a Q10?")
     except RoborockException as e:
         click.echo(f"Error: {e}")
 
