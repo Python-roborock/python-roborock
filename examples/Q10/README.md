@@ -114,7 +114,7 @@ The VacuumTrait provides these commands:
 Additional cleaning modes can be tested with `test_q10_advanced.py` (option 2):
 
 - **Standard cleaning (cmd=1)** - Full cleaning cycle
-- **Electoral/Area cleaning (cmd=2)** - Clean specific areas/zones  
+- **Electoral/Area cleaning (cmd=2)** - Clean specific areas/zones
 - **Fast map creation (cmd=4)** - Quickly generate room map
   - ⚠️ **Warning**: This will start the robot moving!
   - Requires explicit confirmation before execution
@@ -127,7 +127,7 @@ The `test_q10_advanced.py` script (option 3) provides:
 - **Local connected**: Whether device is reachable on your local network
   - `True` = Direct local connection (LAN/WiFi)
   - `False` = Cloud connection via Roborock servers
-- **Available APIs**: 
+- **Available APIs**:
   - `Command API` = Low-level command interface
   - `Vacuum Trait` = High-level vacuum control interface
 
