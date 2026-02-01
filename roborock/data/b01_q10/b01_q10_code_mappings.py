@@ -96,7 +96,7 @@ class B01_Q10_DP(RoborockModeEnum):
     HEARTBEAT = ("dpHeartbeat", 110)
     STATUS = ("dpStatus", 121)
     BATTERY = ("dpBattery", 122)
-    FUN_LEVEL = ("dpfunLevel", 123)
+    FAN_LEVEL = ("dpfunLevel", 123)
     WATER_LEVEL = ("dpWaterLevel", 124)
     MAIN_BRUSH_LIFE = ("dpMainBrushLife", 125)
     SIDE_BRUSH_LIFE = ("dpSideBrushLife", 126)
