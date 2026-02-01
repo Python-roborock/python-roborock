@@ -125,8 +125,7 @@ class YXFanLevel(RoborockModeEnum):
     NORMAL = "normal", 2
     STRONG = "strong", 3
     MAX = "max", 4
-    SUPER = "super", 5
-    CUSTOM = "custom", 8
+    SUPER = "super", 8
 
 
 class YXWaterLevel(RoborockModeEnum):
