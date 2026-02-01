@@ -50,6 +50,7 @@ from roborock.devices.cache import Cache, CacheData
 from roborock.devices.device import RoborockDevice
 from roborock.devices.device_manager import DeviceManager, UserParams, create_device_manager
 from roborock.devices.traits import Trait
+from roborock.devices.traits.b01.q10.vacuum import VacuumTrait
 from roborock.devices.traits.v1 import V1TraitMixin
 from roborock.devices.traits.v1.consumeable import ConsumableAttribute
 from roborock.devices.traits.v1.map_content import MapContentTrait
@@ -438,7 +439,7 @@ async def _display_v1_trait(context: RoborockContext, device_id: str, display_fu
     click.echo(dump_json(trait.as_dict()))
 
 
-async def _q10_vacuum_trait(context: RoborockContext, device_id: str):
+async def _q10_vacuum_trait(context: RoborockContext, device_id: str) -> VacuumTrait:
     """Get VacuumTrait from Q10 device."""
     device_manager = await context.get_device_manager()
     device = await device_manager.get_device(device_id)
@@ -1150,11 +1151,11 @@ def update_docs(data_file: str, output_file: str):
     click.echo("Done.")
 
 
-@click.command()
+@session.command()
 @click.option("--device_id", required=True, help="Device ID")
 @click.pass_context
 @async_command
-async def q10_vacuum_start(ctx, device_id):
+async def q10_vacuum_start(ctx: click.Context, device_id: str) -> None:
     """Start vacuum cleaning on Q10 device."""
     context: RoborockContext = ctx.obj
     try:
@@ -1167,11 +1168,11 @@ async def q10_vacuum_start(ctx, device_id):
         click.echo(f"Error: {e}")
 
 
-@click.command()
+@session.command()
 @click.option("--device_id", required=True, help="Device ID")
 @click.pass_context
 @async_command
-async def q10_vacuum_pause(ctx, device_id):
+async def q10_vacuum_pause(ctx: click.Context, device_id: str) -> None:
     """Pause vacuum cleaning on Q10 device."""
     context: RoborockContext = ctx.obj
     try:
@@ -1184,11 +1185,11 @@ async def q10_vacuum_pause(ctx, device_id):
         click.echo(f"Error: {e}")
 
 
-@click.command()
+@session.command()
 @click.option("--device_id", required=True, help="Device ID")
 @click.pass_context
 @async_command
-async def q10_vacuum_resume(ctx, device_id):
+async def q10_vacuum_resume(ctx: click.Context, device_id: str) -> None:
     """Resume vacuum cleaning on Q10 device."""
     context: RoborockContext = ctx.obj
     try:
@@ -1201,11 +1202,11 @@ async def q10_vacuum_resume(ctx, device_id):
         click.echo(f"Error: {e}")
 
 
-@click.command()
+@session.command()
 @click.option("--device_id", required=True, help="Device ID")
 @click.pass_context
 @async_command
-async def q10_vacuum_stop(ctx, device_id):
+async def q10_vacuum_stop(ctx: click.Context, device_id: str) -> None:
     """Stop vacuum cleaning on Q10 device."""
     context: RoborockContext = ctx.obj
     try:
@@ -1218,11 +1219,11 @@ async def q10_vacuum_stop(ctx, device_id):
         click.echo(f"Error: {e}")
 
 
-@click.command()
+@session.command()
 @click.option("--device_id", required=True, help="Device ID")
 @click.pass_context
 @async_command
-async def q10_vacuum_dock(ctx, device_id):
+async def q10_vacuum_dock(ctx: click.Context, device_id: str) -> None:
     """Return vacuum to dock on Q10 device."""
     context: RoborockContext = ctx.obj
     try:
