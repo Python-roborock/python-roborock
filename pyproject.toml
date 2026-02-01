@@ -1,16 +1,12 @@
-[project]
+[tool.poetry]
 name = "python-roborock"
-version = "4.10.0"
+version = "2.25.0"
 description = "A package to control Roborock vacuums."
-authors = [{ name = "humbertogontijo", email = "humbertogontijo@users.noreply.github.com" }, {name="Lash-L"}, {name="allenporter"}]
-requires-python = ">=3.11, <4"
-readme = "README.md"
+authors = ["humbertogontijo <humbertogontijo@users.noreply.github.com>"]
 license = "GPL-3.0-only"
-keywords = [
-    "roborock",
-    "vacuum",
-    "homeassistant",
-]
+readme = "README.md"
+repository = "https://github.com/humbertogontijo/python-roborock"
+documentation = "https://python-roborock.readthedocs.io/"
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
@@ -18,71 +14,46 @@ classifiers = [
     "Operating System :: OS Independent",
     "Topic :: Software Development :: Libraries",
 ]
-dependencies = [
-    "click>=8",
-    "aiohttp>=3.8.2,<4",
-    "pycryptodome~=3.18",
-    "pycryptodomex~=3.18 ; sys_platform == 'darwin'",
-    "paho-mqtt>=1.6.1,<3.0.0",
-    "construct>=2.10.57,<3",
-    "vacuum-map-parser-roborock",
-    "pyrate-limiter>=3.7.0,<4",
-    "aiomqtt>=2.5.0,<3",
-    "click-shell~=2.1",
-]
+packages = [{include = "roborock"}]
+keywords = ["roborock", "vacuum", "homeassistant"]
 
-[project.urls]
-Repository = "https://github.com/humbertogontijo/python-roborock"
-Documentation = "https://python-roborock.readthedocs.io/"
-
-[project.scripts]
+[tool.poetry.scripts]
 roborock = "roborock.cli:main"
 
-[dependency-groups]
-dev = [
-    "pytest-asyncio>=1.1.0",
-    "pytest",
-    "pre-commit>=3.5,<5.0",
-    "mypy",
-    "ruff==0.14.11",
-    "codespell",
-    "pyshark>=0.6,<0.7",
-    "aioresponses>=0.7.7,<0.8",
-    "freezegun>=1.5.1,<2",
-    "pytest-timeout>=2.3.1,<3",
-    "syrupy>=4.9.1,<6",
-    "pdoc>=15.0.4,<17",
-    "pyyaml>=6.0.3",
-    "pyshark>=0.6",
-    "pytest-cov>=7.0.0",
-]
+[tool.poetry.dependencies]
+python = "^3.11"
+click = ">=8"
+aiohttp = "^3.8.2"
+async-timeout = "*"
+pycryptodome = "^3.18"
+pycryptodomex = {version = "^3.18", markers = "sys_platform == 'darwin'"}
+paho-mqtt = ">=1.6.1,<3.0.0"
+construct = "^2.10.57"
+vacuum-map-parser-roborock = "*"
+pyrate-limiter = "^3.7.0"
+aiomqtt = "^2.3.2"
 
-[tool.hatch.build.targets.sdist]
-include = ["roborock"]
-
-[tool.hatch.build.targets.wheel]
-include = ["roborock"]
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["poetry-core==1.8.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.group.dev.dependencies]
+pytest-asyncio = "*"
+pytest = "*"
+pre-commit = ">=3.5,<5.0"
+mypy = "*"
+ruff = "*"
+codespell = "*"
+pyshark = "^0.6"
+aioresponses = "^0.7.7"
+freezegun = "^1.5.1"
+pytest-timeout = "^2.3.1"
 
 [tool.semantic_release]
 branch = "main"
-version_toml = ["pyproject.toml:project.version"]
-build_command = "pip install uv && uv lock --upgrade-package python-roborock && git add uv.lock && uv build"
-changelog_file = 'CHANGELOG.md'
-commit = true
-
-[tool.semantic_release.branches.main]
-match = "main"
-prerelease = false
-
-[tool.semantic_release.branches.temp-main-branch]
-match = "temp-main-branch"
-prerelease = false
-
-
+version_toml = ["pyproject.toml:tool.poetry.version"]
+build_command = "pip install poetry && poetry build"
 [tool.semantic_release.commit_parser_options]
 allowed_tags = [
     "chore",
@@ -94,9 +65,9 @@ allowed_tags = [
 major_tags= ["refactor"]
 
 [tool.ruff]
-lint.ignore = ["F403", "E741"]
-lint.select=["E", "F", "UP", "I"]
+ignore = ["F403", "E741"]
 line-length = 120
+select=["E", "F", "UP", "I"]
 
 [tool.ruff.lint.per-file-ignores]
 "*/__init__.py" = ["F401"]
