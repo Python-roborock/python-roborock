@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from roborock.data.b01_q10.b01_q10_code_mappings import (
     B01_Q10_DP,
@@ -46,7 +46,7 @@ class StatusTrait:
     @property
     def state(self) -> YXDeviceState | None:
         code = self.state_code
-        return YXDeviceState.from_code_optional(code) if code is not None else None
+        return cast(YXDeviceState | None, YXDeviceState.from_code_optional(code)) if code is not None else None
 
     @property
     def battery(self) -> int | None:
@@ -55,22 +55,24 @@ class StatusTrait:
     @property
     def fan_level(self) -> YXFanLevel | None:
         value = self._data.get(B01_Q10_DP.FUN_LEVEL)
-        return YXFanLevel.from_code_optional(value) if value is not None else None
+        return cast(YXFanLevel | None, YXFanLevel.from_code_optional(value)) if value is not None else None
 
     @property
     def water_level(self) -> YXWaterLevel | None:
         value = self._data.get(B01_Q10_DP.WATER_LEVEL)
-        return YXWaterLevel.from_code_optional(value) if value is not None else None
+        return cast(YXWaterLevel | None, YXWaterLevel.from_code_optional(value)) if value is not None else None
 
     @property
     def clean_mode(self) -> YXDeviceWorkMode | None:
         value = self._data.get(B01_Q10_DP.CLEAN_MODE)
-        return YXDeviceWorkMode.from_code_optional(value) if value is not None else None
+        return cast(YXDeviceWorkMode | None, YXDeviceWorkMode.from_code_optional(value)) if value is not None else None
 
     @property
     def clean_task(self) -> YXDeviceCleanTask | None:
         value = self._data.get(B01_Q10_DP.CLEAN_TASK_TYPE)
-        return YXDeviceCleanTask.from_code_optional(value) if value is not None else None
+        return (
+            cast(YXDeviceCleanTask | None, YXDeviceCleanTask.from_code_optional(value)) if value is not None else None
+        )
 
     @property
     def cleaning_progress(self) -> int | None:
