@@ -1158,9 +1158,14 @@ def update_docs(data_file: str, output_file: str):
 async def q10_vacuum_start(ctx, device_id):
     """Start vacuum cleaning on Q10 device."""
     context: RoborockContext = ctx.obj
-    trait = await _q10_vacuum_trait(context, device_id)
-    await trait.start_clean()
-    click.echo("Starting vacuum cleaning...")
+    try:
+        trait = await _q10_vacuum_trait(context, device_id)
+        await trait.start_clean()
+        click.echo("Starting vacuum cleaning...")
+    except RoborockUnsupportedFeature:
+        click.echo("Device does not have VacuumTrait. Is it a Q10?")
+    except RoborockException as e:
+        click.echo(f"Error: {e}")
 
 
 @click.command()
@@ -1170,9 +1175,14 @@ async def q10_vacuum_start(ctx, device_id):
 async def q10_vacuum_pause(ctx, device_id):
     """Pause vacuum cleaning on Q10 device."""
     context: RoborockContext = ctx.obj
-    trait = await _q10_vacuum_trait(context, device_id)
-    await trait.pause_clean()
-    click.echo("Pausing vacuum cleaning...")
+    try:
+        trait = await _q10_vacuum_trait(context, device_id)
+        await trait.pause_clean()
+        click.echo("Pausing vacuum cleaning...")
+    except RoborockUnsupportedFeature:
+        click.echo("Device does not have VacuumTrait. Is it a Q10?")
+    except RoborockException as e:
+        click.echo(f"Error: {e}")
 
 
 @click.command()
@@ -1182,9 +1192,14 @@ async def q10_vacuum_pause(ctx, device_id):
 async def q10_vacuum_resume(ctx, device_id):
     """Resume vacuum cleaning on Q10 device."""
     context: RoborockContext = ctx.obj
-    trait = await _q10_vacuum_trait(context, device_id)
-    await trait.resume_clean()
-    click.echo("Resuming vacuum cleaning...")
+    try:
+        trait = await _q10_vacuum_trait(context, device_id)
+        await trait.resume_clean()
+        click.echo("Resuming vacuum cleaning...")
+    except RoborockUnsupportedFeature:
+        click.echo("Device does not have VacuumTrait. Is it a Q10?")
+    except RoborockException as e:
+        click.echo(f"Error: {e}")
 
 
 @click.command()
@@ -1194,9 +1209,14 @@ async def q10_vacuum_resume(ctx, device_id):
 async def q10_vacuum_stop(ctx, device_id):
     """Stop vacuum cleaning on Q10 device."""
     context: RoborockContext = ctx.obj
-    trait = await _q10_vacuum_trait(context, device_id)
-    await trait.stop_clean()
-    click.echo("Stopping vacuum cleaning...")
+    try:
+        trait = await _q10_vacuum_trait(context, device_id)
+        await trait.stop_clean()
+        click.echo("Stopping vacuum cleaning...")
+    except RoborockUnsupportedFeature:
+        click.echo("Device does not have VacuumTrait. Is it a Q10?")
+    except RoborockException as e:
+        click.echo(f"Error: {e}")
 
 
 @click.command()
@@ -1206,9 +1226,14 @@ async def q10_vacuum_stop(ctx, device_id):
 async def q10_vacuum_dock(ctx, device_id):
     """Return vacuum to dock on Q10 device."""
     context: RoborockContext = ctx.obj
-    trait = await _q10_vacuum_trait(context, device_id)
-    await trait.return_to_dock()
-    click.echo("Returning vacuum to dock...")
+    try:
+        trait = await _q10_vacuum_trait(context, device_id)
+        await trait.return_to_dock()
+        click.echo("Returning vacuum to dock...")
+    except RoborockUnsupportedFeature:
+        click.echo("Device does not have VacuumTrait. Is it a Q10?")
+    except RoborockException as e:
+        click.echo(f"Error: {e}")
 
 
 cli.add_command(login)
