@@ -10,7 +10,6 @@ from roborock.data.b01_q7 import (
     SCWindMapping,
     WorkStatusMapping,
 )
-from roborock.devices.traits.b01.q7.clean_summary import CleanSummaryTrait
 
 
 def test_b01props_deserialization():
@@ -141,8 +140,15 @@ def test_b01_q7_clean_record_list_parses_detail_fields():
     assert isinstance(parsed, CleanRecordList)
     assert parsed.record_list[0].url == "/userdata/record_map/1766368207_1766368283_0_clean_map.bin"
 
-    detail = CleanSummaryTrait._parse_record_detail(parsed.record_list[0].detail)
+    detail_dict = json.loads(parsed.record_list[0].detail or "{}")
+    detail = CleanRecordDetail.from_dict(detail_dict)
     assert isinstance(detail, CleanRecordDetail)
+    assert detail.record_start_time == 1766368207
+    assert detail.record_use_time == 60
+    assert detail.record_clean_area == 85
+    assert detail.record_clean_mode == 0
+    assert detail.record_task_status == 20
+    assert detail.record_map_url == "/userdata/record_map/1766368207_1766368283_0_clean_map.bin"
     assert detail.method == 0
     assert detail.clean_count == 1
     assert detail.record_clean_way == 0

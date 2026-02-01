@@ -1,3 +1,4 @@
+import datetime
 from dataclasses import dataclass, field
 
 from ..containers import RoborockBase
@@ -213,6 +214,7 @@ class CleanRecordDetail(RoborockBase):
     method: int | None = None
     record_use_time: int | None = None
     clean_count: int | None = None
+    # This is seemingly returned in meters (non-squared)
     record_clean_area: int | None = None
     record_clean_mode: int | None = None
     record_clean_way: int | None = None
@@ -222,13 +224,27 @@ class CleanRecordDetail(RoborockBase):
     clean_current_map: int | None = None
     record_map_url: str | None = None
 
+    @property
+    def start_datetime(self) -> datetime.datetime | None:
+        """Convert the start datetime into a datetime object."""
+        if self.record_start_time is not None:
+            return datetime.datetime.fromtimestamp(self.record_start_time).astimezone(datetime.UTC)
+        return None
+
+    @property
+    def square_meters_area_cleaned(self) -> float | None:
+        """Returns the area cleaned in square meters."""
+        if self.record_clean_area is not None:
+            return self.record_clean_area / 100
+        return None
+
 
 @dataclass
 class CleanRecordListItem(RoborockBase):
     """Represents an entry in the clean record list returned by `service.get_record_list`."""
 
     url: str | None = None
-    detail: str | dict | None = None
+    detail: str | None = None
 
 
 @dataclass
@@ -236,9 +252,16 @@ class CleanRecordList(RoborockBase):
     """Represents the clean record list response from `service.get_record_list`."""
 
     total_area: int | None = None
-    total_time: int | None = None
+    total_time: int | None = None  # stored in seconds
     total_count: int | None = None
     record_list: list[CleanRecordListItem] = field(default_factory=list)
+
+    @property
+    def square_meters_area_cleaned(self) -> float | None:
+        """Returns the area cleaned in square meters."""
+        if self.total_area is not None:
+            return self.total_area / 100
+        return None
 
 
 @dataclass

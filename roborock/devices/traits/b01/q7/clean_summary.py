@@ -35,16 +35,16 @@ class CleanSummaryTrait(CleanRecordSummary, Trait):
 
     async def refresh(self) -> None:
         """Refresh totals and last record detail from the device."""
-        record_list = await self.get_record_list()
+        record_list = await self._get_record_list()
 
         self.total_time = record_list.total_time
         self.total_area = record_list.total_area
         self.total_count = record_list.total_count
 
-        details = await self.get_clean_record_details(record_list=record_list)
+        details = await self._get_clean_record_details(record_list=record_list)
         self.last_record_detail = details[0] if details else None
 
-    async def get_record_list(self) -> CleanRecordList:
+    async def _get_record_list(self) -> CleanRecordList:
         """Fetch the raw device clean record list (`service.get_record_list`)."""
         result = await send_decoded_command(
             self._channel,
@@ -55,33 +55,21 @@ class CleanSummaryTrait(CleanRecordSummary, Trait):
             raise TypeError(f"Unexpected response type for GET_RECORD_LIST: {type(result).__name__}: {result!r}")
         return CleanRecordList.from_dict(result)
 
-    @staticmethod
-    def _parse_record_detail(detail: dict | str | None) -> CleanRecordDetail | None:
-        if detail is None:
-            return None
-        if isinstance(detail, str):
-            try:
-                parsed = json.loads(detail)
-            except json.JSONDecodeError as ex:
-                raise RoborockException(f"Invalid B01 record detail JSON: {detail!r}") from ex
-            if not isinstance(parsed, dict):
-                raise RoborockException(f"Unexpected B01 record detail type: {type(parsed).__name__}: {parsed!r}")
-            return CleanRecordDetail.from_dict(parsed)
-        if isinstance(detail, dict):
-            return CleanRecordDetail.from_dict(detail)
-        raise RoborockException(f"Unexpected B01 record detail type: {type(detail).__name__}: {detail!r}")
-
-    async def get_clean_record_details(self, *, record_list: CleanRecordList | None = None) -> list[CleanRecordDetail]:
+    async def _get_clean_record_details(self, *, record_list: CleanRecordList) -> list[CleanRecordDetail]:
         """Return parsed record detail objects (newest-first)."""
-        if record_list is None:
-            record_list = await self.get_record_list()
-
         details: list[CleanRecordDetail] = []
         for item in record_list.record_list:
-            parsed = self._parse_record_detail(item.detail)
+            if item.detail is None:
+                continue
+            try:
+                parsed = json.loads(item.detail)
+            except json.JSONDecodeError as ex:
+                raise RoborockException(f"Invalid B01 record detail JSON: {item.detail!r}") from ex
+            parsed = CleanRecordDetail.from_dict(parsed)
+
             if parsed is not None:
                 details.append(parsed)
 
-        # The app returns the newest record at the end of record_list; reverse so newest is first (index 0).
+        # The server returns the newest record at the end of record_list; reverse so newest is first (index 0).
         details.reverse()
         return details
