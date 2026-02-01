@@ -438,6 +438,16 @@ async def _display_v1_trait(context: RoborockContext, device_id: str, display_fu
     click.echo(dump_json(trait.as_dict()))
 
 
+async def _q10_vacuum_trait(context: RoborockContext, device_id: str):
+    """Get VacuumTrait from Q10 device."""
+    device_manager = await context.get_device_manager()
+    device = await device_manager.get_device(device_id)
+    trait = device.traits.get("VacuumTrait")
+    if not trait:
+        raise RoborockUnsupportedFeature("Device does not have VacuumTrait. Is it a Q10?")
+    return trait
+
+
 @session.command()
 @click.option("--device_id", required=True)
 @click.pass_context
@@ -1148,11 +1158,7 @@ def update_docs(data_file: str, output_file: str):
 async def q10_vacuum_start(ctx, device_id):
     """Start vacuum cleaning on Q10 device."""
     context: RoborockContext = ctx.obj
-    device_manager = await context.get_device_manager()
-    device = await device_manager.get_device(device_id)
-    trait = device.traits.get("VacuumTrait")
-    if not trait:
-        raise RoborockUnsupportedFeature("Device does not have VacuumTrait. Is it a Q10?")
+    trait = await _q10_vacuum_trait(context, device_id)
     await trait.start_clean()
     click.echo("Starting vacuum cleaning...")
 
@@ -1164,11 +1170,7 @@ async def q10_vacuum_start(ctx, device_id):
 async def q10_vacuum_pause(ctx, device_id):
     """Pause vacuum cleaning on Q10 device."""
     context: RoborockContext = ctx.obj
-    device_manager = await context.get_device_manager()
-    device = await device_manager.get_device(device_id)
-    trait = device.traits.get("VacuumTrait")
-    if not trait:
-        raise RoborockUnsupportedFeature("Device does not have VacuumTrait. Is it a Q10?")
+    trait = await _q10_vacuum_trait(context, device_id)
     await trait.pause_clean()
     click.echo("Pausing vacuum cleaning...")
 
@@ -1180,11 +1182,7 @@ async def q10_vacuum_pause(ctx, device_id):
 async def q10_vacuum_resume(ctx, device_id):
     """Resume vacuum cleaning on Q10 device."""
     context: RoborockContext = ctx.obj
-    device_manager = await context.get_device_manager()
-    device = await device_manager.get_device(device_id)
-    trait = device.traits.get("VacuumTrait")
-    if not trait:
-        raise RoborockUnsupportedFeature("Device does not have VacuumTrait. Is it a Q10?")
+    trait = await _q10_vacuum_trait(context, device_id)
     await trait.resume_clean()
     click.echo("Resuming vacuum cleaning...")
 
@@ -1196,11 +1194,7 @@ async def q10_vacuum_resume(ctx, device_id):
 async def q10_vacuum_stop(ctx, device_id):
     """Stop vacuum cleaning on Q10 device."""
     context: RoborockContext = ctx.obj
-    device_manager = await context.get_device_manager()
-    device = await device_manager.get_device(device_id)
-    trait = device.traits.get("VacuumTrait")
-    if not trait:
-        raise RoborockUnsupportedFeature("Device does not have VacuumTrait. Is it a Q10?")
+    trait = await _q10_vacuum_trait(context, device_id)
     await trait.stop_clean()
     click.echo("Stopping vacuum cleaning...")
 
@@ -1212,11 +1206,7 @@ async def q10_vacuum_stop(ctx, device_id):
 async def q10_vacuum_dock(ctx, device_id):
     """Return vacuum to dock on Q10 device."""
     context: RoborockContext = ctx.obj
-    device_manager = await context.get_device_manager()
-    device = await device_manager.get_device(device_id)
-    trait = device.traits.get("VacuumTrait")
-    if not trait:
-        raise RoborockUnsupportedFeature("Device does not have VacuumTrait. Is it a Q10?")
+    trait = await _q10_vacuum_trait(context, device_id)
     await trait.return_to_dock()
     click.echo("Returning vacuum to dock...")
 
