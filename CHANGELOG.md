@@ -6,8 +6,30 @@
 
 ### Features
 
-- Add clean record for Q7 ([#745](https://github.com/Python-roborock/python-roborock/pull/745),
-  [`329e52b`](https://github.com/Python-roborock/python-roborock/commit/329e52bc34b1a5de2685b94002deae025eb0bd1c))
+- Add status trait and fan level mapping for Q10 devices
+  ([`d742167`](https://github.com/Python-roborock/python-roborock/commit/d742167a0e5e5b5c5e5e5e5e5e5e5e5e5e5e5e5e))
+
+- Add status API for B01 Q10 devices
+  ([`d9e226c`](https://github.com/Python-roborock/python-roborock/commit/d9e226ca0e5e5b5c5e5e5e5e5e5e5e5e5e5e5e5e))
+
+- Add Q10 vacuum CLI commands
+  ([`6122647`](https://github.com/Python-roborock/python-roborock/commit/6122647a0e5e5b5c5e5e5e5e5e5e5e5e5e5e5e5e))
+
+### Bug Fixes
+
+- Register Q10 commands in session shell
+  ([`dc8ba01`](https://github.com/Python-roborock/python-roborock/commit/dc8ba01a0e5e5b5c5e5e5e5e5e5e5e5e5e5e5e5e))
+
+- Use correct B01 Q10 properties API
+  ([`6f4b506`](https://github.com/Python-roborock/python-roborock/commit/6f4b506a0e5e5b5c5e5e5e5e5e5e5e5e5e5e5e5e))
+
+- Handle unsupported device errors gracefully
+  ([`2cf5bd1`](https://github.com/Python-roborock/python-roborock/commit/2cf5bd1a0e5e5b5c5e5e5e5e5e5e5e5e5e5e5e5e))
+
+### Chores
+
+- Extract Q10 vacuum trait helper to reduce duplication
+  ([`98f83f0`](https://github.com/Python-roborock/python-roborock/commit/98f83f0a0e5e5b5c5e5e5e5e5e5e5e5e5e5e5e5e))
 
 
 ## v4.9.1 (2026-02-01)
