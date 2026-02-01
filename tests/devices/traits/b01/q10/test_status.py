@@ -1,7 +1,7 @@
 """Tests for B01 Q10 status trait."""
 
 from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -15,7 +15,6 @@ from roborock.data.b01_q10.b01_q10_code_mappings import (
 )
 from roborock.devices.traits.b01.q10 import Q10PropertiesApi
 from roborock.devices.traits.b01.q10.status import StatusTrait
-from roborock.roborock_message import RoborockMessage
 from tests.fixtures.channel_fixtures import FakeChannel
 
 
@@ -77,9 +76,9 @@ async def test_status_properties(
     assert status_trait.state_code == 2
     assert status_trait.state == YXDeviceState.SLEEP_STATE
     assert status_trait.battery == 91
-    assert status_trait.fan_level == YXFanLevel.CUSTOM
-    assert status_trait.water_level == YXWaterLevel.MEDIUM
-    assert status_trait.clean_mode == YXDeviceWorkMode.STANDARD
+    assert status_trait.fan_level == YXFanLevel.CUSTOM  # type: ignore[attr-defined]
+    assert status_trait.water_level == YXWaterLevel.MEDIUM  # type: ignore[attr-defined]
+    assert status_trait.clean_mode == YXDeviceWorkMode.STANDARD  # type: ignore[attr-defined]
     assert status_trait.clean_task == YXDeviceCleanTask.UNKNOWN
     assert status_trait.cleaning_progress == 75
 
@@ -106,17 +105,17 @@ async def test_status_enum_mappings(
         (B01_Q10_DP.STATUS, 2, YXDeviceState.SLEEP_STATE, "state"),
         (B01_Q10_DP.STATUS, 3, YXDeviceState.STANDBY_STATE, "state"),
         (B01_Q10_DP.STATUS, 5, YXDeviceState.CLEANING_STATE, "state"),
-        (B01_Q10_DP.FUN_LEVEL, 1, YXFanLevel.QUIET, "fan_level"),
+        (B01_Q10_DP.FUN_LEVEL, 1, YXFanLevel.QUIET, "fan_level"),  # type: ignore[attr-defined]
         (B01_Q10_DP.FUN_LEVEL, 2, YXFanLevel.NORMAL, "fan_level"),
         (B01_Q10_DP.FUN_LEVEL, 3, YXFanLevel.STRONG, "fan_level"),
         (B01_Q10_DP.FUN_LEVEL, 4, YXFanLevel.MAX, "fan_level"),
-        (B01_Q10_DP.FUN_LEVEL, 8, YXFanLevel.CUSTOM, "fan_level"),
+        (B01_Q10_DP.FUN_LEVEL, 8, YXFanLevel.CUSTOM, "fan_level"),  # type: ignore[attr-defined]
         (B01_Q10_DP.WATER_LEVEL, 0, YXWaterLevel.LOW, "water_level"),
-        (B01_Q10_DP.WATER_LEVEL, 1, YXWaterLevel.MEDIUM, "water_level"),
+        (B01_Q10_DP.WATER_LEVEL, 1, YXWaterLevel.MEDIUM, "water_level"),  # type: ignore[attr-defined]
         (B01_Q10_DP.WATER_LEVEL, 2, YXWaterLevel.HIGH, "water_level"),
-        (B01_Q10_DP.CLEAN_MODE, 1, YXDeviceWorkMode.QUIET, "clean_mode"),
-        (B01_Q10_DP.CLEAN_MODE, 2, YXDeviceWorkMode.STANDARD, "clean_mode"),
-        (B01_Q10_DP.CLEAN_MODE, 3, YXDeviceWorkMode.HIGH, "clean_mode"),
+        (B01_Q10_DP.CLEAN_MODE, 1, YXDeviceWorkMode.QUIET, "clean_mode"),  # type: ignore[attr-defined]
+        (B01_Q10_DP.CLEAN_MODE, 2, YXDeviceWorkMode.STANDARD, "clean_mode"),  # type: ignore[attr-defined]
+        (B01_Q10_DP.CLEAN_MODE, 3, YXDeviceWorkMode.HIGH, "clean_mode"),  # type: ignore[attr-defined]
     ]
 
     for dp, code, expected_enum, property_name in test_cases:

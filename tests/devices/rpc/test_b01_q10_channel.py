@@ -1,8 +1,6 @@
 """Tests for the b01_q10_channel."""
 
-import asyncio
-from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -43,7 +41,7 @@ async def test_send_decoded_command_success(mock_mqtt_channel: FakeChannel):
 
         # Call the function
         result = await send_decoded_command(
-            mock_mqtt_channel,
+            mock_mqtt_channel,  # type: ignore[arg-type]
             B01_Q10_DP.REQUETDPS,
             {},
             expected_dps={B01_Q10_DP.STATUS, B01_Q10_DP.BATTERY},
@@ -85,7 +83,7 @@ async def test_send_decoded_command_filters_by_expected_dps(mock_mqtt_channel: F
 
         # Call the function with expected_dps
         result = await send_decoded_command(
-            mock_mqtt_channel,
+            mock_mqtt_channel,  # type: ignore[arg-type]
             B01_Q10_DP.REQUETDPS,
             {},
             expected_dps={B01_Q10_DP.STATUS, B01_Q10_DP.BATTERY},
@@ -105,7 +103,7 @@ async def test_send_decoded_command_timeout():
         # Don't add any responses to queue
         with pytest.raises(RoborockException, match="timed out"):
             await send_decoded_command(
-                mock_mqtt_channel,
+                mock_mqtt_channel,  # type: ignore[arg-type]
                 B01_Q10_DP.REQUETDPS,
                 {},
                 expected_dps={B01_Q10_DP.STATUS},  # Won't match CLEANING_PROGRESS
@@ -142,7 +140,7 @@ async def test_send_decoded_command_ignores_decode_errors(mock_mqtt_channel: Fak
 
         # Command should still succeed with second response
         result = await send_decoded_command(
-            mock_mqtt_channel,
+            mock_mqtt_channel,  # type: ignore[arg-type]
             B01_Q10_DP.REQUETDPS,
             {},
             expected_dps={B01_Q10_DP.STATUS},
@@ -170,7 +168,7 @@ async def test_send_decoded_command_no_expected_dps_filter():
 
         # Call without expected_dps
         result = await send_decoded_command(
-            mock_mqtt_channel,
+            mock_mqtt_channel,  # type: ignore[arg-type]
             B01_Q10_DP.REQUETDPS,
             {},
         )
@@ -194,7 +192,7 @@ async def test_send_decoded_command_publishes_message(mock_mqtt_channel: FakeCha
         mock_mqtt_channel.response_queue.append(response)
 
         await send_decoded_command(
-            mock_mqtt_channel,
+            mock_mqtt_channel,  # type: ignore[arg-type]
             B01_Q10_DP.REQUETDPS,
             {},
         )
