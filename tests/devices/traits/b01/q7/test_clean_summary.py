@@ -1,6 +1,7 @@
 """Tests for CleanSummaryTrait class for B01/Q7 devices."""
 
 import json
+import logging
 
 import pytest
 
@@ -156,8 +157,9 @@ async def test_get_clean_record_details_with_none_detail(
 
 async def test_get_clean_record_details_invalid_json(
     clean_summary_trait: CleanSummaryTrait,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Test that invalid JSON in detail raises RoborockException."""
+    """Test that invalid JSON in detail is logged and skipped."""
     response_with_invalid_json = {
         "total_time": 34980,
         "total_area": 28540,
@@ -170,7 +172,10 @@ async def test_get_clean_record_details_invalid_json(
         ],
     }
 
-    with pytest.raises(RoborockException, match="Invalid B01 record detail JSON"):
-        await clean_summary_trait._get_clean_record_details(
+    with caplog.at_level(logging.DEBUG):
+        details = await clean_summary_trait._get_clean_record_details(
             record_list=CleanRecordList.from_dict(response_with_invalid_json)
         )
+
+    assert len(details) == 0
+    assert any("Failed to parse record detail" in record.message for record in caplog.records)

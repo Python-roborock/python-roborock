@@ -1,6 +1,9 @@
 import datetime
+import json
 from dataclasses import dataclass, field
+from functools import cached_property
 
+from ...exceptions import RoborockException
 from ..containers import RoborockBase
 from .b01_q7_code_mappings import (
     B01Fault,
@@ -245,6 +248,17 @@ class CleanRecordListItem(RoborockBase):
 
     url: str | None = None
     detail: str | None = None
+
+    @cached_property
+    def detail_parsed(self) -> CleanRecordDetail | None:
+        """Parse and return the detail as a CleanRecordDetail object."""
+        if self.detail is None:
+            return None
+        try:
+            parsed = json.loads(self.detail)
+        except json.JSONDecodeError as ex:
+            raise RoborockException(f"Invalid B01 record detail JSON: {self.detail!r}") from ex
+        return CleanRecordDetail.from_dict(parsed)
 
 
 @dataclass

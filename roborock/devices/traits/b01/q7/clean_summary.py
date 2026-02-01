@@ -6,7 +6,7 @@ and a `record_list` whose items contain a JSON string in `detail`.
 
 from __future__ import annotations
 
-import json
+import logging
 
 from roborock import CleanRecordDetail, CleanRecordList, CleanRecordSummary
 from roborock.devices.rpc.b01_q7_channel import send_decoded_command
@@ -19,6 +19,8 @@ from roborock.roborock_typing import RoborockB01Q7Methods
 __all__ = [
     "CleanSummaryTrait",
 ]
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class CleanSummaryTrait(CleanRecordSummary, Trait):
@@ -59,14 +61,12 @@ class CleanSummaryTrait(CleanRecordSummary, Trait):
         """Return parsed record detail objects (newest-first)."""
         details: list[CleanRecordDetail] = []
         for item in record_list.record_list:
-            if item.detail is None:
-                continue
             try:
-                parsed = json.loads(item.detail)
-            except json.JSONDecodeError as ex:
-                raise RoborockException(f"Invalid B01 record detail JSON: {item.detail!r}") from ex
-            parsed = CleanRecordDetail.from_dict(parsed)
-
+                parsed = item.detail_parsed
+            except RoborockException as ex:
+                # Rather than failing if something goes wrong here, we should fail and log to tell the user.
+                _LOGGER.debug("Failed to parse record detail: %s", ex)
+                continue
             if parsed is not None:
                 details.append(parsed)
 
