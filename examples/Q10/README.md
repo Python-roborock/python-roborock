@@ -4,7 +4,7 @@ This directory contains test scripts for the Q10 VacuumTrait functionality added
 
 ## Scripts
 
-### test_q10_simple.py
+### run_q10_simple.py
 Interactive test script with detailed debug information. This script:
 - Shows comprehensive device information
 - Lists all available property APIs
@@ -16,10 +16,10 @@ Interactive test script with detailed debug information. This script:
 - You need to debug connection or API issues
 - You want detailed information about what's happening
 
-### test_q10_vacuum.py
+### run_q10_vacuum.py
 Basic test script for Q10 vacuum commands. A simpler version focused on testing the vacuum trait.
 
-### test_q10_advanced.py (NEW!)
+### run_q10_advanced.py (NEW!)
 Advanced test suite with complex features and detailed diagnostics:
 - Tests multiple cleaning modes (standard, area, fast map)
 - Device status monitoring and diagnostics
@@ -47,13 +47,13 @@ pip install -e .
 2. Run a test script:
 ```bash
 # Simple script with debugging
-python examples/Q10/test_q10_simple.py
+python examples/Q10/run_q10_simple.py
 
 # Basic script (minimal output)
-python examples/Q10/test_q10_vacuum.py
+python examples/Q10/run_q10_vacuum.py
 
 # Advanced script with diagnostics
-python examples/Q10/test_q10_advanced.py
+python examples/Q10/run_q10_advanced.py
 ```
 
 3. On first run, you'll be prompted to log in:
@@ -66,7 +66,7 @@ python examples/Q10/test_q10_advanced.py
 
 #### test_q10_simple.py
 ```bash
-$ python examples/Q10/test_q10_simple.py
+$ python examples/Q10/run_q10_simple.py
 📱 Found 1 device(s)
 Device 1: Roborock Q10 S5+
 ✅ Using device: Roborock Q10 S5+
@@ -78,7 +78,7 @@ Device 1: Roborock Q10 S5+
 
 #### test_q10_vacuum.py
 ```bash
-$ python examples/Q10/test_q10_vacuum.py
+$ python examples/Q10/run_q10_vacuum.py
 📱 Found 1 device(s)
 1. Roborock Q10 S5+ (roborock.vacuum.ss07)
 ✅ Using device: Roborock Q10 S5+
@@ -88,7 +88,7 @@ $ python examples/Q10/test_q10_vacuum.py
 
 #### test_q10_advanced.py
 ```bash
-$ python examples/Q10/test_q10_advanced.py
+$ python examples/Q10/run_q10_advanced.py
 [Main Menu]
 1. Run basic commands test
 2. Test advanced features
