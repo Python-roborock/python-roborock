@@ -1270,6 +1270,12 @@ cli.add_command(q10_vacuum_resume)
 cli.add_command(q10_vacuum_stop)
 cli.add_command(q10_vacuum_dock)
 
+session.add_command(q10_vacuum_start)
+session.add_command(q10_vacuum_pause)
+session.add_command(q10_vacuum_resume)
+session.add_command(q10_vacuum_stop)
+session.add_command(q10_vacuum_dock)
+
 
 def main():
     return cli()
