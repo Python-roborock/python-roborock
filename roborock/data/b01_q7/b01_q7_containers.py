@@ -222,6 +222,7 @@ class B01Props(RoborockBase):
         """Returns the name of the current clean path preference."""
         return self.clean_path_preference.value if self.clean_path_preference is not None else None
 
+
 @dataclass
 class CleanRecordDetail(RoborockBase):
     """Represents a single clean record detail (from `record_list[].detail`)."""
