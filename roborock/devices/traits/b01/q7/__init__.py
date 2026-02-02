@@ -20,17 +20,24 @@ from roborock.protocols.b01_q7_protocol import CommandType, ParamsType, Q7Reques
 from roborock.roborock_message import RoborockB01Props
 from roborock.roborock_typing import RoborockB01Q7Methods
 
+from .clean_summary import CleanSummaryTrait
+
 __all__ = [
     "Q7PropertiesApi",
+    "CleanSummaryTrait",
 ]
 
 
 class Q7PropertiesApi(Trait):
     """API for interacting with B01 devices."""
 
+    clean_summary: CleanSummaryTrait
+    """Trait for clean records / clean summary (Q7 `service.get_record_list`)."""
+
     def __init__(self, channel: MqttChannel) -> None:
         """Initialize the B01Props API."""
         self._channel = channel
+        self.clean_summary = CleanSummaryTrait(channel)
 
     async def query_values(self, props: list[RoborockB01Props]) -> B01Props | None:
         """Query the device for the values of the given Q7 properties."""

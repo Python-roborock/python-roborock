@@ -34,7 +34,7 @@ class B01_Q10_DP(RoborockModeEnum):
     DUST_SETTING = ("dpDustSetting", 50)
     MAP_SAVE_SWITCH = ("dpMapSaveSwitch", 51)
     CLEAN_RECORD = ("dpCleanRecord", 52)
-    RECEND_CLEAN_RECORD = ("dpRecendCleanRecord", 53)
+    RECENT_CLEAN_RECORD = ("dpRecentCleanRecord", 53)  # NOTE: typo "dpRecendCleanRecord" in source code
     RESTRICTED_ZONE = ("dpRestrictedZone", 54)
     RESTRICTED_ZONE_UP = ("dpRestrictedZoneUp", 55)
     VIRTUAL_WALL = ("dpVirtualWall", 56)
@@ -56,7 +56,7 @@ class B01_Q10_DP(RoborockModeEnum):
     ROOM_MERGE = ("dpRoomMerge", 72)
     ROOM_SPLIT = ("dpRoomSplit", 73)
     RESET_ROOM_NAME = ("dpResetRoomName", 74)
-    REQUSET_NOT_DISTURB_DATA = ("dpRequsetNotDisturbData", 75)
+    REQUEST_NOT_DISTURB_DATA = ("dpRequestNotDisturbData", 75)  # NOTE: typo "dpRequsetNotDisturbData" in source code
     CARPET_CLEAN_TYPE = ("dpCarpetCleanType", 76)
     BUTTON_LIGHT_SWITCH = ("dpButtonLightSwitch", 77)
     CLEAN_LINE = ("dpCleanLine", 78)
@@ -68,7 +68,7 @@ class B01_Q10_DP(RoborockModeEnum):
     LOG_SWITCH = ("dpLogSwitch", 84)
     FLOOR_MATERIAL = ("dpFloorMaterial", 85)
     LINE_LASER_OBSTACLE_AVOIDANCE = ("dpLineLaserObstacleAvoidance", 86)
-    CLEAN_PROGESS = ("dpCleanProgess", 87)
+    CLEAN_PROGRESS = ("dpCleanProgress", 87)  # NOTE: typo "dpCleanProgess" in source code
     GROUND_CLEAN = ("dpGroundClean", 88)
     IGNORE_OBSTACLE = ("dpIgnoreObstacle", 89)
     FAULT = ("dpFault", 90)
@@ -84,7 +84,7 @@ class B01_Q10_DP(RoborockModeEnum):
     SUSPECTED_THRESHOLD_UP = ("dpSuspectedThresholdUp", 100)
     COMMON = ("dpCommon", 101)
     JUMP_SCAN = ("dpJumpScan", 101)
-    REQUETDPS = ("dpRequetdps", 102)  # NOTE: THIS TYPO IS FOUND IN SOURCE CODE
+    REQUEST_DPS = ("dpRequestDps", 102)  # NOTE: typo "dpRequetdps" in source code
     CLIFF_RESTRICTED_AREA = ("dpCliffRestrictedArea", 102)
     CLIFF_RESTRICTED_AREA_UP = ("dpCliffRestrictedAreaUp", 103)
     BREAKPOINT_CLEAN = ("dpBreakpointClean", 104)
@@ -96,7 +96,7 @@ class B01_Q10_DP(RoborockModeEnum):
     HEARTBEAT = ("dpHeartbeat", 110)
     STATUS = ("dpStatus", 121)
     BATTERY = ("dpBattery", 122)
-    FUN_LEVEL = ("dpfunLevel", 123)
+    FAN_LEVEL = ("dpFanLevel", 123)  # NOTE: typo "dpfunLevel" in source code
     WATER_LEVEL = ("dpWaterLevel", 124)
     MAIN_BRUSH_LIFE = ("dpMainBrushLife", 125)
     SIDE_BRUSH_LIFE = ("dpSideBrushLife", 126)
@@ -125,7 +125,7 @@ class YXFanLevel(RoborockModeEnum):
     NORMAL = "normal", 2
     STRONG = "strong", 3
     MAX = "max", 4
-    SUPER = "super", 5
+    SUPER = "super", 8
 
 
 class YXWaterLevel(RoborockModeEnum):

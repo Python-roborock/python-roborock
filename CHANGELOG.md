@@ -2,6 +2,32 @@
 
 <!-- version list -->
 
+## v4.10.0 (2026-02-01)
+
+### Features
+
+- Add clean record for Q7 ([#745](https://github.com/Python-roborock/python-roborock/pull/745),
+  [`329e52b`](https://github.com/Python-roborock/python-roborock/commit/329e52bc34b1a5de2685b94002deae025eb0bd1c))
+
+
+## v4.9.1 (2026-02-01)
+
+### Bug Fixes
+
+- Correctly handle unknown categories
+  ([#755](https://github.com/Python-roborock/python-roborock/pull/755),
+  [`742a382`](https://github.com/Python-roborock/python-roborock/commit/742a38200e943a987285cc6979c7e7d5ca729117))
+
+
+## v4.9.0 (2026-02-01)
+
+### Features
+
+- Add VacuumTrait to q10 devices
+  ([#754](https://github.com/Python-roborock/python-roborock/pull/754),
+  [`69b6e0f`](https://github.com/Python-roborock/python-roborock/commit/69b6e0f58ce470f59a3d57756e6b4f760f3fd5a0))
+
+
 ## v4.8.0 (2026-01-27)
 
 ### Features

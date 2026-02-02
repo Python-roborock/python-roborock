@@ -77,7 +77,8 @@ class RoborockModeEnum(StrEnum):
         raise ValueError(message)
 
     @classmethod
-    def from_code_optional(cls, code: int) -> RoborockModeEnum | None:
+    def from_code_optional(cls, code: int) -> Self | None:
+        """Gracefully return None if the code does not exist."""
         try:
             return cls.from_code(code)
         except ValueError:
@@ -173,8 +174,10 @@ class RoborockCategory(Enum):
     WET_DRY_VAC = "roborock.wetdryvac"
     VACUUM = "robot.vacuum.cleaner"
     WASHING_MACHINE = "roborock.wm"
+    MOWER = "roborock.mower"
     UNKNOWN = "UNKNOWN"
 
-    def __missing__(self, key):
-        _LOGGER.warning("Missing key %s from category", key)
+    @classmethod
+    def _missing_(cls, value):
+        _LOGGER.warning("Missing code %s from category", value)
         return RoborockCategory.UNKNOWN
