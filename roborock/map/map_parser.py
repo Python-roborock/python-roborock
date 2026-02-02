@@ -115,7 +115,7 @@ def _create_map_data_parser(config: MapParserConfig) -> RoborockMapDataParser:
         room_colors = {str(x): (0, 0, 0, 0) for x in range(1, 32)}
 
     return RoborockMapDataParser(
-        ColorsPalette(color_dicts if len(color_dicts) else None, room_colors if len(room_colors) else None),
+        ColorsPalette(color_dicts, room_colors),
         Sizes({k: v * config.map_scale for k, v in Sizes.SIZES.items() if k != Size.MOP_PATH_WIDTH}),
         config.drawables,
         ImageConfig(scale=config.map_scale),
