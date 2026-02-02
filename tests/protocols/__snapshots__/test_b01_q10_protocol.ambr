@@ -11,7 +11,7 @@
   {
     "dpStatus": 8,
     "dpBattery": 100,
-    "dpfunLevel": 2,
+    "dpFanLevel": 2,
     "dpWaterLevel": 1,
     "dpMainBrushLife": 0,
     "dpSideBrushLife": 0,
@@ -35,7 +35,7 @@
     "dpChildLock": 0,
     "dpDustSetting": 0,
     "dpMapSaveSwitch": true,
-    "dpRecendCleanRecord": false,
+    "dpRecentCleanRecord": false,
     "dpCleanTime": 0,
     "dpMultiMapSwitch": 1,
     "dpSensorLife": 0,
@@ -55,7 +55,7 @@
     },
     "dpRobotType": 1,
     "dpLineLaserObstacleAvoidance": 1,
-    "dpCleanProgess": 100,
+    "dpCleanProgress": 100,
     "dpGroundClean": 0,
     "dpFault": 0,
     "dpNotDisturbExpand": {
@@ -77,10 +77,10 @@
   }
   '''
 # ---
-# name: test_encode_mqtt_payload[dpRequetdps-None]
+# name: test_encode_mqtt_payload[dpRequestDps-None]
   b'{"dps": {"102": {}}}'
 # ---
-# name: test_encode_mqtt_payload[dpRequetdps-params0]
+# name: test_encode_mqtt_payload[dpRequestDps-params0]
   b'{"dps": {"102": {}}}'
 # ---
 # name: test_encode_mqtt_payload[dpStartClean-params2]

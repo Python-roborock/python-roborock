@@ -1,8 +1,14 @@
+import datetime
+import json
 from dataclasses import dataclass, field
+from functools import cached_property
 
+from ...exceptions import RoborockException
 from ..containers import RoborockBase
 from .b01_q7_code_mappings import (
     B01Fault,
+    CleanPathPreferenceMapping,
+    CleanRepeatMapping,
     CleanTypeMapping,
     SCWindMapping,
     WaterLevelMapping,
@@ -90,10 +96,10 @@ class B01Props(RoborockBase):
     mop_life: int | None = None
     main_sensor: int | None = None
     net_status: NetStatus | None = None
-    repeat_state: int | None = None
+    repeat_state: CleanRepeatMapping | None = None
     tank_state: int | None = None
     sweep_type: int | None = None
-    clean_path_preference: int | None = None
+    clean_path_preference: CleanPathPreferenceMapping | None = None
     cloth_state: int | None = None
     time_zone: int | None = None
     time_zone_info: str | None = None
@@ -205,3 +211,92 @@ class B01Props(RoborockBase):
     def work_mode_name(self) -> str | None:
         """Returns the name of the current work mode."""
         return self.work_mode.value if self.work_mode is not None else None
+
+    @property
+    def repeat_state_name(self) -> str | None:
+        """Returns the name of the current repeat state."""
+        return self.repeat_state.value if self.repeat_state is not None else None
+
+    @property
+    def clean_path_preference_name(self) -> str | None:
+        """Returns the name of the current clean path preference."""
+        return self.clean_path_preference.value if self.clean_path_preference is not None else None
+
+
+@dataclass
+class CleanRecordDetail(RoborockBase):
+    """Represents a single clean record detail (from `record_list[].detail`)."""
+
+    record_start_time: int | None = None
+    method: int | None = None
+    record_use_time: int | None = None
+    clean_count: int | None = None
+    # This is seemingly returned in meters (non-squared)
+    record_clean_area: int | None = None
+    record_clean_mode: int | None = None
+    record_clean_way: int | None = None
+    record_task_status: int | None = None
+    record_faultcode: int | None = None
+    record_dust_num: int | None = None
+    clean_current_map: int | None = None
+    record_map_url: str | None = None
+
+    @property
+    def start_datetime(self) -> datetime.datetime | None:
+        """Convert the start datetime into a datetime object."""
+        if self.record_start_time is not None:
+            return datetime.datetime.fromtimestamp(self.record_start_time).astimezone(datetime.UTC)
+        return None
+
+    @property
+    def square_meters_area_cleaned(self) -> float | None:
+        """Returns the area cleaned in square meters."""
+        if self.record_clean_area is not None:
+            return self.record_clean_area / 100
+        return None
+
+
+@dataclass
+class CleanRecordListItem(RoborockBase):
+    """Represents an entry in the clean record list returned by `service.get_record_list`."""
+
+    url: str | None = None
+    detail: str | None = None
+
+    @cached_property
+    def detail_parsed(self) -> CleanRecordDetail | None:
+        """Parse and return the detail as a CleanRecordDetail object."""
+        if self.detail is None:
+            return None
+        try:
+            parsed = json.loads(self.detail)
+        except json.JSONDecodeError as ex:
+            raise RoborockException(f"Invalid B01 record detail JSON: {self.detail!r}") from ex
+        return CleanRecordDetail.from_dict(parsed)
+
+
+@dataclass
+class CleanRecordList(RoborockBase):
+    """Represents the clean record list response from `service.get_record_list`."""
+
+    total_area: int | None = None
+    total_time: int | None = None  # stored in seconds
+    total_count: int | None = None
+    record_list: list[CleanRecordListItem] = field(default_factory=list)
+
+    @property
+    def square_meters_area_cleaned(self) -> float | None:
+        """Returns the area cleaned in square meters."""
+        if self.total_area is not None:
+            return self.total_area / 100
+        return None
+
+
+@dataclass
+class CleanRecordSummary(RoborockBase):
+    """Represents clean record totals for B01/Q7 devices."""
+
+    total_time: int | None = None
+    total_area: int | None = None
+    total_count: int | None = None
+    last_record_detail: CleanRecordDetail | None = None

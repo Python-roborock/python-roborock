@@ -5,6 +5,8 @@ from typing import Any
 
 from roborock import B01Props
 from roborock.data.b01_q7.b01_q7_code_mappings import (
+    CleanPathPreferenceMapping,
+    CleanRepeatMapping,
     CleanTaskTypeMapping,
     CleanTypeMapping,
     SCDeviceCleanParam,
@@ -18,17 +20,24 @@ from roborock.protocols.b01_q7_protocol import CommandType, ParamsType, Q7Reques
 from roborock.roborock_message import RoborockB01Props
 from roborock.roborock_typing import RoborockB01Q7Methods
 
+from .clean_summary import CleanSummaryTrait
+
 __all__ = [
     "Q7PropertiesApi",
+    "CleanSummaryTrait",
 ]
 
 
 class Q7PropertiesApi(Trait):
     """API for interacting with B01 devices."""
 
+    clean_summary: CleanSummaryTrait
+    """Trait for clean records / clean summary (Q7 `service.get_record_list`)."""
+
     def __init__(self, channel: MqttChannel) -> None:
         """Initialize the B01Props API."""
         self._channel = channel
+        self.clean_summary = CleanSummaryTrait(channel)
 
     async def query_values(self, props: list[RoborockB01Props]) -> B01Props | None:
         """Query the device for the values of the given Q7 properties."""
@@ -58,6 +67,14 @@ class Q7PropertiesApi(Trait):
     async def set_mode(self, mode: CleanTypeMapping) -> None:
         """Set the cleaning mode (vacuum, mop, or vacuum and mop)."""
         await self.set_prop(RoborockB01Props.MODE, mode.code)
+
+    async def set_clean_path_preference(self, preference: CleanPathPreferenceMapping) -> None:
+        """Set the cleaning path preference (route)."""
+        await self.set_prop(RoborockB01Props.CLEAN_PATH_PREFERENCE, preference.code)
+
+    async def set_repeat_state(self, repeat: CleanRepeatMapping) -> None:
+        """Set the cleaning repeat state (cycles)."""
+        await self.set_prop(RoborockB01Props.REPEAT_STATE, repeat.code)
 
     async def start_clean(self) -> None:
         """Start cleaning."""

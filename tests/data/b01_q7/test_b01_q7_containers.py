@@ -1,8 +1,14 @@
 """Test cases for the containers module."""
 
+import json
+
 from roborock.data.b01_q7 import (
     B01Fault,
     B01Props,
+    CleanPathPreferenceMapping,
+    CleanRecordDetail,
+    CleanRecordList,
+    CleanRepeatMapping,
     SCWindMapping,
     WorkStatusMapping,
 )
@@ -102,3 +108,56 @@ def test_b01props_deserialization():
     assert deserialized.wind == SCWindMapping.STRONG
     assert deserialized.net_status is not None
     assert deserialized.net_status.ip == "192.168.1.102"
+    assert deserialized.repeat_state == CleanRepeatMapping.TWO
+    assert deserialized.clean_path_preference == CleanPathPreferenceMapping.DEEP
+    assert deserialized.repeat_state_name == "two"
+    assert deserialized.clean_path_preference_name == "deep"
+
+
+def test_b01_q7_clean_record_list_parses_detail_fields():
+    payload = {
+        "total_time": 34980,
+        "total_area": 28540,
+        "total_count": 1,
+        "record_list": [
+            {
+                "url": "/userdata/record_map/1766368207_1766368283_0_clean_map.bin",
+                "detail": json.dumps(
+                    {
+                        "record_start_time": 1766368207,
+                        "method": 0,
+                        "record_use_time": 60,
+                        "clean_count": 1,
+                        "record_clean_area": 85,
+                        "record_clean_mode": 0,
+                        "record_clean_way": 0,
+                        "record_task_status": 20,
+                        "record_faultcode": 0,
+                        "record_dust_num": 0,
+                        "clean_current_map": 0,
+                        "record_map_url": "/userdata/record_map/1766368207_1766368283_0_clean_map.bin",
+                    }
+                ),
+            }
+        ],
+    }
+
+    parsed = CleanRecordList.from_dict(payload)
+    assert isinstance(parsed, CleanRecordList)
+    assert parsed.record_list[0].url == "/userdata/record_map/1766368207_1766368283_0_clean_map.bin"
+
+    detail_dict = json.loads(parsed.record_list[0].detail or "{}")
+    detail = CleanRecordDetail.from_dict(detail_dict)
+    assert isinstance(detail, CleanRecordDetail)
+    assert detail.record_start_time == 1766368207
+    assert detail.record_use_time == 60
+    assert detail.record_clean_area == 85
+    assert detail.record_clean_mode == 0
+    assert detail.record_task_status == 20
+    assert detail.record_map_url == "/userdata/record_map/1766368207_1766368283_0_clean_map.bin"
+    assert detail.method == 0
+    assert detail.clean_count == 1
+    assert detail.record_clean_way == 0
+    assert detail.record_faultcode == 0
+    assert detail.record_dust_num == 0
+    assert detail.clean_current_map == 0
