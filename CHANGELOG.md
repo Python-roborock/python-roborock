@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v4.11.0 (2026-02-02)
+
+### Features
+
+- Add clean route and repeat for q7
+  ([#756](https://github.com/Python-roborock/python-roborock/pull/756),
+  [`35f7910`](https://github.com/Python-roborock/python-roborock/commit/35f7910263dd4e61ffbd0c20e2d88d2f34b4c34c))
+
+
 ## v4.10.1 (2026-02-02)
 
 ### Bug Fixes
