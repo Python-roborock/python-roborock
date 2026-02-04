@@ -20,6 +20,7 @@ class WashTowelModeTrait(WashTowelMode, common.V1TraitMixin):
         device_feature_trait: DeviceFeaturesTrait | None = None,
         wash_mode: WashTowelModes | None = None,
     ) -> None:
+        super().__init__()
         self.device_feature_trait = device_feature_trait
         self.wash_mode = wash_mode
 
