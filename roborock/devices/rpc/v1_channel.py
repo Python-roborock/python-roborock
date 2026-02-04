@@ -305,12 +305,14 @@ class V1Channel(Channel):
             loop = asyncio.get_running_loop()
             self._reconnect_task = loop.create_task(self._background_reconnect())
 
-        if not self.is_local_connected:
-            # We were not able to connect locally, so fallback to MQTT and at least
-            # establish that connection explicitly. If this fails then raise an
-            # error and let the caller know we failed to subscribe.
-            self._mqtt_unsub = await self._mqtt_channel.subscribe(self._on_mqtt_message)
-            self._logger.debug("V1Channel connected to device via MQTT")
+        # Always subscribe to MQTT to receive protocol updates (data points)
+        # even if we have a local connection. Protocol updates only come via cloud/MQTT.
+        # Local connection is used for RPC commands, but push notifications come via MQTT.
+        self._mqtt_unsub = await self._mqtt_channel.subscribe(self._on_mqtt_message)
+        if self.is_local_connected:
+            self._logger.debug("V1Channel connected via local and MQTT (for protocol updates)")
+        else:
+            self._logger.debug("V1Channel connected via MQTT only")
 
         def unsub() -> None:
             """Unsubscribe from all messages."""
