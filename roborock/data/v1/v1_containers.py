@@ -39,6 +39,7 @@ from roborock.const import (
 from roborock.exceptions import RoborockException
 
 from ..containers import RoborockBase, RoborockBaseTimer, _attr_repr
+from .v1_clean_modes import WashTowelModes
 from .v1_code_mappings import (
     CleanFluidStatus,
     ClearWaterBoxStatus,
@@ -48,7 +49,6 @@ from .v1_code_mappings import (
     RoborockDockDustCollectionModeCode,
     RoborockDockErrorCode,
     RoborockDockTypeCode,
-    RoborockDockWashTowelModeCode,
     RoborockErrorCode,
     RoborockFanPowerCode,
     RoborockFanSpeedP10,
@@ -593,7 +593,7 @@ class DustCollectionMode(RoborockBase):
 
 @dataclass
 class WashTowelMode(RoborockBase):
-    wash_mode: RoborockDockWashTowelModeCode | None = None
+    wash_mode: WashTowelModes | None = None
 
 
 @dataclass
