@@ -133,7 +133,7 @@ def test_clean_record():
     assert cr.complete == 1
     assert cr.start_type == 2
     assert cr.clean_type == 3
-    assert cr.finish_reason == 56
+    assert cr.finish_reason.code == 56
     assert cr.dust_collection_status == 1
     assert cr.avoid_count == 19
     assert cr.wash_count == 2

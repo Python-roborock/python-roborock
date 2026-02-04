@@ -1,48 +1,49 @@
-from ..code_mappings import RoborockEnum
+from ..code_mappings import RoborockEnum, RoborockModeEnum
 
 
-class RoborockFinishReason(RoborockEnum):
-    manual_interrupt = 21  # Cleaning interrupted by user
-    cleanup_interrupted = 24  # Cleanup interrupted
-    manual_interrupt_2 = 21
-    manual_interrupt_12 = 29
-    breakpoint = 32  # Could not continue cleaning
-    breakpoint_2 = 33
-    cleanup_interrupted_2 = 34
-    manual_interrupt_3 = 35
-    manual_interrupt_4 = 36
-    manual_interrupt_5 = 37
-    manual_interrupt_6 = 43
-    locate_fail = 45  # Positioning Failed
-    cleanup_interrupted_3 = 64
-    locate_fail_2 = 65
-    manual_interrupt_7 = 48
-    manual_interrupt_8 = 49
-    manual_interrupt_9 = 50
-    cleanup_interrupted_4 = 51
-    finished_cleaning = 52  # Finished cleaning
-    finished_cleaning_2 = 54
-    finished_cleaning_3 = 55
-    finished_cleaning_4 = 56
-    finished_clenaing_5 = 57
-    manual_interrupt_10 = 60
-    area_unreachable = 61  # Area unreachable
-    area_unreachable_2 = 62
-    washing_error = 67  # Washing error
-    back_to_wash_failure = 68  # Failed to return to the dock
-    cleanup_interrupted_5 = 101
-    breakpoint_4 = 102
-    manual_interrupt_11 = 103
-    cleanup_interrupted_6 = 104
-    cleanup_interrupted_7 = 105
-    cleanup_interrupted_8 = 106
-    cleanup_interrupted_9 = 107
-    cleanup_interrupted_10 = 109
-    cleanup_interrupted_11 = 110
-    patrol_success = 114  # Cruise completed
-    patrol_fail = 115  # Cruise failed
-    pet_patrol_success = 116  # Pet found
-    pet_patrol_fail = 117  # Pet found failed
+class RoborockFinishReason(RoborockModeEnum):
+    MANUAL_INTERRUPT = ("manual_interrupt", 21)  # Cleaning interrupted by user
+    CLEANUP_INTERRUPTED = ("cleanup_interrupted", 24)  # Cleanup interrupted
+    MANUAL_INTERRUPT_12 = ("manual_interrupt", 29)
+    BREAKPOINT = ("breakpoint", 32)  # Could not continue cleaning
+    BREAKPOINT_2 = ("breakpoint", 33)
+    CLEANUP_INTERRUPTED_2 = ("cleanup_interrupted", 34)
+    MANUAL_INTERRUPT_3 = ("manual_interrupt", 35)
+    MANUAL_INTERRUPT_4 = ("manual_interrupt", 36)
+    MANUAL_INTERRUPT_5 = ("manual_interrupt", 37)
+    MANUAL_INTERRUPT_6 = ("manual_interrupt", 43)
+    LOCATE_FAIL = ("locate_fail", 45)  # Positioning Failed
+    CLEANUP_INTERRUPTED_3 = ("cleanup_interrupted", 64)
+    LOCATE_FAIL_2 = ("locate_fail", 65)
+    MANUAL_INTERRUPT_7 = ("manual_interrupt", 48)
+    MANUAL_INTERRUPT_8 = ("manual_interrupt", 49)
+    MANUAL_INTERRUPT_9 = ("manual_interrupt", 50)
+    CLEANUP_INTERRUPTED_4 = ("cleanup_interrupted", 51)
+    FINISHED_CLEANING = ("finished_cleaning", 52)  # Finished cleaning
+    FINISHED_CLEANING_2 = ("finished_cleaning", 54)
+    FINISHED_CLEANING_3 = ("finished_cleaning", 55)
+    FINISHED_CLEANING_4 = ("finished_cleaning", 56)
+    FINISHED_CLEANING_5 = ("finished_cleaning", 57)
+    MANUAL_INTERRUPT_10 = ("manual_interrupt", 60)
+    AREA_UNREACHABLE = ("area_unreachable", 61)  # Area unreachable
+    AREA_UNREACHABLE_2 = ("area_unreachable", 62)
+    WASHING_ERROR = ("washing_error", 67)  # Washing error
+    BACK_TO_WASH_FAILURE = ("back_to_wash_failure", 68)  # Failed to return to the dock
+    CHECK_SAVED_PET_FURNITURES = ("check_saved_pet_furnitures", 78)
+    GET_SAVED_PET_FURNITURES = ("get_saved_pet_furnitures", 79)
+    CLEANUP_INTERRUPTED_5 = ("cleanup_interrupted", 101)
+    BREAKPOINT_4 = ("breakpoint", 102)
+    MANUAL_INTERRUPT_11 = ("manual_interrupt", 103)
+    CLEANUP_INTERRUPTED_6 = ("cleanup_interrupted", 104)
+    CLEANUP_INTERRUPTED_7 = ("cleanup_interrupted", 105)
+    CLEANUP_INTERRUPTED_8 = ("cleanup_interrupted", 106)
+    CLEANUP_INTERRUPTED_9 = ("cleanup_interrupted", 107)
+    CLEANUP_INTERRUPTED_10 = ("cleanup_interrupted", 109)
+    CLEANUP_INTERRUPTED_11 = ("cleanup_interrupted", 110)
+    PATROL_SUCCESS = ("patrol_success", 114)  # Cruise completed
+    PATROL_FAIL = ("patrol_fail", 115)  # Cruise failed
+    PET_PATROL_SUCCESS = ("pet_patrol_success", 116)  # Pet found
+    PET_PATROL_FAIL = ("pet_patrol_fail", 117)  # Pet found failed
 
 
 class RoborockInCleaning(RoborockEnum):
