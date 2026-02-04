@@ -124,3 +124,4 @@ async def discover_features_fixture(
     await device.connect()
     assert device.v1_properties.status.dock_type == dock_type_code
     mock_rpc_channel.send_command.reset_mock()
+    mock_rpc_channel.send_command.side_effect = None

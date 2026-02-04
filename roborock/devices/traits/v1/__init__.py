@@ -188,14 +188,13 @@ class PropertiesApi(Trait):
         self._map_rpc_channel = map_rpc_channel
         self._web_api = web_api
         self._device_cache = device_cache
-
+        self.device_features = DeviceFeaturesTrait(product, self._device_cache)
         self.status = StatusTrait(product)
         self.consumables = ConsumableTrait()
         self.rooms = RoomsTrait(home_data)
         self.maps = MapsTrait(self.status)
         self.map_content = MapContentTrait(map_parser_config)
         self.home = HomeTrait(self.status, self.maps, self.map_content, self.rooms, self._device_cache)
-        self.device_features = DeviceFeaturesTrait(product, self._device_cache)
         self.network_info = NetworkInfoTrait(device_uid, self._device_cache)
         self.routines = RoutinesTrait(device_uid, web_api)
 
@@ -246,7 +245,10 @@ class PropertiesApi(Trait):
                 _LOGGER.debug("Trait '%s' not supported, skipping", item.name)
                 continue
             _LOGGER.debug("Trait '%s' is supported, initializing", item.name)
-            trait = item_type()
+            if item_type is WashTowelModeTrait:
+                trait = item_type(self.device_features)
+            else:
+                trait = item_type()
             setattr(self, item.name, trait)
             trait._rpc_channel = self._get_rpc_channel(trait)
 
