@@ -77,7 +77,8 @@ class RoborockModeEnum(StrEnum):
         raise ValueError(message)
 
     @classmethod
-    def from_code_optional(cls, code: int) -> RoborockModeEnum | None:
+    def from_code_optional(cls, code: int) -> Self | None:
+        """Gracefully return None if the code does not exist."""
         try:
             return cls.from_code(code)
         except ValueError:

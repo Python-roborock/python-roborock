@@ -15,6 +15,9 @@
 - Add Q10 vacuum CLI commands
   ([`6122647`](https://github.com/Python-roborock/python-roborock/commit/6122647a0e5e5b5c5e5e5e5e5e5e5e5e5e5e5e5e))
 
+- Add clean record for Q7 ([#745](https://github.com/Python-roborock/python-roborock/pull/745),
+  [`329e52b`](https://github.com/Python-roborock/python-roborock/commit/329e52bc34b1a5de2685b94002deae025eb0bd1c))
+
 ### Bug Fixes
 
 - Register Q10 commands in session shell
