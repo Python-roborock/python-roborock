@@ -15,6 +15,10 @@ Cloud and Network.
     *   **Washers (A01)**: Use `device.a01_properties` for Dyad/Zeo devices.
         *   Use `await device.a01_properties.query_values([...])` to get state.
         *   Use `await device.a01_properties.set_value(protocol, value)` to control.
+    *   **Vacuums (B01 Q10)**: Use `device.b01_q10_properties` for Q10 series devices.
+        *   Use `device.b01_q10_properties.vacuum` to access vacuum commands (start, pause, stop, dock, empty dustbin, set clean mode, set fan level).
+        *   Use `device.b01_q10_properties.command.send()` for raw DP commands.
+    *   **Vacuums (B01 Q7)**: Use `device.b01_q7_properties` for Q7 series devices.
 
 ## Background: Understanding Device Protocols
 
@@ -26,7 +30,7 @@ Cloud and Network.
 |----------|----------------|------|-----------|--------------|-------|
 | **V1** (`pv=1.0`) | Most vacuum robots (S7, S8, Q5, Q7, etc.) | ✅ | ✅ | `V1Channel` with `RpcChannel` | Prefers local, falls back to MQTT |
 | **A01** (`pv=A01`) | Dyad, Zeo washers | ✅ | ❌ | `MqttChannel` + helpers | MQTT only, DPS protocol |
-| **B01** (`pv=B01`) | Some newer models | ✅ | ❌ | `MqttChannel` + helpers | MQTT only, DPS protocol |
+| **B01** (`pv=B01`) | Q7, Q10 series | ✅ | ❌ | `MqttChannel` + helpers | MQTT only, DPS protocol |
 
 **Key Point:** The `DeviceManager` automatically detects the protocol version and creates the appropriate channel type. You don't need to handle this manually.
 
@@ -47,7 +51,7 @@ graph TB
     subgraph "Device Types by Protocol"
         V1Dev[V1 Devices<br/>pv=1.0<br/>Most vacuums]
         A01Dev[A01 Devices<br/>pv=A01<br/>Dyad, Zeo]
-        B01Dev[B01 Devices<br/>pv=B01<br/>Some models]
+        B01Dev[B01 Devices<br/>pv=B01<br/>Q7, Q10 series]
     end
 
     subgraph "Traits Layer"
@@ -148,7 +152,7 @@ graph TB
 |----------|-------------|---------------|--------------|----------|
 | **V1** (`pv=1.0`) | `V1Channel` with `RpcChannel` | ✅ Yes | Multi-strategy (Local → MQTT) | Most vacuum robots |
 | **A01** (`pv=A01`) | `MqttChannel` + helpers | ❌ No | Direct MQTT | Dyad, Zeo washers |
-| **B01** (`pv=B01`) | `MqttChannel` + helpers | ❌ No | Direct MQTT | Some newer models |
+| **B01** (`pv=B01`) | `MqttChannel` + helpers | ❌ No | Direct MQTT | Q7, Q10 series |
 
 ## Account Setup Internals
 
@@ -249,7 +253,7 @@ sequenceDiagram
     RPC-->>App: Status
 ```
 
-#### A01/B01 Devices (Dyad, Zeo) - MQTT Only
+#### A01/B01 Devices (Dyad, Zeo, Q7, Q10) - MQTT Only
 
 ```mermaid
 sequenceDiagram
@@ -302,7 +306,7 @@ sequenceDiagram
 | **Local Support** | ✅ Yes, preferred | ❌ No |
 | **Fallback** | Local → MQTT | N/A |
 | **Connection** | Requires network info fetch | Direct MQTT |
-| **Examples** | Most vacuum robots | Dyad washers, Zeo models |
+| **Examples** | Most vacuum robots | Dyad washers, Zeo, Q7, Q10 |
 
 ### MQTT Connection (All Devices)
 
@@ -510,7 +514,7 @@ Different device models use different protocol versions:
 |----------|---------|----------|
 | V1 | Most vacuum robots | JSON RPC with AES encryption |
 | A01 | Dyad, Zeo | DPS-based protocol |
-| B01 | Some newer models | DPS-based protocol |
+| B01 | Q7, Q10 series | DPS-based protocol |
 | L01 | Local protocol variant | Binary protocol negotiation |
 
 The protocol layer handles encoding/decoding transparently based on the device's `pv` field.
@@ -577,11 +581,14 @@ roborock/
 │   |   ├── b01_q10_channel.py  # B01 Q10 protocol helpers
 │   |   └── ...
 │   └── traits/                 # High-level device-specific command traits
-│       └── v1/                 # V1 device traits
-│           ├── __init__.py     # Trait initialization
-│           ├── clean.py        # Cleaning commands
-│           ├── map.py          # Map management
-│           └── ...
+│       ├── v1/                 # V1 device traits
+│       │   ├── __init__.py     # Trait initialization
+│       │   ├── clean.py        # Cleaning commands
+│       │   ├── map.py          # Map management
+│       │   └── ...
+│       └── b01/                # B01 device traits
+│           ├── q10/            # Q10 series (vacuum, command)
+│           └── q7/             # Q7 series
 ├── mqtt/                      # MQTT session management
 │   ├── session.py             # Base session interface
 │   └── roborock_session.py    # MQTT session with idle timeout
