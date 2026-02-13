@@ -43,13 +43,14 @@ from pyshark.packet.packet import Packet  # type: ignore
 
 from roborock import RoborockCommand
 from roborock.data import RoborockBase, UserData
-from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
+from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP, YXCleanType, YXFanLevel
 from roborock.data.code_mappings import SHORT_MODEL_TO_ENUM
 from roborock.device_features import DeviceFeatures
 from roborock.devices.cache import Cache, CacheData
 from roborock.devices.device import RoborockDevice
 from roborock.devices.device_manager import DeviceManager, UserParams, create_device_manager
 from roborock.devices.traits import Trait
+from roborock.devices.traits.b01.q10.vacuum import VacuumTrait
 from roborock.devices.traits.v1 import V1TraitMixin
 from roborock.devices.traits.v1.consumeable import ConsumableAttribute
 from roborock.devices.traits.v1.map_content import MapContentTrait
@@ -436,6 +437,15 @@ async def _display_v1_trait(context: RoborockContext, device_id: str, display_fu
         click.echo(f"Error: {e}")
         return
     click.echo(dump_json(trait.as_dict()))
+
+
+async def _q10_vacuum_trait(context: RoborockContext, device_id: str) -> VacuumTrait:
+    """Get VacuumTrait from Q10 device."""
+    device_manager = await context.get_device_manager()
+    device = await device_manager.get_device(device_id)
+    if device.b01_q10_properties is None:
+        raise RoborockUnsupportedFeature("Device does not support B01 Q10 protocol. Is it a Q10?")
+    return device.b01_q10_properties.vacuum
 
 
 @session.command()
@@ -1170,6 +1180,154 @@ cli.add_command(dnd)
 cli.add_command(flow_led_status)
 cli.add_command(led_status)
 cli.add_command(network_info)
+
+
+# --- Q10 session commands ---
+
+
+@session.command()
+@click.option("--device_id", required=True, help="Device ID")
+@click.pass_context
+@async_command
+async def q10_vacuum_start(ctx: click.Context, device_id: str) -> None:
+    """Start vacuum cleaning on Q10 device."""
+    context: RoborockContext = ctx.obj
+    try:
+        trait = await _q10_vacuum_trait(context, device_id)
+        await trait.start_clean()
+        click.echo("Starting vacuum cleaning...")
+    except RoborockUnsupportedFeature:
+        click.echo("Device does not support B01 Q10 protocol. Is it a Q10?")
+    except RoborockException as e:
+        click.echo(f"Error: {e}")
+
+
+@session.command()
+@click.option("--device_id", required=True, help="Device ID")
+@click.pass_context
+@async_command
+async def q10_vacuum_pause(ctx: click.Context, device_id: str) -> None:
+    """Pause vacuum cleaning on Q10 device."""
+    context: RoborockContext = ctx.obj
+    try:
+        trait = await _q10_vacuum_trait(context, device_id)
+        await trait.pause_clean()
+        click.echo("Pausing vacuum cleaning...")
+    except RoborockUnsupportedFeature:
+        click.echo("Device does not support B01 Q10 protocol. Is it a Q10?")
+    except RoborockException as e:
+        click.echo(f"Error: {e}")
+
+
+@session.command()
+@click.option("--device_id", required=True, help="Device ID")
+@click.pass_context
+@async_command
+async def q10_vacuum_resume(ctx: click.Context, device_id: str) -> None:
+    """Resume vacuum cleaning on Q10 device."""
+    context: RoborockContext = ctx.obj
+    try:
+        trait = await _q10_vacuum_trait(context, device_id)
+        await trait.resume_clean()
+        click.echo("Resuming vacuum cleaning...")
+    except RoborockUnsupportedFeature:
+        click.echo("Device does not support B01 Q10 protocol. Is it a Q10?")
+    except RoborockException as e:
+        click.echo(f"Error: {e}")
+
+
+@session.command()
+@click.option("--device_id", required=True, help="Device ID")
+@click.pass_context
+@async_command
+async def q10_vacuum_stop(ctx: click.Context, device_id: str) -> None:
+    """Stop vacuum cleaning on Q10 device."""
+    context: RoborockContext = ctx.obj
+    try:
+        trait = await _q10_vacuum_trait(context, device_id)
+        await trait.stop_clean()
+        click.echo("Stopping vacuum cleaning...")
+    except RoborockUnsupportedFeature:
+        click.echo("Device does not support B01 Q10 protocol. Is it a Q10?")
+    except RoborockException as e:
+        click.echo(f"Error: {e}")
+
+
+@session.command()
+@click.option("--device_id", required=True, help="Device ID")
+@click.pass_context
+@async_command
+async def q10_vacuum_dock(ctx: click.Context, device_id: str) -> None:
+    """Return vacuum to dock on Q10 device."""
+    context: RoborockContext = ctx.obj
+    try:
+        trait = await _q10_vacuum_trait(context, device_id)
+        await trait.return_to_dock()
+        click.echo("Returning vacuum to dock...")
+    except RoborockUnsupportedFeature:
+        click.echo("Device does not support B01 Q10 protocol. Is it a Q10?")
+    except RoborockException as e:
+        click.echo(f"Error: {e}")
+
+
+@session.command()
+@click.option("--device_id", required=True, help="Device ID")
+@click.pass_context
+@async_command
+async def q10_empty_dustbin(ctx: click.Context, device_id: str) -> None:
+    """Empty the dustbin at the dock on Q10 device."""
+    context: RoborockContext = ctx.obj
+    try:
+        trait = await _q10_vacuum_trait(context, device_id)
+        await trait.empty_dustbin()
+        click.echo("Emptying dustbin...")
+    except RoborockUnsupportedFeature:
+        click.echo("Device does not support B01 Q10 protocol. Is it a Q10?")
+    except RoborockException as e:
+        click.echo(f"Error: {e}")
+
+
+@session.command()
+@click.option("--device_id", required=True, help="Device ID")
+@click.option("--mode", required=True, type=click.Choice(["bothwork", "onlysweep", "onlymop"]), help="Clean mode")
+@click.pass_context
+@async_command
+async def q10_set_clean_mode(ctx: click.Context, device_id: str, mode: str) -> None:
+    """Set the cleaning mode on Q10 device (vacuum, mop, or both)."""
+    context: RoborockContext = ctx.obj
+    try:
+        trait = await _q10_vacuum_trait(context, device_id)
+        clean_mode = YXCleanType.from_value(mode)
+        await trait.set_clean_mode(clean_mode)
+        click.echo(f"Clean mode set to {mode}")
+    except RoborockUnsupportedFeature:
+        click.echo("Device does not support B01 Q10 protocol. Is it a Q10?")
+    except RoborockException as e:
+        click.echo(f"Error: {e}")
+
+
+@session.command()
+@click.option("--device_id", required=True, help="Device ID")
+@click.option(
+    "--level",
+    required=True,
+    type=click.Choice(["close", "quite", "normal", "strong", "max", "super"]),
+    help="Fan suction level",
+)
+@click.pass_context
+@async_command
+async def q10_set_fan_level(ctx: click.Context, device_id: str, level: str) -> None:
+    """Set the fan suction level on Q10 device."""
+    context: RoborockContext = ctx.obj
+    try:
+        trait = await _q10_vacuum_trait(context, device_id)
+        fan_level = YXFanLevel.from_value(level)
+        await trait.set_fan_level(fan_level)
+        click.echo(f"Fan level set to {level}")
+    except RoborockUnsupportedFeature:
+        click.echo("Device does not support B01 Q10 protocol. Is it a Q10?")
+    except RoborockException as e:
+        click.echo(f"Error: {e}")
 
 
 def main():

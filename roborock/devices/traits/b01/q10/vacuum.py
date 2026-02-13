@@ -1,6 +1,10 @@
 """Traits for Q10 B01 devices."""
 
-from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
+from roborock.data.b01_q10.b01_q10_code_mappings import (
+    B01_Q10_DP,
+    YXCleanType,
+    YXFanLevel,
+)
 
 from .command import CommandTrait
 
@@ -53,4 +57,25 @@ class VacuumTrait:
         await self._command.send(
             command=B01_Q10_DP.START_DOCK_TASK,
             params={},
+        )
+
+    async def empty_dustbin(self) -> None:
+        """Empty the dustbin at the dock."""
+        await self._command.send(
+            command=B01_Q10_DP.START_DOCK_TASK,
+            params=2,
+        )
+
+    async def set_clean_mode(self, mode: YXCleanType) -> None:
+        """Set the cleaning mode (vacuum, mop, or both)."""
+        await self._command.send(
+            command=B01_Q10_DP.CLEAN_MODE,
+            params=mode.code,
+        )
+
+    async def set_fan_level(self, level: YXFanLevel) -> None:
+        """Set the fan suction level."""
+        await self._command.send(
+            command=B01_Q10_DP.FAN_LEVEL,
+            params=level.code,
         )
