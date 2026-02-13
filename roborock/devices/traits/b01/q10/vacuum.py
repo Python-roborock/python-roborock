@@ -63,7 +63,7 @@ class VacuumTrait:
         """Empty the dustbin at the dock."""
         await self._command.send(
             command=B01_Q10_DP.START_DOCK_TASK,
-            params=2,
+            params=2,  # 2 = dock task type for "empty dustbin"
         )
 
     async def set_clean_mode(self, mode: YXCleanType) -> None:
