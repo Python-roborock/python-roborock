@@ -51,6 +51,12 @@ class MapParserConfig:
     show_background: bool = True
     """Whether to show the background of the map."""
 
+    show_walls: bool = True
+    """Whether to show the walls of the map."""
+
+    show_rooms: bool = True
+    """Whether to show the rooms of the map."""
+
     map_scale: int = DEFAULT_MAP_SCALE
     """Scale factor for the map."""
 
@@ -94,11 +100,22 @@ class MapParser:
 
 def _create_map_data_parser(config: MapParserConfig) -> RoborockMapDataParser:
     """Create a RoborockMapDataParser based on the config entry."""
-    colors = ColorsPalette()
+    color_dicts = {}
+    room_colors = {}
+
     if not config.show_background:
-        colors = ColorsPalette({SupportedColor.MAP_OUTSIDE: (0, 0, 0, 0)})
+        color_dicts[SupportedColor.MAP_OUTSIDE] = (0, 0, 0, 0)
+
+    if not config.show_walls:
+        color_dicts[SupportedColor.GREY_WALL] = (0, 0, 0, 0)
+        color_dicts[SupportedColor.MAP_WALL] = (0, 0, 0, 0)
+        color_dicts[SupportedColor.MAP_WALL_V2] = (0, 0, 0, 0)
+
+    if not config.show_rooms:
+        room_colors = {str(x): (0, 0, 0, 0) for x in range(1, 32)}
+
     return RoborockMapDataParser(
-        colors,
+        ColorsPalette(color_dicts, room_colors),
         Sizes({k: v * config.map_scale for k, v in Sizes.SIZES.items() if k != Size.MOP_PATH_WIDTH}),
         config.drawables,
         ImageConfig(scale=config.map_scale),

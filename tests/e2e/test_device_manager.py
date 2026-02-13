@@ -439,7 +439,7 @@ async def test_q10_device(
     # against the golden byte stream snapshot.
     assert device.b01_q10_properties
     command = device.b01_q10_properties.command
-    await command.send(B01_Q10_DP.REQUETDPS, params={})
+    await command.send(B01_Q10_DP.REQUEST_DPS, params={})
 
     # In the future here we can verify receiving requests from the device
 

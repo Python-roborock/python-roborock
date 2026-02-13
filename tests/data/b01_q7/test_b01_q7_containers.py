@@ -5,8 +5,10 @@ import json
 from roborock.data.b01_q7 import (
     B01Fault,
     B01Props,
+    CleanPathPreferenceMapping,
     CleanRecordDetail,
     CleanRecordList,
+    CleanRepeatMapping,
     SCWindMapping,
     WorkStatusMapping,
 )
@@ -106,6 +108,10 @@ def test_b01props_deserialization():
     assert deserialized.wind == SCWindMapping.STRONG
     assert deserialized.net_status is not None
     assert deserialized.net_status.ip == "192.168.1.102"
+    assert deserialized.repeat_state == CleanRepeatMapping.TWO
+    assert deserialized.clean_path_preference == CleanPathPreferenceMapping.DEEP
+    assert deserialized.repeat_state_name == "two"
+    assert deserialized.clean_path_preference_name == "deep"
 
 
 def test_b01_q7_clean_record_list_parses_detail_fields():

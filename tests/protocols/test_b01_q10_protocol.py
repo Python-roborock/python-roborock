@@ -94,8 +94,8 @@ def test_decode_unknown_dps_code() -> None:
 @pytest.mark.parametrize(
     ("command", "params"),
     [
-        (B01_Q10_DP.REQUETDPS, {}),
-        (B01_Q10_DP.REQUETDPS, None),
+        (B01_Q10_DP.REQUEST_DPS, {}),
+        (B01_Q10_DP.REQUEST_DPS, None),
         (B01_Q10_DP.START_CLEAN, {"cmd": 1}),
         (B01_Q10_DP.WATER_LEVEL, YXWaterLevel.MIDDLE.code),
     ],
