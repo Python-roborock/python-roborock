@@ -465,7 +465,9 @@ class RoborockApiClient:
                 )
             raise RoborockException(f"{home_id_response.get('msg')} - response code: {home_id_response.get('code')}")
 
-        return home_id_response["data"]["rrHomeId"]
+        home_id = home_id_response["data"]["rrHomeId"]
+        _LOGGER.debug("Retrieved home_id: %s from response: %s", home_id, home_id_response)
+        return home_id
 
     async def get_home_data(self, user_data: UserData) -> HomeData:
         try:
@@ -487,11 +489,17 @@ class RoborockApiClient:
             },
         )
         home_response = await home_request.request("get", "/user/homes/" + str(home_id))
+        _LOGGER.debug("get_home_data (v1) response: %s", home_response)
         if not home_response.get("success"):
             raise RoborockException(home_response)
         home_data = home_response.get("result")
+        _LOGGER.debug("get_home_data (v1) result type: %s", type(home_data).__name__ if home_data is not None else "None")
         if isinstance(home_data, dict):
             return HomeData.from_dict(home_data)
+        elif home_data is None:
+            # API returns None when home has no devices registered
+            _LOGGER.debug("get_home_data (v1) returned None (no devices registered)")
+            return HomeData(id=home_id, name="")
         else:
             raise RoborockException("home_response result was an unexpected type")
 
@@ -516,11 +524,17 @@ class RoborockApiClient:
             },
         )
         home_response = await home_request.request("get", "/v2/user/homes/" + str(home_id))
+        _LOGGER.debug("get_home_data_v2 response: %s", home_response)
         if not home_response.get("success"):
             raise RoborockException(home_response)
         home_data = home_response.get("result")
+        _LOGGER.debug("get_home_data_v2 result type: %s, value: %s", type(home_data).__name__, home_data)
         if isinstance(home_data, dict):
             return HomeData.from_dict(home_data)
+        elif home_data is None:
+            # API returns None when home has no devices registered
+            _LOGGER.debug("get_home_data_v2 returned None (no devices registered)")
+            return HomeData(id=home_id, name="")
         else:
             raise RoborockException("home_response result was an unexpected type")
 
@@ -533,6 +547,7 @@ class RoborockApiClient:
             raise RoborockRateLimit("Reached maximum requests for home data. Please try again later.") from ex
         rriot = user_data.rriot
         home_id = await self._get_home_id(user_data)
+        _LOGGER.debug("get_home_data_v3 using home_id: %s", home_id)
         if rriot.r.a is None:
             raise RoborockException("Missing field 'a' in rriot reference")
         home_request = PreparedRequest(
@@ -543,12 +558,18 @@ class RoborockApiClient:
             },
         )
         home_response = await home_request.request("get", "/v3/user/homes/" + str(home_id))
+        _LOGGER.debug("get_home_data_v3 response: %s", home_response)
         if not home_response.get("success"):
             raise RoborockException(home_response)
         home_data = home_response.get("result")
         if isinstance(home_data, dict):
             return HomeData.from_dict(home_data)
-        raise RoborockException(f"home_response result was an unexpected type: {home_data}")
+        elif home_data is None:
+            # API returns None when home has no devices registered
+            _LOGGER.debug("get_home_data_v3 returned None (no devices registered)")
+            return HomeData(id=home_id, name="")
+        else:
+            raise RoborockException(f"home_response result was an unexpected type: {type(home_data).__name__}")
 
     async def get_rooms(self, user_data: UserData, home_id: int | None = None) -> list[HomeDataRoom]:
         rriot = user_data.rriot
@@ -764,7 +785,8 @@ class UserWebApiClient:
 
     async def get_home_data(self) -> HomeData:
         """Fetch home data using the API client."""
-        return await self._web_api.get_home_data_v3(self._user_data)
+        # Try v1 endpoint as v2 and v3 return None result for some accounts
+        return await self._web_api.get_home_data(self._user_data)
 
     async def get_routines(self, device_id: str) -> list[HomeDataScene]:
         """Fetch routines (scenes) for a specific device."""
