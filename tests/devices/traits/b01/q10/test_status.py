@@ -1,7 +1,7 @@
 """Tests for Q10 StatusTrait."""
 
 import json
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -12,7 +12,7 @@ from roborock.data.b01_q10.b01_q10_code_mappings import (
     YXFanLevel,
 )
 from roborock.devices.traits.b01.q10.status import StatusTrait
-from roborock.roborock_message import RoborockMessage
+from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 from tests.fixtures.channel_fixtures import FakeChannel
 
 
@@ -30,7 +30,7 @@ def build_q10_response(dps: dict[str, Any]) -> RoborockMessage:
     """Build a Q10 MQTT response message."""
     payload = {"dps": dps}
     return RoborockMessage(
-        protocol=11,  # MQTT_PROTO
+        protocol=cast(RoborockMessageProtocol, 11),  # MQTT_PROTO
         payload=json.dumps(payload).encode(),
         seq=0,
         version=b"B01",
@@ -83,9 +83,7 @@ async def test_status_trait_clean_mode(status_trait: StatusTrait, fake_channel: 
 
 async def test_status_trait_cleaning_progress(status_trait: StatusTrait, fake_channel: FakeChannel) -> None:
     """Test getting cleaning progress."""
-    fake_channel.response_queue.append(
-        build_q10_response({"121": 5, "122": 100, "141": 25})
-    )
+    fake_channel.response_queue.append(build_q10_response({"121": 5, "122": 100, "141": 25}))
 
     result = await status_trait.refresh()
 
