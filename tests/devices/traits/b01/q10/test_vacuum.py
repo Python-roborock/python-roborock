@@ -1,12 +1,14 @@
 import json
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
 from roborock.data.b01_q10.b01_q10_code_mappings import YXCleanType, YXFanLevel
 from roborock.devices.traits.b01.q10 import Q10PropertiesApi
+from roborock.devices.traits.b01.q10.status import StatusTrait
 from roborock.devices.traits.b01.q10.vacuum import VacuumTrait
+from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 from tests.fixtures.channel_fixtures import FakeChannel
 
 
@@ -52,3 +54,41 @@ async def test_vacuum_commands(
     assert message.payload
     payload_data = json.loads(message.payload.decode())
     assert payload_data == {"dps": expected_payload}
+
+def test_q10_api_has_status_trait(q10_api: Q10PropertiesApi) -> None:
+    """Test that Q10PropertiesApi exposes StatusTrait."""
+    assert hasattr(q10_api, "status")
+    assert isinstance(q10_api.status, StatusTrait)
+
+
+def test_q10_api_has_vacuum_trait(q10_api: Q10PropertiesApi) -> None:
+    """Test that Q10PropertiesApi exposes VacuumTrait."""
+    assert hasattr(q10_api, "vacuum")
+    assert isinstance(q10_api.vacuum, VacuumTrait)
+
+
+async def test_q10_api_status_refresh(q10_api: Q10PropertiesApi, fake_channel: FakeChannel) -> None:
+    """Test that status trait can be refreshed via Q10PropertiesApi."""
+
+    def build_q10_response(dps: dict[str, Any]) -> RoborockMessage:
+        """Build a Q10 MQTT response message."""
+        payload = {"dps": dps}
+        return RoborockMessage(
+            protocol=cast(RoborockMessageProtocol, 11),
+            payload=json.dumps(payload).encode(),
+            seq=0,
+            version=b"B01",
+        )
+
+    # Queue a response with status and battery
+    fake_channel.response_queue.append(build_q10_response({"121": 5, "122": 100}))
+
+    result = await q10_api.status.refresh()
+
+    # Verify that refresh returned data
+    assert result is not None
+    assert len(result) > 0
+
+    # Verify that properties are accessible
+    assert q10_api.status.battery == 100
+    assert q10_api.status.state is not None
