@@ -1,5 +1,10 @@
 """Traits for Q10 B01 devices."""
 
+import asyncio
+import logging
+
+from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
+from roborock.devices.rpc.b01_q10_channel import stream_decoded_responses
 from roborock.devices.traits import Trait
 from roborock.devices.transport.mqtt_channel import MqttChannel
 
@@ -9,8 +14,9 @@ from .vacuum import VacuumTrait
 
 __all__ = [
     "Q10PropertiesApi",
-    "StatusTrait",
 ]
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class Q10PropertiesApi(Trait):
@@ -20,16 +26,42 @@ class Q10PropertiesApi(Trait):
     """Trait for sending commands to Q10 devices."""
 
     status: StatusTrait
-    """Trait for querying Q10 device status."""
+    """Trait for managing the status of Q10 devices."""
 
     vacuum: VacuumTrait
     """Trait for sending vacuum related commands to Q10 devices."""
 
     def __init__(self, channel: MqttChannel) -> None:
         """Initialize the B01Props API."""
+        self._channel = channel
         self.command = CommandTrait(channel)
-        self.status = StatusTrait(channel)
         self.vacuum = VacuumTrait(self.command)
+        self.status = StatusTrait()
+        self._subscribe_task: asyncio.Task[None] | None = None
+
+    async def start(self) -> None:
+        """Start any necessary subscriptions for the trait."""
+        self._subscribe_task = asyncio.create_task(self._subscribe_loop())
+
+    async def close(self) -> None:
+        """Close any resources held by the trait."""
+        if self._subscribe_task is not None:
+            self._subscribe_task.cancel()
+            try:
+                await self._subscribe_task
+            except asyncio.CancelledError:
+                pass
+            self._subscribe_task = None
+
+    async def refresh(self) -> None:
+        """Refresh all traits."""
+        await self.command.send(B01_Q10_DP.REQUEST_DPS, params={})
+
+    async def _subscribe_loop(self) -> None:
+        """Persistent loop to listen for status updates."""
+        async for decoded_dps in stream_decoded_responses(self._channel):
+            _LOGGER.debug("Received Q10 status update: %s", decoded_dps)
+            self.status.update_from_dps(decoded_dps)
 
 
 def create(channel: MqttChannel) -> Q10PropertiesApi:

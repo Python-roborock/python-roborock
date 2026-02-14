@@ -197,12 +197,14 @@ class RoborockDevice(ABC, TraitsMixin):
         if self._unsub:
             raise ValueError("Already connected to the device")
         unsub = await self._channel.subscribe(self._on_message)
-        if self.v1_properties is not None:
-            try:
+        try:
+            if self.v1_properties is not None:
                 await self.v1_properties.discover_features()
-            except RoborockException:
-                unsub()
-                raise
+            elif self.b01_q10_properties is not None:
+                await self.b01_q10_properties.start()
+        except RoborockException:
+            unsub()
+            raise
         self._logger.info("Connected to device")
         self._unsub = unsub
 
@@ -214,6 +216,8 @@ class RoborockDevice(ABC, TraitsMixin):
                 await self._connect_task
             except asyncio.CancelledError:
                 pass
+        if self.b01_q10_properties is not None:
+            await self.b01_q10_properties.close()
         if self._unsub:
             self._unsub()
             self._unsub = None
