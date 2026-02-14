@@ -127,11 +127,6 @@ class YXFanLevel(RoborockModeEnum):
     MAX = "max", 4
     SUPER = "super", 8
 
-    @classmethod
-    def from_value(cls, value: str) -> "YXFanLevel":
-        normalized = "quiet" if value.lower() == "quite" else value
-        return super().from_value(normalized)
-
 
 class YXWaterLevel(RoborockModeEnum):
     UNKNOWN = "unknown", -1

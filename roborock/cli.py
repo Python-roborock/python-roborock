@@ -1311,7 +1311,7 @@ async def q10_set_clean_mode(ctx: click.Context, device_id: str, mode: str) -> N
 @click.option(
     "--level",
     required=True,
-    type=click.Choice(["close", "quiet", "quite", "normal", "strong", "max", "super"]),
+    type=click.Choice(["close", "quiet", "normal", "strong", "max", "super"]),
     help='Fan suction level (one of "close", "quiet", "normal", "strong", "max", "super")',
 )
 @click.pass_context
