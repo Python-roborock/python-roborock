@@ -1311,8 +1311,8 @@ async def q10_set_clean_mode(ctx: click.Context, device_id: str, mode: str) -> N
 @click.option(
     "--level",
     required=True,
-    type=click.Choice(["close", "quite", "normal", "strong", "max", "super"]),
-    help="Fan suction level",
+    type=click.Choice(["close", "quiet", "quite", "normal", "strong", "max", "super"]),
+    help='Fan suction level (one of "close", "quiet", "normal", "strong", "max", "super")',
 )
 @click.pass_context
 @async_command
@@ -1323,7 +1323,7 @@ async def q10_set_fan_level(ctx: click.Context, device_id: str, level: str) -> N
         trait = await _q10_vacuum_trait(context, device_id)
         fan_level = YXFanLevel.from_value(level)
         await trait.set_fan_level(fan_level)
-        click.echo(f"Fan level set to {level}")
+        click.echo(f"Fan level set to {fan_level.value}")
     except RoborockUnsupportedFeature:
         click.echo("Device does not support B01 Q10 protocol. Is it a Q10?")
     except RoborockException as e:
