@@ -33,7 +33,20 @@ class StatusTrait:
             self._channel,
             command=B01_Q10_DP.REQUEST_DPS,
             params={},
-            expected_dps={B01_Q10_DP.STATUS, B01_Q10_DP.BATTERY},
+            expected_dps={
+                B01_Q10_DP.STATUS,
+                B01_Q10_DP.BATTERY,
+                B01_Q10_DP.MAIN_BRUSH_LIFE,
+                B01_Q10_DP.SIDE_BRUSH_LIFE,
+                B01_Q10_DP.FILTER_LIFE,
+                B01_Q10_DP.CLEAN_TIME,
+                B01_Q10_DP.TOTAL_CLEAN_TIME,
+                B01_Q10_DP.TOTAL_CLEAN_COUNT,
+                B01_Q10_DP.CLEAN_AREA,
+                B01_Q10_DP.TOTAL_CLEAN_AREA,
+                B01_Q10_DP.CLEAN_PROGRESS,
+                B01_Q10_DP.FAULT,
+            },
         )
         self._data = decoded
         return decoded
