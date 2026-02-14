@@ -587,17 +587,6 @@ class RoborockDockDustCollectionModeCode(RoborockEnum):
     max = 4
 
 
-class RoborockDockWashTowelModeCode(RoborockEnum):
-    """Describes the wash towel mode of the vacuum cleaner."""
-
-    # TODO: Get the correct values for various different docks
-    unknown = -9999
-    light = 0
-    balanced = 1
-    deep = 2
-    smart = 10
-
-
 class RoborockStateCode(RoborockEnum):
     unknown = 0
     starting = 1
