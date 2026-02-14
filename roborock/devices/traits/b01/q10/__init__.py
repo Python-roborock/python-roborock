@@ -4,10 +4,12 @@ from roborock.devices.traits import Trait
 from roborock.devices.transport.mqtt_channel import MqttChannel
 
 from .command import CommandTrait
+from .status import StatusTrait
 from .vacuum import VacuumTrait
 
 __all__ = [
     "Q10PropertiesApi",
+    "StatusTrait",
 ]
 
 
@@ -17,12 +19,16 @@ class Q10PropertiesApi(Trait):
     command: CommandTrait
     """Trait for sending commands to Q10 devices."""
 
+    status: StatusTrait
+    """Trait for querying Q10 device status."""
+
     vacuum: VacuumTrait
     """Trait for sending vacuum related commands to Q10 devices."""
 
     def __init__(self, channel: MqttChannel) -> None:
         """Initialize the B01Props API."""
         self.command = CommandTrait(channel)
+        self.status = StatusTrait(channel)
         self.vacuum = VacuumTrait(self.command)
 
 
