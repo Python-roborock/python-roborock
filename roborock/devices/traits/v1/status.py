@@ -1,7 +1,8 @@
-from typing import Self
+from typing import Any, Self
 
-from roborock.data import HomeDataProduct, ModelStatus, S7MaxVStatus, Status
+from roborock.data import HomeDataProduct, ModelStatus, RoborockErrorCode, RoborockStateCode, S7MaxVStatus, Status
 from roborock.devices.traits.v1 import common
+from roborock.roborock_message import RoborockDataProtocol
 from roborock.roborock_typing import RoborockCommand
 
 
@@ -22,3 +23,19 @@ class StatusTrait(Status, common.V1TraitMixin):
         if isinstance(response, dict):
             return status_type.from_dict(response)
         raise ValueError(f"Unexpected status format: {response!r}")
+
+    def handle_protocol_update(self, protocol: RoborockDataProtocol, data_point: Any) -> bool:
+        """Handle a protocol update for a specific data protocol."""
+        match protocol:
+            case RoborockDataProtocol.ERROR_CODE:
+                self.error_code = RoborockErrorCode(data_point)
+            case RoborockDataProtocol.STATE:
+                self.state = RoborockStateCode(data_point)
+            case RoborockDataProtocol.BATTERY:
+                self.battery = data_point
+            case RoborockDataProtocol.CHARGE_STATUS:
+                self.charge_status = data_point
+            case _:
+                # There is also fan power and water box mode, but for now those are skipped
+                return False
+        return True

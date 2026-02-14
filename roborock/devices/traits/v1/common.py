@@ -3,8 +3,11 @@
 This is an internal library and should not be used directly by consumers.
 """
 
+from __future__ import annotations
+
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, fields
 from typing import ClassVar, Self
 
@@ -15,6 +18,7 @@ from roborock.roborock_typing import RoborockCommand
 _LOGGER = logging.getLogger(__name__)
 
 V1ResponseData = dict | list | int | str
+V1TraitUpdateCallback = Callable[[], None]
 
 
 @dataclass
@@ -74,6 +78,7 @@ class V1TraitMixin(ABC):
         device setup code.
         """
         self._rpc_channel = None
+        self._update_callbacks: list[V1TraitUpdateCallback] = []
 
     @property
     def rpc_channel(self) -> V1RpcChannel:
@@ -96,6 +101,26 @@ class V1TraitMixin(ABC):
         for field in fields(new_data):
             new_value = getattr(new_data, field.name, None)
             setattr(self, field.name, new_value)
+
+    def add_update_callback(self, callback: V1TraitUpdateCallback) -> Callable[[], None]:
+        """Add a callback to be notified when the trait is updated.
+
+        The callback will be called whenever a protocol message updates the trait.
+        Callers should track which trait they subscribed to if needed.
+
+        Returns:
+            A callable that can be used to remove the callback.
+        """
+        self._update_callbacks.append(callback)
+        return lambda: self._update_callbacks.remove(callback)
+
+    def notify_update(self) -> None:
+        """Notify all registered callbacks that the trait has been updated."""
+        for callback in self._update_callbacks:
+            try:
+                callback()
+            except Exception:  # noqa: BLE001
+                _LOGGER.exception("Error in trait update callback")
 
 
 def _get_value_field(clazz: type[V1TraitMixin]) -> str:
