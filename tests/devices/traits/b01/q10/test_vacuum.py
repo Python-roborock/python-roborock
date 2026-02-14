@@ -55,6 +55,7 @@ async def test_vacuum_commands(
     payload_data = json.loads(message.payload.decode())
     assert payload_data == {"dps": expected_payload}
 
+
 def test_q10_api_has_status_trait(q10_api: Q10PropertiesApi) -> None:
     """Test that Q10PropertiesApi exposes StatusTrait."""
     assert hasattr(q10_api, "status")
