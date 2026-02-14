@@ -9,8 +9,7 @@ from typing import Any
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
 from roborock.devices.transport.mqtt_channel import MqttChannel
 from roborock.exceptions import RoborockException
-from roborock.protocols.b01_q10_protocol import ParamsType, encode_mqtt_payload
-from roborock.protocols.b01_q10_protocol import decode_rpc_response
+from roborock.protocols.b01_q10_protocol import ParamsType, decode_rpc_response, encode_mqtt_payload
 
 _LOGGER = logging.getLogger(__name__)
 

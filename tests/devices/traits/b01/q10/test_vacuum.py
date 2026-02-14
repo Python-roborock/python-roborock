@@ -65,5 +65,3 @@ def test_q10_api_has_vacuum_trait(q10_api: Q10PropertiesApi) -> None:
     """Test that Q10PropertiesApi exposes VacuumTrait."""
     assert hasattr(q10_api, "vacuum")
     assert isinstance(q10_api.vacuum, VacuumTrait)
-
-
