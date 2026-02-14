@@ -6,6 +6,7 @@ import pytest
 
 from roborock.data.b01_q10.b01_q10_code_mappings import YXCleanType, YXFanLevel
 from roborock.devices.traits.b01.q10 import Q10PropertiesApi
+from roborock.devices.traits.b01.q10.status import StatusTrait
 from roborock.devices.traits.b01.q10.vacuum import VacuumTrait
 from tests.fixtures.channel_fixtures import FakeChannel
 
@@ -52,3 +53,15 @@ async def test_vacuum_commands(
     assert message.payload
     payload_data = json.loads(message.payload.decode())
     assert payload_data == {"dps": expected_payload}
+
+
+def test_q10_api_has_status_trait(q10_api: Q10PropertiesApi) -> None:
+    """Test that Q10PropertiesApi exposes StatusTrait."""
+    assert hasattr(q10_api, "status")
+    assert isinstance(q10_api.status, StatusTrait)
+
+
+def test_q10_api_has_vacuum_trait(q10_api: Q10PropertiesApi) -> None:
+    """Test that Q10PropertiesApi exposes VacuumTrait."""
+    assert hasattr(q10_api, "vacuum")
+    assert isinstance(q10_api.vacuum, VacuumTrait)
