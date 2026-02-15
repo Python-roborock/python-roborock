@@ -2,6 +2,32 @@
 
 <!-- version list -->
 
+## v4.14.0 (2026-02-15)
+
+### Chores
+
+- Address review feedback ([#769](https://github.com/Python-roborock/python-roborock/pull/769),
+  [`38d336b`](https://github.com/Python-roborock/python-roborock/commit/38d336b3735dc04e60ba47f0c0041705567e72f6))
+
+- Fix lint errors found by co-pilot reviews
+  ([#769](https://github.com/Python-roborock/python-roborock/pull/769),
+  [`38d336b`](https://github.com/Python-roborock/python-roborock/commit/38d336b3735dc04e60ba47f0c0041705567e72f6))
+
+- Fix typos in files that were renamed
+  ([#769](https://github.com/Python-roborock/python-roborock/pull/769),
+  [`38d336b`](https://github.com/Python-roborock/python-roborock/commit/38d336b3735dc04e60ba47f0c0041705567e72f6))
+
+- Fix typos updated in previous PRs
+  ([#769](https://github.com/Python-roborock/python-roborock/pull/769),
+  [`38d336b`](https://github.com/Python-roborock/python-roborock/commit/38d336b3735dc04e60ba47f0c0041705567e72f6))
+
+### Features
+
+- Add initial Q10 support for Status Trait
+  ([#769](https://github.com/Python-roborock/python-roborock/pull/769),
+  [`38d336b`](https://github.com/Python-roborock/python-roborock/commit/38d336b3735dc04e60ba47f0c0041705567e72f6))
+
+
 ## v4.13.0 (2026-02-14)
 
 ### Features
