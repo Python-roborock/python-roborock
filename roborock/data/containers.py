@@ -91,10 +91,10 @@ class RoborockBase:
         if not isinstance(data, dict):
             return None
         field_types = {field.name: field.type for field in dataclasses.fields(cls)}
-        result: dict[str, Any] = {}
+        normalized_data: dict[str, Any] = {}
         for orig_key, value in data.items():
             key = _decamelize(orig_key)
-            if (field_type := field_types.get(key)) is None:
+            if field_types.get(key) is None:
                 if (log_key := f"{cls.__name__}.{key}") not in RoborockBase._missing_logged:
                     _LOGGER.debug(
                         "Key '%s' (decamelized: '%s') not found in %s fields, skipping",
@@ -104,6 +104,23 @@ class RoborockBase:
                     )
                     RoborockBase._missing_logged.add(log_key)
                 continue
+            normalized_data[key] = value
+
+        result = RoborockBase.convert_dict(field_types, normalized_data)
+        return cls(**result)
+
+    @staticmethod
+    def convert_dict(types_map: dict[Any, type], data: dict[Any, Any]) -> dict[Any, Any]:
+        """Generic helper to convert a dictionary of values based on a schema map of types.
+
+        This is meant to be used by traits that use dataclass reflection similar to
+        `Roborock.from_dict` to merge in new data updates.
+        """
+        result: dict[Any, Any] = {}
+        for key, value in data.items():
+            if key not in types_map:
+                continue
+            field_type = types_map[key]
             if value == "None" or value is None:
                 result[key] = None
                 continue
@@ -124,7 +141,7 @@ class RoborockBase:
                     _LOGGER.exception(f"Failed to convert {key} with value {value} to type {field_type}")
                     continue
 
-        return cls(**result)
+        return result
 
     def as_dict(self) -> dict:
         return asdict(
