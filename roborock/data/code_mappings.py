@@ -113,6 +113,11 @@ class RoborockModeEnum(StrEnum):
         return super().__eq__(other)
 
     def __hash__(self) -> int:
+        """Hash a RoborockModeEnum.
+
+        It is critical that you do not mix RoborockModeEnums with raw strings or ints in hashed situations
+        (i.e. sets or keys in dictionaries)
+        """
         return hash((self.code, self._value_))
 
 
