@@ -20,7 +20,7 @@ class StatusTrait(Q10Status):
 
     This is a thin wrapper around Q10Status that provides the Trait interface.
     The current values reflect the most recently received data from the device.
-    New values can be requited through the `Q10PropertiesApi`'s `refresh` method.
+    New values can be requested through the `Q10PropertiesApi`'s `refresh` method.
     """
 
     def __init__(self) -> None:
