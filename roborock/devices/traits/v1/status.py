@@ -9,7 +9,19 @@ from .device_features import DeviceFeaturesTrait
 
 
 class StatusTrait(StatusV2, common.V1TraitMixin):
-    """Trait for managing the status of Roborock devices."""
+    """Trait for managing the status of Roborock devices.
+
+    The StatusTrait gives you the access to the state of a Roborock vacuum.
+    The various attribute options on state change per each device.
+    Values like fan speed, mop mode, etc. have different options for every device
+    and are dynamically determined.
+
+    Usage:
+        Before accessing status properties, you should call `refresh()` to fetch
+        the latest data from the device. You must pass in the device feature trait
+        to this trait so that the dynamic attributes can be pre-determined.
+
+    """
 
     command = RoborockCommand.GET_STATUS
 

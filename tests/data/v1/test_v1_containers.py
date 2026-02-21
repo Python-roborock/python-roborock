@@ -1,6 +1,9 @@
 """Test cases for the containers module."""
 
-from syrupy import SnapshotAssertion
+import copy
+
+import pytest
+from syrupy.assertion import SnapshotAssertion
 
 from roborock.data.v1 import (
     MultiMapsList,
@@ -100,6 +103,26 @@ def test_status():
     assert s.clean_fluid_status is None
     assert s.hatch_door_status == 0
     assert s.dock_cool_fan_status == 0
+
+
+@pytest.mark.parametrize(
+    "dss_val, expected_clean_box_status, expected_dirty_box_status",
+    [
+        (None, None, None),
+        (169, ClearWaterBoxStatus.okay, DirtyWaterBoxStatus.okay),
+        (149, ClearWaterBoxStatus.out_of_water, DirtyWaterBoxStatus.full_not_installed),
+        (153, ClearWaterBoxStatus.okay, DirtyWaterBoxStatus.full_not_installed),
+    ],
+)
+def test_dss_status(
+    dss_val: int | None, expected_clean_box_status: ClearWaterBoxStatus, expected_dirty_box_status: DirtyWaterBoxStatus
+):
+    """Test dss status properly setting child values."""
+    status = copy.deepcopy(STATUS)
+    status["dss"] = dss_val
+    s = StatusV2.from_dict(status)
+    assert s.clear_water_box_status == expected_clean_box_status
+    assert s.dirty_water_box_status == expected_dirty_box_status
 
 
 def test_current_map() -> None:
