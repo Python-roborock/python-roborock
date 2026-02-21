@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v4.15.0 (2026-02-21)
+
+### Bug Fixes
+
+- **q10**: Correct typo in docstring for StatusTrait
+  ([#770](https://github.com/Python-roborock/python-roborock/pull/770),
+  [`c0a313b`](https://github.com/Python-roborock/python-roborock/commit/c0a313b385da722a81ffe4aeade3bf104bd254a8))
+
+### Features
+
+- **q10**: Add status update listener API
+  ([#770](https://github.com/Python-roborock/python-roborock/pull/770),
+  [`c0a313b`](https://github.com/Python-roborock/python-roborock/commit/c0a313b385da722a81ffe4aeade3bf104bd254a8))
+
+- **q10**: Add status update listener callback API
+  ([#770](https://github.com/Python-roborock/python-roborock/pull/770),
+  [`c0a313b`](https://github.com/Python-roborock/python-roborock/commit/c0a313b385da722a81ffe4aeade3bf104bd254a8))
+
+
 ## v4.14.0 (2026-02-15)
 
 ### Chores
