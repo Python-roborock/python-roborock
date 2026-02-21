@@ -163,7 +163,7 @@ def test_status_trait_update_listener(q10_api: Q10PropertiesApi) -> None:
 
 
 def test_status_trait_update_listener_ignores_value(q10_api: Q10PropertiesApi) -> None:
-    """Test that status listeners receive updates and can unsubscribe."""
+    """Test that status listeners are not notified for updates with non-Status dataclass data points (e.g., HEARTBEAT)."""
     event = asyncio.Event()
 
     unsubscribe = q10_api.status.add_update_listener(event.set)
