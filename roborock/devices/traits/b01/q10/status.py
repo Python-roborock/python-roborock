@@ -26,13 +26,9 @@ class StatusTrait(Q10Status):
     def __init__(self) -> None:
         """Initialize the status trait."""
         super().__init__()
-        self._update_callbacks: CallbackList[dict[B01_Q10_DP, Any]] = CallbackList(
-            logger=_LOGGER
-        )
+        self._update_callbacks: CallbackList[dict[B01_Q10_DP, Any]] = CallbackList(logger=_LOGGER)
 
-    def add_update_listener(
-        self, callback: Callable[[dict[B01_Q10_DP, Any]], None]
-    ) -> Callable[[], None]:
+    def add_update_listener(self, callback: Callable[[dict[B01_Q10_DP, Any]], None]) -> Callable[[], None]:
         """Register a callback for decoded DPS updates.
 
         Returns a callable to remove the listener.
