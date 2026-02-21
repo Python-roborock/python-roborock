@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from roborock.data.b01_q10.b01_q10_code_mappings import (
+    B01_Q10_DP,
     YXDeviceCleanTask,
     YXDeviceState,
     YXFanLevel,
@@ -139,3 +140,22 @@ async def test_status_trait_refresh(
     assert q10_api.status.battery == 100
     assert q10_api.status.status == YXDeviceState.CHARGING_STATE
     assert q10_api.status.fan_level == YXFanLevel.NORMAL
+
+
+def test_status_trait_update_listener(q10_api: Q10PropertiesApi) -> None:
+    """Test that status listeners receive updates and can unsubscribe."""
+    updates: list[dict[B01_Q10_DP, Any]] = []
+
+    unsubscribe = q10_api.status.add_update_listener(updates.append)
+
+    first_update = {B01_Q10_DP.BATTERY: 88}
+    q10_api.status.update_from_dps(first_update)
+
+    assert updates == [first_update]
+
+    unsubscribe()
+
+    second_update = {B01_Q10_DP.BATTERY: 87}
+    q10_api.status.update_from_dps(second_update)
+
+    assert updates == [first_update]
