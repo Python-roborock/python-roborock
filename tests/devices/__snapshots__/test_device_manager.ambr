@@ -383,6 +383,7 @@
             'dndEnabled': 0,
             'dockErrorStatus': 0,
             'dockType': 3,
+            'dss': 169,
             'dustCollectionStatus': 0,
             'errorCode': 0,
             'fanPower': 102,

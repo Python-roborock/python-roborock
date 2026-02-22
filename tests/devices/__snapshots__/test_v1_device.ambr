@@ -411,6 +411,7 @@
         'dndEnabled': 0,
         'dockErrorStatus': 0,
         'dockType': 3,
+        'dss': 169,
         'dustCollectionStatus': 0,
         'errorCode': 0,
         'fanPower': 102,
@@ -835,6 +836,7 @@
         'dndEnabled': 0,
         'dockErrorStatus': 0,
         'dockType': 3,
+        'dss': 169,
         'dustCollectionStatus': 0,
         'errorCode': 0,
         'fanPower': 102,
@@ -868,7 +870,7 @@
   })
 # ---
 # name: test_device_trait_command_parsing[status]
-  StatusTrait(adbumper_status=None, auto_dust_collection=None, avoid_count=None, back_type=None, battery=100, camera_status=None, charge_status=None, clean_area=91287500, clean_fluid_status=None, clean_percent=None, clean_time=5405, clear_water_box_status=None, collision_avoid_status=None, command=<RoborockCommand.GET_STATUS: 'get_status'>, common_status=None, corner_clean_mode=None, current_map=0, debug_mode=None, dirty_water_box_status=None, distance_off=0, dnd_enabled=1, dock_cool_fan_status=None, dock_error_status=None, dock_type=None, dry_status=None, dss=None, dust_bag_status=None, dust_collection_status=None, error_code=<RoborockErrorCode.none: 0>, error_code_name='none', fan_power=<RoborockFanSpeedS7MaxV.custom: 106>, fan_power_name='custom', fan_power_options=['off', 'quiet', 'balanced', 'turbo', 'max', 'custom', 'max_plus'], hatch_door_status=None, home_sec_enable_password=None, home_sec_status=None, in_cleaning=<RoborockInCleaning.complete: 0>, in_fresh_state=1, in_returning=0, in_warmup=None, is_exploring=None, is_locating=0, kct=None, lab_status=1, last_clean_t=None, lock_status=0, map_present=1, map_status=3, mop_forbidden_enable=0, mop_mode=None, mop_mode_name=None, msg_seq=515, msg_ver=2, rdt=None, repeat=None, replenish_mode=None, rss=None, square_meter_clean_area=91.3, state=<RoborockStateCode.charging: 8>, state_name='charging', subdivision_sets=None, switch_map_mode=None, unsave_map_flag=0, unsave_map_reason=4, wash_phase=None, wash_ready=None, wash_status=None, water_box_carriage_status=0, water_box_filter_status=None, water_box_mode=<RoborockMopIntensityS7.custom: 204>, water_box_mode_name='custom', water_box_status=0, water_shortage_status=None)
+  StatusTrait(adbumper_status=None, auto_dust_collection=None, avoid_count=None, back_type=None, battery=100, camera_status=None, charge_status=None, clean_area=91287500, clean_fluid_status=None, clean_percent=None, clean_time=5405, clear_water_box_status=None, collision_avoid_status=None, command=<RoborockCommand.GET_STATUS: 'get_status'>, common_status=None, corner_clean_mode=None, current_map=0, debug_mode=None, dirty_water_box_status=None, distance_off=0, dnd_enabled=1, dock_cool_fan_status=None, dock_error_status=None, dock_type=None, dry_status=None, dss=None, dust_bag_status=None, dust_collection_status=None, error_code=<RoborockErrorCode.none: 0>, error_code_name='none', fan_power=106, fan_speed_mapping={101: 'quiet', 102: 'balanced', 103: 'turbo', 104: 'max', 108: 'max_plus', 105: 'off', 106: 'custom'}, fan_speed_name='custom', fan_speed_options=[<VacuumModes.QUIET: 'quiet'>, <VacuumModes.BALANCED: 'balanced'>, <VacuumModes.TURBO: 'turbo'>, <VacuumModes.MAX: 'max'>, <VacuumModes.MAX_PLUS: 'max_plus'>, <VacuumModes.OFF: 'off'>, <VacuumModes.CUSTOMIZED: 'custom'>], hatch_door_status=None, home_sec_enable_password=None, home_sec_status=None, in_cleaning=<RoborockInCleaning.complete: 0>, in_fresh_state=1, in_returning=0, in_warmup=None, is_exploring=None, is_locating=0, kct=None, lab_status=1, last_clean_t=None, lock_status=0, map_present=1, map_status=3, mop_forbidden_enable=0, mop_mode=None, mop_route_mapping={300: 'standard', 301: 'deep', 302: 'custom'}, mop_route_name=None, mop_route_options=[<CleanRoutes.STANDARD: 'standard'>, <CleanRoutes.DEEP: 'deep'>, <CleanRoutes.CUSTOMIZED: 'custom'>], msg_seq=515, msg_ver=2, rdt=None, repeat=None, replenish_mode=None, rss=None, square_meter_clean_area=91.3, state=<RoborockStateCode.charging: 8>, state_name='charging', subdivision_sets=None, switch_map_mode=None, unsave_map_flag=0, unsave_map_reason=4, wash_phase=None, wash_ready=None, wash_status=None, water_box_carriage_status=0, water_box_filter_status=None, water_box_mode=204, water_box_status=0, water_mode_mapping={200: 'off', 201: 'mild', 202: 'standard', 203: 'intense', 207: 'custom_water_flow', 204: 'custom'}, water_mode_name='custom', water_mode_options=[<WaterModes.OFF: 'off'>, <WaterModes.MILD: 'mild'>, <WaterModes.STANDARD: 'standard'>, <WaterModes.INTENSE: 'intense'>, <WaterModes.CUSTOM: 'custom_water_flow'>, <WaterModes.CUSTOMIZED: 'custom'>], water_shortage_status=None)
 # ---
 # name: test_device_trait_command_parsing[status].1
   dict({
@@ -1650,6 +1652,7 @@
         'dndEnabled': 0,
         'dockErrorStatus': 0,
         'dockType': 3,
+        'dss': 169,
         'dustCollectionStatus': 0,
         'errorCode': 0,
         'fanPower': 102,

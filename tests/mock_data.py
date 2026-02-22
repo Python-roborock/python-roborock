@@ -251,8 +251,8 @@ STATUS = {
     "charge_status": 1,
     "unsave_map_reason": 0,
     "unsave_map_flag": 0,
+    "dss": 169,
 }
-
 BASE_URL_REQUEST = {
     "code": 200,
     "msg": "success",

@@ -64,6 +64,7 @@ def device_fixture(channel: AsyncMock, rpc_channel: AsyncMock, mqtt_rpc_channel:
             AsyncMock(),
             AsyncMock(),
             device_cache=DeviceCache(HOME_DATA.devices[0].duid, NoCache()),
+            region=USER_DATA.region,
         ),
     )
 
