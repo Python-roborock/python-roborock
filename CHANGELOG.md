@@ -2,6 +2,52 @@
 
 <!-- version list -->
 
+## v4.17.0 (2026-02-22)
+
+### Chores
+
+- Add dss to status ([#611](https://github.com/Python-roborock/python-roborock/pull/611),
+  [`3e4a0be`](https://github.com/Python-roborock/python-roborock/commit/3e4a0be03cdcc761f91c1cdd20cd5ee3b1f8ceee))
+
+- Add hash ([#611](https://github.com/Python-roborock/python-roborock/pull/611),
+  [`3e4a0be`](https://github.com/Python-roborock/python-roborock/commit/3e4a0be03cdcc761f91c1cdd20cd5ee3b1f8ceee))
+
+- Add more info about the dynamic attributes
+  ([#611](https://github.com/Python-roborock/python-roborock/pull/611),
+  [`3e4a0be`](https://github.com/Python-roborock/python-roborock/commit/3e4a0be03cdcc761f91c1cdd20cd5ee3b1f8ceee))
+
+- Add some docs and a basic test
+  ([#611](https://github.com/Python-roborock/python-roborock/pull/611),
+  [`3e4a0be`](https://github.com/Python-roborock/python-roborock/commit/3e4a0be03cdcc761f91c1cdd20cd5ee3b1f8ceee))
+
+- Add testing ([#611](https://github.com/Python-roborock/python-roborock/pull/611),
+  [`3e4a0be`](https://github.com/Python-roborock/python-roborock/commit/3e4a0be03cdcc761f91c1cdd20cd5ee3b1f8ceee))
+
+- Add warning about hash for RoborockModeEnum
+  ([#611](https://github.com/Python-roborock/python-roborock/pull/611),
+  [`3e4a0be`](https://github.com/Python-roborock/python-roborock/commit/3e4a0be03cdcc761f91c1cdd20cd5ee3b1f8ceee))
+
+- Address comments ([#611](https://github.com/Python-roborock/python-roborock/pull/611),
+  [`3e4a0be`](https://github.com/Python-roborock/python-roborock/commit/3e4a0be03cdcc761f91c1cdd20cd5ee3b1f8ceee))
+
+- Change str ([#611](https://github.com/Python-roborock/python-roborock/pull/611),
+  [`3e4a0be`](https://github.com/Python-roborock/python-roborock/commit/3e4a0be03cdcc761f91c1cdd20cd5ee3b1f8ceee))
+
+- Do dynamic status ([#611](https://github.com/Python-roborock/python-roborock/pull/611),
+  [`3e4a0be`](https://github.com/Python-roborock/python-roborock/commit/3e4a0be03cdcc761f91c1cdd20cd5ee3b1f8ceee))
+
+- Update e2e ([#611](https://github.com/Python-roborock/python-roborock/pull/611),
+  [`3e4a0be`](https://github.com/Python-roborock/python-roborock/commit/3e4a0be03cdcc761f91c1cdd20cd5ee3b1f8ceee))
+
+### Features
+
+- Add more data and region ([#611](https://github.com/Python-roborock/python-roborock/pull/611),
+  [`3e4a0be`](https://github.com/Python-roborock/python-roborock/commit/3e4a0be03cdcc761f91c1cdd20cd5ee3b1f8ceee))
+
+- Make status dynamic ([#611](https://github.com/Python-roborock/python-roborock/pull/611),
+  [`3e4a0be`](https://github.com/Python-roborock/python-roborock/commit/3e4a0be03cdcc761f91c1cdd20cd5ee3b1f8ceee))
+
+
 ## v4.16.0 (2026-02-22)
 
 ### Chores
