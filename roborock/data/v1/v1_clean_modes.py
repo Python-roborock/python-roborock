@@ -16,7 +16,6 @@ class VacuumModes(RoborockModeEnum):
     TURBO = ("turbo", 103)
     MAX = ("max", 104)
     MAX_PLUS = ("max_plus", 108)
-    CARPET = ("carpet", 107)
     OFF_RAISE_MAIN_BRUSH = ("off_raise_main_brush", 109)
     CUSTOMIZED = ("custom", 106)
     SMART_MODE = ("smart_mode", 110)
@@ -85,8 +84,6 @@ def get_clean_modes(features: DeviceFeatures) -> list[VacuumModes]:
     if features.is_max_plus_mode_supported or features.is_none_pure_clean_mop_with_max_plus:
         # If the vacuum has max plus mode supported
         modes.append(VacuumModes.MAX_PLUS)
-    if features.is_carpet_deep_clean_supported:
-        modes.append(VacuumModes.CARPET)
     if features.is_pure_clean_mop_supported:
         # If the vacuum is capable of 'pure mop clean' aka no vacuum
         if features.is_support_main_brush_up_down_supported:
