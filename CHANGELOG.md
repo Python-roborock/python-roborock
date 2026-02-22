@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v4.17.1 (2026-02-22)
+
+### Bug Fixes
+
+- Remove carpet clean mode ([#772](https://github.com/Python-roborock/python-roborock/pull/772),
+  [`931b68e`](https://github.com/Python-roborock/python-roborock/commit/931b68ea4fcb1d61a310d534cba662a704b6dca3))
+
+
 ## v4.17.0 (2026-02-22)
 
 ### Chores
