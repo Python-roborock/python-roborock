@@ -2,6 +2,24 @@
 
 <!-- version list -->
 
+## v4.16.0 (2026-02-22)
+
+### Chores
+
+- Fix test pydoc lint error ([#771](https://github.com/Python-roborock/python-roborock/pull/771),
+  [`e72d5ca`](https://github.com/Python-roborock/python-roborock/commit/e72d5ca7b7997760498108761d5b9a8c7907addc))
+
+- Update tests/devices/traits/b01/q10/test_status.py
+  ([#771](https://github.com/Python-roborock/python-roborock/pull/771),
+  [`e72d5ca`](https://github.com/Python-roborock/python-roborock/commit/e72d5ca7b7997760498108761d5b9a8c7907addc))
+
+### Features
+
+- Update the status listener API
+  ([#771](https://github.com/Python-roborock/python-roborock/pull/771),
+  [`e72d5ca`](https://github.com/Python-roborock/python-roborock/commit/e72d5ca7b7997760498108761d5b9a8c7907addc))
+
+
 ## v4.15.0 (2026-02-21)
 
 ### Bug Fixes
