@@ -36,10 +36,39 @@ and call `update_from_dps` whenever new data is received from the device stream.
 """
 
 import dataclasses
+import logging
+from collections.abc import Callable
 from typing import Any
 
+from roborock.callbacks import CallbackList
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
 from roborock.data.containers import RoborockBase
+
+
+class TraitUpdateListener:
+    """Trait update listener.
+
+    This is a base class for traits to support notifying listeners when they
+    have been updated. Clients may register callbacks to be notified when the
+    trait has been updated. When the listener callback is invoked, the client
+    should read the trait's properties to get the updated values.
+    """
+
+    def __init__(self, logger: logging.Logger) -> None:
+        """Initialize the trait update listener."""
+        self._update_callbacks: CallbackList[None] = CallbackList(logger=logger)
+
+    def add_update_listener(self, callback: Callable[[], None]) -> Callable[[], None]:
+        """Register a callback when the trait has been updated.
+
+        Returns a callable to remove the listener.
+        """
+        # We wrap the callback to ignore the value passed to it.
+        return self._update_callbacks.add_callback(lambda _: callback())
+
+    def _notify_update(self) -> None:
+        """Notify all update listeners."""
+        self._update_callbacks(None)
 
 
 class DpsDataConverter:
@@ -66,7 +95,7 @@ class DpsDataConverter:
                 dps_field_map[dps_id] = field_obj.name
         return cls(dps_type_map, dps_field_map)
 
-    def update_from_dps(self, target: RoborockBase, decoded_dps: dict[B01_Q10_DP, Any]) -> None:
+    def update_from_dps(self, target: RoborockBase, decoded_dps: dict[B01_Q10_DP, Any]) -> bool:
         """Convert and merge raw DPS data into the target object.
 
         Uses the pre-calculated type mapping to ensure values are converted to the
@@ -75,8 +104,12 @@ class DpsDataConverter:
         Args:
             target: The target object to update.
             decoded_dps: The decoded DPS data to convert.
+
+        Returns:
+            True if any values were updated, False otherwise.
         """
         conversions = RoborockBase.convert_dict(self._dps_type_map, decoded_dps)
         for dps_id, value in conversions.items():
             field_name = self._dps_field_map[dps_id]
             setattr(target, field_name, value)
+        return bool(conversions)

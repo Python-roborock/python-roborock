@@ -144,18 +144,33 @@ async def test_status_trait_refresh(
 
 def test_status_trait_update_listener(q10_api: Q10PropertiesApi) -> None:
     """Test that status listeners receive updates and can unsubscribe."""
-    updates: list[dict[B01_Q10_DP, Any]] = []
+    event = asyncio.Event()
 
-    unsubscribe = q10_api.status.add_update_listener(updates.append)
+    unsubscribe = q10_api.status.add_update_listener(event.set)
 
     first_update = {B01_Q10_DP.BATTERY: 88}
     q10_api.status.update_from_dps(first_update)
 
-    assert updates == [first_update]
+    assert event.is_set()
+    event.clear()
 
     unsubscribe()
 
     second_update = {B01_Q10_DP.BATTERY: 87}
     q10_api.status.update_from_dps(second_update)
 
-    assert updates == [first_update]
+    assert not event.is_set()
+
+
+def test_status_trait_update_listener_ignores_value(q10_api: Q10PropertiesApi) -> None:
+    """Test that status listeners are not notified for unrelated updates."""
+    event = asyncio.Event()
+
+    unsubscribe = q10_api.status.add_update_listener(event.set)
+
+    first_update = {B01_Q10_DP.HEARTBEAT: 1}  # Not a value in `Status` dataclass
+    q10_api.status.update_from_dps(first_update)
+
+    assert not event.is_set()
+
+    unsubscribe()
