@@ -21,6 +21,16 @@ class StatusTrait(StatusV2, common.V1TraitMixin):
         the latest data from the device. You must pass in the device feature trait
         to this trait so that the dynamic attributes can be pre-determined.
 
+    The current dynamic attributes are:
+    - Fan Speed
+    - Water Mode
+    - Mop Route
+
+    You should call the _options() version of the attribute to know which are supported for your device
+    (i.e. fan_speed_options())
+    Then you can call the _mapping to convert an int value to the actual Enum. (i.e. fan_speed_mapping())
+    You can call the _name property to get the str value of the enum. (i.e. fan_speed_name)
+
     """
 
     command = RoborockCommand.GET_STATUS
