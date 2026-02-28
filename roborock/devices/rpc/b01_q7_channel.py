@@ -127,7 +127,8 @@ async def send_map_command(mqtt_channel: MqttChannel, request_message: Q7Request
                 return
 
             if response_message.protocol == RoborockMessageProtocol.MAP_RESPONSE and response_message.payload:
-                future.set_result(response_message.payload)
+                if not future.done():
+                    future.set_result(response_message.payload)
                 return
 
             try:
@@ -146,12 +147,16 @@ async def send_map_command(mqtt_channel: MqttChannel, request_message: Q7Request
                     continue
                 code = inner.get("code", 0)
                 if code != 0:
-                    future.set_exception(RoborockException(f"B01 command failed with code {code} ({request_message})"))
+                    if not future.done():
+                        future.set_exception(
+                            RoborockException(f"B01 command failed with code {code} ({request_message})")
+                        )
                     return
                 data = inner.get("data")
                 if isinstance(data, dict) and isinstance(data.get("payload"), str):
                     try:
-                        future.set_result(bytes.fromhex(data["payload"]))
+                        if not future.done():
+                            future.set_result(bytes.fromhex(data["payload"]))
                     except ValueError:
                         pass
 
