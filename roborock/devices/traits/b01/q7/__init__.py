@@ -21,10 +21,12 @@ from roborock.roborock_message import RoborockB01Props
 from roborock.roborock_typing import RoborockB01Q7Methods
 
 from .clean_summary import CleanSummaryTrait
+from .map_content import Q7MapContentTrait
 
 __all__ = [
     "Q7PropertiesApi",
     "CleanSummaryTrait",
+    "Q7MapContentTrait",
 ]
 
 
@@ -33,11 +35,13 @@ class Q7PropertiesApi(Trait):
 
     clean_summary: CleanSummaryTrait
     """Trait for clean records / clean summary (Q7 `service.get_record_list`)."""
+    map_content: Q7MapContentTrait
 
-    def __init__(self, channel: MqttChannel) -> None:
+    def __init__(self, channel: MqttChannel, *, local_key: str, serial: str, model: str) -> None:
         """Initialize the B01Props API."""
         self._channel = channel
         self.clean_summary = CleanSummaryTrait(channel)
+        self.map_content = Q7MapContentTrait(channel, local_key=local_key, serial=serial, model=model)
 
     async def query_values(self, props: list[RoborockB01Props]) -> B01Props | None:
         """Query the device for the values of the given Q7 properties."""
@@ -142,6 +146,6 @@ class Q7PropertiesApi(Trait):
         )
 
 
-def create(channel: MqttChannel) -> Q7PropertiesApi:
-    """Create traits for B01 devices."""
-    return Q7PropertiesApi(channel)
+def create(channel: MqttChannel, *, local_key: str, serial: str, model: str) -> Q7PropertiesApi:
+    """Create traits for B01 Q7 devices."""
+    return Q7PropertiesApi(channel, local_key=local_key, serial=serial, model=model)
