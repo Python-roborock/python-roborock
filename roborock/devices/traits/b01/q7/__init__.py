@@ -35,13 +35,24 @@ class Q7PropertiesApi(Trait):
 
     clean_summary: CleanSummaryTrait
     """Trait for clean records / clean summary (Q7 `service.get_record_list`)."""
-    map_content: Q7MapContentTrait
+    map_content: Q7MapContentTrait | None
 
-    def __init__(self, channel: MqttChannel, *, local_key: str, serial: str, model: str) -> None:
+    def __init__(
+        self,
+        channel: MqttChannel,
+        *,
+        local_key: str | None = None,
+        serial: str | None = None,
+        model: str | None = None,
+    ) -> None:
         """Initialize the B01Props API."""
         self._channel = channel
         self.clean_summary = CleanSummaryTrait(channel)
-        self.map_content = Q7MapContentTrait(channel, local_key=local_key, serial=serial, model=model)
+        if local_key and serial and model:
+            self.map_content = Q7MapContentTrait(channel, local_key=local_key, serial=serial, model=model)
+        else:
+            # Keep backwards compatibility for direct callers that only use command/query traits.
+            self.map_content = None
 
     async def query_values(self, props: list[RoborockB01Props]) -> B01Props | None:
         """Query the device for the values of the given Q7 properties."""
@@ -91,14 +102,14 @@ class Q7PropertiesApi(Trait):
             },
         )
 
-    async def clean_segments(self, room_ids: list[int]) -> None:
-        """Start segment/room cleaning for the given room ids."""
+    async def clean_segments(self, segment_ids: list[int]) -> None:
+        """Start segment cleaning for the given ids (Q7 uses room ids)."""
         await self.send(
             command=RoborockB01Q7Methods.SET_ROOM_CLEAN,
             params={
                 "clean_type": CleanTaskTypeMapping.ROOM.code,
                 "ctrl_value": SCDeviceCleanParam.START.code,
-                "room_ids": room_ids,
+                "room_ids": segment_ids,
             },
         )
 
@@ -146,6 +157,12 @@ class Q7PropertiesApi(Trait):
         )
 
 
-def create(channel: MqttChannel, *, local_key: str, serial: str, model: str) -> Q7PropertiesApi:
+def create(
+    channel: MqttChannel,
+    *,
+    local_key: str | None = None,
+    serial: str | None = None,
+    model: str | None = None,
+) -> Q7PropertiesApi:
     """Create traits for B01 Q7 devices."""
     return Q7PropertiesApi(channel, local_key=local_key, serial=serial, model=model)

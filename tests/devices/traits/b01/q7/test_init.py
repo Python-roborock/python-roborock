@@ -378,3 +378,9 @@ async def test_q7_map_content_refresh_errors_without_map_list(
 
     with pytest.raises(RoborockException, match="Unable to determine map_id"):
         await q7_api.map_content.refresh()
+
+
+async def test_q7_api_constructor_backwards_compatible_without_map_context(fake_channel: FakeChannel):
+    """Direct API construction without map context should still work."""
+    api = Q7PropertiesApi(fake_channel)  # type: ignore[arg-type]
+    assert api.map_content is None

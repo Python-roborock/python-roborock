@@ -24,6 +24,7 @@ class B01MapData:
     size_x: int
     size_y: int
     map_data: bytes
+    rooms: dict[int, str] | None = None
 
 
 def _read_varint(buf: bytes, idx: int) -> tuple[int, int]:
@@ -72,12 +73,36 @@ def _parse_map_data_info(blob: bytes) -> bytes:
     raise RoborockException("B01 map payload missing mapData")
 
 
+def _parse_room_data_info(blob: bytes) -> tuple[int | None, str | None]:
+    room_id: int | None = None
+    room_name: str | None = None
+    idx = 0
+    while idx < len(blob):
+        key, idx = _read_varint(blob, idx)
+        field_no = key >> 3
+        wire = key & 0x07
+        if wire == 0:
+            value, idx = _read_varint(blob, idx)
+            if field_no == 1:
+                room_id = int(value)
+        elif wire == 2:
+            value, idx = _read_len_delimited(blob, idx)
+            if field_no == 2:
+                room_name = value.decode("utf-8", errors="replace")
+        elif wire == 5:
+            idx += 4
+        else:
+            raise RoborockException(f"Unsupported wire type {wire} in B01 room data info")
+    return room_id, room_name
+
+
 def parse_scmap_payload(payload: bytes) -> B01MapData:
-    """Parse SCMap protobuf payload and extract occupancy grid bytes."""
+    """Parse SCMap protobuf payload and extract occupancy grid bytes and room names."""
 
     size_x = 0
     size_y = 0
     grid = b""
+    rooms: dict[int, str] = {}
     idx = 0
     while idx < len(payload):
         key, idx = _read_varint(payload, idx)
@@ -112,12 +137,16 @@ def parse_scmap_payload(payload: bytes) -> B01MapData:
                     raise RoborockException(f"Unsupported wire type {hwire} in B01 map header")
         elif field_no == 4:  # mapDataInfo
             grid = _parse_map_data_info(value)
+        elif field_no == 12:  # roomDataInfo (repeated)
+            room_id, room_name = _parse_room_data_info(value)
+            if room_id is not None:
+                rooms[room_id] = room_name or f"Room {room_id}"
 
     if not size_x or not size_y or not grid:
         raise RoborockException("Failed to parse B01 map header/grid")
     if len(grid) < size_x * size_y:
         raise RoborockException("B01 map data shorter than expected dimensions")
-    return B01MapData(size_x=size_x, size_y=size_y, map_data=grid)
+    return B01MapData(size_x=size_x, size_y=size_y, map_data=grid, rooms=rooms or None)
 
 
 def _derive_b01_iv(iv_seed: int) -> bytes:

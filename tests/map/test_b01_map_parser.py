@@ -20,6 +20,8 @@ def test_parse_scmap_payload_fixture() -> None:
     assert parsed.size_x == 340
     assert parsed.size_y == 300
     assert len(parsed.map_data) >= parsed.size_x * parsed.size_y
+    assert parsed.rooms is not None
+    assert parsed.rooms.get(10) == "room1"
 
 
 def test_render_map_png_fixture() -> None:

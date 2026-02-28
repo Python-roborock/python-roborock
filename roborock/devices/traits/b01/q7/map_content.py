@@ -10,11 +10,7 @@ from roborock.devices.traits import Trait
 from roborock.devices.traits.v1.map_content import MapContent
 from roborock.devices.transport.mqtt_channel import MqttChannel
 from roborock.exceptions import RoborockException
-from roborock.map.b01_map_parser import (
-    decode_b01_map_payload,
-    parse_scmap_payload,
-    render_map_png,
-)
+from roborock.map.b01_map_parser import decode_b01_map_payload, parse_scmap_payload, render_map_png
 from roborock.protocols.b01_q7_protocol import Q7RequestMessage
 from roborock.roborock_typing import RoborockB01Q7Methods
 
@@ -22,6 +18,8 @@ from roborock.roborock_typing import RoborockB01Q7Methods
 @dataclass
 class B01MapContent(MapContent):
     """B01 map content wrapper."""
+
+    rooms: dict[int, str] | None = None
 
 
 def _extract_current_map_id(map_list_response: dict[str, Any] | None) -> int | None:
@@ -77,5 +75,6 @@ class Q7MapContentTrait(B01MapContent, Trait):
         parsed = parse_scmap_payload(inflated)
         self.raw_api_response = raw_payload
         self.map_data = None
+        self.rooms = parsed.rooms
         self.image_content = render_map_png(parsed)
         return self
