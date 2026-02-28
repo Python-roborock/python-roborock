@@ -87,6 +87,17 @@ class Q7PropertiesApi(Trait):
             },
         )
 
+    async def clean_segments(self, room_ids: list[int]) -> None:
+        """Start segment/room cleaning for the given room ids."""
+        await self.send(
+            command=RoborockB01Q7Methods.SET_ROOM_CLEAN,
+            params={
+                "clean_type": CleanTaskTypeMapping.ROOM.code,
+                "ctrl_value": SCDeviceCleanParam.START.code,
+                "room_ids": room_ids,
+            },
+        )
+
     async def pause_clean(self) -> None:
         """Pause cleaning."""
         await self.send(
