@@ -325,3 +325,56 @@ async def test_q7_map_content_refresh_from_map_response(
     second_payload = json.loads(unpad(second.payload, AES.block_size))
     assert second_payload["dps"]["10000"]["method"] == "service.upload_by_mapid"
     assert second_payload["dps"]["10000"]["params"] == {"map_id": 1772093512}
+
+
+async def test_q7_map_content_refresh_falls_back_to_first_map(
+    q7_api: Q7PropertiesApi,
+    fake_channel: FakeChannel,
+    message_builder: B01MessageBuilder,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """If no map is marked current, use first map from map_list."""
+
+    fake_channel.response_queue.append(
+        message_builder.build({"map_list": [{"id": 111}, {"id": 222, "cur": False}]})
+    )
+    fake_channel.response_queue.append(
+        RoborockMessage(
+            protocol=RoborockMessageProtocol.MAP_RESPONSE,
+            payload=b"raw-map-payload",
+            version=b"B01",
+            seq=message_builder.seq + 1,
+        )
+    )
+
+    monkeypatch.setattr(
+        "roborock.devices.traits.b01.q7.map_content.decode_b01_map_payload",
+        lambda raw_payload, **kwargs: b"inflated-payload",
+    )
+    monkeypatch.setattr(
+        "roborock.devices.traits.b01.q7.map_content.parse_scmap_payload",
+        lambda payload: B01MapData(size_x=1, size_y=1, map_data=b"\x01"),
+    )
+    monkeypatch.setattr(
+        "roborock.devices.traits.b01.q7.map_content.render_map_png",
+        lambda parsed: b"\x89PNG-test",
+    )
+
+    await q7_api.map_content.refresh()
+
+    second = fake_channel.published_messages[1]
+    second_payload = json.loads(unpad(second.payload, AES.block_size))
+    assert second_payload["dps"]["10000"]["params"] == {"map_id": 111}
+
+
+async def test_q7_map_content_refresh_errors_without_map_list(
+    q7_api: Q7PropertiesApi,
+    fake_channel: FakeChannel,
+    message_builder: B01MessageBuilder,
+):
+    """Map refresh should fail clearly when map list response is unusable."""
+
+    fake_channel.response_queue.append(message_builder.build({"map_list": []}))
+
+    with pytest.raises(RoborockException, match="Unable to determine map_id"):
+        await q7_api.map_content.refresh()
