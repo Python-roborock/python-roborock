@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v4.17.2 (2026-03-01)
+
+### Bug Fixes
+
+- Bump pyrate ([#775](https://github.com/Python-roborock/python-roborock/pull/775),
+  [`57083ab`](https://github.com/Python-roborock/python-roborock/commit/57083ab27606af82b5457c82d35e63dd6f5e5754))
+
+
 ## v4.17.1 (2026-02-22)
 
 ### Bug Fixes
