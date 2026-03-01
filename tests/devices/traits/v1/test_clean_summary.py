@@ -183,7 +183,8 @@ async def test_get_clean_record_dict_response(
     assert clean_record.complete == 1
     assert clean_record.start_type == 2
     assert clean_record.clean_type == 3
-    assert clean_record.finish_reason == 56
+    assert clean_record.finish_reason is not None
+    assert clean_record.finish_reason.code == 56
     assert clean_record.dust_collection_status == 1
     assert clean_record.avoid_count == 19
     assert clean_record.wash_count == 2
