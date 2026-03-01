@@ -16,8 +16,9 @@ from roborock.data.b01_q7 import (
 from roborock.devices.rpc.b01_q7_channel import send_decoded_command
 from roborock.devices.traits.b01.q7 import Q7PropertiesApi
 from roborock.exceptions import RoborockException
+from roborock.map.b01_map_parser import B01MapData
 from roborock.protocols.b01_q7_protocol import B01_VERSION, Q7RequestMessage
-from roborock.roborock_message import RoborockB01Props, RoborockMessageProtocol
+from roborock.roborock_message import RoborockB01Props, RoborockMessage, RoborockMessageProtocol
 from tests.fixtures.channel_fixtures import FakeChannel
 
 from . import B01MessageBuilder
@@ -257,3 +258,129 @@ async def test_q7_api_find_me(q7_api: Q7PropertiesApi, fake_channel: FakeChannel
     payload_data = json.loads(unpad(message.payload, AES.block_size))
     assert payload_data["dps"]["10000"]["method"] == "service.find_device"
     assert payload_data["dps"]["10000"]["params"] == {}
+
+
+async def test_q7_api_clean_segments(
+    q7_api: Q7PropertiesApi, fake_channel: FakeChannel, message_builder: B01MessageBuilder
+):
+    """Test room/segment cleaning helper for Q7."""
+    fake_channel.response_queue.append(message_builder.build({"result": "ok"}))
+    await q7_api.clean_segments([10, 11])
+
+    assert len(fake_channel.published_messages) == 1
+    message = fake_channel.published_messages[0]
+    payload_data = json.loads(unpad(message.payload, AES.block_size))
+    assert payload_data["dps"]["10000"]["method"] == "service.set_room_clean"
+    assert payload_data["dps"]["10000"]["params"] == {
+        "clean_type": CleanTaskTypeMapping.ROOM.code,
+        "ctrl_value": SCDeviceCleanParam.START.code,
+        "room_ids": [10, 11],
+    }
+
+
+async def test_q7_map_content_refresh_from_map_response(
+    q7_api: Q7PropertiesApi,
+    fake_channel: FakeChannel,
+    message_builder: B01MessageBuilder,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Test Q7 map content refresh wiring through map list + MAP_RESPONSE payload path."""
+
+    fake_channel.response_queue.append(message_builder.build({"map_list": [{"id": 1772093512, "cur": True}]}))
+    fake_channel.response_queue.append(
+        RoborockMessage(
+            protocol=RoborockMessageProtocol.MAP_RESPONSE,
+            payload=b"raw-map-payload",
+            version=b"B01",
+            seq=message_builder.seq + 1,
+        )
+    )
+
+    monkeypatch.setattr(
+        "roborock.devices.traits.b01.q7.map_content.decode_b01_map_payload",
+        lambda raw_payload, **kwargs: b"inflated-payload",
+    )
+    monkeypatch.setattr(
+        "roborock.devices.traits.b01.q7.map_content.parse_scmap_payload",
+        lambda payload: B01MapData(size_x=1, size_y=1, map_data=b"\x01"),
+    )
+    monkeypatch.setattr(
+        "roborock.devices.traits.b01.q7.map_content.render_map_png",
+        lambda parsed: b"\x89PNG-test",
+    )
+
+    result = await q7_api.map_content.refresh()
+
+    assert result.image_content == b"\x89PNG-test"
+    assert result.raw_api_response == b"raw-map-payload"
+
+    assert len(fake_channel.published_messages) == 2
+
+    first = fake_channel.published_messages[0]
+    first_payload = json.loads(unpad(first.payload, AES.block_size))
+    assert first_payload["dps"]["10000"]["method"] == "service.get_map_list"
+    assert first_payload["dps"]["10000"]["params"] == {}
+
+    second = fake_channel.published_messages[1]
+    second_payload = json.loads(unpad(second.payload, AES.block_size))
+    assert second_payload["dps"]["10000"]["method"] == "service.upload_by_mapid"
+    assert second_payload["dps"]["10000"]["params"] == {"map_id": 1772093512}
+
+
+async def test_q7_map_content_refresh_falls_back_to_first_map(
+    q7_api: Q7PropertiesApi,
+    fake_channel: FakeChannel,
+    message_builder: B01MessageBuilder,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """If no map is marked current, use first map from map_list."""
+
+    fake_channel.response_queue.append(
+        message_builder.build({"map_list": [{"id": 111}, {"id": 222, "cur": False}]})
+    )
+    fake_channel.response_queue.append(
+        RoborockMessage(
+            protocol=RoborockMessageProtocol.MAP_RESPONSE,
+            payload=b"raw-map-payload",
+            version=b"B01",
+            seq=message_builder.seq + 1,
+        )
+    )
+
+    monkeypatch.setattr(
+        "roborock.devices.traits.b01.q7.map_content.decode_b01_map_payload",
+        lambda raw_payload, **kwargs: b"inflated-payload",
+    )
+    monkeypatch.setattr(
+        "roborock.devices.traits.b01.q7.map_content.parse_scmap_payload",
+        lambda payload: B01MapData(size_x=1, size_y=1, map_data=b"\x01"),
+    )
+    monkeypatch.setattr(
+        "roborock.devices.traits.b01.q7.map_content.render_map_png",
+        lambda parsed: b"\x89PNG-test",
+    )
+
+    await q7_api.map_content.refresh()
+
+    second = fake_channel.published_messages[1]
+    second_payload = json.loads(unpad(second.payload, AES.block_size))
+    assert second_payload["dps"]["10000"]["params"] == {"map_id": 111}
+
+
+async def test_q7_map_content_refresh_errors_without_map_list(
+    q7_api: Q7PropertiesApi,
+    fake_channel: FakeChannel,
+    message_builder: B01MessageBuilder,
+):
+    """Map refresh should fail clearly when map list response is unusable."""
+
+    fake_channel.response_queue.append(message_builder.build({"map_list": []}))
+
+    with pytest.raises(RoborockException, match="Unable to determine map_id"):
+        await q7_api.map_content.refresh()
+
+
+async def test_q7_api_constructor_backwards_compatible_without_map_context(fake_channel: FakeChannel):
+    """Direct API construction without map context should still work."""
+    api = Q7PropertiesApi(fake_channel)  # type: ignore[arg-type]
+    assert api.map_content is None

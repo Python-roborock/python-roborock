@@ -29,6 +29,7 @@ dependencies = [
     "pyrate-limiter>=4.0.0,<5",
     "aiomqtt>=2.5.0,<3",
     "click-shell~=2.1",
+    "Pillow>=10,<12",
 ]
 
 [project.urls]

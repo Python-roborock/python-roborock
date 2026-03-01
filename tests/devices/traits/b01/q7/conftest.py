@@ -18,7 +18,7 @@ def fake_channel_fixture() -> FakeChannel:
 
 @pytest.fixture(name="q7_api")
 def q7_api_fixture(fake_channel: FakeChannel) -> Q7PropertiesApi:
-    return Q7PropertiesApi(fake_channel)  # type: ignore[arg-type]
+    return Q7PropertiesApi(fake_channel, local_key="abcdefghijklmnop", serial="test_sn", model="roborock.vacuum.sc05")  # type: ignore[arg-type]
 
 
 @pytest.fixture(name="expected_msg_id", autouse=True)
