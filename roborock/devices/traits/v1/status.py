@@ -1,7 +1,16 @@
 from functools import cached_property
 from typing import Self
 
-from roborock import CleanRoutes, StatusV2, VacuumModes, WaterModes, get_clean_modes, get_clean_routes, get_water_modes
+from roborock import (
+    CleanRoutes,
+    StatusV2,
+    VacuumModes,
+    WaterModes,
+    get_clean_modes,
+    get_clean_routes,
+    get_water_mode_mapping,
+    get_water_modes,
+)
 from roborock.roborock_typing import RoborockCommand
 
 from . import common
@@ -55,7 +64,7 @@ class StatusTrait(StatusV2, common.V1TraitMixin):
 
     @cached_property
     def water_mode_mapping(self) -> dict[int, str]:
-        return {mop.code: mop.value for mop in self.water_mode_options}
+        return get_water_mode_mapping(self._device_features_trait)
 
     @cached_property
     def mop_route_options(self) -> list[CleanRoutes]:

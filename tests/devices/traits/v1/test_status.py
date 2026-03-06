@@ -1,16 +1,21 @@
 """Tests for the StatusTrait class."""
 
+from typing import cast
 from unittest.mock import AsyncMock
 
 import pytest
 
+from roborock.data import SHORT_MODEL_TO_ENUM
 from roborock.data.v1 import (
     RoborockStateCode,
 )
+from roborock.device_features import DeviceFeatures
 from roborock.devices.device import RoborockDevice
+from roborock.devices.traits.v1.device_features import DeviceFeaturesTrait
 from roborock.devices.traits.v1.status import StatusTrait
 from roborock.exceptions import RoborockException
 from roborock.roborock_typing import RoborockCommand
+from tests import mock_data
 from tests.mock_data import STATUS
 
 
@@ -80,3 +85,40 @@ def test_options(status_trait: StatusTrait) -> None:
     assert len(status_trait.water_mode_options) > 0
     assert isinstance(status_trait.mop_route_options, list)
     assert len(status_trait.mop_route_options) > 0
+
+
+def test_water_slide_mode_mapping() -> None:
+    """Test feature-aware water mode mapping for water slide mode devices."""
+    short_model = mock_data.A114_PRODUCT_DATA["model"].split(".")[-1]
+    features = DeviceFeatures.from_feature_flags(
+        new_feature_info=int(mock_data.SAROS_10R_DEVICE_DATA["featureSet"]),
+        new_feature_info_str=mock_data.SAROS_10R_DEVICE_DATA["newFeatureSet"],
+        feature_info=[],
+        product_nickname=SHORT_MODEL_TO_ENUM[short_model],
+    )
+    status_trait = StatusTrait(cast(DeviceFeaturesTrait, features), region="eu")
+
+    assert features.is_water_slide_mode_supported
+    assert status_trait.water_mode_mapping == {
+        200: "off",
+        221: "slight",
+        225: "low",
+        235: "medium",
+        245: "moderate",
+        248: "high",
+        250: "extreme",
+    }
+    assert [mode.value for mode in status_trait.water_mode_options] == [
+        "off",
+        "slight",
+        "low",
+        "medium",
+        "moderate",
+        "high",
+        "extreme",
+    ]
+
+    status_trait.water_box_mode = 225
+    assert status_trait.water_mode_name == "low"
+    status_trait.water_box_mode = 200
+    assert status_trait.water_mode_name == "off"
