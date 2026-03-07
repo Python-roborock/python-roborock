@@ -113,14 +113,23 @@ async def send_map_command(mqtt_channel: MqttChannel, request_message: Q7Request
 
     roborock_message = encode_mqtt_payload(request_message)
     future: asyncio.Future[bytes] = asyncio.get_running_loop().create_future()
+    publish_started = asyncio.Event()
 
     def find_response(response_message: RoborockMessage) -> None:
         if future.done():
             return
 
-        if response_message.protocol == RoborockMessageProtocol.MAP_RESPONSE and response_message.payload:
-            if not future.done():
-                future.set_result(response_message.payload)
+        # Avoid accepting queued/stale MAP_RESPONSE messages before we actually
+        # publish this request.
+        if not publish_started.is_set():
+            return
+
+        if (
+            response_message.protocol == RoborockMessageProtocol.MAP_RESPONSE
+            and response_message.payload
+            and response_message.version == roborock_message.version
+        ):
+            future.set_result(response_message.payload)
             return
 
         try:
@@ -145,13 +154,25 @@ async def send_map_command(mqtt_channel: MqttChannel, request_message: Q7Request
             data = inner.get("data")
             if isinstance(data, dict) and isinstance(data.get("payload"), str):
                 try:
-                    if not future.done():
-                        future.set_result(bytes.fromhex(data["payload"]))
-                except ValueError:
-                    pass
+                    future.set_result(bytes.fromhex(data["payload"]))
+                except ValueError as ex:
+                    future.set_exception(
+                        RoborockException(
+                            f"Invalid hex payload in B01 map response: {data.get('payload')} ({request_message})"
+                        )
+                    )
+                    _LOGGER.debug(
+                        "Invalid hex payload in B01 map response (msgId=%s): %s (%s): %s",
+                        inner.get("msgId"),
+                        data.get("payload"),
+                        request_message,
+                        ex,
+                    )
+                return
 
     unsub = await mqtt_channel.subscribe(find_response)
     try:
+        publish_started.set()
         await mqtt_channel.publish(roborock_message)
         return await asyncio.wait_for(future, timeout=_TIMEOUT)
     except TimeoutError as ex:
