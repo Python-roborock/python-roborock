@@ -293,7 +293,7 @@ async def test_q7_api_get_current_map_payload(
         )
     )
 
-    raw_payload = await q7_api.get_current_map_payload()
+    raw_payload = await q7_api.map.get_current_map_payload()
     assert raw_payload == b"raw-map-payload"
 
     assert len(fake_channel.published_messages) == 2
@@ -308,6 +308,22 @@ async def test_q7_api_get_current_map_payload(
     assert second_payload["dps"]["10000"]["method"] == "service.upload_by_mapid"
     assert second_payload["dps"]["10000"]["params"] == {"map_id": 1772093512}
 
+
+async def test_q7_api_map_trait_caches_map_list(
+    q7_api: Q7PropertiesApi,
+    fake_channel: FakeChannel,
+    message_builder: B01MessageBuilder,
+):
+    """Map list is represented as dataclasses and cached on the map trait."""
+    fake_channel.response_queue.append(message_builder.build({"map_list": [{"id": 101, "cur": True}]}))
+
+    first = await q7_api.map.get_map_list()
+    second = await q7_api.map.get_map_list()
+
+    assert len(fake_channel.published_messages) == 1
+    assert first is second
+    assert first.map_list[0].id == 101
+    assert first.map_list[0].cur is True
 
 
 async def test_q7_api_get_current_map_payload_falls_back_to_first_map(
@@ -326,7 +342,7 @@ async def test_q7_api_get_current_map_payload_falls_back_to_first_map(
         )
     )
 
-    await q7_api.get_current_map_payload()
+    await q7_api.map.get_current_map_payload()
 
     second = fake_channel.published_messages[1]
     second_payload = json.loads(unpad(second.payload, AES.block_size))
@@ -342,4 +358,4 @@ async def test_q7_api_get_current_map_payload_errors_without_map_list(
     fake_channel.response_queue.append(message_builder.build({"map_list": []}))
 
     with pytest.raises(RoborockException, match="Unable to determine map_id"):
-        await q7_api.get_current_map_payload()
+        await q7_api.map.get_current_map_payload()
