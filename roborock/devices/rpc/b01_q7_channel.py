@@ -102,26 +102,20 @@ async def send_decoded_command(
 
 
 async def send_map_command(mqtt_channel: MqttChannel, request_message: Q7RequestMessage) -> bytes:
-    """Send map upload command and wait for a map payload as bytes.
+    """Send map upload command and wait for the map payload bytes.
 
-    In practice, B01 map responses may arrive either as:
-    - a dedicated ``MAP_RESPONSE`` message with raw payload bytes, or
-    - a regular decoded RPC response that wraps a hex payload in ``data.payload``.
+    On a real Q7 B01 device, map uploads arrive as a dedicated
+    ``MAP_RESPONSE`` message with raw payload bytes.
 
-    This helper accepts both response styles and returns the raw map payload bytes.
+    We still decode RPC responses so we can fail fast on non-zero ``code``
+    values for the initiating request (matched by msgId).
     """
 
     roborock_message = encode_mqtt_payload(request_message)
     future: asyncio.Future[bytes] = asyncio.get_running_loop().create_future()
-    publish_started = asyncio.Event()
 
     def find_response(response_message: RoborockMessage) -> None:
         if future.done():
-            return
-
-        # Avoid accepting queued/stale MAP_RESPONSE messages before we actually
-        # publish this request.
-        if not publish_started.is_set():
             return
 
         if (
@@ -132,47 +126,30 @@ async def send_map_command(mqtt_channel: MqttChannel, request_message: Q7Request
             future.set_result(response_message.payload)
             return
 
+        # Optional: look for an error response correlated by msgId.
         try:
             decoded_dps = decode_rpc_response(response_message)
         except RoborockException:
             return
 
-        for dps_value in decoded_dps.values():
-            if not isinstance(dps_value, str):
-                continue
-            try:
-                inner = json.loads(dps_value)
-            except (json.JSONDecodeError, TypeError):
-                continue
-            if not isinstance(inner, dict) or inner.get("msgId") != str(request_message.msg_id):
-                continue
-            code = inner.get("code", 0)
-            if code != 0:
-                if not future.done():
-                    future.set_exception(RoborockException(f"B01 command failed with code {code} ({request_message})"))
-                return
-            data = inner.get("data")
-            if isinstance(data, dict) and isinstance(data.get("payload"), str):
-                try:
-                    future.set_result(bytes.fromhex(data["payload"]))
-                except ValueError as ex:
-                    future.set_exception(
-                        RoborockException(
-                            f"Invalid hex payload in B01 map response: {data.get('payload')} ({request_message})"
-                        )
-                    )
-                    _LOGGER.debug(
-                        "Invalid hex payload in B01 map response (msgId=%s): %s (%s): %s",
-                        inner.get("msgId"),
-                        data.get("payload"),
-                        request_message,
-                        ex,
-                    )
-                return
+        dps_value = decoded_dps.get(request_message.dps)
+        if not isinstance(dps_value, str):
+            return
+
+        try:
+            inner = json.loads(dps_value)
+        except (json.JSONDecodeError, TypeError):
+            return
+
+        if not isinstance(inner, dict) or inner.get("msgId") != str(request_message.msg_id):
+            return
+
+        code = inner.get("code", 0)
+        if code != 0:
+            future.set_exception(RoborockException(f"B01 command failed with code {code} ({request_message})"))
 
     unsub = await mqtt_channel.subscribe(find_response)
     try:
-        publish_started.set()
         await mqtt_channel.publish(roborock_message)
         return await asyncio.wait_for(future, timeout=_TIMEOUT)
     except TimeoutError as ex:

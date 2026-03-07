@@ -309,31 +309,6 @@ async def test_q7_api_get_current_map_payload(
     assert second_payload["dps"]["10000"]["params"] == {"map_id": 1772093512}
 
 
-async def test_q7_api_get_current_map_payload_rpc_wrapped_hex_payload(
-    q7_api: Q7PropertiesApi,
-    fake_channel: FakeChannel,
-    message_builder: B01MessageBuilder,
-):
-    """Fetch current map via RPC-wrapped hex payload response."""
-    fake_channel.response_queue.append(message_builder.build({"map_list": [{"id": 1772093512, "cur": True}]}))
-    fake_channel.response_queue.append(message_builder.build({"payload": "68656c6c6f"}))
-
-    raw_payload = await q7_api.get_current_map_payload()
-    assert raw_payload == b"hello"
-
-
-async def test_q7_api_get_current_map_payload_rpc_wrapped_invalid_hex_errors(
-    q7_api: Q7PropertiesApi,
-    fake_channel: FakeChannel,
-    message_builder: B01MessageBuilder,
-):
-    """Invalid hex payload should fail fast (not time out)."""
-    fake_channel.response_queue.append(message_builder.build({"map_list": [{"id": 1772093512, "cur": True}]}))
-    fake_channel.response_queue.append(message_builder.build({"payload": "not-hex"}))
-
-    with pytest.raises(RoborockException, match="Invalid hex payload"):
-        await q7_api.get_current_map_payload()
-
 
 async def test_q7_api_get_current_map_payload_falls_back_to_first_map(
     q7_api: Q7PropertiesApi,
