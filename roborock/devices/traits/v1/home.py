@@ -138,7 +138,13 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
                         # or if the room name isn't unknown.
                         rooms[room.segment_id] = room
 
-        await self._rooms_trait.resolve_unknown_room_names(rooms)
+        for segment_id, room in rooms.items():
+            if room.name == "Unknown":
+                rooms[segment_id] = NamedRoomMapping(
+                    segment_id=room.segment_id,
+                    iot_id=room.iot_id,
+                    name=f"Room {room.segment_id}",
+                )
 
         return CombinedMapInfo(
             map_flag=map_info.map_flag,

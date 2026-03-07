@@ -87,40 +87,44 @@ def test_merge_home_data_rooms_appends_new_rooms(rooms_trait: RoomsTrait) -> Non
     assert home_data_rooms["9999999"] == "Office"
 
 
-async def test_resolve_unknown_room_names_web_api_called_once(
+async def test_refresh_unknown_room_names_web_api_called_once(
     rooms_trait: RoomsTrait,
     web_api_client: AsyncMock,
+    mock_rpc_channel: AsyncMock,
 ) -> None:
     """Test unknown room IDs trigger one web lookup per iot_id."""
     web_api_client.get_rooms.return_value = [
-        HomeDataRoom(id=2362048, name="Living Room"),
+        HomeDataRoom(id=9999911, name="Living Room"),
     ]
 
-    room_map = {
-        16: NamedRoomMapping(segment_id=16, iot_id="2362048", name="Unknown"),
-    }
-    await rooms_trait.resolve_unknown_room_names(room_map)
-    assert room_map[16].name == "Living Room"
+    room_mapping_data = [[16, "9999911"]]
+    mock_rpc_channel.send_command.side_effect = [room_mapping_data, room_mapping_data]
 
-    second_room_map = {
-        16: NamedRoomMapping(segment_id=16, iot_id="2362048", name="Unknown"),
-    }
-    await rooms_trait.resolve_unknown_room_names(second_room_map)
-    assert second_room_map[16].name == "Room 16"
+    await rooms_trait.refresh()
+    assert rooms_trait.rooms
+    assert rooms_trait.rooms[0].name == "Living Room"
+
+    await rooms_trait.refresh()
+    assert rooms_trait.rooms
+    assert rooms_trait.rooms[0].name == "Living Room"
     web_api_client.get_rooms.assert_called_once()
 
 
-async def test_resolve_unknown_room_names_falls_back_to_segment_id(
+async def test_refresh_unknown_room_names_unresolved_keeps_unknown(
     rooms_trait: RoomsTrait,
     web_api_client: AsyncMock,
+    mock_rpc_channel: AsyncMock,
 ) -> None:
-    """Test unresolved unknown names use Room {segment_id} fallback."""
+    """Test unresolved unknown names stay unknown in RoomsTrait."""
     web_api_client.get_rooms.return_value = []
-    room_map = {
-        33: NamedRoomMapping(segment_id=33, iot_id="9999911", name="Unknown"),
-    }
+    room_mapping_data = [[33, "9999922"]]
+    mock_rpc_channel.send_command.side_effect = [room_mapping_data, room_mapping_data]
 
-    await rooms_trait.resolve_unknown_room_names(room_map)
+    await rooms_trait.refresh()
+    assert rooms_trait.rooms
+    assert rooms_trait.rooms[0] == NamedRoomMapping(segment_id=33, iot_id="9999922", name="Unknown")
 
-    assert room_map[33].name == "Room 33"
+    await rooms_trait.refresh()
+    assert rooms_trait.rooms
+    assert rooms_trait.rooms[0] == NamedRoomMapping(segment_id=33, iot_id="9999922", name="Unknown")
     web_api_client.get_rooms.assert_called_once()

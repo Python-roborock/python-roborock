@@ -33,12 +33,25 @@ class RoomsTrait(Rooms, common.V1TraitMixin):
 
     command = RoborockCommand.GET_ROOM_MAPPING
 
-    def __init__(self, home_data: HomeData, web_api: UserWebApiClient | None = None) -> None:
+    def __init__(self, home_data: HomeData, web_api: UserWebApiClient) -> None:
         """Initialize the RoomsTrait."""
         super().__init__()
         self._home_data = home_data
         self._web_api = web_api
         self._seen_unknown_room_iot_ids: set[str] = set()
+
+    async def refresh(self) -> None:
+        """Refresh room mappings and backfill unknown room names from the web API."""
+        response = await self.rpc_channel.send_command(self.command)
+        if not isinstance(response, list):
+            raise ValueError(f"Unexpected RoomsTrait response format: {response!r}")
+
+        segment_pairs = _extract_segment_pairs(response)
+        await self._populate_missing_home_data_rooms(segment_pairs)
+
+        new_data = self._parse_response(response)
+        self._update_trait_values(new_data)
+        _LOGGER.debug("Refreshed %s: %s", self.__class__.__name__, new_data)
 
     @property
     def _iot_id_room_name_map(self) -> dict[str, str]:
@@ -73,30 +86,23 @@ class RoomsTrait(Rooms, common.V1TraitMixin):
 
         self._home_data.rooms = updated_rooms
 
-    async def resolve_unknown_room_names(self, rooms: dict[int, NamedRoomMapping]) -> None:
-        """Resolve unknown room names using home data and web API fallbacks."""
-        unknown_room_iot_ids = {room.iot_id for room in rooms.values() if room.name == _DEFAULT_NAME}
+    async def _populate_missing_home_data_rooms(self, segment_pairs: list[tuple[int, str]]) -> None:
+        """Load missing room names into home data for newly-seen unknown room ids."""
+        name_map = self._iot_id_room_name_map
+        unknown_room_iot_ids = {
+            iot_id for _, iot_id in segment_pairs if name_map.get(iot_id, _DEFAULT_NAME) == _DEFAULT_NAME
+        }
         new_unknown_room_iot_ids = unknown_room_iot_ids - self._seen_unknown_room_iot_ids
-        web_room_names: dict[str, str] = {}
+        if not new_unknown_room_iot_ids:
+            return
 
-        if self._web_api and new_unknown_room_iot_ids:
-            try:
-                web_rooms = await self._web_api.get_rooms()
-            except Exception:
-                _LOGGER.debug("Failed to fetch rooms from web API", exc_info=True)
-            else:
-                if web_rooms:
-                    web_room_names = {str(room.id): room.name for room in web_rooms}
-                    self.merge_home_data_rooms(web_rooms)
-
-        for segment_id, room in rooms.items():
-            if room.name != _DEFAULT_NAME:
-                continue
-            rooms[segment_id] = NamedRoomMapping(
-                segment_id=room.segment_id,
-                iot_id=room.iot_id,
-                name=web_room_names.get(room.iot_id, f"Room {room.segment_id}"),
-            )
+        try:
+            web_rooms = await self._web_api.get_rooms()
+        except Exception:
+            _LOGGER.debug("Failed to fetch rooms from web API", exc_info=True)
+        else:
+            if web_rooms:
+                self.merge_home_data_rooms(web_rooms)
 
         self._seen_unknown_room_iot_ids.update(unknown_room_iot_ids)
 
