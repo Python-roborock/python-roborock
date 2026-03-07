@@ -529,8 +529,37 @@ async def test_session_unauthorized_after_start(
     session = await create_mqtt_session(params)
     assert session.connected
 
+    # Keep an active subscription so reconnect attempts are not deferred.
+    await session.subscribe("topic-1", Subscriber().append)
+
     try:
         async with asyncio.timeout(10):
             assert await unauthorized.wait()
     finally:
         await session.close()
+
+
+async def test_session_defers_reconnect_when_idle() -> None:
+    """Test that reconnects are deferred when there are no active subscriptions."""
+
+    session = RoborockMqttSession(FAKE_PARAMS)
+    start_future: asyncio.Future[None] = asyncio.Future()
+    connect_attempts = 0
+
+    async def fake_run_connection(start: asyncio.Future[None] | None) -> None:
+        nonlocal connect_attempts
+        connect_attempts += 1
+        if start and not start.done():
+            start.set_result(None)
+
+    with patch.object(session, "_run_connection", side_effect=fake_run_connection):
+        reconnect_task = asyncio.create_task(session._run_reconnect_loop(start_future))
+        try:
+            await start_future
+            await asyncio.sleep(0.1)
+            assert connect_attempts == 1
+            assert session._diagnostics.as_dict().get("reconnect_deferred", 0) >= 1
+        finally:
+            session._stop = True
+            reconnect_task.cancel()
+            await asyncio.gather(reconnect_task, return_exceptions=True)
