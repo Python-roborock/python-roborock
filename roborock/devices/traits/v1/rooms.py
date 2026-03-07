@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from roborock.data import HomeData, HomeDataRoom, NamedRoomMapping, RoborockBase
 from roborock.devices.traits.v1 import common
 from roborock.roborock_typing import RoborockCommand
+from roborock.web_api import UserWebApiClient
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,10 +33,12 @@ class RoomsTrait(Rooms, common.V1TraitMixin):
 
     command = RoborockCommand.GET_ROOM_MAPPING
 
-    def __init__(self, home_data: HomeData) -> None:
+    def __init__(self, home_data: HomeData, web_api: UserWebApiClient | None = None) -> None:
         """Initialize the RoomsTrait."""
         super().__init__()
         self._home_data = home_data
+        self._web_api = web_api
+        self._seen_unknown_room_iot_ids: set[str] = set()
 
     @property
     def _iot_id_room_name_map(self) -> dict[str, str]:
@@ -57,13 +60,45 @@ class RoomsTrait(Rooms, common.V1TraitMixin):
 
     def merge_home_data_rooms(self, rooms: list[HomeDataRoom]) -> None:
         """Merge newly discovered rooms into home data by room id."""
-        existing_ids = {room.id for room in self._home_data.rooms or ()}
         updated_rooms = list(self._home_data.rooms or ())
+        existing_by_id = {room.id: room for room in updated_rooms}
+
         for room in rooms:
-            if room.id not in existing_ids:
+            existing_room = existing_by_id.get(room.id)
+            if existing_room is None:
                 updated_rooms.append(room)
-                existing_ids.add(room.id)
+                existing_by_id[room.id] = room
+            elif room.name and existing_room.name in ("", _DEFAULT_NAME):
+                existing_room.name = room.name
+
         self._home_data.rooms = updated_rooms
+
+    async def resolve_unknown_room_names(self, rooms: dict[int, NamedRoomMapping]) -> None:
+        """Resolve unknown room names using home data and web API fallbacks."""
+        unknown_room_iot_ids = {room.iot_id for room in rooms.values() if room.name == _DEFAULT_NAME}
+        new_unknown_room_iot_ids = unknown_room_iot_ids - self._seen_unknown_room_iot_ids
+        web_room_names: dict[str, str] = {}
+
+        if self._web_api and new_unknown_room_iot_ids:
+            try:
+                web_rooms = await self._web_api.get_rooms()
+            except Exception:
+                _LOGGER.debug("Failed to fetch rooms from web API", exc_info=True)
+            else:
+                if web_rooms:
+                    web_room_names = {str(room.id): room.name for room in web_rooms}
+                    self.merge_home_data_rooms(web_rooms)
+
+        for segment_id, room in rooms.items():
+            if room.name != _DEFAULT_NAME:
+                continue
+            rooms[segment_id] = NamedRoomMapping(
+                segment_id=room.segment_id,
+                iot_id=room.iot_id,
+                name=web_room_names.get(room.iot_id, f"Room {room.segment_id}"),
+            )
+
+        self._seen_unknown_room_iot_ids.update(unknown_room_iot_ids)
 
 
 def _extract_segment_pairs(response: list) -> list[tuple[int, str]]:

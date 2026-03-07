@@ -157,7 +157,8 @@ def home_trait(
     mock_web_api: AsyncMock,
 ) -> HomeTrait:
     """Create a HomeTrait instance with mocked dependencies."""
-    return HomeTrait(status_trait, maps_trait, map_content_trait, rooms_trait, device_cache, mock_web_api)
+    rooms_trait._web_api = mock_web_api
+    return HomeTrait(status_trait, maps_trait, map_content_trait, rooms_trait, device_cache)
 
 
 @pytest.fixture(autouse=True)

@@ -26,7 +26,6 @@ from roborock.devices.cache import DeviceCache
 from roborock.devices.traits.v1 import common
 from roborock.exceptions import RoborockDeviceBusy, RoborockException, RoborockInvalidStatus
 from roborock.roborock_typing import RoborockCommand
-from roborock.web_api import UserWebApiClient
 
 from .map_content import MapContent, MapContentTrait
 from .maps import MapsTrait
@@ -50,7 +49,6 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
         map_content: MapContentTrait,
         rooms_trait: RoomsTrait,
         device_cache: DeviceCache,
-        web_api: UserWebApiClient | None = None,
     ) -> None:
         """Initialize the HomeTrait.
 
@@ -73,8 +71,6 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
         self._map_content = map_content
         self._rooms_trait = rooms_trait
         self._device_cache = device_cache
-        self._web_api = web_api
-        self._seen_room_iot_ids_by_map: dict[int, set[str]] = {}
         self._discovery_completed = False
         self._home_map_info: dict[int, CombinedMapInfo] | None = None
         self._home_map_content: dict[int, MapContent] | None = None
@@ -94,7 +90,6 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
         if device_cache_data and device_cache_data.home_map_info:
             _LOGGER.debug("Home cache already populated, skipping discovery")
             self._home_map_info = device_cache_data.home_map_info
-            self._seed_seen_room_iot_ids(device_cache_data.home_map_info)
             self._discovery_completed = True
             try:
                 self._home_map_content = {
@@ -143,39 +138,7 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
                         # or if the room name isn't unknown.
                         rooms[room.segment_id] = room
 
-        # If we discovered at least one new unknown room iot_id for this map, fetch names from web API.
-        seen_room_iot_ids = self._seen_room_iot_ids_by_map.setdefault(map_info.map_flag, set())
-        has_new_unknown_room_iot_id = any(
-            room.name == "Unknown" and room.iot_id not in seen_room_iot_ids for room in rooms.values()
-        )
-        if self._web_api and has_new_unknown_room_iot_id:
-            try:
-                web_rooms = await self._web_api.get_rooms()
-                web_room_names = {str(r.id): r.name for r in web_rooms}
-                for segment_id, room in rooms.items():
-                    if room.name == "Unknown" and room.iot_id in web_room_names:
-                        rooms[segment_id] = NamedRoomMapping(
-                            segment_id=room.segment_id,
-                            iot_id=room.iot_id,
-                            name=web_room_names[room.iot_id],
-                        )
-                # Merge new rooms into home_data so future refreshes benefit
-                if web_rooms:
-                    self._rooms_trait.merge_home_data_rooms(web_rooms)
-            except Exception:
-                # Broad exception as we don't want anything here to make us fail upwards, we are okay with 'unknowns'
-                _LOGGER.debug("Failed to fetch rooms from web API for map %s", map_info.map_flag)
-
-        # Replace remaining "Unknown" names with "Room {segment_id}" fallback.
-        for segment_id, room in rooms.items():
-            if room.name == "Unknown":
-                rooms[segment_id] = NamedRoomMapping(
-                    segment_id=room.segment_id,
-                    iot_id=room.iot_id,
-                    name=f"Room {room.segment_id}",
-                )
-
-        self._seen_room_iot_ids_by_map[map_info.map_flag].update(room.iot_id for room in rooms.values())
+        await self._rooms_trait.resolve_unknown_room_names(rooms)
 
         return CombinedMapInfo(
             map_flag=map_info.map_flag,
@@ -293,7 +256,6 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
         await self._device_cache.set(device_cache_data)
         self._home_map_info = home_map_info
         self._home_map_content = home_map_content
-        self._seed_seen_room_iot_ids(home_map_info)
 
     async def _update_current_map(
         self,
@@ -322,13 +284,7 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
         if self._home_map_info is None:
             self._home_map_info = {}
         self._home_map_info[map_flag] = map_info
-        self._seed_seen_room_iot_ids({map_flag: map_info})
 
         if self._home_map_content is None:
             self._home_map_content = {}
         self._home_map_content[map_flag] = map_content
-
-    def _seed_seen_room_iot_ids(self, home_map_info: dict[int, CombinedMapInfo]) -> None:
-        """Seed known room iot_ids from cached/current map information."""
-        for map_flag, map_info in home_map_info.items():
-            self._seen_room_iot_ids_by_map.setdefault(map_flag, set()).update(room.iot_id for room in map_info.rooms)

@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from roborock.data.containers import HomeDataRoom, NamedRoomMapping
 from roborock.devices.device import RoborockDevice
 from roborock.devices.traits.v1.rooms import RoomsTrait
 from roborock.devices.traits.v1.status import StatusTrait
@@ -70,3 +71,56 @@ async def test_refresh_rooms_trait(
     # Verify the RPC call was made correctly
     assert mock_rpc_channel.send_command.call_count == 1
     mock_rpc_channel.send_command.assert_any_call(RoborockCommand.GET_ROOM_MAPPING)
+
+
+def test_merge_home_data_rooms_appends_new_rooms(rooms_trait: RoomsTrait) -> None:
+    """Test merge_home_data_rooms appends new rooms without replacing known names."""
+    rooms_trait.merge_home_data_rooms(
+        [
+            HomeDataRoom(id=2362048, name="Living Room"),
+            HomeDataRoom(id=9999999, name="Office"),
+        ]
+    )
+
+    home_data_rooms = {str(room.id): room.name for room in rooms_trait._home_data.rooms}
+    assert home_data_rooms["2362048"] == "Example room 1"
+    assert home_data_rooms["9999999"] == "Office"
+
+
+async def test_resolve_unknown_room_names_web_api_called_once(
+    rooms_trait: RoomsTrait,
+    web_api_client: AsyncMock,
+) -> None:
+    """Test unknown room IDs trigger one web lookup per iot_id."""
+    web_api_client.get_rooms.return_value = [
+        HomeDataRoom(id=2362048, name="Living Room"),
+    ]
+
+    room_map = {
+        16: NamedRoomMapping(segment_id=16, iot_id="2362048", name="Unknown"),
+    }
+    await rooms_trait.resolve_unknown_room_names(room_map)
+    assert room_map[16].name == "Living Room"
+
+    second_room_map = {
+        16: NamedRoomMapping(segment_id=16, iot_id="2362048", name="Unknown"),
+    }
+    await rooms_trait.resolve_unknown_room_names(second_room_map)
+    assert second_room_map[16].name == "Room 16"
+    web_api_client.get_rooms.assert_called_once()
+
+
+async def test_resolve_unknown_room_names_falls_back_to_segment_id(
+    rooms_trait: RoomsTrait,
+    web_api_client: AsyncMock,
+) -> None:
+    """Test unresolved unknown names use Room {segment_id} fallback."""
+    web_api_client.get_rooms.return_value = []
+    room_map = {
+        33: NamedRoomMapping(segment_id=33, iot_id="9999911", name="Unknown"),
+    }
+
+    await rooms_trait.resolve_unknown_room_names(room_map)
+
+    assert room_map[33].name == "Room 33"
+    web_api_client.get_rooms.assert_called_once()
