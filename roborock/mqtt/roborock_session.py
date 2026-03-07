@@ -56,9 +56,12 @@ class RoborockMqttSession(MqttSession):
     The client is run as a background task that will run until shutdown. Once
     connected, the client will wait for messages to be received in a loop. If
     the connection is lost, the client will be re-created and reconnected. There
-    is backoff to avoid spamming the broker with connection attempts. The client
-    will automatically re-establish any subscriptions when the connection is
-    re-established.
+    is backoff to avoid spamming the broker with connection attempts.
+
+    Reconnect attempts are deferred while there are no active subscriptions,
+    which avoids unnecessary reconnect churn for idle sessions. Reconnects
+    resume as soon as a subscription is added again. The client automatically
+    re-establishes any existing subscriptions when the connection returns.
     """
 
     def __init__(
