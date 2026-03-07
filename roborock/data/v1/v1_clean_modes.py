@@ -68,6 +68,17 @@ class WashTowelModes(RoborockModeEnum):
     SUPER_DEEP = ("super_deep", 8)
 
 
+WATER_SLIDE_MODE_MAPPING: dict[int, WaterModes] = {
+    200: WaterModes.OFF,
+    221: WaterModes.PURE_WATER_FLOW_START,
+    225: WaterModes.PURE_WATER_FLOW_SMALL,
+    235: WaterModes.PURE_WATER_FLOW_MIDDLE,
+    245: WaterModes.PURE_WATER_FLOW_LARGE,
+    248: WaterModes.PURE_WATER_SUPER_BEGIN,
+    250: WaterModes.PURE_WATER_FLOW_END,
+}
+
+
 def get_wash_towel_modes(features: DeviceFeatures) -> list[WashTowelModes]:
     """Get the valid wash towel modes for the device"""
     modes = [WashTowelModes.LIGHT, WashTowelModes.BALANCED, WashTowelModes.DEEP]
@@ -128,17 +139,9 @@ def get_clean_routes(features: DeviceFeatures, region: str) -> list[CleanRoutes]
 
 def get_water_modes(features: DeviceFeatures) -> list[WaterModes]:
     """Get the valid water modes for the device - also known as 'water flow' or 'water level'"""
-    # If the device supports water slide mode, it uses a completely different set of modes. Technically, it can even
-    # support values in between. But for now we will just support the main values.
+    # Water slide mode supports a separate set of water flow codes.
     if features.is_water_slide_mode_supported:
-        return [
-            WaterModes.PURE_WATER_FLOW_START,
-            WaterModes.PURE_WATER_FLOW_SMALL,
-            WaterModes.PURE_WATER_FLOW_MIDDLE,
-            WaterModes.PURE_WATER_FLOW_LARGE,
-            WaterModes.PURE_WATER_SUPER_BEGIN,
-            WaterModes.PURE_WATER_FLOW_END,
-        ]
+        return list(WATER_SLIDE_MODE_MAPPING.values())
 
     supported_modes = [WaterModes.OFF]
     if features.is_mop_shake_module_supported:
@@ -157,6 +160,18 @@ def get_water_modes(features: DeviceFeatures) -> list[WaterModes]:
         supported_modes.append(WaterModes.CUSTOMIZED)
 
     return supported_modes
+
+
+def get_water_mode_mapping(features: DeviceFeatures) -> dict[int, str]:
+    """Get water mode mapping by supported feature set.
+
+    WaterModes contains aliases for multiple codes that share the same value
+    string (e.g. low can be 201 or 225). For water slide mode devices we need
+    explicit code mapping to preserve those slide-specific codes.
+    """
+    if features.is_water_slide_mode_supported:
+        return {code: mode.value for code, mode in WATER_SLIDE_MODE_MAPPING.items()}
+    return {mode.code: mode.value for mode in get_water_modes(features)}
 
 
 def is_mode_customized(clean_mode: VacuumModes, water_mode: WaterModes, mop_mode: CleanRoutes) -> bool:
