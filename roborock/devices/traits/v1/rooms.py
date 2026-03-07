@@ -3,7 +3,7 @@
 import logging
 from dataclasses import dataclass
 
-from roborock.data import HomeData, NamedRoomMapping, RoborockBase
+from roborock.data import HomeData, HomeDataRoom, NamedRoomMapping, RoborockBase
 from roborock.devices.traits.v1 import common
 from roborock.roborock_typing import RoborockCommand
 
@@ -54,6 +54,16 @@ class RoomsTrait(Rooms, common.V1TraitMixin):
                 for segment_id, iot_id in segment_pairs
             ]
         )
+
+    def merge_home_data_rooms(self, rooms: list[HomeDataRoom]) -> None:
+        """Merge newly discovered rooms into home data by room id."""
+        existing_ids = {room.id for room in self._home_data.rooms or ()}
+        updated_rooms = list(self._home_data.rooms or ())
+        for room in rooms:
+            if room.id not in existing_ids:
+                updated_rooms.append(room)
+                existing_ids.add(room.id)
+        self._home_data.rooms = updated_rooms
 
 
 def _extract_segment_pairs(response: list) -> list[tuple[int, str]]:

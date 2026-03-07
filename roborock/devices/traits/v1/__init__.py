@@ -196,7 +196,7 @@ class PropertiesApi(Trait):
         self.rooms = RoomsTrait(home_data)
         self.maps = MapsTrait(self.status)
         self.map_content = MapContentTrait(map_parser_config)
-        self.home = HomeTrait(self.status, self.maps, self.map_content, self.rooms, self._device_cache)
+        self.home = HomeTrait(self.status, self.maps, self.map_content, self.rooms, self._device_cache, web_api)
         self.network_info = NetworkInfoTrait(device_uid, self._device_cache)
         self.routines = RoutinesTrait(device_uid, web_api)
 
