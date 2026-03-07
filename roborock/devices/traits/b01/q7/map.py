@@ -36,10 +36,22 @@ class MapTrait(Trait):
         self._channel = channel
         # Map uploads are serialized per-device to avoid response cross-wiring.
         self._map_command_lock = asyncio.Lock()
-        self._map_list_cache: Q7MapList | None = None
+        self._map_list: Q7MapList | None = None
 
-    async def refresh_map_list(self) -> Q7MapList:
-        """Fetch and cache map list metadata from the robot."""
+    @property
+    def map_list(self) -> Q7MapList | None:
+        """Latest cached map list metadata, populated by ``refresh()``."""
+        return self._map_list
+
+    @property
+    def current_map_id(self) -> int | None:
+        """Current map id derived from cached map list metadata."""
+        if self._map_list is None:
+            return None
+        return self._extract_current_map_id(self._map_list)
+
+    async def refresh(self) -> None:
+        """Refresh cached map list metadata from the device."""
         response = await send_decoded_command(
             self._channel,
             Q7RequestMessage(dps=_Q7_DPS, command=RoborockB01Q7Methods.GET_MAP_LIST, params={}),
@@ -51,24 +63,9 @@ class MapTrait(Trait):
         if parsed is None:
             raise TypeError(f"Failed to decode map list response: {response!r}")
 
-        self._map_list_cache = parsed
-        return parsed
+        self._map_list = parsed
 
-    async def get_map_list(self, *, refresh: bool = False) -> Q7MapList:
-        """Return cached map list metadata, refreshing when requested or absent."""
-        if refresh or self._map_list_cache is None:
-            return await self.refresh_map_list()
-        return self._map_list_cache
-
-    async def get_current_map_id(self, *, refresh: bool = False) -> int:
-        """Resolve and return the currently active map id from map list metadata."""
-        map_list = await self.get_map_list(refresh=refresh)
-        map_id = self._extract_current_map_id(map_list)
-        if map_id is None:
-            raise RoborockException(f"Unable to determine map_id from map list response: {map_list!r}")
-        return map_id
-
-    async def get_map_payload(self, *, map_id: int) -> bytes:
+    async def _get_map_payload(self, *, map_id: int) -> bytes:
         """Fetch raw map payload bytes for the given map id."""
         request = Q7RequestMessage(
             dps=_Q7_DPS,
@@ -78,10 +75,15 @@ class MapTrait(Trait):
         async with self._map_command_lock:
             return await send_map_command(self._channel, request)
 
-    async def get_current_map_payload(self, *, refresh_map_list: bool = False) -> bytes:
+    async def get_current_map_payload(self) -> bytes:
         """Fetch raw map payload bytes for the currently selected map."""
-        map_id = await self.get_current_map_id(refresh=refresh_map_list)
-        return await self.get_map_payload(map_id=map_id)
+        if self._map_list is None:
+            await self.refresh()
+
+        map_id = self.current_map_id
+        if map_id is None:
+            raise RoborockException(f"Unable to determine map_id from map list response: {self._map_list!r}")
+        return await self._get_map_payload(map_id=map_id)
 
     @staticmethod
     def _extract_current_map_id(map_list_response: Q7MapList) -> int | None:

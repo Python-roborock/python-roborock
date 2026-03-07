@@ -309,21 +309,24 @@ async def test_q7_api_get_current_map_payload(
     assert second_payload["dps"]["10000"]["params"] == {"map_id": 1772093512}
 
 
-async def test_q7_api_map_trait_caches_map_list(
+async def test_q7_api_map_trait_refresh_populates_cached_values(
     q7_api: Q7PropertiesApi,
     fake_channel: FakeChannel,
     message_builder: B01MessageBuilder,
 ):
-    """Map list is represented as dataclasses and cached on the map trait."""
+    """Map trait follows refresh + cached-value access pattern."""
     fake_channel.response_queue.append(message_builder.build({"map_list": [{"id": 101, "cur": True}]}))
 
-    first = await q7_api.map.get_map_list()
-    second = await q7_api.map.get_map_list()
+    assert q7_api.map.map_list is None
+    assert q7_api.map.current_map_id is None
+
+    await q7_api.map.refresh()
 
     assert len(fake_channel.published_messages) == 1
-    assert first is second
-    assert first.map_list[0].id == 101
-    assert first.map_list[0].cur is True
+    assert q7_api.map.map_list is not None
+    assert q7_api.map.map_list.map_list[0].id == 101
+    assert q7_api.map.map_list.map_list[0].cur is True
+    assert q7_api.map.current_map_id == 101
 
 
 async def test_q7_api_get_current_map_payload_falls_back_to_first_map(

@@ -102,14 +102,7 @@ async def send_decoded_command(
 
 
 async def send_map_command(mqtt_channel: MqttChannel, request_message: Q7RequestMessage) -> bytes:
-    """Send map upload command and wait for the map payload bytes.
-
-    On a real Q7 B01 device, map uploads arrive as a dedicated
-    ``MAP_RESPONSE`` message with raw payload bytes.
-
-    We still decode RPC responses so we can fail fast on non-zero ``code``
-    values for the initiating request (matched by msgId).
-    """
+    """Send map upload command and wait for MAP_RESPONSE payload bytes."""
 
     roborock_message = encode_mqtt_payload(request_message)
     future: asyncio.Future[bytes] = asyncio.get_running_loop().create_future()
@@ -124,29 +117,6 @@ async def send_map_command(mqtt_channel: MqttChannel, request_message: Q7Request
             and response_message.version == roborock_message.version
         ):
             future.set_result(response_message.payload)
-            return
-
-        # Optional: look for an error response correlated by msgId.
-        try:
-            decoded_dps = decode_rpc_response(response_message)
-        except RoborockException:
-            return
-
-        dps_value = decoded_dps.get(request_message.dps)
-        if not isinstance(dps_value, str):
-            return
-
-        try:
-            inner = json.loads(dps_value)
-        except (json.JSONDecodeError, TypeError):
-            return
-
-        if not isinstance(inner, dict) or inner.get("msgId") != str(request_message.msg_id):
-            return
-
-        code = inner.get("code", 0)
-        if code != 0:
-            future.set_exception(RoborockException(f"B01 command failed with code {code} ({request_message})"))
 
     unsub = await mqtt_channel.subscribe(find_response)
     try:
