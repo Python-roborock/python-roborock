@@ -166,7 +166,7 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
                 # Broad exception as we don't want anything here to make us fail upwards, we are okay with 'unknowns'
                 _LOGGER.debug("Failed to fetch rooms from web API for map %s", map_info.map_flag)
 
-        # Replace remaining "Unknown" names with "Room {room_id}" fallback
+        # Replace remaining "Unknown" names with "Room {segment_id}" fallback.
         for segment_id, room in rooms.items():
             if room.name == "Unknown":
                 rooms[segment_id] = NamedRoomMapping(

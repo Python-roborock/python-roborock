@@ -236,7 +236,7 @@ async def test_discover_home_empty_cache(
     assert map_123_data.rooms[0].segment_id == 18
     assert map_123_data.rooms[0].name == "Example room 3"
     assert map_123_data.rooms[1].segment_id == 19
-    assert map_123_data.rooms[1].name == "Map 123"  # Not in mock home data
+    assert map_123_data.rooms[1].name == "Room 19"  # Not in mock home data
 
     map_123_content = home_trait.home_map_content[123]
     assert map_123_content is not None
@@ -689,9 +689,9 @@ async def test_refresh_map_info_room_override_and_addition_logic(
     assert sorted_rooms[0].name == "Kitchen from map_info"
     assert sorted_rooms[0].iot_id == "2362048"
 
-    # Room 17: from rooms_trait with "Unknown", falls back to "Map 0"
+    # Room 17: from rooms_trait with "Unknown", falls back to "Room 17"
     assert sorted_rooms[1].segment_id == 17
-    assert sorted_rooms[1].name == "Map 0"
+    assert sorted_rooms[1].name == "Room 17"
     assert sorted_rooms[1].iot_id == "2362044"
 
     # Room 18: from rooms_trait with valid name, added because not in map_info
@@ -765,9 +765,9 @@ async def test_get_rooms_called_once_for_same_unknown_room(
         result1 = await home_trait._refresh_map_info(map_info)
         result2 = await home_trait._refresh_map_info(map_info)
 
-    # Both calls should fall back to "Map 42"
-    assert result1.rooms[0].name == "Map 42"
-    assert result2.rooms[0].name == "Map 42"
+    # Both calls should fall back to "Room 16"
+    assert result1.rooms[0].name == "Room 16"
+    assert result2.rooms[0].name == "Room 16"
     # get_rooms should only be called once for the same unknown room
     mock_web_api.get_rooms.assert_called_once()
 
@@ -803,8 +803,8 @@ async def test_get_rooms_called_again_for_new_unknown_room(
         ]
         result2 = await home_trait._refresh_map_info(map_info)
 
-    assert sorted(room.name for room in result1.rooms) == ["Map 42"]
-    assert sorted(room.name for room in result2.rooms) == ["Map 42", "Map 42"]
+    assert sorted(room.name for room in result1.rooms) == ["Room 16"]
+    assert sorted(room.name for room in result2.rooms) == ["Room 16", "Room 17"]
     assert mock_web_api.get_rooms.call_count == 2
 
 
@@ -837,12 +837,12 @@ async def test_get_rooms_called_again_for_new_unknown_iot_id_same_segment(
     assert mock_web_api.get_rooms.call_count == 2
 
 
-async def test_get_rooms_failure_falls_back_to_map_flag(
+async def test_get_rooms_failure_falls_back_to_room_segment_id(
     home_trait: HomeTrait,
     rooms_trait: RoomsTrait,
     mock_web_api: AsyncMock,
 ) -> None:
-    """Test that get_rooms failure gracefully falls back to 'Map {flag}'."""
+    """Test that get_rooms failure gracefully falls back to 'Room {segment_id}'."""
     map_info = MultiMapsListMapInfo(
         map_flag=7,
         name="Test Map",
@@ -861,5 +861,5 @@ async def test_get_rooms_failure_falls_back_to_map_flag(
     with patch.object(rooms_trait, "refresh", new_callable=AsyncMock):
         result = await home_trait._refresh_map_info(map_info)
 
-    assert result.rooms[0].name == "Map 7"
+    assert result.rooms[0].name == "Room 16"
     mock_web_api.get_rooms.assert_called_once()
