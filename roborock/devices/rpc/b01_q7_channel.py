@@ -10,11 +10,7 @@ from typing import Any, TypeVar
 
 from roborock.devices.transport.mqtt_channel import MqttChannel
 from roborock.exceptions import RoborockException
-from roborock.protocols.b01_q7_protocol import (
-    Q7RequestMessage,
-    decode_rpc_response,
-    encode_mqtt_payload,
-)
+from roborock.protocols.b01_q7_protocol import B01_VERSION, Q7RequestMessage, decode_rpc_response, encode_mqtt_payload
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 
 _LOGGER = logging.getLogger(__name__)
@@ -142,10 +138,9 @@ async def send_map_command(mqtt_channel: MqttChannel, request_message: Q7Request
     raw ``MAP_RESPONSE`` payload bytes instead of a decoded RPC ``data`` payload.
     """
 
-    version = encode_mqtt_payload(request_message).version
     return await _send_command(
         mqtt_channel,
         request_message,
-        response_matcher=lambda response_message: _matches_map_response(response_message, version=version),
+        response_matcher=lambda response_message: _matches_map_response(response_message, version=B01_VERSION),
         timeout_error=f"B01 map command timed out after {_TIMEOUT}s ({request_message})",
     )

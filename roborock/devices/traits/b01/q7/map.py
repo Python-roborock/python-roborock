@@ -11,6 +11,7 @@ from roborock.exceptions import RoborockException
 from roborock.protocols.b01_q7_protocol import B01_Q7_DPS, Q7RequestMessage
 from roborock.roborock_typing import RoborockB01Q7Methods
 
+
 @dataclass
 class Q7MapListEntry(RoborockBase):
     """Single map list entry returned by `service.get_map_list`."""
