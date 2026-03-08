@@ -8,11 +8,8 @@ from roborock.devices.rpc.b01_q7_channel import send_decoded_command, send_map_c
 from roborock.devices.traits import Trait
 from roborock.devices.transport.mqtt_channel import MqttChannel
 from roborock.exceptions import RoborockException
-from roborock.protocols.b01_q7_protocol import Q7RequestMessage
+from roborock.protocols.b01_q7_protocol import B01_Q7_DPS, Q7RequestMessage
 from roborock.roborock_typing import RoborockB01Q7Methods
-
-_Q7_DPS = 10000
-
 
 @dataclass
 class Q7MapListEntry(RoborockBase):
@@ -54,7 +51,7 @@ class MapTrait(Trait):
         """Refresh cached map list metadata from the device."""
         response = await send_decoded_command(
             self._channel,
-            Q7RequestMessage(dps=_Q7_DPS, command=RoborockB01Q7Methods.GET_MAP_LIST, params={}),
+            Q7RequestMessage(dps=B01_Q7_DPS, command=RoborockB01Q7Methods.GET_MAP_LIST, params={}),
         )
         if not isinstance(response, dict):
             raise TypeError(f"Unexpected response type for GET_MAP_LIST: {type(response).__name__}: {response!r}")
@@ -68,7 +65,7 @@ class MapTrait(Trait):
     async def _get_map_payload(self, *, map_id: int) -> bytes:
         """Fetch raw map payload bytes for the given map id."""
         request = Q7RequestMessage(
-            dps=_Q7_DPS,
+            dps=B01_Q7_DPS,
             command=RoborockB01Q7Methods.UPLOAD_BY_MAPID,
             params={"map_id": map_id},
         )

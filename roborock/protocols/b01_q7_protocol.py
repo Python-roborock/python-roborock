@@ -19,6 +19,7 @@ from roborock.util import get_next_int
 _LOGGER = logging.getLogger(__name__)
 
 B01_VERSION = b"B01"
+B01_Q7_DPS = 10000
 CommandType = RoborockB01Q7Methods | str
 ParamsType = list | dict | int | None
 
