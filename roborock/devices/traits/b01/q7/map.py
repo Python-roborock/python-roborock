@@ -26,27 +26,28 @@ class Q7MapList(RoborockBase):
 
     map_list: list[Q7MapListEntry] = field(default_factory=list)
 
+    @property
+    def current_map_id(self) -> int | None:
+        """Current map id, preferring the entry marked current."""
+        if not self.map_list:
+            return None
 
-class MapTrait(Trait):
+        ordered = sorted(self.map_list, key=lambda entry: entry.cur or False, reverse=True)
+        first = next(iter(ordered), None)
+        if first is None or not isinstance(first.id, int):
+            return None
+        return first.id
+
+
+class MapTrait(Q7MapList, Trait):
     """Map retrieval + map metadata helpers for Q7 devices."""
 
     def __init__(self, channel: MqttChannel) -> None:
+        super().__init__()
         self._channel = channel
         # Map uploads are serialized per-device to avoid response cross-wiring.
         self._map_command_lock = asyncio.Lock()
-        self._map_list: Q7MapList | None = None
-
-    @property
-    def map_list(self) -> Q7MapList | None:
-        """Latest cached map list metadata, populated by ``refresh()``."""
-        return self._map_list
-
-    @property
-    def current_map_id(self) -> int | None:
-        """Current map id derived from cached map list metadata."""
-        if self._map_list is None:
-            return None
-        return self._extract_current_map_id(self._map_list)
+        self._loaded = False
 
     async def refresh(self) -> None:
         """Refresh cached map list metadata from the device."""
@@ -55,13 +56,15 @@ class MapTrait(Trait):
             Q7RequestMessage(dps=B01_Q7_DPS, command=RoborockB01Q7Methods.GET_MAP_LIST, params={}),
         )
         if not isinstance(response, dict):
-            raise TypeError(f"Unexpected response type for GET_MAP_LIST: {type(response).__name__}: {response!r}")
+            raise RoborockException(
+                f"Unexpected response type for GET_MAP_LIST: {type(response).__name__}: {response!r}"
+            )
 
-        parsed = Q7MapList.from_dict(response)
-        if parsed is None:
-            raise TypeError(f"Failed to decode map list response: {response!r}")
+        if (parsed := Q7MapList.from_dict(response)) is None:
+            raise RoborockException(f"Failed to decode map list response: {response!r}")
 
-        self._map_list = parsed
+        self.map_list = parsed.map_list
+        self._loaded = True
 
     async def _get_map_payload(self, *, map_id: int) -> bytes:
         """Fetch raw map payload bytes for the given map id."""
@@ -75,25 +78,10 @@ class MapTrait(Trait):
 
     async def get_current_map_payload(self) -> bytes:
         """Fetch raw map payload bytes for the currently selected map."""
-        if self._map_list is None:
+        if not self._loaded:
             await self.refresh()
 
         map_id = self.current_map_id
         if map_id is None:
-            raise RoborockException(f"Unable to determine map_id from map list response: {self._map_list!r}")
+            raise RoborockException(f"Unable to determine map_id from map list response: {self!r}")
         return await self._get_map_payload(map_id=map_id)
-
-    @staticmethod
-    def _extract_current_map_id(map_list_response: Q7MapList) -> int | None:
-        map_list = map_list_response.map_list
-        if not map_list:
-            return None
-
-        for entry in map_list:
-            if entry.cur and isinstance(entry.id, int):
-                return entry.id
-
-        first = map_list[0]
-        if isinstance(first.id, int):
-            return first.id
-        return None

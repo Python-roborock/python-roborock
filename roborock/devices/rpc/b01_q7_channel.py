@@ -34,13 +34,12 @@ async def _send_command(
     request_message: Q7RequestMessage,
     *,
     response_matcher: Callable[[RoborockMessage], _T | None],
-    timeout_error: str,
 ) -> _T:
     """Publish a B01 command and resolve on the first matching response."""
     roborock_message = encode_mqtt_payload(request_message)
     future: asyncio.Future[_T] = asyncio.get_running_loop().create_future()
 
-    def find_response(response_message: RoborockMessage) -> None:
+    def on_message(response_message: RoborockMessage) -> None:
         if future.done():
             return
         try:
@@ -51,12 +50,10 @@ async def _send_command(
         if response is not None:
             future.set_result(response)
 
-    unsub = await mqtt_channel.subscribe(find_response)
+    unsub = await mqtt_channel.subscribe(on_message)
     try:
         await mqtt_channel.publish(roborock_message)
         return await asyncio.wait_for(future, timeout=_TIMEOUT)
-    except TimeoutError as ex:
-        raise RoborockException(timeout_error) from ex
     finally:
         unsub()
 
@@ -64,11 +61,11 @@ async def _send_command(
 async def send_decoded_command(
     mqtt_channel: MqttChannel,
     request_message: Q7RequestMessage,
-) -> dict[str, Any] | None:
+) -> dict[str, Any]:
     """Send a command on the MQTT channel and get a decoded response."""
     _LOGGER.debug("Sending B01 MQTT command: %s", request_message)
 
-    def find_response(response_message: RoborockMessage) -> Any | None:
+    def find_response(response_message: RoborockMessage) -> dict[str, Any] | None:
         """Handle incoming messages and resolve the future."""
         try:
             decoded_dps = decode_rpc_response(response_message)
@@ -94,15 +91,13 @@ async def send_decoded_command(
                 continue
             if isinstance(inner, dict) and inner.get("msgId") == str(request_message.msg_id):
                 _LOGGER.debug("Received query response: %s", inner)
-                # Check for error code (0 = success, non-zero = error)
                 code = inner.get("code", 0)
                 if code != 0:
                     error_msg = f"B01 command failed with code {code} ({request_message})"
                     _LOGGER.debug("B01 error response: %s", error_msg)
                     raise RoborockException(error_msg)
                 data = inner.get("data")
-                # All get commands should be dicts
-                if request_message.command.endswith(".get") and not isinstance(data, dict):
+                if not isinstance(data, dict):
                     raise RoborockException(f"Unexpected data type for response {data} ({request_message})")
                 return data
         return None
@@ -112,8 +107,9 @@ async def send_decoded_command(
             mqtt_channel,
             request_message,
             response_matcher=find_response,
-            timeout_error=f"B01 command timed out after {_TIMEOUT}s ({request_message})",
         )
+    except TimeoutError as ex:
+        raise RoborockException(f"B01 command timed out after {_TIMEOUT}s ({request_message})") from ex
     except RoborockException as ex:
         _LOGGER.warning(
             "Error sending B01 decoded command (%ss): %s",
@@ -121,7 +117,6 @@ async def send_decoded_command(
             ex,
         )
         raise
-
     except Exception as ex:
         _LOGGER.exception(
             "Error sending B01 decoded command (%ss): %s",
@@ -138,9 +133,11 @@ async def send_map_command(mqtt_channel: MqttChannel, request_message: Q7Request
     raw ``MAP_RESPONSE`` payload bytes instead of a decoded RPC ``data`` payload.
     """
 
-    return await _send_command(
-        mqtt_channel,
-        request_message,
-        response_matcher=lambda response_message: _matches_map_response(response_message, version=B01_VERSION),
-        timeout_error=f"B01 map command timed out after {_TIMEOUT}s ({request_message})",
-    )
+    try:
+        return await _send_command(
+            mqtt_channel,
+            request_message,
+            response_matcher=lambda response_message: _matches_map_response(response_message, version=B01_VERSION),
+        )
+    except TimeoutError as ex:
+        raise RoborockException(f"B01 map command timed out after {_TIMEOUT}s ({request_message})") from ex

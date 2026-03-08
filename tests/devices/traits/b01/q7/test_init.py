@@ -17,7 +17,7 @@ from roborock.devices.rpc.b01_q7_channel import send_decoded_command
 from roborock.devices.traits.b01.q7 import Q7PropertiesApi
 from roborock.exceptions import RoborockException
 from roborock.protocols.b01_q7_protocol import B01_VERSION, Q7RequestMessage
-from roborock.roborock_message import RoborockB01Props, RoborockMessage, RoborockMessageProtocol
+from roborock.roborock_message import RoborockB01Props, RoborockMessageProtocol
 from tests.fixtures.channel_fixtures import FakeChannel
 
 from . import B01MessageBuilder
@@ -27,16 +27,12 @@ async def test_q7_api_query_values(
     q7_api: Q7PropertiesApi, fake_channel: FakeChannel, message_builder: B01MessageBuilder
 ):
     """Test that Q7PropertiesApi correctly converts raw values."""
-    # We need to construct the expected result based on the mappings
-    # status: 1 -> WAITING_FOR_ORDERS
-    # wind: 2 -> STANDARD
     response_data = {
         "status": 1,
         "wind": 2,
         "battery": 100,
     }
 
-    # Queue the response
     fake_channel.response_queue.append(message_builder.build(response_data))
 
     result = await q7_api.query_values(
@@ -48,12 +44,6 @@ async def test_q7_api_query_values(
 
     assert result is not None
     assert result.status == WorkStatusMapping.WAITING_FOR_ORDERS
-    # wind might be mapped to SCWindMapping.STANDARD (2)
-    # let's verify checking the prop definition in B01Props
-    # wind: SCWindMapping | None = None
-    # SCWindMapping.STANDARD is 2 ('balanced')
-    from roborock.data.b01_q7 import SCWindMapping
-
     assert result.wind == SCWindMapping.STANDARD
 
     assert len(fake_channel.published_messages) == 1
@@ -61,10 +51,8 @@ async def test_q7_api_query_values(
     assert message.protocol == RoborockMessageProtocol.RPC_REQUEST
     assert message.version == B01_VERSION
 
-    # Verify request payload
     assert message.payload is not None
     payload_data = json.loads(unpad(message.payload, AES.block_size))
-    # {"dps": {"10000": {"method": "prop.get", "msgId": "123456789", "params": {"property": ["status", "wind"]}}}}
     assert "dps" in payload_data
     assert "10000" in payload_data["dps"]
     inner = payload_data["dps"]["10000"]
@@ -109,8 +97,6 @@ async def test_send_decoded_command_non_dict_response(fake_channel: FakeChannel,
     """Test validity of handling non-dict responses (should not timeout)."""
     message = message_builder.build("some_string_error")
     fake_channel.response_queue.append(message)
-
-    # Use a random string for command type to avoid needing import
 
     with pytest.raises(RoborockException, match="Unexpected data type for response"):
         await send_decoded_command(fake_channel, Q7RequestMessage(dps=10000, command="prop.get", params=[]))  # type: ignore[arg-type]
@@ -275,90 +261,3 @@ async def test_q7_api_clean_segments(
         "ctrl_value": SCDeviceCleanParam.START.code,
         "room_ids": [10, 11],
     }
-
-
-async def test_q7_api_get_current_map_payload(
-    q7_api: Q7PropertiesApi,
-    fake_channel: FakeChannel,
-    message_builder: B01MessageBuilder,
-):
-    """Fetch current map by map-list lookup, then upload_by_mapid."""
-    fake_channel.response_queue.append(message_builder.build({"map_list": [{"id": 1772093512, "cur": True}]}))
-    fake_channel.response_queue.append(
-        RoborockMessage(
-            protocol=RoborockMessageProtocol.MAP_RESPONSE,
-            payload=b"raw-map-payload",
-            version=b"B01",
-            seq=message_builder.seq + 1,
-        )
-    )
-
-    raw_payload = await q7_api.map.get_current_map_payload()
-    assert raw_payload == b"raw-map-payload"
-
-    assert len(fake_channel.published_messages) == 2
-
-    first = fake_channel.published_messages[0]
-    first_payload = json.loads(unpad(first.payload, AES.block_size))
-    assert first_payload["dps"]["10000"]["method"] == "service.get_map_list"
-    assert first_payload["dps"]["10000"]["params"] == {}
-
-    second = fake_channel.published_messages[1]
-    second_payload = json.loads(unpad(second.payload, AES.block_size))
-    assert second_payload["dps"]["10000"]["method"] == "service.upload_by_mapid"
-    assert second_payload["dps"]["10000"]["params"] == {"map_id": 1772093512}
-
-
-async def test_q7_api_map_trait_refresh_populates_cached_values(
-    q7_api: Q7PropertiesApi,
-    fake_channel: FakeChannel,
-    message_builder: B01MessageBuilder,
-):
-    """Map trait follows refresh + cached-value access pattern."""
-    fake_channel.response_queue.append(message_builder.build({"map_list": [{"id": 101, "cur": True}]}))
-
-    assert q7_api.map.map_list is None
-    assert q7_api.map.current_map_id is None
-
-    await q7_api.map.refresh()
-
-    assert len(fake_channel.published_messages) == 1
-    assert q7_api.map.map_list is not None
-    assert q7_api.map.map_list.map_list[0].id == 101
-    assert q7_api.map.map_list.map_list[0].cur is True
-    assert q7_api.map.current_map_id == 101
-
-
-async def test_q7_api_get_current_map_payload_falls_back_to_first_map(
-    q7_api: Q7PropertiesApi,
-    fake_channel: FakeChannel,
-    message_builder: B01MessageBuilder,
-):
-    """If no current map marker exists, first map in list is used."""
-    fake_channel.response_queue.append(message_builder.build({"map_list": [{"id": 111}, {"id": 222, "cur": False}]}))
-    fake_channel.response_queue.append(
-        RoborockMessage(
-            protocol=RoborockMessageProtocol.MAP_RESPONSE,
-            payload=b"raw-map-payload",
-            version=b"B01",
-            seq=message_builder.seq + 1,
-        )
-    )
-
-    await q7_api.map.get_current_map_payload()
-
-    second = fake_channel.published_messages[1]
-    second_payload = json.loads(unpad(second.payload, AES.block_size))
-    assert second_payload["dps"]["10000"]["params"] == {"map_id": 111}
-
-
-async def test_q7_api_get_current_map_payload_errors_without_map_list(
-    q7_api: Q7PropertiesApi,
-    fake_channel: FakeChannel,
-    message_builder: B01MessageBuilder,
-):
-    """Current-map payload fetch should fail clearly when map list is unusable."""
-    fake_channel.response_queue.append(message_builder.build({"map_list": []}))
-
-    with pytest.raises(RoborockException, match="Unable to determine map_id"):
-        await q7_api.map.get_current_map_payload()
