@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v4.18.1 (2026-03-07)
+
+### Bug Fixes
+
+- Don't reconnect on no active subscribers
+  ([#779](https://github.com/Python-roborock/python-roborock/pull/779),
+  [`9760519`](https://github.com/Python-roborock/python-roborock/commit/9760519e822d06fac74e4a14bc11003e5fd2ca21))
+
+
 ## v4.18.0 (2026-03-06)
 
 ### Bug Fixes
