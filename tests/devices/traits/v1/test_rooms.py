@@ -94,8 +94,8 @@ async def test_refresh_unknown_room_names_overwrites_home_data(
         await rooms_trait.refresh()
 
         assert rooms_trait.rooms
-        assert rooms_trait.rooms[0] == NamedRoomMapping(segment_id=16, iot_id="2362048", name="Living Room")
-        assert rooms_trait.rooms[1] == NamedRoomMapping(segment_id=17, iot_id="9999999", name="Office")
+        assert rooms_trait.rooms[0] == NamedRoomMapping(segment_id=16, iot_id="2362048", raw_name="Living Room")
+        assert rooms_trait.rooms[1] == NamedRoomMapping(segment_id=17, iot_id="9999999", raw_name="Office")
 
         home_data_rooms = {str(room.id): room.name for room in rooms_trait._home_data.rooms or ()}
         assert home_data_rooms["2362048"] == "Living Room"
@@ -143,11 +143,13 @@ async def test_refresh_unknown_room_names_unresolved_uses_room_fallback(
 
     await rooms_trait.refresh()
     assert rooms_trait.rooms
-    assert rooms_trait.rooms[0] == NamedRoomMapping(segment_id=33, iot_id="9999922", name="Room 33")
+    assert rooms_trait.rooms[0] == NamedRoomMapping(segment_id=33, iot_id="9999922")
+    assert rooms_trait.rooms[0].name == "Room 33"
 
     await rooms_trait.refresh()
     assert rooms_trait.rooms
-    assert rooms_trait.rooms[0] == NamedRoomMapping(segment_id=33, iot_id="9999922", name="Room 33")
+    assert rooms_trait.rooms[0] == NamedRoomMapping(segment_id=33, iot_id="9999922")
+    assert rooms_trait.rooms[0].name == "Room 33"
     web_api_client.get_rooms.assert_called_once()
 
 
@@ -202,5 +204,6 @@ async def test_refresh_unknown_room_names_failure_falls_back_to_room_segment_id(
     await rooms_trait.refresh()
 
     assert rooms_trait.rooms
-    assert rooms_trait.rooms[0] == NamedRoomMapping(segment_id=16, iot_id="9999401", name="Room 16")
+    assert rooms_trait.rooms[0] == NamedRoomMapping(segment_id=16, iot_id="9999401")
+    assert rooms_trait.rooms[0].name == "Room 16"
     web_api_client.get_rooms.assert_called_once()

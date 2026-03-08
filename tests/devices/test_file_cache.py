@@ -48,7 +48,7 @@ async def test_get_from_non_existent_cache(cache_file: pathlib.Path) -> None:
                 1: CombinedMapInfo(
                     map_flag=1,
                     name="Test Map",
-                    rooms=[NamedRoomMapping(segment_id=1023, iot_id="4321", name="Living Room")],
+                    rooms=[NamedRoomMapping(segment_id=1023, iot_id="4321", raw_name="Living Room")],
                 )
             },
         ),
@@ -62,14 +62,14 @@ async def test_get_from_non_existent_cache(cache_file: pathlib.Path) -> None:
                             map_flag=1,
                             name="Test Map 1",
                             rooms=[
-                                NamedRoomMapping(segment_id=1023, iot_id="4321", name="Living Room"),
-                                NamedRoomMapping(segment_id=1024, iot_id="4322", name="Starship"),
+                                NamedRoomMapping(segment_id=1023, iot_id="4321", raw_name="Living Room"),
+                                NamedRoomMapping(segment_id=1024, iot_id="4322", raw_name="Starship"),
                             ],
                         ),
                         2: CombinedMapInfo(
                             map_flag=2,
                             name="Test Map 2",
-                            rooms=[NamedRoomMapping(segment_id=2047, iot_id="5432", name="Bedroom")],
+                            rooms=[NamedRoomMapping(segment_id=2047, iot_id="5432", raw_name="Bedroom")],
                         ),
                     },
                     home_map_content_base64={

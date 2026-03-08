@@ -38,7 +38,7 @@ from roborock.const import (
 )
 from roborock.exceptions import RoborockException
 
-from ..containers import RoborockBase, RoborockBaseTimer, _attr_repr
+from ..containers import NamedRoomMapping, RoborockBase, RoborockBaseTimer, _attr_repr
 from .v1_code_mappings import (
     CleanFluidStatus,
     ClearWaterBoxStatus,
@@ -686,6 +686,17 @@ class MultiMapsListRoom(RoborockBase):
     iot_name_id: str | None = None
     iot_name: str | None = None
 
+    @property
+    def named_room_mapping(self) -> NamedRoomMapping | None:
+        """Returns a NamedRoomMapping object if valid."""
+        if self.id is None or self.iot_name_id is None:
+            return None
+        return NamedRoomMapping(
+            segment_id=self.id,
+            iot_id=self.iot_name_id,
+            raw_name=self.iot_name,
+        )
+
 
 @dataclass
 class MultiMapsListMapInfoBakMaps(RoborockBase):
@@ -706,6 +717,15 @@ class MultiMapsListMapInfo(RoborockBase):
     def mapFlag(self) -> int:
         """Alias for map_flag, returns the map flag as an integer."""
         return self.map_flag
+
+    @property
+    def rooms_map(self) -> dict[int, NamedRoomMapping]:
+        """Returns a dictionary of room mappings by segment id."""
+        return {
+            room.id: room.named_room_mapping
+            for room in self.rooms or ()
+            if room.id is not None and room.named_room_mapping is not None
+        }
 
 
 @dataclass
