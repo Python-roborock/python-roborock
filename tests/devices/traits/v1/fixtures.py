@@ -1,5 +1,6 @@
 """Fixtures for V1 trait tests."""
 
+from copy import deepcopy
 from unittest.mock import AsyncMock
 
 import pytest
@@ -89,7 +90,7 @@ def device_fixture(
         trait=v1.create(
             device_info.duid,
             product,
-            HOME_DATA,
+            deepcopy(HOME_DATA),
             mock_rpc_channel,
             mock_mqtt_rpc_channel,
             mock_map_rpc_channel,
