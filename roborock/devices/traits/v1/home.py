@@ -37,6 +37,10 @@ _LOGGER = logging.getLogger(__name__)
 MAP_SLEEP = 3
 
 
+def _is_default_room_name(name: str, segment_id: int) -> bool:
+    return name in ("Unknown", f"Room {segment_id}")
+
+
 class HomeTrait(RoborockBase, common.V1TraitMixin):
     """Trait that represents a full view of the home layout."""
 
@@ -129,22 +133,20 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
                         name=room.iot_name or "Unknown",
                     )
 
-        # Add rooms from rooms_trait. If room already exists and rooms_trait has "Unknown", don't override.
+        # Add rooms from rooms_trait.
+        # Prefer existing non-default map_info names over fallback names from RoomsTrait.
         if self._rooms_trait.rooms:
             for room in self._rooms_trait.rooms:
                 if room.segment_id is not None and room.name:
-                    if room.segment_id not in rooms or room.name != "Unknown":
-                        # Add the room to rooms if the room segment is not already in it
-                        # or if the room name isn't unknown.
+                    existing_room = rooms.get(room.segment_id)
+                    if existing_room is None:
                         rooms[room.segment_id] = room
+                        continue
 
-        for segment_id, room in rooms.items():
-            if room.name == "Unknown":
-                rooms[segment_id] = NamedRoomMapping(
-                    segment_id=room.segment_id,
-                    iot_id=room.iot_id,
-                    name=f"Room {room.segment_id}",
-                )
+                    if _is_default_room_name(existing_room.name, existing_room.segment_id) or not _is_default_room_name(
+                        room.name, room.segment_id
+                    ):
+                        rooms[room.segment_id] = room
 
         return CombinedMapInfo(
             map_flag=map_info.map_flag,

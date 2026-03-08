@@ -654,16 +654,16 @@ async def test_refresh_map_info_room_override_and_addition_logic(
     )
 
     # Mock rooms_trait to return multiple rooms covering all scenarios:
-    # - segment_id 16 with "Unknown": exists in map_info, should NOT override
+    # - segment_id 16 with fallback name: exists in map_info, should NOT override
     # - segment_id 19 with valid name: exists in map_info, should override
-    # - segment_id 17 with "Unknown": not in map_info, should be added
+    # - segment_id 17 with fallback name: not in map_info, should be added
     # - segment_id 18 with valid name: not in map_info, should be added
     rooms_trait.rooms = [
-        NamedRoomMapping(segment_id=16, iot_id="2362048", name="Unknown"),  # Exists in map_info, should not override
+        NamedRoomMapping(segment_id=16, iot_id="2362048", name="Room 16"),  # Exists in map_info, should not override
         NamedRoomMapping(
             segment_id=19, iot_id="2362042", name="Updated Bedroom Name"
         ),  # Exists in map_info, should override
-        NamedRoomMapping(segment_id=17, iot_id="2362044", name="Unknown"),  # Not in map_info, should be added
+        NamedRoomMapping(segment_id=17, iot_id="2362044", name="Room 17"),  # Not in map_info, should be added
         NamedRoomMapping(segment_id=18, iot_id="2362041", name="Example room 3"),  # Not in map_info, should be added
     ]
 
