@@ -149,3 +149,58 @@ async def test_refresh_unknown_room_names_unresolved_uses_room_fallback(
     assert rooms_trait.rooms
     assert rooms_trait.rooms[0] == NamedRoomMapping(segment_id=33, iot_id="9999922", name="Room 33")
     web_api_client.get_rooms.assert_called_once()
+
+
+async def test_refresh_unknown_room_names_called_again_for_new_unknown_room(
+    rooms_trait: RoomsTrait,
+    web_api_client: AsyncMock,
+    mock_rpc_channel: AsyncMock,
+) -> None:
+    """Test get_rooms is called again when a new unknown room appears."""
+    room_mapping_data_1 = [[16, "9999601"]]
+    room_mapping_data_2 = [[16, "9999601"], [17, "9999602"]]
+    mock_rpc_channel.send_command.side_effect = [room_mapping_data_1, room_mapping_data_2]
+    web_api_client.get_rooms.return_value = []
+
+    await rooms_trait.refresh()
+    assert rooms_trait.rooms
+    assert sorted(room.name for room in rooms_trait.rooms) == ["Room 16"]
+
+    await rooms_trait.refresh()
+    assert rooms_trait.rooms
+    assert sorted(room.name for room in rooms_trait.rooms) == ["Room 16", "Room 17"]
+    assert web_api_client.get_rooms.call_count == 2
+
+
+async def test_refresh_unknown_room_names_called_again_for_new_unknown_iot_id_same_segment(
+    rooms_trait: RoomsTrait,
+    web_api_client: AsyncMock,
+    mock_rpc_channel: AsyncMock,
+) -> None:
+    """Test get_rooms is called again for a new unknown iot_id on the same segment."""
+    room_mapping_data_1 = [[16, "9999501"]]
+    room_mapping_data_2 = [[16, "9999502"]]
+    mock_rpc_channel.send_command.side_effect = [room_mapping_data_1, room_mapping_data_2]
+    web_api_client.get_rooms.return_value = []
+
+    await rooms_trait.refresh()
+    await rooms_trait.refresh()
+
+    assert web_api_client.get_rooms.call_count == 2
+
+
+async def test_refresh_unknown_room_names_failure_falls_back_to_room_segment_id(
+    rooms_trait: RoomsTrait,
+    web_api_client: AsyncMock,
+    mock_rpc_channel: AsyncMock,
+) -> None:
+    """Test get_rooms failure gracefully falls back to Room {segment_id}."""
+    room_mapping_data = [[16, "9999401"]]
+    mock_rpc_channel.send_command.side_effect = [room_mapping_data]
+    web_api_client.get_rooms.side_effect = Exception("API error")
+
+    await rooms_trait.refresh()
+
+    assert rooms_trait.rooms
+    assert rooms_trait.rooms[0] == NamedRoomMapping(segment_id=16, iot_id="9999401", name="Room 16")
+    web_api_client.get_rooms.assert_called_once()

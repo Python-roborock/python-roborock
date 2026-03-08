@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from roborock.data.containers import CombinedMapInfo, HomeDataRoom, NamedRoomMapping
+from roborock.data.containers import CombinedMapInfo, NamedRoomMapping
 from roborock.data.v1.v1_code_mappings import RoborockStateCode
 from roborock.data.v1.v1_containers import MultiMapsListMapInfo, MultiMapsListRoom
 from roborock.devices.cache import DeviceCache, DeviceCacheData, InMemoryCache
@@ -624,17 +624,15 @@ async def test_single_map_no_switching(
     assert len(load_map_calls) == 0
 
 
-async def test_refresh_map_info_room_override_and_addition_logic(
+async def test_refresh_map_info_prefers_map_info_names_and_adds_missing_rooms(
     home_trait: HomeTrait,
     rooms_trait: RoomsTrait,
 ) -> None:
-    """Test the room override and addition logic in _refresh_map_info.
+    """Test room merge behavior in _refresh_map_info.
 
     This test verifies:
-    1. Room with "Unknown" does not override existing room from map_info
-    2. Room with valid name overrides existing room from map_info
-    3. Room with "Unknown" is added if not already in rooms
-    4. Room with valid name is added if not already in rooms
+    1. Existing map_info room names are preserved.
+    2. Missing rooms from RoomsTrait are added.
     """
     map_info = MultiMapsListMapInfo(
         map_flag=0,
@@ -655,14 +653,14 @@ async def test_refresh_map_info_room_override_and_addition_logic(
 
     # Mock rooms_trait to return multiple rooms covering all scenarios:
     # - segment_id 16 with fallback name: exists in map_info, should NOT override
-    # - segment_id 19 with valid name: exists in map_info, should override
+    # - segment_id 19 with valid name: exists in map_info, should NOT override
     # - segment_id 17 with fallback name: not in map_info, should be added
     # - segment_id 18 with valid name: not in map_info, should be added
     rooms_trait.rooms = [
         NamedRoomMapping(segment_id=16, iot_id="2362048", name="Room 16"),  # Exists in map_info, should not override
         NamedRoomMapping(
             segment_id=19, iot_id="2362042", name="Updated Bedroom Name"
-        ),  # Exists in map_info, should override
+        ),  # Exists in map_info, should not override
         NamedRoomMapping(segment_id=17, iot_id="2362044", name="Room 17"),  # Not in map_info, should be added
         NamedRoomMapping(segment_id=18, iot_id="2362041", name="Example room 3"),  # Not in map_info, should be added
     ]
@@ -693,147 +691,7 @@ async def test_refresh_map_info_room_override_and_addition_logic(
     assert sorted_rooms[2].name == "Example room 3"
     assert sorted_rooms[2].iot_id == "2362041"
 
-    # Room 19: from map_info, overridden by rooms_trait with valid name
+    # Room 19: from map_info, kept (not overridden by rooms_trait)
     assert sorted_rooms[3].segment_id == 19
-    assert sorted_rooms[3].name == "Updated Bedroom Name"
+    assert sorted_rooms[3].name == "Bedroom from map_info"
     assert sorted_rooms[3].iot_id == "2362042"
-
-
-async def test_get_rooms_resolves_unknown_rooms(
-    home_trait: HomeTrait,
-    mock_rpc_channel: AsyncMock,
-    mock_web_api: AsyncMock,
-) -> None:
-    """Test that get_rooms from web API resolves unknown room names."""
-    room_mapping_data = [[16, "9999801"], [17, "9999802"]]
-    mock_rpc_channel.send_command.side_effect = [room_mapping_data]
-
-    map_info = MultiMapsListMapInfo(
-        map_flag=0,
-        name="Test Map",
-        rooms=[
-            MultiMapsListRoom(id=16, iot_name_id="9999801", iot_name=None),
-            MultiMapsListRoom(id=17, iot_name_id="9999802", iot_name=None),
-        ],
-    )
-
-    # Web API returns fresh room names
-    mock_web_api.get_rooms.return_value = [
-        HomeDataRoom(id=9999801, name="Living Room"),
-        HomeDataRoom(id=9999802, name="Kitchen"),
-    ]
-
-    result = await home_trait._refresh_map_info(map_info)
-
-    sorted_rooms = sorted(result.rooms, key=lambda r: r.segment_id)
-    assert sorted_rooms[0].name == "Living Room"
-    assert sorted_rooms[1].name == "Kitchen"
-    mock_web_api.get_rooms.assert_called_once()
-
-
-async def test_get_rooms_called_once_for_same_unknown_room(
-    home_trait: HomeTrait,
-    mock_rpc_channel: AsyncMock,
-    mock_web_api: AsyncMock,
-) -> None:
-    """Test that get_rooms is not re-called for an already-seen unknown room."""
-    room_mapping_data = [[16, "9999701"]]
-    mock_rpc_channel.send_command.side_effect = [room_mapping_data, room_mapping_data]
-
-    map_info = MultiMapsListMapInfo(
-        map_flag=42,
-        name="Test Map",
-        rooms=[
-            MultiMapsListRoom(id=16, iot_name_id="9999701", iot_name=None),
-        ],
-    )
-
-    # Web API returns empty (no resolution)
-    mock_web_api.get_rooms.return_value = []
-
-    result1 = await home_trait._refresh_map_info(map_info)
-    result2 = await home_trait._refresh_map_info(map_info)
-
-    # Both calls should fall back to "Room 16"
-    assert result1.rooms[0].name == "Room 16"
-    assert result2.rooms[0].name == "Room 16"
-    # get_rooms should only be called once for the same unknown room
-    mock_web_api.get_rooms.assert_called_once()
-
-
-async def test_get_rooms_called_again_for_new_unknown_room(
-    home_trait: HomeTrait,
-    mock_rpc_channel: AsyncMock,
-    mock_web_api: AsyncMock,
-) -> None:
-    """Test that get_rooms is called again when a new unknown room appears."""
-    room_mapping_data_1 = [[16, "9999601"]]
-    room_mapping_data_2 = [[16, "9999601"], [17, "9999602"]]
-    mock_rpc_channel.send_command.side_effect = [room_mapping_data_1, room_mapping_data_2]
-
-    map_info = MultiMapsListMapInfo(
-        map_flag=42,
-        name="Test Map",
-        rooms=[
-            MultiMapsListRoom(id=16, iot_name_id="9999601", iot_name=None),
-        ],
-    )
-
-    # Web API returns empty (no resolution)
-    mock_web_api.get_rooms.return_value = []
-
-    result1 = await home_trait._refresh_map_info(map_info)
-    result2 = await home_trait._refresh_map_info(map_info)
-
-    assert sorted(room.name for room in result1.rooms) == ["Room 16"]
-    assert sorted(room.name for room in result2.rooms) == ["Room 16", "Room 17"]
-    assert mock_web_api.get_rooms.call_count == 2
-
-
-async def test_get_rooms_called_again_for_new_unknown_iot_id_same_segment(
-    home_trait: HomeTrait,
-    mock_rpc_channel: AsyncMock,
-    mock_web_api: AsyncMock,
-) -> None:
-    """Test that get_rooms is called again for a new unknown iot_id on the same segment."""
-    room_mapping_data_1 = [[16, "9999501"]]
-    room_mapping_data_2 = [[16, "9999502"]]
-    mock_rpc_channel.send_command.side_effect = [room_mapping_data_1, room_mapping_data_2]
-
-    map_info = MultiMapsListMapInfo(
-        map_flag=42,
-        name="Test Map",
-    )
-
-    mock_web_api.get_rooms.return_value = []
-
-    await home_trait._refresh_map_info(map_info)
-    await home_trait._refresh_map_info(map_info)
-
-    assert mock_web_api.get_rooms.call_count == 2
-
-
-async def test_get_rooms_failure_falls_back_to_room_segment_id(
-    home_trait: HomeTrait,
-    mock_rpc_channel: AsyncMock,
-    mock_web_api: AsyncMock,
-) -> None:
-    """Test that get_rooms failure gracefully falls back to 'Room {segment_id}'."""
-    room_mapping_data = [[16, "9999401"]]
-    mock_rpc_channel.send_command.side_effect = [room_mapping_data]
-
-    map_info = MultiMapsListMapInfo(
-        map_flag=7,
-        name="Test Map",
-        rooms=[
-            MultiMapsListRoom(id=16, iot_name_id="9999401", iot_name=None),
-        ],
-    )
-
-    # Web API raises an exception
-    mock_web_api.get_rooms.side_effect = Exception("API error")
-
-    result = await home_trait._refresh_map_info(map_info)
-
-    assert result.rooms[0].name == "Room 16"
-    mock_web_api.get_rooms.assert_called_once()

@@ -37,10 +37,6 @@ _LOGGER = logging.getLogger(__name__)
 MAP_SLEEP = 3
 
 
-def _is_default_room_name(name: str, segment_id: int) -> bool:
-    return name in ("Unknown", f"Room {segment_id}")
-
-
 class HomeTrait(RoborockBase, common.V1TraitMixin):
     """Trait that represents a full view of the home layout."""
 
@@ -134,18 +130,12 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
                     )
 
         # Add rooms from rooms_trait.
-        # Prefer existing non-default map_info names over fallback names from RoomsTrait.
+        # Keep existing names from map_info unless they are unknown.
         if self._rooms_trait.rooms:
             for room in self._rooms_trait.rooms:
                 if room.segment_id is not None and room.name:
                     existing_room = rooms.get(room.segment_id)
-                    if existing_room is None:
-                        rooms[room.segment_id] = room
-                        continue
-
-                    if _is_default_room_name(existing_room.name, existing_room.segment_id) or not _is_default_room_name(
-                        room.name, room.segment_id
-                    ):
+                    if existing_room is None or existing_room.name == "Unknown":
                         rooms[room.segment_id] = room
 
         return CombinedMapInfo(
