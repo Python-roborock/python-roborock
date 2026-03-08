@@ -633,6 +633,7 @@ async def test_refresh_map_info_prefers_map_info_names_and_adds_missing_rooms(
     This test verifies:
     1. Existing map_info room names are preserved.
     2. Missing rooms from RoomsTrait are added.
+    3. map_info fallback names are replaced by RoomsTrait names.
     """
     map_info = MultiMapsListMapInfo(
         map_flag=0,
@@ -648,6 +649,11 @@ async def test_refresh_map_info_prefers_map_info_names_and_adds_missing_rooms(
                 iot_name_id="2362042",
                 iot_name="Bedroom from map_info",
             ),
+            MultiMapsListRoom(
+                id=20,
+                iot_name_id="9999001",
+                iot_name=None,
+            ),
         ],
     )
 
@@ -656,6 +662,7 @@ async def test_refresh_map_info_prefers_map_info_names_and_adds_missing_rooms(
     # - segment_id 19 with valid name: exists in map_info, should NOT override
     # - segment_id 17 with fallback name: not in map_info, should be added
     # - segment_id 18 with valid name: not in map_info, should be added
+    # - segment_id 20 with valid name: overrides map_info fallback "Room 20"
     rooms_trait.rooms = [
         NamedRoomMapping(segment_id=16, iot_id="2362048", name="Room 16"),  # Exists in map_info, should not override
         NamedRoomMapping(
@@ -663,6 +670,7 @@ async def test_refresh_map_info_prefers_map_info_names_and_adds_missing_rooms(
         ),  # Exists in map_info, should not override
         NamedRoomMapping(segment_id=17, iot_id="2362044", name="Room 17"),  # Not in map_info, should be added
         NamedRoomMapping(segment_id=18, iot_id="2362041", name="Example room 3"),  # Not in map_info, should be added
+        NamedRoomMapping(segment_id=20, iot_id="9999001", name="Office from rooms_trait"),
     ]
 
     # Mock rooms_trait.refresh to prevent actual device calls
@@ -671,17 +679,17 @@ async def test_refresh_map_info_prefers_map_info_names_and_adds_missing_rooms(
 
     assert result.map_flag == 0
     assert result.name == "Test Map"
-    assert len(result.rooms) == 4
+    assert len(result.rooms) == 5
 
     # Sort rooms by segment_id for consistent assertions
     sorted_rooms = sorted(result.rooms, key=lambda r: r.segment_id)
 
-    # Room 16: from map_info, kept (not overridden by Unknown)
+    # Room 16: from map_info, kept (not overridden by rooms_trait fallback)
     assert sorted_rooms[0].segment_id == 16
     assert sorted_rooms[0].name == "Kitchen from map_info"
     assert sorted_rooms[0].iot_id == "2362048"
 
-    # Room 17: from rooms_trait with "Unknown", falls back to "Room 17"
+    # Room 17: from rooms_trait with fallback name, added because not in map_info
     assert sorted_rooms[1].segment_id == 17
     assert sorted_rooms[1].name == "Room 17"
     assert sorted_rooms[1].iot_id == "2362044"
@@ -695,3 +703,8 @@ async def test_refresh_map_info_prefers_map_info_names_and_adds_missing_rooms(
     assert sorted_rooms[3].segment_id == 19
     assert sorted_rooms[3].name == "Bedroom from map_info"
     assert sorted_rooms[3].iot_id == "2362042"
+
+    # Room 20: map_info fallback name replaced by rooms_trait name
+    assert sorted_rooms[4].segment_id == 20
+    assert sorted_rooms[4].name == "Office from rooms_trait"
+    assert sorted_rooms[4].iot_id == "9999001"
