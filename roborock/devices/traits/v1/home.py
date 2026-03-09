@@ -125,7 +125,7 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
         # - RoomsTrait rooms that are pulled from the cloud API
         # We always prefer the RoomsTrait room names since they are always newer and
         # just refreshed above.
-        rooms_map: dict[str, NamedRoomMapping] = {
+        rooms_map: dict[int, NamedRoomMapping] = {
             **map_info.rooms_map,
             **{room.segment_id: room for room in self._rooms_trait.rooms or ()},
         }
