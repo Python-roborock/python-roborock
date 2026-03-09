@@ -257,6 +257,10 @@ async def test_discover_home_empty_cache(
     assert current_map_data is not None
     assert current_map_data.map_flag == 0
     assert current_map_data.name == "Ground Floor"
+    assert [room.name for room in home_trait.current_rooms] == [
+        "Example room 1",
+        "Example room 2",
+    ]
 
     # Verify the persistent cache has been updated
     device_cache_data = await device_cache.get()
@@ -507,6 +511,11 @@ async def test_discover_home_device_busy_cleaning(
     assert home_trait.home_map_info.keys() == {0}
     assert home_trait.home_map_content is not None
     assert home_trait.home_map_content.keys() == {0}
+    assert [room.name for room in home_trait.current_rooms] == [
+        "Example room 1",
+        "Example room 2",
+    ]
+
     map_0_content = home_trait.home_map_content[0]
     assert map_0_content is not None
     assert map_0_content.image_content == TEST_IMAGE_CONTENT_1
@@ -548,6 +557,10 @@ async def test_discover_home_device_busy_cleaning(
     assert home_trait.home_map_info.keys() == {0, 123}
     assert home_trait.home_map_content is not None
     assert home_trait.home_map_content.keys() == {0, 123}
+    assert [room.name for room in home_trait.current_rooms] == [
+        "Room 16",
+        "Room 17",
+    ]
 
     # Verify the persistent cache has been updated
     device_cache_data = await device_cache.get()

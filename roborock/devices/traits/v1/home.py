@@ -222,6 +222,11 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
         return self._home_map_info.get(current_map_flag)
 
     @property
+    def current_rooms(self) -> list[NamedRoomMapping]:
+        """Returns the room names for the current map."""
+        return self.current_map_data.rooms
+
+    @property
     def home_map_content(self) -> dict[int, MapContent] | None:
         """Returns the map content for all cached maps."""
         return self._home_map_content
