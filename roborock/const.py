@@ -33,6 +33,7 @@ ROBOROCK_Q7PLUS = "roborock.vacuum.a40"
 ROBOROCK_QREVO_MASTER = "roborock.vacuum.a117"
 ROBOROCK_QREVO_CURV = "roborock.vacuum.a135"
 ROBOROCK_Q8_MAX = "roborock.vacuum.a73"
+ROBOROCK_Q10 = "roborock.vacuum.ss07"
 ROBOROCK_G10S_PRO = "roborock.vacuum.a26"
 ROBOROCK_G20S_Ultra = "roborock.vacuum.a143"  # cn saros_r10
 ROBOROCK_G10S = "roborock.vacuum.a46"
@@ -76,6 +77,7 @@ SUPPORTED_VACUUMS = [
     ROBOROCK_S4_MAX,
     ROBOROCK_S7,
     ROBOROCK_P10,
+    ROBOROCK_Q10,
     ROCKROBO_G10_SG,
 ]
 

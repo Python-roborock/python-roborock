@@ -11,6 +11,7 @@ receiving messages from the vacuum cleaner.
 import asyncio
 import datetime
 import logging
+import ssl
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 
@@ -26,7 +27,7 @@ from .session import MqttParams, MqttSession, MqttSessionException, MqttSessionU
 _LOGGER = logging.getLogger(__name__)
 _MQTT_LOGGER = logging.getLogger(f"{__name__}.aiomqtt")
 
-CLIENT_KEEPALIVE = datetime.timedelta(seconds=60)
+CLIENT_KEEPALIVE = datetime.timedelta(seconds=45)
 TOPIC_KEEPALIVE = datetime.timedelta(seconds=60)
 
 # Exponential backoff parameters
@@ -55,9 +56,12 @@ class RoborockMqttSession(MqttSession):
     The client is run as a background task that will run until shutdown. Once
     connected, the client will wait for messages to be received in a loop. If
     the connection is lost, the client will be re-created and reconnected. There
-    is backoff to avoid spamming the broker with connection attempts. The client
-    will automatically re-establish any subscriptions when the connection is
-    re-established.
+    is backoff to avoid spamming the broker with connection attempts.
+
+    Reconnect attempts are deferred while there are no active subscriptions,
+    which avoids unnecessary reconnect churn for idle sessions. Reconnects
+    resume as soon as a subscription is added again. The client automatically
+    re-establishes any existing subscriptions when the connection returns.
     """
 
     def __init__(
@@ -174,6 +178,16 @@ class RoborockMqttSession(MqttSession):
             if self._stop:
                 _LOGGER.debug("MQTT session closed, stopping retry loop")
                 return
+            if not self._client_subscribed_topics and not self._listeners.keys():
+                _LOGGER.debug("MQTT session disconnected with no active subscriptions, deferring reconnect")
+                self._diagnostics.increment("reconnect_deferred")
+                while not self._stop and not self._client_subscribed_topics and not self._listeners.keys():
+                    await asyncio.sleep(0.1)
+                if self._stop:
+                    _LOGGER.debug("MQTT session closed while waiting for active subscriptions")
+                    return
+                self._backoff = MIN_BACKOFF_INTERVAL
+                continue
             _LOGGER.info("MQTT session disconnected, retrying in %s seconds", self._backoff.total_seconds())
             self._diagnostics.increment("reconnect_wait")
             await asyncio.sleep(self._backoff.total_seconds())
@@ -238,6 +252,9 @@ class RoborockMqttSession(MqttSession):
     async def _mqtt_client(self, params: MqttParams) -> aiomqtt.Client:
         """Connect to the MQTT broker and listen for messages."""
         _LOGGER.debug("Connecting to %s:%s for %s", params.host, params.port, params.username)
+        tls_params = None
+        if params.tls:
+            tls_params = TLSParameters(cert_reqs=ssl.CERT_REQUIRED if params.verify_tls else ssl.CERT_NONE)
         try:
             async with aiomqtt.Client(
                 hostname=params.host,
@@ -246,7 +263,7 @@ class RoborockMqttSession(MqttSession):
                 password=params.password,
                 keepalive=int(CLIENT_KEEPALIVE.total_seconds()),
                 protocol=aiomqtt.ProtocolVersion.V5,
-                tls_params=TLSParameters() if params.tls else None,
+                tls_params=tls_params,
                 timeout=params.timeout,
                 logger=_MQTT_LOGGER,
             ) as client:

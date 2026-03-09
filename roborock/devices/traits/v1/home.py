@@ -120,22 +120,23 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
 
         rooms: dict[int, NamedRoomMapping] = {}
         if map_info.rooms:
-            # Not all vacuums resopnd with rooms inside map_info.
+            # Not all vacuums respond with rooms inside map_info.
+            # If we can determine if all vacuums will return everything with get_rooms, we could remove this step.
             for room in map_info.rooms:
                 if room.id is not None and room.iot_name_id is not None:
                     rooms[room.id] = NamedRoomMapping(
                         segment_id=room.id,
                         iot_id=room.iot_name_id,
-                        name=room.iot_name or "Unknown",
+                        name=room.iot_name or f"Room {room.id}",
                     )
 
-        # Add rooms from rooms_trait. If room already exists and rooms_trait has "Unknown", don't override.
+        # Add rooms from rooms_trait.
+        # Keep existing names from map_info unless they are fallback names.
         if self._rooms_trait.rooms:
             for room in self._rooms_trait.rooms:
                 if room.segment_id is not None and room.name:
-                    if room.segment_id not in rooms or room.name != "Unknown":
-                        # Add the room to rooms if the room segment is not already in it
-                        # or if the room name isn't unknown.
+                    existing_room = rooms.get(room.segment_id)
+                    if existing_room is None or existing_room.name == f"Room {room.segment_id}":
                         rooms[room.segment_id] = room
 
         return CombinedMapInfo(

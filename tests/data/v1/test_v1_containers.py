@@ -1,6 +1,9 @@
 """Test cases for the containers module."""
 
-from syrupy import SnapshotAssertion
+import copy
+
+import pytest
+from syrupy.assertion import SnapshotAssertion
 
 from roborock.data.v1 import (
     MultiMapsList,
@@ -12,7 +15,16 @@ from roborock.data.v1 import (
     RoborockMopModeS7,
     RoborockStateCode,
 )
-from roborock.data.v1.v1_containers import AppInitStatus, CleanRecord, CleanSummary, Consumable, DnDTimer, S7MaxVStatus
+from roborock.data.v1.v1_code_mappings import ClearWaterBoxStatus, DirtyWaterBoxStatus, DustBagStatus
+from roborock.data.v1.v1_containers import (
+    AppInitStatus,
+    CleanRecord,
+    CleanSummary,
+    Consumable,
+    DnDTimer,
+    S7MaxVStatus,
+    StatusV2,
+)
 from tests.mock_data import (
     CLEAN_RECORD,
     CLEAN_SUMMARY,
@@ -83,6 +95,34 @@ def test_status():
     assert s.fan_power == RoborockFanSpeedS7MaxV.balanced
     assert s.mop_mode == RoborockMopModeS7.standard
     assert s.water_box_mode == RoborockMopIntensityS7.intense
+    assert s.dss == 169
+    assert s.clear_water_box_status == ClearWaterBoxStatus.okay
+    assert s.dirty_water_box_status == DirtyWaterBoxStatus.okay
+    assert s.dust_bag_status == DustBagStatus.okay
+    assert s.water_box_filter_status == 0
+    assert s.clean_fluid_status is None
+    assert s.hatch_door_status == 0
+    assert s.dock_cool_fan_status == 0
+
+
+@pytest.mark.parametrize(
+    "dss_val, expected_clean_box_status, expected_dirty_box_status",
+    [
+        (None, None, None),
+        (169, ClearWaterBoxStatus.okay, DirtyWaterBoxStatus.okay),
+        (149, ClearWaterBoxStatus.out_of_water, DirtyWaterBoxStatus.full_not_installed),
+        (153, ClearWaterBoxStatus.okay, DirtyWaterBoxStatus.full_not_installed),
+    ],
+)
+def test_dss_status(
+    dss_val: int | None, expected_clean_box_status: ClearWaterBoxStatus, expected_dirty_box_status: DirtyWaterBoxStatus
+):
+    """Test dss status properly setting child values."""
+    status = copy.deepcopy(STATUS)
+    status["dss"] = dss_val
+    s = StatusV2.from_dict(status)
+    assert s.clear_water_box_status == expected_clean_box_status
+    assert s.dirty_water_box_status == expected_dirty_box_status
 
 
 def test_current_map() -> None:
@@ -99,6 +139,45 @@ def test_current_map() -> None:
 
     s.map_status = None
     assert not s.current_map
+
+
+def test_status_v2() -> None:
+    """Test that StatusV2 can be created from a dictionary."""
+    s = StatusV2.from_dict(STATUS)
+    assert s.msg_ver == 2
+    assert s.msg_seq == 458
+    assert s.state == RoborockStateCode.charging
+    assert s.battery == 100
+    assert s.clean_time == 1176
+    assert s.clean_area == 20965000
+    assert s.square_meter_clean_area == 21.0
+    assert s.error_code == RoborockErrorCode.none
+    assert s.error_code_name == "none"
+    assert s.state_name == "charging"
+    assert s.map_present == 1
+    assert s.in_cleaning == 0
+    assert s.fan_power == 102
+    assert s.water_box_mode == 203
+    assert s.mop_mode == 300
+    assert s.dock_type == RoborockDockTypeCode.empty_wash_fill_dock
+    assert s.dock_error_status == RoborockDockErrorCode.ok
+    assert s.current_map == 0
+
+
+def test_status_v2_current_map() -> None:
+    """Test the current map logic based on map status for StatusV2."""
+    s = StatusV2.from_dict(STATUS)
+    assert s.map_status == 3
+    assert s.current_map == 0
+
+    s.map_status = 7
+    assert s.current_map == 1
+
+    s.map_status = 11
+    assert s.current_map == 2
+
+    s.map_status = None
+    assert s.current_map is None
 
 
 def test_dnd_timer():

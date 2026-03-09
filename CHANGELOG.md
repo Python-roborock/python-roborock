@@ -2,6 +2,184 @@
 
 <!-- version list -->
 
+## v4.19.0 (2026-03-08)
+
+### Bug Fixes
+
+- Make room name always room num and not unknown
+  ([#780](https://github.com/Python-roborock/python-roborock/pull/780),
+  [`2bd569c`](https://github.com/Python-roborock/python-roborock/commit/2bd569caffe7e85bc08637fd9b8ed70eeade5aa8))
+
+### Chores
+
+- Address comments ([#780](https://github.com/Python-roborock/python-roborock/pull/780),
+  [`2bd569c`](https://github.com/Python-roborock/python-roborock/commit/2bd569caffe7e85bc08637fd9b8ed70eeade5aa8))
+
+### Features
+
+- Use get_rooms to limit issues with missing room names
+  ([#780](https://github.com/Python-roborock/python-roborock/pull/780),
+  [`2bd569c`](https://github.com/Python-roborock/python-roborock/commit/2bd569caffe7e85bc08637fd9b8ed70eeade5aa8))
+
+
+## v4.18.1 (2026-03-07)
+
+### Bug Fixes
+
+- Don't reconnect on no active subscribers
+  ([#779](https://github.com/Python-roborock/python-roborock/pull/779),
+  [`9760519`](https://github.com/Python-roborock/python-roborock/commit/9760519e822d06fac74e4a14bc11003e5fd2ca21))
+
+
+## v4.18.0 (2026-03-06)
+
+### Bug Fixes
+
+- Correct mop intensity code for slider
+  ([#777](https://github.com/Python-roborock/python-roborock/pull/777),
+  [`f83f36a`](https://github.com/Python-roborock/python-roborock/commit/f83f36a8e96bee3eab7e0ee21cd296653546310a))
+
+### Features
+
+- Add the ability to not verify TLS for MQTT connections
+  ([#776](https://github.com/Python-roborock/python-roborock/pull/776),
+  [`fc7cf75`](https://github.com/Python-roborock/python-roborock/commit/fc7cf75e088cf74f6f6f648afb927fdb03bc9e23))
+
+
+## v4.17.2 (2026-03-01)
+
+### Bug Fixes
+
+- Bump pyrate ([#775](https://github.com/Python-roborock/python-roborock/pull/775),
+  [`57083ab`](https://github.com/Python-roborock/python-roborock/commit/57083ab27606af82b5457c82d35e63dd6f5e5754))
+
+
+## v4.17.1 (2026-02-22)
+
+### Bug Fixes
+
+- Remove carpet clean mode ([#772](https://github.com/Python-roborock/python-roborock/pull/772),
+  [`931b68e`](https://github.com/Python-roborock/python-roborock/commit/931b68ea4fcb1d61a310d534cba662a704b6dca3))
+
+
+## v4.17.0 (2026-02-22)
+
+### Chores
+
+- Add dss to status ([#611](https://github.com/Python-roborock/python-roborock/pull/611),
+  [`3e4a0be`](https://github.com/Python-roborock/python-roborock/commit/3e4a0be03cdcc761f91c1cdd20cd5ee3b1f8ceee))
+
+- Add hash ([#611](https://github.com/Python-roborock/python-roborock/pull/611),
+  [`3e4a0be`](https://github.com/Python-roborock/python-roborock/commit/3e4a0be03cdcc761f91c1cdd20cd5ee3b1f8ceee))
+
+- Add more info about the dynamic attributes
+  ([#611](https://github.com/Python-roborock/python-roborock/pull/611),
+  [`3e4a0be`](https://github.com/Python-roborock/python-roborock/commit/3e4a0be03cdcc761f91c1cdd20cd5ee3b1f8ceee))
+
+- Add some docs and a basic test
+  ([#611](https://github.com/Python-roborock/python-roborock/pull/611),
+  [`3e4a0be`](https://github.com/Python-roborock/python-roborock/commit/3e4a0be03cdcc761f91c1cdd20cd5ee3b1f8ceee))
+
+- Add testing ([#611](https://github.com/Python-roborock/python-roborock/pull/611),
+  [`3e4a0be`](https://github.com/Python-roborock/python-roborock/commit/3e4a0be03cdcc761f91c1cdd20cd5ee3b1f8ceee))
+
+- Add warning about hash for RoborockModeEnum
+  ([#611](https://github.com/Python-roborock/python-roborock/pull/611),
+  [`3e4a0be`](https://github.com/Python-roborock/python-roborock/commit/3e4a0be03cdcc761f91c1cdd20cd5ee3b1f8ceee))
+
+- Address comments ([#611](https://github.com/Python-roborock/python-roborock/pull/611),
+  [`3e4a0be`](https://github.com/Python-roborock/python-roborock/commit/3e4a0be03cdcc761f91c1cdd20cd5ee3b1f8ceee))
+
+- Change str ([#611](https://github.com/Python-roborock/python-roborock/pull/611),
+  [`3e4a0be`](https://github.com/Python-roborock/python-roborock/commit/3e4a0be03cdcc761f91c1cdd20cd5ee3b1f8ceee))
+
+- Do dynamic status ([#611](https://github.com/Python-roborock/python-roborock/pull/611),
+  [`3e4a0be`](https://github.com/Python-roborock/python-roborock/commit/3e4a0be03cdcc761f91c1cdd20cd5ee3b1f8ceee))
+
+- Update e2e ([#611](https://github.com/Python-roborock/python-roborock/pull/611),
+  [`3e4a0be`](https://github.com/Python-roborock/python-roborock/commit/3e4a0be03cdcc761f91c1cdd20cd5ee3b1f8ceee))
+
+### Features
+
+- Add more data and region ([#611](https://github.com/Python-roborock/python-roborock/pull/611),
+  [`3e4a0be`](https://github.com/Python-roborock/python-roborock/commit/3e4a0be03cdcc761f91c1cdd20cd5ee3b1f8ceee))
+
+- Make status dynamic ([#611](https://github.com/Python-roborock/python-roborock/pull/611),
+  [`3e4a0be`](https://github.com/Python-roborock/python-roborock/commit/3e4a0be03cdcc761f91c1cdd20cd5ee3b1f8ceee))
+
+
+## v4.16.0 (2026-02-22)
+
+### Chores
+
+- Fix test pydoc lint error ([#771](https://github.com/Python-roborock/python-roborock/pull/771),
+  [`e72d5ca`](https://github.com/Python-roborock/python-roborock/commit/e72d5ca7b7997760498108761d5b9a8c7907addc))
+
+- Update tests/devices/traits/b01/q10/test_status.py
+  ([#771](https://github.com/Python-roborock/python-roborock/pull/771),
+  [`e72d5ca`](https://github.com/Python-roborock/python-roborock/commit/e72d5ca7b7997760498108761d5b9a8c7907addc))
+
+### Features
+
+- Update the status listener API
+  ([#771](https://github.com/Python-roborock/python-roborock/pull/771),
+  [`e72d5ca`](https://github.com/Python-roborock/python-roborock/commit/e72d5ca7b7997760498108761d5b9a8c7907addc))
+
+
+## v4.15.0 (2026-02-21)
+
+### Bug Fixes
+
+- **q10**: Correct typo in docstring for StatusTrait
+  ([#770](https://github.com/Python-roborock/python-roborock/pull/770),
+  [`c0a313b`](https://github.com/Python-roborock/python-roborock/commit/c0a313b385da722a81ffe4aeade3bf104bd254a8))
+
+### Features
+
+- **q10**: Add status update listener API
+  ([#770](https://github.com/Python-roborock/python-roborock/pull/770),
+  [`c0a313b`](https://github.com/Python-roborock/python-roborock/commit/c0a313b385da722a81ffe4aeade3bf104bd254a8))
+
+- **q10**: Add status update listener callback API
+  ([#770](https://github.com/Python-roborock/python-roborock/pull/770),
+  [`c0a313b`](https://github.com/Python-roborock/python-roborock/commit/c0a313b385da722a81ffe4aeade3bf104bd254a8))
+
+
+## v4.14.0 (2026-02-15)
+
+### Chores
+
+- Address review feedback ([#769](https://github.com/Python-roborock/python-roborock/pull/769),
+  [`38d336b`](https://github.com/Python-roborock/python-roborock/commit/38d336b3735dc04e60ba47f0c0041705567e72f6))
+
+- Fix lint errors found by co-pilot reviews
+  ([#769](https://github.com/Python-roborock/python-roborock/pull/769),
+  [`38d336b`](https://github.com/Python-roborock/python-roborock/commit/38d336b3735dc04e60ba47f0c0041705567e72f6))
+
+- Fix typos in files that were renamed
+  ([#769](https://github.com/Python-roborock/python-roborock/pull/769),
+  [`38d336b`](https://github.com/Python-roborock/python-roborock/commit/38d336b3735dc04e60ba47f0c0041705567e72f6))
+
+- Fix typos updated in previous PRs
+  ([#769](https://github.com/Python-roborock/python-roborock/pull/769),
+  [`38d336b`](https://github.com/Python-roborock/python-roborock/commit/38d336b3735dc04e60ba47f0c0041705567e72f6))
+
+### Features
+
+- Add initial Q10 support for Status Trait
+  ([#769](https://github.com/Python-roborock/python-roborock/pull/769),
+  [`38d336b`](https://github.com/Python-roborock/python-roborock/commit/38d336b3735dc04e60ba47f0c0041705567e72f6))
+
+
+## v4.13.0 (2026-02-14)
+
+### Features
+
+- **q10**: Add Roborock Q10 S5+ support with CLI commands
+  ([#766](https://github.com/Python-roborock/python-roborock/pull/766),
+  [`86aeba1`](https://github.com/Python-roborock/python-roborock/commit/86aeba1e3e0a9d51f98ba93c4423a0ee58e3fb55))
+
+
 ## v4.12.0 (2026-02-02)
 
 ### Bug Fixes

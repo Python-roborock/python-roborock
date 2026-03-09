@@ -529,8 +529,33 @@ async def test_session_unauthorized_after_start(
     session = await create_mqtt_session(params)
     assert session.connected
 
+    # Keep an active subscription so reconnect attempts are not deferred.
+    await session.subscribe("topic-1", Subscriber().append)
+
     try:
         async with asyncio.timeout(10):
             assert await unauthorized.wait()
+    finally:
+        await session.close()
+
+
+async def test_session_defers_reconnect_when_idle(
+    mock_aenter_client: AsyncMock,
+    message_iterator: FakeAsyncIterator,
+    mqtt_client_lite: AsyncMock,
+) -> None:
+    """Test that reconnects are deferred when there are no active subscriptions."""
+
+    params = copy.deepcopy(FAKE_PARAMS)
+    message_iterator.loop = False
+
+    session = await create_mqtt_session(params)
+
+    assert mqtt_client_lite.messages is message_iterator
+
+    try:
+        await asyncio.sleep(0.1)
+        assert mock_aenter_client.await_count == 1
+        assert params.diagnostics.as_dict().get("reconnect_deferred", 0) >= 1
     finally:
         await session.close()

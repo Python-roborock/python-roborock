@@ -121,7 +121,7 @@ class B01_Q10_DP(RoborockModeEnum):
 class YXFanLevel(RoborockModeEnum):
     UNKNOWN = "unknown", -1
     CLOSE = "close", 0
-    QUITE = "quite", 1
+    QUIET = "quiet", 1
     NORMAL = "normal", 2
     STRONG = "strong", 3
     MAX = "max", 4
