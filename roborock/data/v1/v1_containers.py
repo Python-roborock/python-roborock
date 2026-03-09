@@ -400,6 +400,7 @@ class StatusV2(RoborockBase):
             value = (self.dss >> 10) & 3
             if value == 0:
                 return None  # Feature not supported by this device
+            return CleanFluidStatus(value)
         return None
 
     @property
