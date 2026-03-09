@@ -20,8 +20,7 @@ import base64
 import logging
 from typing import Self
 
-from roborock.data import CombinedMapInfo, MultiMapsListMapInfo, RoborockBase
-from roborock.data.containers import NamedRoomMapping
+from roborock.data import CombinedMapInfo, MultiMapsListMapInfo, NamedRoomMapping, RoborockBase
 from roborock.data.v1.v1_code_mappings import RoborockStateCode
 from roborock.devices.cache import DeviceCache
 from roborock.devices.traits.v1 import common
