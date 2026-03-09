@@ -1,6 +1,7 @@
 """Trait for wash towel mode."""
 
 from functools import cached_property
+from typing import Self
 
 from roborock.data import WashTowelMode, WashTowelModes, get_wash_towel_modes
 from roborock.device_features import is_wash_n_fill_dock
@@ -18,11 +19,17 @@ class WashTowelModeTrait(WashTowelMode, common.V1TraitMixin):
     def __init__(
         self,
         device_feature_trait: DeviceFeaturesTrait,
-        wash_mode: WashTowelModes | None = None,
     ) -> None:
         super().__init__()
         self.device_feature_trait = device_feature_trait
-        self.wash_mode = wash_mode
+
+    def _parse_response(self, response: common.V1ResponseData) -> Self:
+        """Parse the response from the device into a WashTowelMode object."""
+        if isinstance(response, list):
+            response = response[0]
+        if isinstance(response, dict):
+            return WashTowelMode.from_dict(response)
+        raise ValueError(f"Unexpected wash towel mode format: {response!r}")
 
     @cached_property
     def wash_towel_mode_options(self) -> list[WashTowelModes]:
