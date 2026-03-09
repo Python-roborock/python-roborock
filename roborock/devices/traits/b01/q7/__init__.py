@@ -31,6 +31,7 @@ __all__ = [
     "Q7MapListEntry",
 ]
 
+
 class Q7PropertiesApi(Trait):
     """API for interacting with B01 devices."""
 

@@ -61,11 +61,11 @@ async def _send_command(
 async def send_decoded_command(
     mqtt_channel: MqttChannel,
     request_message: Q7RequestMessage,
-) -> dict[str, Any]:
+) -> Any:
     """Send a command on the MQTT channel and get a decoded response."""
     _LOGGER.debug("Sending B01 MQTT command: %s", request_message)
 
-    def find_response(response_message: RoborockMessage) -> dict[str, Any] | None:
+    def find_response(response_message: RoborockMessage) -> Any | None:
         """Handle incoming messages and resolve the future."""
         try:
             decoded_dps = decode_rpc_response(response_message)
@@ -97,7 +97,7 @@ async def send_decoded_command(
                     _LOGGER.debug("B01 error response: %s", error_msg)
                     raise RoborockException(error_msg)
                 data = inner.get("data")
-                if not isinstance(data, dict):
+                if request_message.command == "prop.get" and not isinstance(data, dict):
                     raise RoborockException(f"Unexpected data type for response {data} ({request_message})")
                 return data
         return None

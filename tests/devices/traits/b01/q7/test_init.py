@@ -1,5 +1,5 @@
 import json
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from Crypto.Cipher import AES
@@ -109,6 +109,19 @@ async def test_send_decoded_command_error_code(fake_channel: FakeChannel, messag
 
     with pytest.raises(RoborockException, match="B01 command failed with code 5001"):
         await send_decoded_command(fake_channel, Q7RequestMessage(dps=10000, command="prop.get", params=[]))  # type: ignore[arg-type]
+
+
+async def test_send_decoded_command_allows_ok_string_ack(fake_channel: FakeChannel, message_builder: B01MessageBuilder):
+    """Command ACKs may return plain string payloads like ``ok``."""
+    message = message_builder.build("ok")
+    fake_channel.response_queue.append(message)
+
+    result = await send_decoded_command(
+        cast(Any, fake_channel),
+        Q7RequestMessage(dps=10000, command="service.set_room_clean", params=[]),  # type: ignore[arg-type]
+    )
+
+    assert result == "ok"
 
 
 async def test_q7_api_set_fan_speed(
