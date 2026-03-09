@@ -34,7 +34,7 @@ def wash_towel_mode_trait(
     ],
 )
 async def test_wash_towel_mode_available(
-    wash_towel_mode: WashTowelModeTrait | None,
+    wash_towel_mode: WashTowelModeTrait,
     mock_rpc_channel: AsyncMock,
     dock_type_code: RoborockDockTypeCode,
 ) -> None:
@@ -82,7 +82,7 @@ async def test_unsupported_wash_towel_mode(
     ],
 )
 async def test_set_wash_towel_mode(
-    wash_towel_mode: WashTowelModeTrait | None,
+    wash_towel_mode: WashTowelModeTrait,
     mock_rpc_channel: AsyncMock,
     wash_mode: WashTowelModes,
     dock_type_code: RoborockDockTypeCode,
@@ -102,7 +102,7 @@ async def test_set_wash_towel_mode(
     [(RoborockDockTypeCode.s8_dock)],
 )
 async def test_start_wash(
-    wash_towel_mode: WashTowelModeTrait | None,
+    wash_towel_mode: WashTowelModeTrait,
     mock_rpc_channel: AsyncMock,
     dock_type_code: RoborockDockTypeCode,
 ) -> None:
@@ -119,7 +119,7 @@ async def test_start_wash(
     [(RoborockDockTypeCode.s8_dock)],
 )
 async def test_stop_wash(
-    wash_towel_mode: WashTowelModeTrait | None,
+    wash_towel_mode: WashTowelModeTrait,
     mock_rpc_channel: AsyncMock,
     dock_type_code: RoborockDockTypeCode,
 ) -> None:
@@ -180,7 +180,7 @@ async def test_stop_wash(
     ],
 )
 async def test_wash_towel_mode_options(
-    wash_towel_mode: WashTowelModeTrait | None,
+    wash_towel_mode: WashTowelModeTrait,
     dock_type_code: RoborockDockTypeCode,
     is_super_deep_wash_supported: bool,
     is_dirty_replenish_clean_supported: bool,
@@ -188,9 +188,6 @@ async def test_wash_towel_mode_options(
 ) -> None:
     """Test what modes are available based on device features."""
     assert wash_towel_mode is not None
-    # We need to clear the cached property to ensure it re-reads the features
-    if "wash_towel_mode_options" in wash_towel_mode.__dict__:
-        del wash_towel_mode.__dict__["wash_towel_mode_options"]
 
     # Mock the device features
     assert wash_towel_mode.device_feature_trait is not None
