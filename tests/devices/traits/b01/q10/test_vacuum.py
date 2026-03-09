@@ -4,6 +4,7 @@ from typing import Any
 
 import pytest
 
+from roborock.data.b01_q10.b01_q10_code_mappings import YXCleanType, YXFanLevel
 from roborock.devices.traits.b01.q10 import Q10PropertiesApi
 from roborock.devices.traits.b01.q10.vacuum import VacuumTrait
 from tests.fixtures.channel_fixtures import FakeChannel
@@ -32,6 +33,9 @@ def vacuumm_fixture(q10_api: Q10PropertiesApi) -> VacuumTrait:
         (lambda x: x.resume_clean(), {"205": {}}),
         (lambda x: x.stop_clean(), {"206": {}}),
         (lambda x: x.return_to_dock(), {"203": {}}),
+        (lambda x: x.empty_dustbin(), {"203": 2}),
+        (lambda x: x.set_clean_mode(YXCleanType.BOTH_WORK), {"137": 1}),
+        (lambda x: x.set_fan_level(YXFanLevel.NORMAL), {"123": 2}),
     ],
 )
 async def test_vacuum_commands(

@@ -121,6 +121,8 @@ def _requires_schema_code(requires_schema_code: str, default=None) -> Any:
 
 @dataclass
 class Status(RoborockBase):
+    """This status will be deprecated in favor of StatusV2."""
+
     msg_ver: int | None = None
     msg_seq: int | None = None
     state: RoborockStateCode | None = _requires_schema_code("state", default=None)
@@ -264,6 +266,140 @@ class Status(RoborockBase):
             if value == 0:
                 return None  # Feature not supported by this device
             return CleanFluidStatus(value)
+        return None
+
+    @property
+    def hatch_door_status(self) -> int | None:
+        if self.dss:
+            return (self.dss >> 12) & 7
+        return None
+
+    @property
+    def dock_cool_fan_status(self) -> int | None:
+        if self.dss:
+            return (self.dss >> 15) & 3
+        return None
+
+    def __repr__(self) -> str:
+        return _attr_repr(self)
+
+
+@dataclass
+class StatusV2(RoborockBase):
+    """
+    This is a new version of the Status object.
+    This is the result of GET_STATUS from the api.
+    """
+
+    msg_ver: int | None = None
+    msg_seq: int | None = None
+    state: RoborockStateCode | None = None
+    battery: int | None = None
+    clean_time: int | None = None
+    clean_area: int | None = None
+    error_code: RoborockErrorCode | None = None
+    map_present: int | None = None
+    in_cleaning: RoborockInCleaning | None = None
+    in_returning: int | None = None
+    in_fresh_state: int | None = None
+    lab_status: int | None = None
+    water_box_status: int | None = None
+    back_type: int | None = None
+    wash_phase: int | None = None
+    wash_ready: int | None = None
+    fan_power: int | None = None
+    dnd_enabled: int | None = None
+    map_status: int | None = None
+    is_locating: int | None = None
+    lock_status: int | None = None
+    water_box_mode: int | None = None
+    water_box_carriage_status: int | None = None
+    mop_forbidden_enable: int | None = None
+    camera_status: int | None = None
+    is_exploring: int | None = None
+    home_sec_status: int | None = None
+    home_sec_enable_password: int | None = None
+    adbumper_status: list[int] | None = None
+    water_shortage_status: int | None = None
+    dock_type: RoborockDockTypeCode | None = None
+    dust_collection_status: int | None = None
+    auto_dust_collection: int | None = None
+    avoid_count: int | None = None
+    mop_mode: int | None = None
+    debug_mode: int | None = None
+    collision_avoid_status: int | None = None
+    switch_map_mode: int | None = None
+    dock_error_status: RoborockDockErrorCode | None = None
+    charge_status: int | None = None
+    unsave_map_reason: int | None = None
+    unsave_map_flag: int | None = None
+    wash_status: int | None = None
+    distance_off: int | None = None
+    in_warmup: int | None = None
+    dry_status: int | None = None
+    rdt: int | None = None
+    clean_percent: int | None = None
+    rss: int | None = None
+    dss: int | None = None
+    common_status: int | None = None
+    corner_clean_mode: int | None = None
+    last_clean_t: int | None = None
+    replenish_mode: int | None = None
+    repeat: int | None = None
+    kct: int | None = None
+    subdivision_sets: int | None = None
+
+    @property
+    def square_meter_clean_area(self) -> float | None:
+        return round(self.clean_area / 1000000, 1) if self.clean_area is not None else None
+
+    @property
+    def error_code_name(self) -> str | None:
+        return self.error_code.name if self.error_code is not None else None
+
+    @property
+    def state_name(self) -> str | None:
+        return self.state.name if self.state is not None else None
+
+    @property
+    def current_map(self) -> int | None:
+        """Returns the current map ID if the map is present."""
+        if self.map_status is not None:
+            map_flag = self.map_status >> 2
+            if map_flag != NO_MAP:
+                return map_flag
+        return None
+
+    @property
+    def clear_water_box_status(self) -> ClearWaterBoxStatus | None:
+        if self.dss:
+            return ClearWaterBoxStatus((self.dss >> 2) & 3)
+        return None
+
+    @property
+    def dirty_water_box_status(self) -> DirtyWaterBoxStatus | None:
+        if self.dss:
+            return DirtyWaterBoxStatus((self.dss >> 4) & 3)
+        return None
+
+    @property
+    def dust_bag_status(self) -> DustBagStatus | None:
+        if self.dss:
+            return DustBagStatus((self.dss >> 6) & 3)
+        return None
+
+    @property
+    def water_box_filter_status(self) -> int | None:
+        if self.dss:
+            return (self.dss >> 8) & 3
+        return None
+
+    @property
+    def clean_fluid_status(self) -> CleanFluidStatus | None:
+        if self.dss:
+            value = (self.dss >> 10) & 3
+            if value == 0:
+                return None  # Feature not supported by this device
         return None
 
     @property

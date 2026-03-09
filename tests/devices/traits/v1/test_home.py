@@ -140,6 +140,13 @@ def rooms_trait(device: RoborockDevice) -> RoomsTrait:
 
 
 @pytest.fixture
+def mock_web_api(web_api_client: AsyncMock) -> AsyncMock:
+    """Alias the shared web API fixture for readability in this module."""
+    web_api_client.get_rooms.return_value = []
+    return web_api_client
+
+
+@pytest.fixture
 def home_trait(
     status_trait: StatusTrait,
     maps_trait: MapsTrait,
@@ -227,7 +234,7 @@ async def test_discover_home_empty_cache(
     assert map_123_data.rooms[0].segment_id == 18
     assert map_123_data.rooms[0].name == "Example room 3"
     assert map_123_data.rooms[1].segment_id == 19
-    assert map_123_data.rooms[1].name == "Unknown"  # Not in mock home data
+    assert map_123_data.rooms[1].name == "Room 19"  # Not in mock home data
 
     map_123_content = home_trait.home_map_content[123]
     assert map_123_content is not None
@@ -617,17 +624,16 @@ async def test_single_map_no_switching(
     assert len(load_map_calls) == 0
 
 
-async def test_refresh_map_info_room_override_and_addition_logic(
+async def test_refresh_map_info_prefers_map_info_names_and_adds_missing_rooms(
     home_trait: HomeTrait,
     rooms_trait: RoomsTrait,
 ) -> None:
-    """Test the room override and addition logic in _refresh_map_info.
+    """Test room merge behavior in _refresh_map_info.
 
     This test verifies:
-    1. Room with "Unknown" does not override existing room from map_info
-    2. Room with valid name overrides existing room from map_info
-    3. Room with "Unknown" is added if not already in rooms
-    4. Room with valid name is added if not already in rooms
+    1. Existing map_info room names are preserved.
+    2. Missing rooms from RoomsTrait are added.
+    3. map_info fallback names are replaced by RoomsTrait names.
     """
     map_info = MultiMapsListMapInfo(
         map_flag=0,
@@ -643,21 +649,28 @@ async def test_refresh_map_info_room_override_and_addition_logic(
                 iot_name_id="2362042",
                 iot_name="Bedroom from map_info",
             ),
+            MultiMapsListRoom(
+                id=20,
+                iot_name_id="9999001",
+                iot_name=None,
+            ),
         ],
     )
 
     # Mock rooms_trait to return multiple rooms covering all scenarios:
-    # - segment_id 16 with "Unknown": exists in map_info, should NOT override
-    # - segment_id 19 with valid name: exists in map_info, should override
-    # - segment_id 17 with "Unknown": not in map_info, should be added
+    # - segment_id 16 with fallback name: exists in map_info, should NOT override
+    # - segment_id 19 with valid name: exists in map_info, should NOT override
+    # - segment_id 17 with fallback name: not in map_info, should be added
     # - segment_id 18 with valid name: not in map_info, should be added
+    # - segment_id 20 with valid name: overrides map_info fallback "Room 20"
     rooms_trait.rooms = [
-        NamedRoomMapping(segment_id=16, iot_id="2362048", name="Unknown"),  # Exists in map_info, should not override
+        NamedRoomMapping(segment_id=16, iot_id="2362048", name="Room 16"),  # Exists in map_info, should not override
         NamedRoomMapping(
             segment_id=19, iot_id="2362042", name="Updated Bedroom Name"
-        ),  # Exists in map_info, should override
-        NamedRoomMapping(segment_id=17, iot_id="2362044", name="Unknown"),  # Not in map_info, should be added
+        ),  # Exists in map_info, should not override
+        NamedRoomMapping(segment_id=17, iot_id="2362044", name="Room 17"),  # Not in map_info, should be added
         NamedRoomMapping(segment_id=18, iot_id="2362041", name="Example room 3"),  # Not in map_info, should be added
+        NamedRoomMapping(segment_id=20, iot_id="9999001", name="Office from rooms_trait"),
     ]
 
     # Mock rooms_trait.refresh to prevent actual device calls
@@ -666,19 +679,19 @@ async def test_refresh_map_info_room_override_and_addition_logic(
 
     assert result.map_flag == 0
     assert result.name == "Test Map"
-    assert len(result.rooms) == 4
+    assert len(result.rooms) == 5
 
     # Sort rooms by segment_id for consistent assertions
     sorted_rooms = sorted(result.rooms, key=lambda r: r.segment_id)
 
-    # Room 16: from map_info, kept (not overridden by Unknown)
+    # Room 16: from map_info, kept (not overridden by rooms_trait fallback)
     assert sorted_rooms[0].segment_id == 16
     assert sorted_rooms[0].name == "Kitchen from map_info"
     assert sorted_rooms[0].iot_id == "2362048"
 
-    # Room 17: from rooms_trait with "Unknown", added because not in map_info
+    # Room 17: from rooms_trait with fallback name, added because not in map_info
     assert sorted_rooms[1].segment_id == 17
-    assert sorted_rooms[1].name == "Unknown"
+    assert sorted_rooms[1].name == "Room 17"
     assert sorted_rooms[1].iot_id == "2362044"
 
     # Room 18: from rooms_trait with valid name, added because not in map_info
@@ -686,7 +699,12 @@ async def test_refresh_map_info_room_override_and_addition_logic(
     assert sorted_rooms[2].name == "Example room 3"
     assert sorted_rooms[2].iot_id == "2362041"
 
-    # Room 19: from map_info, overridden by rooms_trait with valid name
+    # Room 19: from map_info, kept (not overridden by rooms_trait)
     assert sorted_rooms[3].segment_id == 19
-    assert sorted_rooms[3].name == "Updated Bedroom Name"
+    assert sorted_rooms[3].name == "Bedroom from map_info"
     assert sorted_rooms[3].iot_id == "2362042"
+
+    # Room 20: map_info fallback name replaced by rooms_trait name
+    assert sorted_rooms[4].segment_id == 20
+    assert sorted_rooms[4].name == "Office from rooms_trait"
+    assert sorted_rooms[4].iot_id == "9999001"
