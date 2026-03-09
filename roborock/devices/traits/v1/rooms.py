@@ -3,7 +3,7 @@
 import logging
 from dataclasses import dataclass
 
-from roborock.data import HomeData, NamedRoomMapping, RoborockBase
+from roborock.data import HomeData, HomeDataRoom, NamedRoomMapping, RoborockBase
 from roborock.devices.traits.v1 import common
 from roborock.roborock_typing import RoborockCommand
 from roborock.web_api import UserWebApiClient
@@ -36,7 +36,7 @@ class RoomsTrait(Rooms, common.V1TraitMixin):
         super().__init__()
         self._home_data = home_data
         self._web_api = web_api
-        self._seen_unknown_room_iot_ids: set[str] = set()
+        self._discovered_iot_ids: set[str] = set()
 
     async def refresh(self) -> None:
         """Refresh room mappings and backfill unknown room names from the web API."""
@@ -45,47 +45,39 @@ class RoomsTrait(Rooms, common.V1TraitMixin):
             raise ValueError(f"Unexpected RoomsTrait response format: {response!r}")
 
         segment_map = _extract_segment_map(response)
-        await self._populate_missing_home_data_rooms(segment_map)
+        # Track all iot ids seen before. Refresh the room list when new ids are found.
+        new_iot_ids = set(segment_map.values()) - set(self._home_data.rooms_map.keys())
+        if new_iot_ids - self._discovered_iot_ids:
+            _LOGGER.debug("Refreshing room list to discover new room names")
+            if updated_rooms := await self._refresh_rooms():
+                _LOGGER.debug("Updating rooms: %s", list(updated_rooms))
+                self._home_data.rooms = updated_rooms
+            self._discovered_iot_ids.update(new_iot_ids)
 
-        new_data = self._parse_response(response, segment_map)
+        new_data = self._parse_rooms(segment_map, self._home_data.rooms_name_map)
         self._update_trait_values(new_data)
         _LOGGER.debug("Refreshed %s: %s", self.__class__.__name__, new_data)
 
-    @property
-    def _iot_id_room_name_map(self) -> dict[str, str]:
-        """Returns a dictionary of Room IOT IDs to room names."""
-        return {str(room.id): room.name for room in self._home_data.rooms or ()}
-
-    def _parse_response(self, response: common.V1ResponseData, segment_map: dict[int, str] | None = None) -> Rooms:
+    @staticmethod
+    def _parse_rooms(
+        segment_map: dict[int, str],
+        name_map: dict[str, str],
+    ) -> Rooms:
         """Parse the response from the device into a list of NamedRoomMapping."""
-        if not isinstance(response, list):
-            raise ValueError(f"Unexpected RoomsTrait response format: {response!r}")
-        if segment_map is None:
-            segment_map = _extract_segment_map(response)
-        name_map = self._iot_id_room_name_map
         return Rooms(
             rooms=[
-                NamedRoomMapping(segment_id=segment_id, iot_id=iot_id, name=name_map.get(iot_id, f"Room {segment_id}"))
+                NamedRoomMapping(segment_id=segment_id, iot_id=iot_id, raw_name=name_map.get(iot_id))
                 for segment_id, iot_id in segment_map.items()
             ]
         )
 
-    async def _populate_missing_home_data_rooms(self, segment_map: dict[int, str]) -> None:
-        """Load missing room names into home data for newly-seen unknown room ids."""
-        missing_room_iot_ids = set(segment_map.values()) - set(self._iot_id_room_name_map.keys())
-        new_missing_room_iot_ids = missing_room_iot_ids - self._seen_unknown_room_iot_ids
-        if not new_missing_room_iot_ids:
-            return
-
+    async def _refresh_rooms(self) -> list[HomeDataRoom]:
+        """Fetch the latest rooms from the web API."""
         try:
-            web_rooms = await self._web_api.get_rooms()
+            return await self._web_api.get_rooms()
         except Exception:
             _LOGGER.debug("Failed to fetch rooms from web API", exc_info=True)
-        else:
-            if isinstance(web_rooms, list) and web_rooms:
-                self._home_data.rooms = web_rooms
-
-        self._seen_unknown_room_iot_ids.update(missing_room_iot_ids)
+            return []
 
 
 def _extract_segment_map(response: list) -> dict[int, str]:

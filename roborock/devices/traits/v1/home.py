@@ -20,7 +20,7 @@ import base64
 import logging
 from typing import Self
 
-from roborock.data import CombinedMapInfo, NamedRoomMapping, RoborockBase
+from roborock.data import CombinedMapInfo, MultiMapsListMapInfo, NamedRoomMapping, RoborockBase
 from roborock.data.v1.v1_code_mappings import RoborockStateCode
 from roborock.devices.cache import DeviceCache
 from roborock.devices.traits.v1 import common
@@ -114,35 +114,24 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
         self._discovery_completed = True
         await self._update_home_cache(home_map_info, home_map_content)
 
-    async def _refresh_map_info(self, map_info) -> CombinedMapInfo:
+    async def _refresh_map_info(self, map_info: MultiMapsListMapInfo) -> CombinedMapInfo:
         """Collect room data for a specific map and return CombinedMapInfo."""
         await self._rooms_trait.refresh()
 
-        rooms: dict[int, NamedRoomMapping] = {}
-        if map_info.rooms:
-            # Not all vacuums respond with rooms inside map_info.
-            # If we can determine if all vacuums will return everything with get_rooms, we could remove this step.
-            for room in map_info.rooms:
-                if room.id is not None and room.iot_name_id is not None:
-                    rooms[room.id] = NamedRoomMapping(
-                        segment_id=room.id,
-                        iot_id=room.iot_name_id,
-                        name=room.iot_name or f"Room {room.id}",
-                    )
-
-        # Add rooms from rooms_trait.
-        # Keep existing names from map_info unless they are fallback names.
-        if self._rooms_trait.rooms:
-            for room in self._rooms_trait.rooms:
-                if room.segment_id is not None and room.name:
-                    existing_room = rooms.get(room.segment_id)
-                    if existing_room is None or existing_room.name == f"Room {room.segment_id}":
-                        rooms[room.segment_id] = room
-
+        # We have room names from multiple sources:
+        # - The map_info.rooms which we just received from the MultiMapsList
+        # - RoomsTrait rooms come from the GET_ROOM_MAPPING command for the current device (only)
+        # - RoomsTrait rooms that are pulled from the cloud API
+        # We always prefer the RoomsTrait room names since they are always newer and
+        # just refreshed above.
+        rooms_map: dict[int, NamedRoomMapping] = {
+            **map_info.rooms_map,
+            **{room.segment_id: room for room in self._rooms_trait.rooms or ()},
+        }
         return CombinedMapInfo(
             map_flag=map_info.map_flag,
             name=map_info.name,
-            rooms=list(rooms.values()),
+            rooms=list(rooms_map.values()),
         )
 
     async def _refresh_map_content(self) -> MapContent:
@@ -231,6 +220,13 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
         if current_map_flag is None or self._home_map_info is None:
             return None
         return self._home_map_info.get(current_map_flag)
+
+    @property
+    def current_rooms(self) -> list[NamedRoomMapping]:
+        """Returns the room names for the current map."""
+        if self.current_map_data is None:
+            return []
+        return self.current_map_data.rooms
 
     @property
     def home_map_content(self) -> dict[int, MapContent] | None:

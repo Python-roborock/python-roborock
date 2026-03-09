@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from roborock.data.containers import CombinedMapInfo, NamedRoomMapping
+from roborock.data.containers import CombinedMapInfo, HomeDataRoom, NamedRoomMapping
 from roborock.data.v1.v1_code_mappings import RoborockStateCode
 from roborock.data.v1.v1_containers import MultiMapsListMapInfo, MultiMapsListRoom
 from roborock.devices.cache import DeviceCache, DeviceCacheData, InMemoryCache
@@ -181,6 +181,7 @@ async def test_discover_home_empty_cache(
     mock_mqtt_rpc_channel: AsyncMock,
     mock_map_rpc_channel: AsyncMock,
     device_cache: DeviceCache,
+    web_api_client: AsyncMock,
 ) -> None:
     """Test discovering home when cache is empty."""
     # Setup mocks for the discovery process
@@ -198,6 +199,12 @@ async def test_discover_home_empty_cache(
     mock_map_rpc_channel.send_command.side_effect = [
         MAP_BYTES_RESPONSE_2,  # Map bytes for 123
         MAP_BYTES_RESPONSE_1,  # Map bytes for 0
+    ]
+    # We have an empty home data so the room list gets loaded
+    web_api_client.get_rooms.return_value = [
+        HomeDataRoom(id=2362048, name="Example room 1"),
+        HomeDataRoom(id=2362044, name="Example room 2"),
+        HomeDataRoom(id=2362041, name="Example room 3"),
     ]
 
     # Before discovery, no cache should exist
@@ -217,8 +224,10 @@ async def test_discover_home_empty_cache(
     assert map_0_data.name == "Ground Floor"
     assert len(map_0_data.rooms) == 2
     assert map_0_data.rooms[0].segment_id == 16
+    assert map_0_data.rooms[0].iot_id == "2362048"
     assert map_0_data.rooms[0].name == "Example room 1"
     assert map_0_data.rooms[1].segment_id == 17
+    assert map_0_data.rooms[1].iot_id == "2362044"
     assert map_0_data.rooms[1].name == "Example room 2"
 
     map_0_content = home_trait.home_map_content[0]
@@ -232,8 +241,10 @@ async def test_discover_home_empty_cache(
     assert map_123_data.name == "Second Floor"
     assert len(map_123_data.rooms) == 2
     assert map_123_data.rooms[0].segment_id == 18
+    assert map_123_data.rooms[0].iot_id == "2362041"
     assert map_123_data.rooms[0].name == "Example room 3"
     assert map_123_data.rooms[1].segment_id == 19
+    assert map_123_data.rooms[1].iot_id == "2362042"
     assert map_123_data.rooms[1].name == "Room 19"  # Not in mock home data
 
     map_123_content = home_trait.home_map_content[123]
@@ -246,6 +257,10 @@ async def test_discover_home_empty_cache(
     assert current_map_data is not None
     assert current_map_data.map_flag == 0
     assert current_map_data.name == "Ground Floor"
+    assert [room.name for room in home_trait.current_rooms] == [
+        "Example room 1",
+        "Example room 2",
+    ]
 
     # Verify the persistent cache has been updated
     device_cache_data = await device_cache.get()
@@ -496,6 +511,11 @@ async def test_discover_home_device_busy_cleaning(
     assert home_trait.home_map_info.keys() == {0}
     assert home_trait.home_map_content is not None
     assert home_trait.home_map_content.keys() == {0}
+    assert [room.name for room in home_trait.current_rooms] == [
+        "Example room 1",
+        "Example room 2",
+    ]
+
     map_0_content = home_trait.home_map_content[0]
     assert map_0_content is not None
     assert map_0_content.image_content == TEST_IMAGE_CONTENT_1
@@ -537,6 +557,10 @@ async def test_discover_home_device_busy_cleaning(
     assert home_trait.home_map_info.keys() == {0, 123}
     assert home_trait.home_map_content is not None
     assert home_trait.home_map_content.keys() == {0, 123}
+    assert [room.name for room in home_trait.current_rooms] == [
+        "Room 16",
+        "Room 17",
+    ]
 
     # Verify the persistent cache has been updated
     device_cache_data = await device_cache.get()
@@ -664,13 +688,15 @@ async def test_refresh_map_info_prefers_map_info_names_and_adds_missing_rooms(
     # - segment_id 18 with valid name: not in map_info, should be added
     # - segment_id 20 with valid name: overrides map_info fallback "Room 20"
     rooms_trait.rooms = [
-        NamedRoomMapping(segment_id=16, iot_id="2362048", name="Room 16"),  # Exists in map_info, should not override
+        NamedRoomMapping(segment_id=16, iot_id="2362048"),  # Will override even with no name
         NamedRoomMapping(
-            segment_id=19, iot_id="2362042", name="Updated Bedroom Name"
+            segment_id=19, iot_id="2362042", raw_name="Updated Bedroom Name"
         ),  # Exists in map_info, should not override
-        NamedRoomMapping(segment_id=17, iot_id="2362044", name="Room 17"),  # Not in map_info, should be added
-        NamedRoomMapping(segment_id=18, iot_id="2362041", name="Example room 3"),  # Not in map_info, should be added
-        NamedRoomMapping(segment_id=20, iot_id="9999001", name="Office from rooms_trait"),
+        NamedRoomMapping(segment_id=17, iot_id="2362044"),  # Not in map_info, should be added
+        NamedRoomMapping(
+            segment_id=18, iot_id="2362041", raw_name="Example room 3"
+        ),  # Not in map_info, should be added
+        NamedRoomMapping(segment_id=20, iot_id="9999001", raw_name="Office from rooms_trait"),
     ]
 
     # Mock rooms_trait.refresh to prevent actual device calls
@@ -684,9 +710,9 @@ async def test_refresh_map_info_prefers_map_info_names_and_adds_missing_rooms(
     # Sort rooms by segment_id for consistent assertions
     sorted_rooms = sorted(result.rooms, key=lambda r: r.segment_id)
 
-    # Room 16: from map_info, kept (not overridden by rooms_trait fallback)
+    # Room 16: from map_info is overridden by rooms_trait
     assert sorted_rooms[0].segment_id == 16
-    assert sorted_rooms[0].name == "Kitchen from map_info"
+    assert sorted_rooms[0].name == "Room 16"
     assert sorted_rooms[0].iot_id == "2362048"
 
     # Room 17: from rooms_trait with fallback name, added because not in map_info
@@ -701,7 +727,7 @@ async def test_refresh_map_info_prefers_map_info_names_and_adds_missing_rooms(
 
     # Room 19: from map_info, kept (not overridden by rooms_trait)
     assert sorted_rooms[3].segment_id == 19
-    assert sorted_rooms[3].name == "Bedroom from map_info"
+    assert sorted_rooms[3].name == "Updated Bedroom Name"
     assert sorted_rooms[3].iot_id == "2362042"
 
     # Room 20: map_info fallback name replaced by rooms_trait name

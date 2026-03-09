@@ -2,6 +2,52 @@
 
 <!-- version list -->
 
+## v4.20.0 (2026-03-09)
+
+### Chores
+
+- Update current_rooms to return empty list instead of None
+  ([#781](https://github.com/Python-roborock/python-roborock/pull/781),
+  [`5853450`](https://github.com/Python-roborock/python-roborock/commit/5853450f182f1b04e65ae553633afc83fbf80c02))
+
+### Features
+
+- Add `current_rooms` property to the `Home` trait and include corresponding tests.
+  ([#781](https://github.com/Python-roborock/python-roborock/pull/781),
+  [`5853450`](https://github.com/Python-roborock/python-roborock/commit/5853450f182f1b04e65ae553633afc83fbf80c02))
+
+- Allow rooms trait to unconditionally override map info rooms during merging.
+  ([#781](https://github.com/Python-roborock/python-roborock/pull/781),
+  [`5853450`](https://github.com/Python-roborock/python-roborock/commit/5853450f182f1b04e65ae553633afc83fbf80c02))
+
+- Improve room naming and data integration
+  ([#781](https://github.com/Python-roborock/python-roborock/pull/781),
+  [`5853450`](https://github.com/Python-roborock/python-roborock/commit/5853450f182f1b04e65ae553633afc83fbf80c02))
+
+- Improve room naming and data integration by introducing `raw_name` to `NamedRoomMapping` and
+  enhancing `iot_id` and name mapping from `HomeData`.
+  ([#781](https://github.com/Python-roborock/python-roborock/pull/781),
+  [`5853450`](https://github.com/Python-roborock/python-roborock/commit/5853450f182f1b04e65ae553633afc83fbf80c02))
+
+### Refactoring
+
+- Move NamedRoomMapping import from roborock.data.containers to roborock.data
+  ([#781](https://github.com/Python-roborock/python-roborock/pull/781),
+  [`5853450`](https://github.com/Python-roborock/python-roborock/commit/5853450f182f1b04e65ae553633afc83fbf80c02))
+
+- Update rooms_map dictionary key type from string to integer
+  ([#781](https://github.com/Python-roborock/python-roborock/pull/781),
+  [`5853450`](https://github.com/Python-roborock/python-roborock/commit/5853450f182f1b04e65ae553633afc83fbf80c02))
+
+
+## v4.19.1 (2026-03-09)
+
+### Bug Fixes
+
+- Add missing return value ([#782](https://github.com/Python-roborock/python-roborock/pull/782),
+  [`3625590`](https://github.com/Python-roborock/python-roborock/commit/36255901f1ade071b97bd116bf2b00c6d152c042))
+
+
 ## v4.19.0 (2026-03-08)
 
 ### Bug Fixes
