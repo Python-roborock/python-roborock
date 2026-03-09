@@ -17,7 +17,7 @@ class WashTowelModeTrait(WashTowelMode, common.V1TraitMixin):
 
     def __init__(
         self,
-        device_feature_trait: DeviceFeaturesTrait | None = None,
+        device_feature_trait: DeviceFeaturesTrait,
         wash_mode: WashTowelModes | None = None,
     ) -> None:
         super().__init__()
@@ -26,8 +26,6 @@ class WashTowelModeTrait(WashTowelMode, common.V1TraitMixin):
 
     @cached_property
     def wash_towel_mode_options(self) -> list[WashTowelModes]:
-        if self.device_feature_trait is None:
-            return []
         return get_wash_towel_modes(self.device_feature_trait)
 
     async def set_wash_towel_mode(self, mode: WashTowelModes) -> None:
