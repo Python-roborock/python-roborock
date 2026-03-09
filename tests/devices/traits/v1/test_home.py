@@ -244,7 +244,7 @@ async def test_discover_home_empty_cache(
     assert map_123_data.rooms[0].iot_id == "2362041"
     assert map_123_data.rooms[0].name == "Example room 3"
     assert map_123_data.rooms[1].segment_id == 19
-    assert map_123_data.rooms[0].iot_id == "2362041"
+    assert map_123_data.rooms[1].iot_id == "2362042"
     assert map_123_data.rooms[1].name == "Room 19"  # Not in mock home data
 
     map_123_content = home_trait.home_map_content[123]
@@ -675,7 +675,7 @@ async def test_refresh_map_info_prefers_map_info_names_and_adds_missing_rooms(
     # - segment_id 18 with valid name: not in map_info, should be added
     # - segment_id 20 with valid name: overrides map_info fallback "Room 20"
     rooms_trait.rooms = [
-        NamedRoomMapping(segment_id=16, iot_id="2362048"),  # Exists in map_info, should not override
+        NamedRoomMapping(segment_id=16, iot_id="2362048"),  # Will override even with no name
         NamedRoomMapping(
             segment_id=19, iot_id="2362042", raw_name="Updated Bedroom Name"
         ),  # Exists in map_info, should not override
@@ -697,9 +697,9 @@ async def test_refresh_map_info_prefers_map_info_names_and_adds_missing_rooms(
     # Sort rooms by segment_id for consistent assertions
     sorted_rooms = sorted(result.rooms, key=lambda r: r.segment_id)
 
-    # Room 16: from map_info, kept (not overridden by rooms_trait fallback)
+    # Room 16: from map_info is overridden by rooms_trait
     assert sorted_rooms[0].segment_id == 16
-    assert sorted_rooms[0].name == "Kitchen from map_info"
+    assert sorted_rooms[0].name == "Room 16"
     assert sorted_rooms[0].iot_id == "2362048"
 
     # Room 17: from rooms_trait with fallback name, added because not in map_info
@@ -714,7 +714,7 @@ async def test_refresh_map_info_prefers_map_info_names_and_adds_missing_rooms(
 
     # Room 19: from map_info, kept (not overridden by rooms_trait)
     assert sorted_rooms[3].segment_id == 19
-    assert sorted_rooms[3].name == "Bedroom from map_info"
+    assert sorted_rooms[3].name == "Updated Bedroom Name"
     assert sorted_rooms[3].iot_id == "2362042"
 
     # Room 20: map_info fallback name replaced by rooms_trait name

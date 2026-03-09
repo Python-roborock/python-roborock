@@ -119,25 +119,20 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
         """Collect room data for a specific map and return CombinedMapInfo."""
         await self._rooms_trait.refresh()
 
-        # We have room names from two sources. The map_info.rooms which we just
-        # received from the MultiMapsList or the self._rooms_trait.rooms which
-        # comes from the GET_ROOM_MAPPING command. We merge them, giving priority
-        # to map_info rooms, and excluding unset rooms from the trait.
-        rooms: list[NamedRoomMapping] = list(
-            {
-                **map_info.rooms_map,
-                **{
-                    room.segment_id: room
-                    for room in self._rooms_trait.rooms or ()
-                    if (existing := map_info.rooms_map.get(room.segment_id)) is None
-                    or (room.raw_name and existing.raw_name is None)
-                },
-            }.values()
-        )
+        # We have room names from multiple sources:
+        # - The map_info.rooms which we just received from the MultiMapsList
+        # - RoomsTrait rooms come from the GET_ROOM_MAPPING command for the current device (only)
+        # - RoomsTrait rooms that are pulled from the cloud API
+        # We always prefer the RoomsTrait room names since they are always newer and
+        # just refreshed above.
+        rooms_map: dict[str, NamedRoomMapping] = {
+            **map_info.rooms_map,
+            **{room.segment_id: room for room in self._rooms_trait.rooms or ()},
+        }
         return CombinedMapInfo(
             map_flag=map_info.map_flag,
             name=map_info.name,
-            rooms=rooms,
+            rooms=list(rooms_map.values()),
         )
 
     async def _refresh_map_content(self) -> MapContent:

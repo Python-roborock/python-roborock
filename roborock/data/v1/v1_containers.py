@@ -722,9 +722,9 @@ class MultiMapsListMapInfo(RoborockBase):
     def rooms_map(self) -> dict[int, NamedRoomMapping]:
         """Returns a dictionary of room mappings by segment id."""
         return {
-            room.id: room.named_room_mapping
+            room.id: mapping
             for room in self.rooms or ()
-            if room.id is not None and room.named_room_mapping is not None
+            if room.id is not None and (mapping := room.named_room_mapping) is not None
         }
 
 

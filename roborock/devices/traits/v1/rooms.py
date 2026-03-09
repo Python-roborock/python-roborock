@@ -72,7 +72,7 @@ class RoomsTrait(Rooms, common.V1TraitMixin):
         )
 
     async def _refresh_rooms(self) -> list[HomeDataRoom]:
-        """Merge the existing rooms with new rooms returned from the API."""
+        """Fetch the latest rooms from the web API."""
         try:
             return await self._web_api.get_rooms()
         except Exception:
