@@ -4,7 +4,8 @@ import pytest
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import unpad
 
-from roborock.devices.traits.b01.q7 import Q7MapList, Q7MapListEntry, Q7PropertiesApi
+from roborock.data import Q7MapList, Q7MapListEntry
+from roborock.devices.traits.b01.q7 import Q7PropertiesApi
 from roborock.exceptions import RoborockException
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 from tests.fixtures.channel_fixtures import FakeChannel

@@ -76,6 +76,33 @@ class Recommend(RoborockBase):
 
 
 @dataclass
+class Q7MapListEntry(RoborockBase):
+    """Single map list entry returned by `service.get_map_list`."""
+
+    id: int | None = None
+    cur: bool | None = None
+
+
+@dataclass
+class Q7MapList(RoborockBase):
+    """Map list response returned by `service.get_map_list`."""
+
+    map_list: list[Q7MapListEntry] = field(default_factory=list)
+
+    @property
+    def current_map_id(self) -> int | None:
+        """Current map id, preferring the entry marked current."""
+        if not self.map_list:
+            return None
+
+        ordered = sorted(self.map_list, key=lambda entry: entry.cur or False, reverse=True)
+        first = next(iter(ordered), None)
+        if first is None or not isinstance(first.id, int):
+            return None
+        return first.id
+
+
+@dataclass
 class B01Props(RoborockBase):
     """
     Represents the complete properties and status for a Roborock B01 model.

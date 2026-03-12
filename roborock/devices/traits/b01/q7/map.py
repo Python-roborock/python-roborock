@@ -1,42 +1,14 @@
 """Map trait for B01 Q7 devices."""
 
 import asyncio
-from dataclasses import dataclass, field
 
-from roborock.data import RoborockBase
+from roborock.data import Q7MapList
 from roborock.devices.rpc.b01_q7_channel import send_decoded_command, send_map_command
 from roborock.devices.traits import Trait
 from roborock.devices.transport.mqtt_channel import MqttChannel
 from roborock.exceptions import RoborockException
 from roborock.protocols.b01_q7_protocol import B01_Q7_DPS, Q7RequestMessage
 from roborock.roborock_typing import RoborockB01Q7Methods
-
-
-@dataclass
-class Q7MapListEntry(RoborockBase):
-    """Single map list entry returned by `service.get_map_list`."""
-
-    id: int | None = None
-    cur: bool | None = None
-
-
-@dataclass
-class Q7MapList(RoborockBase):
-    """Map list response returned by `service.get_map_list`."""
-
-    map_list: list[Q7MapListEntry] = field(default_factory=list)
-
-    @property
-    def current_map_id(self) -> int | None:
-        """Current map id, preferring the entry marked current."""
-        if not self.map_list:
-            return None
-
-        ordered = sorted(self.map_list, key=lambda entry: entry.cur or False, reverse=True)
-        first = next(iter(ordered), None)
-        if first is None or not isinstance(first.id, int):
-            return None
-        return first.id
 
 
 class MapTrait(Q7MapList, Trait):

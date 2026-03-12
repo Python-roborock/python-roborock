@@ -4,6 +4,7 @@ Potentially other devices may fall into this category in the future."""
 from typing import Any
 
 from roborock import B01Props
+from roborock.data import Q7MapList, Q7MapListEntry
 from roborock.data.b01_q7.b01_q7_code_mappings import (
     CleanPathPreferenceMapping,
     CleanRepeatMapping,
@@ -21,7 +22,7 @@ from roborock.roborock_message import RoborockB01Props
 from roborock.roborock_typing import RoborockB01Q7Methods
 
 from .clean_summary import CleanSummaryTrait
-from .map import MapTrait, Q7MapList, Q7MapListEntry
+from .map import MapTrait
 
 __all__ = [
     "Q7PropertiesApi",
