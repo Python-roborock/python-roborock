@@ -544,10 +544,10 @@ class RoborockApiClient:
             rriot.r.a,
             self.session,
             {
-                "Authorization": _get_hawk_authentication(rriot, "/v2/user/homes/" + str(home_id)),
+                "Authorization": _get_hawk_authentication(rriot, f"/user/homes/{home_id}/rooms"),
             },
         )
-        room_response = await room_request.request("get", f"/user/homes/{str(home_id)}/rooms" + str(home_id))
+        room_response = await room_request.request("get", f"/user/homes/{home_id}/rooms")
         if not room_response.get("success"):
             raise RoborockException(room_response)
         rooms = room_response.get("result")
@@ -751,6 +751,10 @@ class UserWebApiClient:
     async def get_routines(self, device_id: str) -> list[HomeDataScene]:
         """Fetch routines (scenes) for a specific device."""
         return await self._web_api.get_scenes(self._user_data, device_id)
+
+    async def get_rooms(self) -> list[HomeDataRoom]:
+        """Fetch rooms using the API client."""
+        return await self._web_api.get_rooms(self._user_data)
 
     async def execute_routine(self, scene_id: int) -> None:
         """Execute a specific routine (scene) by its ID."""
