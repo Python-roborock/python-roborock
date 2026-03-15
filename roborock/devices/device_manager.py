@@ -251,7 +251,7 @@ async def create_device_manager(
                     trait = b01.q10.create(channel)
                 elif "sc" in model_part:
                     # Q7 devices start with 'sc' in their model naming.
-                    trait = b01.q7.create(channel)
+                    trait = b01.q7.create(product, device, channel)
                 else:
                     raise UnsupportedDeviceError(f"Device {device.name} has unsupported B01 model: {product.model}")
             case _:
