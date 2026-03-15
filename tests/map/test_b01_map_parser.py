@@ -2,6 +2,7 @@ import base64
 import gzip
 import hashlib
 import io
+import struct
 import zlib
 from pathlib import Path
 
@@ -11,7 +12,7 @@ from Crypto.Util.Padding import pad
 from PIL import Image
 
 from roborock.exceptions import RoborockException
-from roborock.map.b01_map_parser import B01MapParser
+from roborock.map.b01_map_parser import B01MapParser, _parse_scmap_payload
 
 FIXTURE = Path(__file__).resolve().parent / "testdata" / "raw-mqtt-map301.bin.inflated.bin.gz"
 
@@ -23,6 +24,30 @@ def _derive_map_key(serial: str, model: str) -> bytes:
     encrypted = AES.new(model_key, AES.MODE_ECB).encrypt(pad(material, AES.block_size))
     md5 = hashlib.md5(base64.b64encode(encrypted), usedforsecurity=False).hexdigest()
     return md5[8:24].encode()
+
+
+def _encode_varint(value: int) -> bytes:
+    encoded = bytearray()
+    while True:
+        to_write = value & 0x7F
+        value >>= 7
+        if value:
+            encoded.append(to_write | 0x80)
+        else:
+            encoded.append(to_write)
+            return bytes(encoded)
+
+
+def _field_varint(field_no: int, value: int) -> bytes:
+    return _encode_varint((field_no << 3) | 0) + _encode_varint(value)
+
+
+def _field_len(field_no: int, value: bytes) -> bytes:
+    return _encode_varint((field_no << 3) | 2) + _encode_varint(len(value)) + value
+
+
+def _field_float32(field_no: int, value: float) -> bytes:
+    return _encode_varint((field_no << 3) | 5) + struct.pack("<f", value)
 
 
 def test_b01_map_parser_decodes_and_renders_fixture() -> None:
@@ -59,6 +84,87 @@ def test_b01_map_parser_decodes_and_renders_fixture() -> None:
     # Image should be scaled by default.
     img = Image.open(io.BytesIO(parsed.image_content))
     assert img.size == (340 * 4, 300 * 4)
+
+
+def test_b01_scmap_parser_maps_reverse_engineered_schema_fields() -> None:
+    room_name_post = _field_float32(1, 11.25) + _field_float32(2, 22.5)
+    room_one = b"".join(
+        [
+            _field_varint(1, 42),
+            _field_len(2, b"Kitchen"),
+            _field_varint(5, 1),
+            _field_len(8, room_name_post),
+            _field_varint(10, 7),
+            _field_varint(12, 9),
+        ]
+    )
+    room_two = b"".join([_field_varint(1, 99), _field_varint(5, 0)])
+
+    boundary_info = b"".join(
+        [
+            _field_len(1, b"md5"),
+            _field_varint(2, 10),
+            _field_varint(3, 20),
+            _field_varint(4, 30),
+            _field_varint(5, 40),
+        ]
+    )
+    map_ext_info = b"".join(
+        [
+            _field_varint(1, 100),
+            _field_varint(2, 200),
+            _field_varint(3, 1),
+            _field_varint(8, 3),
+            _field_len(7, boundary_info),
+        ]
+    )
+    map_head = b"".join(
+        [
+            _field_varint(1, 7),
+            _field_varint(2, 2),
+            _field_varint(3, 2),
+            _field_float32(4, 1.5),
+            _field_float32(5, 2.5),
+            _field_float32(6, 3.5),
+            _field_float32(7, 4.5),
+            _field_float32(8, 0.05),
+        ]
+    )
+    map_data = _field_len(1, zlib.compress(bytes([0, 127, 128, 128])))
+    payload = b"".join(
+        [
+            _field_varint(1, 1),
+            _field_len(2, map_ext_info),
+            _field_len(3, map_head),
+            _field_len(4, map_data),
+            _field_len(12, room_one),
+            _field_len(12, room_two),
+        ]
+    )
+
+    parsed = _parse_scmap_payload(payload)
+
+    assert parsed.map_type == 1
+    assert parsed.map_ext_info is not None
+    assert parsed.map_ext_info.task_begin_date == 100
+    assert parsed.map_ext_info.map_upload_date == 200
+    assert parsed.map_ext_info.boundary_info is not None
+    assert parsed.map_ext_info.boundary_info.v_max_y == 40
+    assert parsed.map_head is not None
+    assert parsed.map_head.map_head_id == 7
+    assert parsed.map_head.size_x == 2
+    assert parsed.map_head.size_y == 2
+    assert parsed.map_head.resolution == pytest.approx(0.05)
+    assert parsed.map_data == bytes([0, 127, 128, 128])
+    assert parsed.room_data_info[0].room_id == 42
+    assert parsed.room_data_info[0].room_name == "Kitchen"
+    assert parsed.room_data_info[0].room_name_post is not None
+    assert parsed.room_data_info[0].room_name_post.x == pytest.approx(11.25)
+    assert parsed.room_data_info[0].room_name_post.y == pytest.approx(22.5)
+    assert parsed.room_data_info[0].color_id == 7
+    assert parsed.room_data_info[0].global_seq == 9
+    assert parsed.room_data_info[1].room_id == 99
+    assert parsed.room_data_info[1].room_name is None
 
 
 def test_b01_map_parser_rejects_invalid_payload() -> None:

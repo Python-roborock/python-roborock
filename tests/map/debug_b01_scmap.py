@@ -10,7 +10,7 @@ Why not generated protobuf classes here?
 - For runtime code, reverse-engineering and committing guessed schema files
   would imply more certainty than we actually have.
 
-So the library keeps a tiny schema-free parser for the fields it needs, while
+So the library keeps a tiny declarative parser for the fields it needs, while
 this script provides a convenient place to inspect unknown payloads during
 future debugging.
 
@@ -127,13 +127,13 @@ def _parse_room_data_info(blob: bytes) -> tuple[int | None, str | None]:
         field_no = key >> 3
         wire = key & 0x07
         if wire == 0:
-            int_value, idx = _read_varint(blob, idx)
+            value, idx = _read_varint(blob, idx)
             if field_no == 1:
-                room_id = int(int_value)
+                room_id = int(value)
         elif wire == 2:
-            bytes_value, idx = _read_len_delimited(blob, idx)
+            value, idx = _read_len_delimited(blob, idx)
             if field_no == 2:
-                room_name = bytes_value.decode("utf-8", errors="replace")
+                room_name = value.decode("utf-8", errors="replace")
         elif wire == 5:
             idx += 4
         else:
@@ -234,21 +234,21 @@ def _dump_message(blob: bytes, *, indent: str = "", max_depth: int = 2, depth: i
         wire = key & 0x07
 
         if wire == 0:
-            int_value, idx = _read_varint(blob, idx)
-            print(f"{indent}field {field_no} @ {start}: varint {int_value}")
+            value, idx = _read_varint(blob, idx)
+            print(f"{indent}field {field_no} @ {start}: varint {value}")
         elif wire == 1:
-            bytes_value = blob[idx : idx + 8]
+            value = blob[idx : idx + 8]
             idx += 8
-            print(f"{indent}field {field_no} @ {start}: fixed64 {_preview(bytes_value, 8)}")
+            print(f"{indent}field {field_no} @ {start}: fixed64 {_preview(value, 8)}")
         elif wire == 2:
-            bytes_value, idx = _read_len_delimited(blob, idx)
-            print(f"{indent}field {field_no} @ {start}: len-delimited {_preview(bytes_value)}")
-            if depth < max_depth and _looks_like_message(bytes_value):
-                _dump_message(bytes_value, indent=indent + "  ", max_depth=max_depth, depth=depth + 1)
+            value, idx = _read_len_delimited(blob, idx)
+            print(f"{indent}field {field_no} @ {start}: len-delimited {_preview(value)}")
+            if depth < max_depth and _looks_like_message(value):
+                _dump_message(value, indent=indent + "  ", max_depth=max_depth, depth=depth + 1)
         elif wire == 5:
-            bytes_value = blob[idx : idx + 4]
+            value = blob[idx : idx + 4]
             idx += 4
-            print(f"{indent}field {field_no} @ {start}: fixed32 {_preview(bytes_value, 4)}")
+            print(f"{indent}field {field_no} @ {start}: fixed32 {_preview(value, 4)}")
         else:
             print(f"{indent}field {field_no} @ {start}: unsupported wire type {wire}")
             return
