@@ -5,8 +5,8 @@ This is an internal library and should not be used directly by consumers.
 
 import logging
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, fields
-from typing import ClassVar, Self
+from dataclasses import fields
+from typing import ClassVar
 
 from roborock.data import RoborockBase
 from roborock.protocols.v1_protocol import V1RpcChannel
@@ -14,10 +14,38 @@ from roborock.roborock_typing import RoborockCommand
 
 _LOGGER = logging.getLogger(__name__)
 
+
 V1ResponseData = dict | list | int | str
 
 
-@dataclass
+class V1TraitDataConverter(ABC):
+    """Converts responses to RoborockBase objects.
+
+    This is an internal class and should not be used directly by consumers.
+    """
+
+    @abstractmethod
+    def convert(self, response: V1ResponseData) -> RoborockBase:
+        """Convert the values to a dict that can be parsed as a RoborockBase."""
+
+    def __repr__(self) -> str:
+        return self.__class__.__name__
+
+
+class V1TraitDataConverter(ABC):
+    """Converts responses to RoborockBase objects.
+
+    This is an internal class and should not be used directly by consumers.
+    """
+
+    @abstractmethod
+    def convert(self, response: V1ResponseData) -> RoborockBase:
+        """Convert the values to a dict that can be parsed as a RoborockBase."""
+
+    def __repr__(self) -> str:
+        return self.__class__.__name__
+
+
 class V1TraitMixin(ABC):
     """Base model that supports v1 traits.
 
@@ -42,37 +70,13 @@ class V1TraitMixin(ABC):
     """
 
     command: ClassVar[RoborockCommand]
+    """The RoborockCommand used to fetch the trait data from the device (internal only)."""
 
-    @classmethod
-    def _parse_type_response(cls, response: V1ResponseData) -> RoborockBase:
-        """Parse the response from the device into a a RoborockBase.
+    converter: V1TraitDataConverter
+    """The converter used to parse the response from the device (internal only)."""
 
-        Subclasses should override this method to implement custom parsing
-        logic as needed.
-        """
-        if not issubclass(cls, RoborockBase):
-            raise NotImplementedError(f"Trait {cls} does not implement RoborockBase")
-        # Subclasses can override to implement custom parsing logic
-        if isinstance(response, list):
-            response = response[0]
-        if not isinstance(response, dict):
-            raise ValueError(f"Unexpected {cls} response format: {response!r}")
-        return cls.from_dict(response)
-
-    def _parse_response(self, response: V1ResponseData) -> RoborockBase:
-        """Parse the response from the device into a a RoborockBase.
-
-        This is used by subclasses that want to override the class
-        behavior with instance-specific data.
-        """
-        return self._parse_type_response(response)
-
-    def __post_init__(self) -> None:
-        """Post-initialization to set up the RPC channel.
-
-        This is called automatically after the dataclass is initialized by the
-        device setup code.
-        """
+    def __init__(self) -> None:
+        """Initialize the V1TraitMixin."""
         self._rpc_channel = None
 
     @property
@@ -85,32 +89,42 @@ class V1TraitMixin(ABC):
     async def refresh(self) -> None:
         """Refresh the contents of this trait."""
         response = await self.rpc_channel.send_command(self.command)
-        new_data = self._parse_response(response)
-        if not isinstance(new_data, RoborockBase):
-            raise ValueError(f"Internal error, unexpected response type: {new_data!r}")
-        _LOGGER.debug("Refreshed %s: %s", self.__class__.__name__, new_data)
-        self._update_trait_values(new_data)
-
-    def _update_trait_values(self, new_data: RoborockBase) -> None:
-        """Update the values of this trait from another instance."""
-        for field in fields(new_data):
-            new_value = getattr(new_data, field.name, None)
-            setattr(self, field.name, new_value)
+        new_data = self.converter.convert(response)
+        merge_trait_values(self, new_data)  # type: ignore[arg-type]
 
 
-def _get_value_field(clazz: type[V1TraitMixin]) -> str:
-    """Get the name of the field marked as the main value of the RoborockValueBase."""
-    value_fields = [field.name for field in fields(clazz) if field.metadata.get("roborock_value", False)]
-    if len(value_fields) != 1:
-        raise ValueError(
-            f"RoborockValueBase subclass {clazz} must have exactly one field marked as roborock_value, "
-            f" but found: {value_fields}"
-        )
-    return value_fields[0]
+def merge_trait_values(target: RoborockBase, new_object: RoborockBase) -> bool:
+    """Update the target object with set fields in new_object."""
+    updated = False
+    for field in fields(new_object):
+        old_value = getattr(target, field.name, None)
+        new_value = getattr(new_object, field.name, None)
+        if new_value != old_value:
+            setattr(target, field.name, new_value)
+            updated = True
+    return updated
 
 
-@dataclass(init=False, kw_only=True)
-class RoborockValueBase(V1TraitMixin, RoborockBase):
+class DefaultConverter(V1TraitDataConverter):
+    """Converts responses to RoborockBase objects."""
+
+    def __init__(self, dataclass_type: type[RoborockBase]) -> None:
+        """Initialize the converter."""
+        self._dataclass_type = dataclass_type
+
+    def convert(self, response: V1ResponseData) -> RoborockBase:
+        """Convert the values to a dict that can be parsed as a RoborockBase.
+
+        Subclasses can override to implement custom parsing logic
+        """
+        if isinstance(response, list):
+            response = response[0]
+        if not isinstance(response, dict):
+            raise ValueError(f"Unexpected {self._dataclass_type.__name__} response format: {response!r}")
+        return self._dataclass_type.from_dict(response)
+
+
+class SingleValueConverter(DefaultConverter):
     """Base class for traits that represent a single value.
 
     This class is intended to be subclassed by traits that represent a single
@@ -119,15 +133,18 @@ class RoborockValueBase(V1TraitMixin, RoborockBase):
     represents the main value of the trait.
     """
 
-    @classmethod
-    def _parse_response(cls, response: V1ResponseData) -> Self:
+    def __init__(self, dataclass_type: type[RoborockBase], value_field: str) -> None:
+        """Initialize the converter."""
+        super().__init__(dataclass_type)
+        self._value_field = value_field
+
+    def convert(self, response: V1ResponseData) -> RoborockBase:
         """Parse the response from the device into a RoborockValueBase."""
         if isinstance(response, list):
             response = response[0]
         if not isinstance(response, int):
             raise ValueError(f"Unexpected response format: {response!r}")
-        value_field = _get_value_field(cls)
-        return cls(**{value_field: response})
+        return super().convert({self._value_field: response})
 
 
 class RoborockSwitchBase(ABC):

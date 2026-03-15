@@ -9,6 +9,7 @@ class DoNotDisturbTrait(DnDTimer, common.V1TraitMixin, common.RoborockSwitchBase
     """Trait for managing Do Not Disturb (DND) settings on Roborock devices."""
 
     command = RoborockCommand.GET_DND_TIMER
+    converter = common.DefaultConverter(DnDTimer)
 
     @property
     def is_on(self) -> bool:

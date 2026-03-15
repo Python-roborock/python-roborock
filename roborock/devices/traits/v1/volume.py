@@ -1,18 +1,15 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
+from roborock.data.containers import RoborockBase
 from roborock.devices.traits.v1 import common
 from roborock.roborock_typing import RoborockCommand
 
-# TODO: This is currently the pattern for holding all the commands that hold a
-# single value, but it still seems too verbose. Maybe we can generate these
-# dynamically or somehow make them less code.
-
 
 @dataclass
-class SoundVolume(common.RoborockValueBase):
+class SoundVolume(RoborockBase):
     """Dataclass for sound volume."""
 
-    volume: int | None = field(default=None, metadata={"roborock_value": True})
+    volume: int | None = None
     """Sound volume level (0-100)."""
 
 
@@ -20,6 +17,7 @@ class SoundVolumeTrait(SoundVolume, common.V1TraitMixin):
     """Trait for controlling the sound volume of a Roborock device."""
 
     command = RoborockCommand.GET_SOUND_VOLUME
+    converter = common.SingleValueConverter(SoundVolume, "volume")
 
     async def set_volume(self, volume: int) -> None:
         """Set the sound volume of the device."""

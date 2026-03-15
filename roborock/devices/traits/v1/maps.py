@@ -6,7 +6,6 @@ base container datatypes to add additional fields.
 """
 
 import logging
-from typing import Self
 
 from roborock.data import MultiMapsList, MultiMapsListMapInfo
 from roborock.devices.traits.v1 import common
@@ -15,6 +14,24 @@ from roborock.roborock_typing import RoborockCommand
 from .status import StatusTrait
 
 _LOGGER = logging.getLogger(__name__)
+
+
+class MultiMapsListConverter(common.V1TraitDataConverter):
+    """Converters responses to MultiMapsList."""
+
+    def convert(self, response: common.V1ResponseData) -> MultiMapsList:
+        """Parse the response from the device into a MapsTrait instance.
+
+        This overrides the base implementation to handle the specific
+        response format for the multi maps list. This is needed because we have
+        a custom constructor that requires the StatusTrait.
+        """
+        if not isinstance(response, list):
+            raise ValueError(f"Unexpected MapsTrait response format: {response!r}")
+        response = response[0]
+        if not isinstance(response, dict):
+            raise ValueError(f"Unexpected MapsTrait response format: {response!r}")
+        return MultiMapsList.from_dict(response)
 
 
 @common.mqtt_rpc_channel
@@ -34,6 +51,7 @@ class MapsTrait(MultiMapsList, common.V1TraitMixin):
     """
 
     command = RoborockCommand.GET_MULTI_MAPS_LIST
+    converter = MultiMapsListConverter()
 
     def __init__(self, status_trait: StatusTrait) -> None:
         """Initialize the MapsTrait.
@@ -64,17 +82,3 @@ class MapsTrait(MultiMapsList, common.V1TraitMixin):
         await self.rpc_channel.send_command(RoborockCommand.LOAD_MULTI_MAP, params=[map_flag])
         # Refresh our status to make sure it reflects the new map
         await self._status_trait.refresh()
-
-    def _parse_response(self, response: common.V1ResponseData) -> Self:
-        """Parse the response from the device into a MapsTrait instance.
-
-        This overrides the base implementation to handle the specific
-        response format for the multi maps list. This is needed because we have
-        a custom constructor that requires the StatusTrait.
-        """
-        if not isinstance(response, list):
-            raise ValueError(f"Unexpected MapsTrait response format: {response!r}")
-        response = response[0]
-        if not isinstance(response, dict):
-            raise ValueError(f"Unexpected MapsTrait response format: {response!r}")
-        return MultiMapsList.from_dict(response)

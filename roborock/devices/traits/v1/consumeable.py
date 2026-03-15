@@ -41,6 +41,7 @@ class ConsumableTrait(Consumable, common.V1TraitMixin):
     """
 
     command = RoborockCommand.GET_CONSUMABLE
+    converter = common.DefaultConverter(Consumable)
 
     async def reset_consumable(self, consumable: ConsumableAttribute) -> None:
         """Reset a specific consumable attribute on the device."""

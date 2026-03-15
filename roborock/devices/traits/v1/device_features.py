@@ -8,15 +8,37 @@ from roborock.devices.traits.v1 import common
 from roborock.roborock_typing import RoborockCommand
 
 
+class DeviceTraitsConverter(common.V1TraitDataConverter):
+    """Converter for APP_GET_INIT_STATUS responses into DeviceFeatures."""
+
+    def __init__(self, product: HomeDataProduct) -> None:
+        """Initialize DeviceTraitsConverter."""
+        self._product = product
+
+    def convert(self, response: common.V1ResponseData) -> DeviceFeatures:
+        """Parse an APP_GET_INIT_STATUS response into a DeviceFeatures instance."""
+        if not isinstance(response, list):
+            raise ValueError(f"Unexpected AppInitStatus response format: {type(response)}: {response!r}")
+        app_status = AppInitStatus.from_dict(response[0])
+        return DeviceFeatures.from_feature_flags(
+            new_feature_info=app_status.new_feature_info,
+            new_feature_info_str=app_status.new_feature_info_str,
+            feature_info=app_status.feature_info,
+            product_nickname=self._product.product_nickname,
+        )
+
+
 class DeviceFeaturesTrait(DeviceFeatures, common.V1TraitMixin):
     """Trait for managing supported features on Roborock devices."""
 
     command = RoborockCommand.APP_GET_INIT_STATUS
+    converter: DeviceTraitsConverter
 
     def __init__(self, product: HomeDataProduct, device_cache: DeviceCache) -> None:  # pylint: disable=super-init-not-called
         """Initialize DeviceFeaturesTrait."""
+        common.V1TraitMixin.__init__(self)
+        self.converter = DeviceTraitsConverter(product)
         self._product = product
-        self._nickname = product.product_nickname
         self._device_cache = device_cache
         # All fields of DeviceFeatures are required. Initialize them to False
         # so we have some known state.
@@ -54,21 +76,9 @@ class DeviceFeaturesTrait(DeviceFeatures, common.V1TraitMixin):
         """
         cache_data = await self._device_cache.get()
         if cache_data.device_features is not None:
-            self._update_trait_values(cache_data.device_features)
+            common.merge_trait_values(self, cache_data.device_features)
             return
         # Save cached device features
         await super().refresh()
         cache_data.device_features = self
         await self._device_cache.set(cache_data)
-
-    def _parse_response(self, response: common.V1ResponseData) -> DeviceFeatures:
-        """Parse the response from the device into a MapContentTrait instance."""
-        if not isinstance(response, list):
-            raise ValueError(f"Unexpected AppInitStatus response format: {type(response)}")
-        app_status = AppInitStatus.from_dict(response[0])
-        return DeviceFeatures.from_feature_flags(
-            new_feature_info=app_status.new_feature_info,
-            new_feature_info_str=app_status.new_feature_info_str,
-            feature_info=app_status.feature_info,
-            product_nickname=self._nickname,
-        )

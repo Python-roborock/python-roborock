@@ -9,6 +9,7 @@ class ValleyElectricityTimerTrait(ValleyElectricityTimer, common.V1TraitMixin, c
     """Trait for managing Valley Electricity Timer settings on Roborock devices."""
 
     command = RoborockCommand.GET_VALLEY_ELECTRICITY_TIMER
+    converter = common.DefaultConverter(ValleyElectricityTimer)
     requires_feature = "is_supported_valley_electricity"
 
     @property

@@ -10,4 +10,5 @@ class DustCollectionModeTrait(DustCollectionMode, common.V1TraitMixin):
     """Trait for dust collection mode."""
 
     command = RoborockCommand.GET_DUST_COLLECTION_MODE
+    converter = common.DefaultConverter(DustCollectionMode)
     requires_dock_type = is_valid_dock
