@@ -1,10 +1,14 @@
 """Traits for Q7 B01 devices.
-Potentially other devices may fall into this category in the future."""
+
+Potentially other devices may fall into this category in the future.
+"""
+
+from __future__ import annotations
 
 from typing import Any
 
 from roborock import B01Props
-from roborock.data import Q7MapList, Q7MapListEntry
+from roborock.data import HomeDataDevice, HomeDataProduct, Q7MapList, Q7MapListEntry
 from roborock.data.b01_q7.b01_q7_code_mappings import (
     CleanPathPreferenceMapping,
     CleanRepeatMapping,
@@ -23,18 +27,20 @@ from roborock.roborock_typing import RoborockB01Q7Methods
 
 from .clean_summary import CleanSummaryTrait
 from .map import MapTrait
+from .map_content import MapContentTrait
 
 __all__ = [
     "Q7PropertiesApi",
     "CleanSummaryTrait",
     "MapTrait",
+    "MapContentTrait",
     "Q7MapList",
     "Q7MapListEntry",
 ]
 
 
 class Q7PropertiesApi(Trait):
-    """API for interacting with B01 devices."""
+    """API for interacting with B01 Q7 devices."""
 
     clean_summary: CleanSummaryTrait
     """Trait for clean records / clean summary (Q7 `service.get_record_list`)."""
@@ -42,11 +48,22 @@ class Q7PropertiesApi(Trait):
     map: MapTrait
     """Trait for map list metadata + raw map payload retrieval."""
 
-    def __init__(self, channel: MqttChannel) -> None:
-        """Initialize the B01Props API."""
+    map_content: MapContentTrait
+    """Trait for fetching parsed current map content."""
+
+    def __init__(self, channel: MqttChannel, *, device: HomeDataDevice, product: HomeDataProduct) -> None:
+        """Initialize the Q7 API."""
         self._channel = channel
+        self._device = device
+        self._product = product
+
         self.clean_summary = CleanSummaryTrait(channel)
         self.map = MapTrait(channel)
+        self.map_content = MapContentTrait(
+            self.map,
+            serial=device.sn,
+            model=product.model,
+        )
 
     async def query_values(self, props: list[RoborockB01Props]) -> B01Props | None:
         """Query the device for the values of the given Q7 properties."""
@@ -151,6 +168,6 @@ class Q7PropertiesApi(Trait):
         )
 
 
-def create(channel: MqttChannel) -> Q7PropertiesApi:
-    """Create traits for B01 devices."""
-    return Q7PropertiesApi(channel)
+def create(product: HomeDataProduct, device: HomeDataDevice, channel: MqttChannel) -> Q7PropertiesApi:
+    """Create traits for B01 Q7 devices."""
+    return Q7PropertiesApi(channel, device=device, product=product)
