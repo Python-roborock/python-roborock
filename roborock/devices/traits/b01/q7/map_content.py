@@ -1,7 +1,8 @@
 """Trait for fetching parsed map content from B01/Q7 devices.
 
-This follows the same basic pattern as the v1 `MapContentTrait`:
+This intentionally mirrors the v1 `MapContentTrait` contract:
 - `refresh()` performs I/O and populates cached fields
+- `parse_map_content()` reparses cached raw bytes without I/O
 - fields `image_content`, `map_data`, and `raw_api_response` are then readable
 
 For B01/Q7 devices, the underlying raw map payload is retrieved via `MapTrait`.
@@ -75,8 +76,8 @@ class MapContentTrait(MapContent, Trait):
     def parse_map_content(self, response: bytes) -> MapContent:
         """Parse map content from raw bytes.
 
-        Exposed so callers can re-parse cached map payload bytes without
-        performing I/O.
+        This mirrors the v1 trait behavior so cached map payload bytes can be
+        reparsed without going back to the device.
         """
         if not self._serial or not self._model:
             raise RoborockException(
