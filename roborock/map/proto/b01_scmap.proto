@@ -1,0 +1,72 @@
+// Source of truth for the B01/Q7 SCMap schema.
+//
+// Regenerate the checked-in Python module after edits with:
+//   python -m grpc_tools.protoc -I. --python_out=. roborock/map/proto/b01_scmap.proto
+//
+// The generated file `b01_scmap_pb2.py` is checked in for runtime use and should
+// not be edited by hand.
+syntax = "proto2";
+
+package b01.scmap;
+
+message DevicePointInfo {
+  optional float x = 1;
+  optional float y = 2;
+}
+
+message MapBoundaryInfo {
+  optional string mapMd5 = 1;
+  optional uint32 vMinX = 2;
+  optional uint32 vMaxX = 3;
+  optional uint32 vMinY = 4;
+  optional uint32 vMaxY = 5;
+}
+
+message MapExtInfo {
+  optional uint32 taskBeginDate = 1;
+  optional uint32 mapUploadDate = 2;
+  optional uint32 mapValid = 3;
+  optional uint32 radian = 4;
+  optional uint32 force = 5;
+  optional uint32 cleanPath = 6;
+  optional MapBoundaryInfo boudaryInfo = 7;
+  optional uint32 mapVersion = 8;
+  optional uint32 mapValueType = 9;
+}
+
+message MapHeadInfo {
+  optional uint32 mapHeadId = 1;
+  optional uint32 sizeX = 2;
+  optional uint32 sizeY = 3;
+  optional float minX = 4;
+  optional float minY = 5;
+  optional float maxX = 6;
+  optional float maxY = 7;
+  optional float resolution = 8;
+}
+
+message MapDataInfo {
+  optional bytes mapData = 1;
+}
+
+message RoomDataInfo {
+  optional uint32 roomId = 1;
+  optional string roomName = 2;
+  optional uint32 roomTypeId = 3;
+  optional uint32 meterialId = 4;
+  optional uint32 cleanState = 5;
+  optional uint32 roomClean = 6;
+  optional uint32 roomCleanIndex = 7;
+  optional DevicePointInfo roomNamePost = 8;
+  optional uint32 colorId = 10;
+  optional uint32 floor_direction = 11;
+  optional uint32 global_seq = 12;
+}
+
+message RobotMap {
+  optional uint32 mapType = 1;
+  optional MapExtInfo mapExtInfo = 2;
+  optional MapHeadInfo mapHead = 3;
+  optional MapDataInfo mapData = 4;
+  repeated RoomDataInfo roomDataInfo = 12;
+}

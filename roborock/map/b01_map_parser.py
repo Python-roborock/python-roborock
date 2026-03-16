@@ -6,8 +6,8 @@ Observed Q7 `MAP_RESPONSE` payloads follow this decode pipeline:
 - PKCS7 padded
 - ASCII hex for a zlib-compressed SCMap payload
 
-The inner SCMap blob is parsed with the official protobuf runtime using a small
-runtime descriptor for the message fields this parser needs.
+The inner SCMap blob is parsed with protobuf messages generated from
+`roborock/map/proto/b01_scmap.proto`.
 """
 
 from __future__ import annotations
@@ -18,25 +18,21 @@ import hashlib
 import io
 import zlib
 from dataclasses import dataclass, field
-from typing import Any
 
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
-from google.protobuf import descriptor_pool
-from google.protobuf.descriptor_pb2 import DescriptorProto, FieldDescriptorProto, FileDescriptorProto
-from google.protobuf.message import DecodeError, Message
-from google.protobuf.message_factory import GetMessageClass
+from google.protobuf.message import DecodeError
 from PIL import Image
 from vacuum_map_parser_base.config.image_config import ImageConfig
 from vacuum_map_parser_base.map_data import ImageData, MapData
 
 from roborock.exceptions import RoborockException
+from roborock.map.proto import b01_scmap_pb2
 
 from .map_parser import ParsedMapData
 
 _B64_CHARS = set(b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=")
 _MAP_FILE_FORMAT = "PNG"
-_PROTO_PACKAGE = "b01.scmap"
 
 
 @dataclass(frozen=True)
@@ -188,151 +184,11 @@ def _decode_b01_map_payload(raw_payload: bytes, *, serial: str, model: str) -> b
         raise RoborockException("Failed to decode B01 map payload") from err
 
 
-def _message_descriptor(name: str, fields: list[dict[str, object]]) -> DescriptorProto:
-    descriptor = DescriptorProto(name=name)
-    for field_def in fields:
-        descriptor.field.add(
-            name=field_def["name"],
-            number=field_def["number"],
-            label=field_def.get("label", FieldDescriptorProto.LABEL_OPTIONAL),
-            type=field_def["type"],
-            type_name=field_def.get("type_name"),
-        )
-    return descriptor
-
-
-_FILE_DESCRIPTOR = FileDescriptorProto(name="b01_scmap.proto", package=_PROTO_PACKAGE, syntax="proto2")
-_FILE_DESCRIPTOR.message_type.extend(
-    [
-        _message_descriptor(
-            "DevicePointInfo",
-            [
-                {"name": "x", "number": 1, "type": FieldDescriptorProto.TYPE_FLOAT},
-                {"name": "y", "number": 2, "type": FieldDescriptorProto.TYPE_FLOAT},
-            ],
-        ),
-        _message_descriptor(
-            "MapBoundaryInfo",
-            [
-                {"name": "mapMd5", "number": 1, "type": FieldDescriptorProto.TYPE_STRING},
-                {"name": "vMinX", "number": 2, "type": FieldDescriptorProto.TYPE_UINT32},
-                {"name": "vMaxX", "number": 3, "type": FieldDescriptorProto.TYPE_UINT32},
-                {"name": "vMinY", "number": 4, "type": FieldDescriptorProto.TYPE_UINT32},
-                {"name": "vMaxY", "number": 5, "type": FieldDescriptorProto.TYPE_UINT32},
-            ],
-        ),
-        _message_descriptor(
-            "MapExtInfo",
-            [
-                {"name": "taskBeginDate", "number": 1, "type": FieldDescriptorProto.TYPE_UINT32},
-                {"name": "mapUploadDate", "number": 2, "type": FieldDescriptorProto.TYPE_UINT32},
-                {"name": "mapValid", "number": 3, "type": FieldDescriptorProto.TYPE_UINT32},
-                {"name": "radian", "number": 4, "type": FieldDescriptorProto.TYPE_UINT32},
-                {"name": "force", "number": 5, "type": FieldDescriptorProto.TYPE_UINT32},
-                {"name": "cleanPath", "number": 6, "type": FieldDescriptorProto.TYPE_UINT32},
-                {
-                    "name": "boudaryInfo",
-                    "number": 7,
-                    "type": FieldDescriptorProto.TYPE_MESSAGE,
-                    "type_name": f".{_PROTO_PACKAGE}.MapBoundaryInfo",
-                },
-                {"name": "mapVersion", "number": 8, "type": FieldDescriptorProto.TYPE_UINT32},
-                {"name": "mapValueType", "number": 9, "type": FieldDescriptorProto.TYPE_UINT32},
-            ],
-        ),
-        _message_descriptor(
-            "MapHeadInfo",
-            [
-                {"name": "mapHeadId", "number": 1, "type": FieldDescriptorProto.TYPE_UINT32},
-                {"name": "sizeX", "number": 2, "type": FieldDescriptorProto.TYPE_UINT32},
-                {"name": "sizeY", "number": 3, "type": FieldDescriptorProto.TYPE_UINT32},
-                {"name": "minX", "number": 4, "type": FieldDescriptorProto.TYPE_FLOAT},
-                {"name": "minY", "number": 5, "type": FieldDescriptorProto.TYPE_FLOAT},
-                {"name": "maxX", "number": 6, "type": FieldDescriptorProto.TYPE_FLOAT},
-                {"name": "maxY", "number": 7, "type": FieldDescriptorProto.TYPE_FLOAT},
-                {"name": "resolution", "number": 8, "type": FieldDescriptorProto.TYPE_FLOAT},
-            ],
-        ),
-        _message_descriptor(
-            "MapDataInfo",
-            [{"name": "mapData", "number": 1, "type": FieldDescriptorProto.TYPE_BYTES}],
-        ),
-        _message_descriptor(
-            "RoomDataInfo",
-            [
-                {"name": "roomId", "number": 1, "type": FieldDescriptorProto.TYPE_UINT32},
-                {"name": "roomName", "number": 2, "type": FieldDescriptorProto.TYPE_STRING},
-                {"name": "roomTypeId", "number": 3, "type": FieldDescriptorProto.TYPE_UINT32},
-                {"name": "meterialId", "number": 4, "type": FieldDescriptorProto.TYPE_UINT32},
-                {"name": "cleanState", "number": 5, "type": FieldDescriptorProto.TYPE_UINT32},
-                {"name": "roomClean", "number": 6, "type": FieldDescriptorProto.TYPE_UINT32},
-                {"name": "roomCleanIndex", "number": 7, "type": FieldDescriptorProto.TYPE_UINT32},
-                {
-                    "name": "roomNamePost",
-                    "number": 8,
-                    "type": FieldDescriptorProto.TYPE_MESSAGE,
-                    "type_name": f".{_PROTO_PACKAGE}.DevicePointInfo",
-                },
-                {"name": "colorId", "number": 10, "type": FieldDescriptorProto.TYPE_UINT32},
-                {"name": "floor_direction", "number": 11, "type": FieldDescriptorProto.TYPE_UINT32},
-                {"name": "global_seq", "number": 12, "type": FieldDescriptorProto.TYPE_UINT32},
-            ],
-        ),
-        _message_descriptor(
-            "RobotMap",
-            [
-                {"name": "mapType", "number": 1, "type": FieldDescriptorProto.TYPE_UINT32},
-                {
-                    "name": "mapExtInfo",
-                    "number": 2,
-                    "type": FieldDescriptorProto.TYPE_MESSAGE,
-                    "type_name": f".{_PROTO_PACKAGE}.MapExtInfo",
-                },
-                {
-                    "name": "mapHead",
-                    "number": 3,
-                    "type": FieldDescriptorProto.TYPE_MESSAGE,
-                    "type_name": f".{_PROTO_PACKAGE}.MapHeadInfo",
-                },
-                {
-                    "name": "mapData",
-                    "number": 4,
-                    "type": FieldDescriptorProto.TYPE_MESSAGE,
-                    "type_name": f".{_PROTO_PACKAGE}.MapDataInfo",
-                },
-                {
-                    "name": "roomDataInfo",
-                    "number": 12,
-                    "label": FieldDescriptorProto.LABEL_REPEATED,
-                    "type": FieldDescriptorProto.TYPE_MESSAGE,
-                    "type_name": f".{_PROTO_PACKAGE}.RoomDataInfo",
-                },
-            ],
-        ),
-    ]
-)
-
-_SC_MAP_FILE_DESCRIPTOR = descriptor_pool.Default().AddSerializedFile(_FILE_DESCRIPTOR.SerializeToString())
-_DEVICE_POINT_INFO = GetMessageClass(_SC_MAP_FILE_DESCRIPTOR.message_types_by_name["DevicePointInfo"])
-_MAP_BOUNDARY_INFO = GetMessageClass(_SC_MAP_FILE_DESCRIPTOR.message_types_by_name["MapBoundaryInfo"])
-_MAP_EXT_INFO = GetMessageClass(_SC_MAP_FILE_DESCRIPTOR.message_types_by_name["MapExtInfo"])
-_MAP_HEAD_INFO = GetMessageClass(_SC_MAP_FILE_DESCRIPTOR.message_types_by_name["MapHeadInfo"])
-_MAP_DATA_INFO = GetMessageClass(_SC_MAP_FILE_DESCRIPTOR.message_types_by_name["MapDataInfo"])
-_ROOM_DATA_INFO = GetMessageClass(_SC_MAP_FILE_DESCRIPTOR.message_types_by_name["RoomDataInfo"])
-_ROBOT_MAP = GetMessageClass(_SC_MAP_FILE_DESCRIPTOR.message_types_by_name["RobotMap"])
-
-
-def _has_field(message: Any, field_name: str) -> bool:
-    return message.HasField(field_name)
-
-
-def _parse_proto(blob: bytes, message_class: type[Message], *, context: str) -> Any:
-    message = message_class()
+def _parse_proto(blob: bytes, message: object, *, context: str) -> None:
     try:
         message.ParseFromString(blob)
     except DecodeError as err:
         raise RoborockException(f"Failed to parse {context}") from err
-    return message
 
 
 def _decode_map_data_bytes(value: bytes) -> bytes:
@@ -342,95 +198,83 @@ def _decode_map_data_bytes(value: bytes) -> bytes:
         return value
 
 
-def _parse_sc_point(blob: bytes) -> _ScPoint:
-    parsed = _parse_proto(blob, _DEVICE_POINT_INFO, context="B01 DevicePointInfo")
+def _parse_sc_point(parsed: b01_scmap_pb2.DevicePointInfo) -> _ScPoint:
     return _ScPoint(
-        x=parsed.x if _has_field(parsed, "x") else None,
-        y=parsed.y if _has_field(parsed, "y") else None,
+        x=parsed.x if parsed.HasField("x") else None,
+        y=parsed.y if parsed.HasField("y") else None,
     )
 
 
-def _parse_sc_map_boundary_info(blob: bytes) -> _ScMapBoundaryInfo:
-    parsed = _parse_proto(blob, _MAP_BOUNDARY_INFO, context="B01 MapBoundaryInfo")
+def _parse_sc_map_boundary_info(parsed: b01_scmap_pb2.MapBoundaryInfo) -> _ScMapBoundaryInfo:
     return _ScMapBoundaryInfo(
-        map_md5=parsed.mapMd5 if _has_field(parsed, "mapMd5") else None,
-        v_min_x=parsed.vMinX if _has_field(parsed, "vMinX") else None,
-        v_max_x=parsed.vMaxX if _has_field(parsed, "vMaxX") else None,
-        v_min_y=parsed.vMinY if _has_field(parsed, "vMinY") else None,
-        v_max_y=parsed.vMaxY if _has_field(parsed, "vMaxY") else None,
+        map_md5=parsed.mapMd5 if parsed.HasField("mapMd5") else None,
+        v_min_x=parsed.vMinX if parsed.HasField("vMinX") else None,
+        v_max_x=parsed.vMaxX if parsed.HasField("vMaxX") else None,
+        v_min_y=parsed.vMinY if parsed.HasField("vMinY") else None,
+        v_max_y=parsed.vMaxY if parsed.HasField("vMaxY") else None,
     )
 
 
-def _parse_sc_map_ext_info(blob: bytes) -> _ScMapExtInfo:
-    parsed = _parse_proto(blob, _MAP_EXT_INFO, context="B01 MapExtInfo")
+def _parse_sc_map_ext_info(parsed: b01_scmap_pb2.MapExtInfo) -> _ScMapExtInfo:
     return _ScMapExtInfo(
-        task_begin_date=parsed.taskBeginDate if _has_field(parsed, "taskBeginDate") else None,
-        map_upload_date=parsed.mapUploadDate if _has_field(parsed, "mapUploadDate") else None,
-        map_valid=parsed.mapValid if _has_field(parsed, "mapValid") else None,
-        radian=parsed.radian if _has_field(parsed, "radian") else None,
-        force=parsed.force if _has_field(parsed, "force") else None,
-        clean_path=parsed.cleanPath if _has_field(parsed, "cleanPath") else None,
-        boundary_info=(
-            _parse_sc_map_boundary_info(parsed.boudaryInfo.SerializeToString())
-            if _has_field(parsed, "boudaryInfo")
-            else None
-        ),
-        map_version=parsed.mapVersion if _has_field(parsed, "mapVersion") else None,
-        map_value_type=parsed.mapValueType if _has_field(parsed, "mapValueType") else None,
+        task_begin_date=parsed.taskBeginDate if parsed.HasField("taskBeginDate") else None,
+        map_upload_date=parsed.mapUploadDate if parsed.HasField("mapUploadDate") else None,
+        map_valid=parsed.mapValid if parsed.HasField("mapValid") else None,
+        radian=parsed.radian if parsed.HasField("radian") else None,
+        force=parsed.force if parsed.HasField("force") else None,
+        clean_path=parsed.cleanPath if parsed.HasField("cleanPath") else None,
+        boundary_info=_parse_sc_map_boundary_info(parsed.boudaryInfo) if parsed.HasField("boudaryInfo") else None,
+        map_version=parsed.mapVersion if parsed.HasField("mapVersion") else None,
+        map_value_type=parsed.mapValueType if parsed.HasField("mapValueType") else None,
     )
 
 
-def _parse_sc_map_head(blob: bytes) -> _ScMapHead:
-    parsed = _parse_proto(blob, _MAP_HEAD_INFO, context="B01 MapHeadInfo")
+def _parse_sc_map_head(parsed: b01_scmap_pb2.MapHeadInfo) -> _ScMapHead:
     return _ScMapHead(
-        map_head_id=parsed.mapHeadId if _has_field(parsed, "mapHeadId") else None,
-        size_x=parsed.sizeX if _has_field(parsed, "sizeX") else None,
-        size_y=parsed.sizeY if _has_field(parsed, "sizeY") else None,
-        min_x=parsed.minX if _has_field(parsed, "minX") else None,
-        min_y=parsed.minY if _has_field(parsed, "minY") else None,
-        max_x=parsed.maxX if _has_field(parsed, "maxX") else None,
-        max_y=parsed.maxY if _has_field(parsed, "maxY") else None,
-        resolution=parsed.resolution if _has_field(parsed, "resolution") else None,
+        map_head_id=parsed.mapHeadId if parsed.HasField("mapHeadId") else None,
+        size_x=parsed.sizeX if parsed.HasField("sizeX") else None,
+        size_y=parsed.sizeY if parsed.HasField("sizeY") else None,
+        min_x=parsed.minX if parsed.HasField("minX") else None,
+        min_y=parsed.minY if parsed.HasField("minY") else None,
+        max_x=parsed.maxX if parsed.HasField("maxX") else None,
+        max_y=parsed.maxY if parsed.HasField("maxY") else None,
+        resolution=parsed.resolution if parsed.HasField("resolution") else None,
     )
 
 
-def _parse_sc_map_data_info(blob: bytes) -> bytes:
-    parsed = _parse_proto(blob, _MAP_DATA_INFO, context="B01 MapDataInfo")
-    if not _has_field(parsed, "mapData"):
-        raise RoborockException("B01 map payload missing mapData")
-    return _decode_map_data_bytes(parsed.mapData)
-
-
-def _parse_sc_room_data(blob: bytes) -> _ScRoomData:
-    parsed = _parse_proto(blob, _ROOM_DATA_INFO, context="B01 RoomDataInfo")
+def _parse_sc_room_data(parsed: b01_scmap_pb2.RoomDataInfo) -> _ScRoomData:
     return _ScRoomData(
-        room_id=parsed.roomId if _has_field(parsed, "roomId") else None,
-        room_name=parsed.roomName if _has_field(parsed, "roomName") else None,
-        room_type_id=parsed.roomTypeId if _has_field(parsed, "roomTypeId") else None,
-        material_id=parsed.meterialId if _has_field(parsed, "meterialId") else None,
-        clean_state=parsed.cleanState if _has_field(parsed, "cleanState") else None,
-        room_clean=parsed.roomClean if _has_field(parsed, "roomClean") else None,
-        room_clean_index=parsed.roomCleanIndex if _has_field(parsed, "roomCleanIndex") else None,
-        room_name_post=(
-            _parse_sc_point(parsed.roomNamePost.SerializeToString()) if _has_field(parsed, "roomNamePost") else None
-        ),
-        color_id=parsed.colorId if _has_field(parsed, "colorId") else None,
-        floor_direction=parsed.floor_direction if _has_field(parsed, "floor_direction") else None,
-        global_seq=parsed.global_seq if _has_field(parsed, "global_seq") else None,
+        room_id=parsed.roomId if parsed.HasField("roomId") else None,
+        room_name=parsed.roomName if parsed.HasField("roomName") else None,
+        room_type_id=parsed.roomTypeId if parsed.HasField("roomTypeId") else None,
+        material_id=parsed.meterialId if parsed.HasField("meterialId") else None,
+        clean_state=parsed.cleanState if parsed.HasField("cleanState") else None,
+        room_clean=parsed.roomClean if parsed.HasField("roomClean") else None,
+        room_clean_index=parsed.roomCleanIndex if parsed.HasField("roomCleanIndex") else None,
+        room_name_post=_parse_sc_point(parsed.roomNamePost) if parsed.HasField("roomNamePost") else None,
+        color_id=parsed.colorId if parsed.HasField("colorId") else None,
+        floor_direction=parsed.floor_direction if parsed.HasField("floor_direction") else None,
+        global_seq=parsed.global_seq if parsed.HasField("global_seq") else None,
     )
 
 
 def _parse_scmap_payload(payload: bytes) -> _ScMapPayload:
     """Parse inflated SCMap bytes into typed map metadata."""
-    parsed = _parse_proto(payload, _ROBOT_MAP, context="B01 SCMap")
+    parsed = b01_scmap_pb2.RobotMap()
+    _parse_proto(payload, parsed, context="B01 SCMap")
+
+    map_data = None
+    if parsed.HasField("mapData"):
+        if not parsed.mapData.HasField("mapData"):
+            raise RoborockException("B01 map payload missing mapData")
+        map_data = _decode_map_data_bytes(parsed.mapData.mapData)
+
     return _ScMapPayload(
-        map_type=parsed.mapType if _has_field(parsed, "mapType") else None,
-        map_ext_info=(
-            _parse_sc_map_ext_info(parsed.mapExtInfo.SerializeToString()) if _has_field(parsed, "mapExtInfo") else None
-        ),
-        map_head=_parse_sc_map_head(parsed.mapHead.SerializeToString()) if _has_field(parsed, "mapHead") else None,
-        map_data=_parse_sc_map_data_info(parsed.mapData.SerializeToString()) if _has_field(parsed, "mapData") else None,
-        room_data_info=tuple(_parse_sc_room_data(room.SerializeToString()) for room in parsed.roomDataInfo),
+        map_type=parsed.mapType if parsed.HasField("mapType") else None,
+        map_ext_info=_parse_sc_map_ext_info(parsed.mapExtInfo) if parsed.HasField("mapExtInfo") else None,
+        map_head=_parse_sc_map_head(parsed.mapHead) if parsed.HasField("mapHead") else None,
+        map_data=map_data,
+        room_data_info=tuple(_parse_sc_room_data(room) for room in parsed.roomDataInfo),
     )
 
 
