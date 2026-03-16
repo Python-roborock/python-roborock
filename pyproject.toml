@@ -56,7 +56,6 @@ dev = [
     "pyyaml>=6.0.3",
     "pyshark>=0.6",
     "pytest-cov>=7.0.0",
-    "types-protobuf",
 ]
 
 [tool.hatch.build.targets.sdist]

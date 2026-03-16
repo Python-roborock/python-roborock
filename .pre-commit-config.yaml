@@ -52,7 +52,7 @@ repos:
                         cli\.py|
                         roborock/map/proto/.*_pb2\.py
                     )$
-                additional_dependencies: [ "types-paho-mqtt", "types-protobuf" ]
+                additional_dependencies: [ "types-paho-mqtt" ]
     -   repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
         rev: v9.23.0
         hooks:
