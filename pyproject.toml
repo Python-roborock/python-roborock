@@ -103,6 +103,10 @@ line-length = 120
 "*/__init__.py" = ["F401"]
 "roborock/map/proto/*_pb2.py" = ["E501", "I001", "UP009"]
 
+[[tool.mypy.overrides]]
+module = ["roborock.map.proto.*"]
+ignore_errors = true
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"

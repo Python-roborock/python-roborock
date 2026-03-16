@@ -47,11 +47,7 @@ repos:
         rev: v1.7.1
         hooks:
             -   id: mypy
-                exclude: >
-                    (?x)^(
-                        cli\.py|
-                        roborock/map/proto/.*_pb2\.py
-                    )$
+                exclude: cli.py
                 additional_dependencies: [ "types-paho-mqtt" ]
     -   repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
         rev: v9.23.0
