@@ -18,6 +18,7 @@ import hashlib
 import io
 import zlib
 from dataclasses import dataclass, field
+from typing import Any
 
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
@@ -184,7 +185,7 @@ def _decode_b01_map_payload(raw_payload: bytes, *, serial: str, model: str) -> b
         raise RoborockException("Failed to decode B01 map payload") from err
 
 
-def _parse_proto(blob: bytes, message: object, *, context: str) -> None:
+def _parse_proto(blob: bytes, message: Any, *, context: str) -> None:
     try:
         message.ParseFromString(blob)
     except DecodeError as err:
@@ -198,14 +199,14 @@ def _decode_map_data_bytes(value: bytes) -> bytes:
         return value
 
 
-def _parse_sc_point(parsed: b01_scmap_pb2.DevicePointInfo) -> _ScPoint:
+def _parse_sc_point(parsed: Any) -> _ScPoint:
     return _ScPoint(
         x=parsed.x if parsed.HasField("x") else None,
         y=parsed.y if parsed.HasField("y") else None,
     )
 
 
-def _parse_sc_map_boundary_info(parsed: b01_scmap_pb2.MapBoundaryInfo) -> _ScMapBoundaryInfo:
+def _parse_sc_map_boundary_info(parsed: Any) -> _ScMapBoundaryInfo:
     return _ScMapBoundaryInfo(
         map_md5=parsed.mapMd5 if parsed.HasField("mapMd5") else None,
         v_min_x=parsed.vMinX if parsed.HasField("vMinX") else None,
@@ -215,7 +216,7 @@ def _parse_sc_map_boundary_info(parsed: b01_scmap_pb2.MapBoundaryInfo) -> _ScMap
     )
 
 
-def _parse_sc_map_ext_info(parsed: b01_scmap_pb2.MapExtInfo) -> _ScMapExtInfo:
+def _parse_sc_map_ext_info(parsed: Any) -> _ScMapExtInfo:
     return _ScMapExtInfo(
         task_begin_date=parsed.taskBeginDate if parsed.HasField("taskBeginDate") else None,
         map_upload_date=parsed.mapUploadDate if parsed.HasField("mapUploadDate") else None,
@@ -229,7 +230,7 @@ def _parse_sc_map_ext_info(parsed: b01_scmap_pb2.MapExtInfo) -> _ScMapExtInfo:
     )
 
 
-def _parse_sc_map_head(parsed: b01_scmap_pb2.MapHeadInfo) -> _ScMapHead:
+def _parse_sc_map_head(parsed: Any) -> _ScMapHead:
     return _ScMapHead(
         map_head_id=parsed.mapHeadId if parsed.HasField("mapHeadId") else None,
         size_x=parsed.sizeX if parsed.HasField("sizeX") else None,
@@ -242,7 +243,7 @@ def _parse_sc_map_head(parsed: b01_scmap_pb2.MapHeadInfo) -> _ScMapHead:
     )
 
 
-def _parse_sc_room_data(parsed: b01_scmap_pb2.RoomDataInfo) -> _ScRoomData:
+def _parse_sc_room_data(parsed: Any) -> _ScRoomData:
     return _ScRoomData(
         room_id=parsed.roomId if parsed.HasField("roomId") else None,
         room_name=parsed.roomName if parsed.HasField("roomName") else None,
@@ -260,7 +261,7 @@ def _parse_sc_room_data(parsed: b01_scmap_pb2.RoomDataInfo) -> _ScRoomData:
 
 def _parse_scmap_payload(payload: bytes) -> _ScMapPayload:
     """Parse inflated SCMap bytes into typed map metadata."""
-    parsed = b01_scmap_pb2.RobotMap()
+    parsed: Any = getattr(b01_scmap_pb2, "RobotMap")()
     _parse_proto(payload, parsed, context="B01 SCMap")
 
     map_data = None
