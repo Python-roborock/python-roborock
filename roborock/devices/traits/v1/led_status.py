@@ -5,10 +5,28 @@ from roborock.roborock_typing import RoborockCommand
 from .common import V1ResponseData
 
 
+class LedStatusConverter(common.V1TraitDataConverter):
+    """Converter for LedStatus."""
+
+    def convert(self, response: V1ResponseData) -> LedStatus:
+        """Parse the response from the device into a a RoborockBase.
+
+        Subclasses should override this method to implement custom parsing
+        logic as needed.
+        """
+        if not isinstance(response, list):
+            raise ValueError(f"Unexpected LedStatus response format: {response!r}")
+        response = response[0]
+        if not isinstance(response, int):
+            raise ValueError(f"Unexpected LedStatus response format: {response!r}")
+        return LedStatus.from_dict({"status": response})
+
+
 class LedStatusTrait(LedStatus, common.V1TraitMixin, common.RoborockSwitchBase):
     """Trait for controlling the LED status of a Roborock device."""
 
     command = RoborockCommand.GET_LED_STATUS
+    converter = LedStatusConverter()
     requires_feature = "is_led_status_switch_supported"
 
     @property
@@ -27,17 +45,3 @@ class LedStatusTrait(LedStatus, common.V1TraitMixin, common.RoborockSwitchBase):
         await self.rpc_channel.send_command(RoborockCommand.SET_LED_STATUS, params=[0])
         # Optimistic update to avoid an extra refresh
         self.status = 0
-
-    @classmethod
-    def _parse_type_response(cls, response: V1ResponseData) -> LedStatus:
-        """Parse the response from the device into a a RoborockBase.
-
-        Subclasses should override this method to implement custom parsing
-        logic as needed.
-        """
-        if not isinstance(response, list):
-            raise ValueError(f"Unexpected {cls} response format: {response!r}")
-        response = response[0]
-        if not isinstance(response, int):
-            raise ValueError(f"Unexpected {cls} response format: {response!r}")
-        return cls.from_dict({"status": response})

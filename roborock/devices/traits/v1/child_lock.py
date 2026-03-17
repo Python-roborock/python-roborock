@@ -9,6 +9,7 @@ class ChildLockTrait(ChildLockStatus, common.V1TraitMixin, common.RoborockSwitch
     """Trait for controlling the child lock of a Roborock device."""
 
     command = RoborockCommand.GET_CHILD_LOCK_STATUS
+    converter = common.DefaultConverter(ChildLockStatus)
     requires_feature = "is_set_child_supported"
 
     @property

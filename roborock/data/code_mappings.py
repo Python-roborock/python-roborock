@@ -101,6 +101,30 @@ class RoborockModeEnum(StrEnum):
         raise ValueError(f"{name} is not a valid name for {cls.__name__}")
 
     @classmethod
+    def from_any_optional(cls, value: str | int) -> Self | None:
+        """Resolve a string or int to an enum member.
+
+        Tries to look up by enum name, string value, or integer code
+        and returns None if no match is found.
+        """
+        # Try enum name lookup (e.g. "SEEK")
+        try:
+            return cls.from_name(str(value))
+        except ValueError:
+            pass
+        # Try DP string value lookup (e.g. "dpSeek")
+        try:
+            return cls.from_value(str(value))
+        except ValueError:
+            pass
+        # Try integer code lookup (e.g. "11")
+        try:
+            return cls.from_code(int(value))
+        except (ValueError, TypeError):
+            pass
+        return None
+
+    @classmethod
     def keys(cls) -> list[str]:
         """Returns a list of all member values."""
         return [member.value for member in cls]

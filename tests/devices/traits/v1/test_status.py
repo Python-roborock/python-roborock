@@ -63,7 +63,7 @@ async def test_refresh_status_invalid_format(status_trait: StatusTrait, mock_rpc
     """Test that invalid response format raises ValueError."""
     mock_rpc_channel.send_command.return_value = "invalid"
 
-    with pytest.raises(ValueError, match="Unexpected status format"):
+    with pytest.raises(ValueError, match="Unexpected StatusV2 response format"):
         await status_trait.refresh()
 
 

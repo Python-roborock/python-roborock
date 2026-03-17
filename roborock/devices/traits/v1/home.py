@@ -18,7 +18,6 @@ the current map's information and room names as needed.
 import asyncio
 import base64
 import logging
-from typing import Self
 
 from roborock.data import CombinedMapInfo, MultiMapsListMapInfo, NamedRoomMapping, RoborockBase
 from roborock.data.v1.v1_code_mappings import RoborockStateCode
@@ -41,6 +40,7 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
     """Trait that represents a full view of the home layout."""
 
     command = RoborockCommand.GET_MAP_V1  # This is not used
+    converter = common.DefaultConverter(RoborockBase)  # Not used
 
     def __init__(
         self,
@@ -93,7 +93,7 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
             self._discovery_completed = True
             try:
                 self._home_map_content = {
-                    k: self._map_content.parse_map_content(base64.b64decode(v))
+                    k: self._map_content.converter.parse_map_content(base64.b64decode(v))
                     for k, v in (device_cache_data.home_map_content_base64 or {}).items()
                 }
             except (ValueError, RoborockException) as ex:
@@ -232,10 +232,6 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
     def home_map_content(self) -> dict[int, MapContent] | None:
         """Returns the map content for all cached maps."""
         return self._home_map_content
-
-    def _parse_response(self, response: common.V1ResponseData) -> Self:
-        """This trait does not parse responses directly."""
-        raise NotImplementedError("HomeTrait does not support direct command responses")
 
     async def _update_home_cache(
         self, home_map_info: dict[int, CombinedMapInfo], home_map_content: dict[int, MapContent]

@@ -35,7 +35,7 @@ def vacuumm_fixture(q10_api: Q10PropertiesApi) -> VacuumTrait:
         (lambda x: x.return_to_dock(), {"203": {}}),
         (lambda x: x.empty_dustbin(), {"203": 2}),
         (lambda x: x.set_clean_mode(YXCleanType.BOTH_WORK), {"137": 1}),
-        (lambda x: x.set_fan_level(YXFanLevel.NORMAL), {"123": 2}),
+        (lambda x: x.set_fan_level(YXFanLevel.BALANCED), {"123": 2}),
     ],
 )
 async def test_vacuum_commands(

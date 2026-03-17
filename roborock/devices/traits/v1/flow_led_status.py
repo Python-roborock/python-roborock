@@ -9,6 +9,7 @@ class FlowLedStatusTrait(FlowLedStatus, common.V1TraitMixin, common.RoborockSwit
     """Trait for controlling the Flow LED status of a Roborock device."""
 
     command = RoborockCommand.GET_FLOW_LED_STATUS
+    converter = common.DefaultConverter(FlowLedStatus)
     requires_feature = "is_flow_led_setting_supported"
 
     @property

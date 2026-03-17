@@ -14,6 +14,7 @@ class WashTowelModeTrait(WashTowelMode, common.V1TraitMixin):
     """Trait for wash towel mode."""
 
     command = RoborockCommand.GET_WASH_TOWEL_MODE
+    converter = common.DefaultConverter(WashTowelMode)
     requires_dock_type = is_wash_n_fill_dock
 
     def __init__(

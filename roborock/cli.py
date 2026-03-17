@@ -764,21 +764,6 @@ async def network_info(ctx, device_id: str):
     await _display_v1_trait(context, device_id, lambda v1: v1.network_info)
 
 
-def _parse_b01_q10_command(cmd: str) -> B01_Q10_DP:
-    """Parse B01_Q10 command from either enum name or value."""
-    try:
-        return B01_Q10_DP(int(cmd))
-    except ValueError:
-        try:
-            return B01_Q10_DP.from_name(cmd)
-        except ValueError:
-            try:
-                return B01_Q10_DP.from_value(cmd)
-            except ValueError:
-                pass
-    raise RoborockException(f"Invalid command {cmd} for B01_Q10 device")
-
-
 @click.command()
 @click.option("--device_id", required=True)
 @click.option("--cmd", required=True)
@@ -795,7 +780,8 @@ async def command(ctx, cmd, device_id, params):
         if result:
             click.echo(dump_json(result))
     elif device.b01_q10_properties is not None:
-        cmd_value = _parse_b01_q10_command(cmd)
+        if cmd_value := B01_Q10_DP.from_any_optional(cmd) is None:
+            raise RoborockException(f"Invalid command {cmd} for B01_Q10 device")
         command_trait: Trait = device.b01_q10_properties.command
         await command_trait.send(cmd_value, json.loads(params) if params is not None else None)
         click.echo("Command sent successfully; Enable debug logging (-d) to see responses.")

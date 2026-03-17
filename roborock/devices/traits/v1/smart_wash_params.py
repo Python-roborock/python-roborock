@@ -10,4 +10,5 @@ class SmartWashParamsTrait(SmartWashParams, common.V1TraitMixin):
     """Trait for smart wash parameters."""
 
     command = RoborockCommand.GET_SMART_WASH_PARAMS
+    converter = common.DefaultConverter(SmartWashParams)
     requires_dock_type = is_wash_n_fill_dock

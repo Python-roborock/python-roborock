@@ -52,6 +52,30 @@ def test_invalid_from_value() -> None:
         B01_Q10_DP.from_value("invalid_value")
 
 
+@pytest.mark.parametrize(
+    "input, expected",
+    [
+        ("START_CLEAN", B01_Q10_DP.START_CLEAN),
+        ("start_clean", B01_Q10_DP.START_CLEAN),
+        ("dpStartClean", B01_Q10_DP.START_CLEAN),
+        (201, B01_Q10_DP.START_CLEAN),
+        ("PAUSE", B01_Q10_DP.PAUSE),
+        ("pause", B01_Q10_DP.PAUSE),
+        ("dpPause", B01_Q10_DP.PAUSE),
+        (204, B01_Q10_DP.PAUSE),
+        ("STOP", B01_Q10_DP.STOP),
+        ("stop", B01_Q10_DP.STOP),
+        ("dpStop", B01_Q10_DP.STOP),
+        (206, B01_Q10_DP.STOP),
+        ("invalid_value", None),
+        (999999, None),
+    ],
+)
+def test_from_any_optional(input: str | int, expected: B01_Q10_DP | None) -> None:
+    """Test from_any_optional method."""
+    assert B01_Q10_DP.from_any_optional(input) == expected
+
+
 def test_homedata_product_unknown_category():
     """Test that HomeDataProduct can handle unknown categories."""
     data = {

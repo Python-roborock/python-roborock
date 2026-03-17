@@ -119,13 +119,19 @@ class B01_Q10_DP(RoborockModeEnum):
 
 
 class YXFanLevel(RoborockModeEnum):
+    """The fan or vacuum level of the robot.
+
+    Note: The names used here are the v1 names, though the values
+    have different aliases in the app bundles.
+    """
+
     UNKNOWN = "unknown", -1
-    CLOSE = "close", 0
+    OFF = "off", 0  # close
     QUIET = "quiet", 1
-    NORMAL = "normal", 2
-    STRONG = "strong", 3
+    BALANCED = "balanced", 2  # normal
+    TURBO = "turbo", 3  # strong
     MAX = "max", 4
-    SUPER = "super", 8
+    MAX_PLUS = "max_plus", 8  # super
 
 
 class YXWaterLevel(RoborockModeEnum):

@@ -139,7 +139,7 @@ async def test_status_trait_refresh(
     # Verify trait attributes are updated
     assert q10_api.status.battery == 100
     assert q10_api.status.status == YXDeviceState.CHARGING_STATE
-    assert q10_api.status.fan_level == YXFanLevel.NORMAL
+    assert q10_api.status.fan_level == YXFanLevel.BALANCED
 
 
 def test_status_trait_update_listener(q10_api: Q10PropertiesApi) -> None:
