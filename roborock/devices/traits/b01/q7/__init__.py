@@ -84,7 +84,7 @@ class Q7PropertiesApi(Trait):
     async def set_repeat_state(self, repeat: CleanRepeatMapping) -> None:
         """Set the cleaning repeat state (cycles)."""
         await self.set_prop(RoborockB01Props.REPEAT_STATE, repeat.code)
-        
+
     async def start_clean(self) -> None:
         """Start cleaning."""
         await self.send(
