@@ -115,6 +115,7 @@ class B01Props(RoborockBase):
     water: WaterLevelMapping | None = None
     mode: CleanTypeMapping | None = None
     quantity: int | None = None
+    battery: int | None = None
     alarm: int | None = None
     volume: int | None = None
     hypa: int | None = None

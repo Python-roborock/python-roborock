@@ -165,6 +165,7 @@ class RoborockB01Props(StrEnum):
     WATER = "water"
     MODE = "mode"
     QUANTITY = "quantity"
+    BATTERY = "quantity"
     ALARM = "alarm"
     VOLUME = "volume"
     HYPA = "hypa"
