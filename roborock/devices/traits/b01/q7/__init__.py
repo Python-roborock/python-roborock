@@ -84,6 +84,19 @@ class Q7PropertiesApi(Trait):
     async def set_repeat_state(self, repeat: CleanRepeatMapping) -> None:
         """Set the cleaning repeat state (cycles)."""
         await self.set_prop(RoborockB01Props.REPEAT_STATE, repeat.code)
+        
+    async def get_battery_level(self) -> int | None:
+        """Get the battery level (%)"""
+        level_query = await self.send(
+            command=RoborockB01Q7Methods.GET_PROP,
+            params={
+                "property": ["quantity"]
+            }
+        )
+        try:
+            return level_query['quantity']
+        except:
+            return None
 
     async def start_clean(self) -> None:
         """Start cleaning."""
