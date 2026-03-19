@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v4.26.0 (2026-03-19)
+
+### Features
+
+- Q7 Get battery level ([#790](https://github.com/Python-roborock/python-roborock/pull/790),
+  [`91efb3b`](https://github.com/Python-roborock/python-roborock/commit/91efb3b0be3122490c362a8e2ecc1192bb98bee6))
+
+
 ## v4.25.0 (2026-03-16)
 
 ### Chores
