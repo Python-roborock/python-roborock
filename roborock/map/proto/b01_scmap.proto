@@ -1,4 +1,6 @@
 // Checked-in B01/Q7 SCMap schema for the generated runtime protobuf module.
+// Regenerate the checked-in Python module after edits with:
+//   python -m grpc_tools.protoc -I./roborock/map/proto --python_out=./roborock/map/proto roborock/map/proto/b01_scmap.proto
 // The generated file `b01_scmap_pb2.py` is checked in for runtime use and should
 // not be edited by hand.
 syntax = "proto2";
