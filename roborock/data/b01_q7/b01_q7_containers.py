@@ -114,7 +114,7 @@ class B01Props(RoborockBase):
     wind: SCWindMapping | None = None
     water: WaterLevelMapping | None = None
     mode: CleanTypeMapping | None = None
-    quantity: int | None = None # The Q7 L5 reports its battery level as 'quantity'
+    quantity: int | None = None  # The Q7 L5 reports its battery level as 'quantity'
     alarm: int | None = None
     volume: int | None = None
     hypa: int | None = None
@@ -168,7 +168,7 @@ class B01Props(RoborockBase):
     serial_number: str | None = None
     recommend: Recommend | None = None
     add_sweep_status: int | None = None
-    
+
     @property
     def battery(self) -> int | None:
         """
