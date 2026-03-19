@@ -55,8 +55,8 @@ class MapContentTrait(MapContent, Trait):
         self,
         map_trait: MapTrait,
         *,
-        serial: str | None,
-        model: str | None,
+        serial: str,
+        model: str,
         map_parser_config: B01MapParserConfig | None = None,
     ) -> None:
         super().__init__()
@@ -79,11 +79,6 @@ class MapContentTrait(MapContent, Trait):
         This mirrors the v1 trait behavior so cached map payload bytes can be
         reparsed without going back to the device.
         """
-        if not self._serial or not self._model:
-            raise RoborockException(
-                "B01 map parsing requires device serial number and model metadata, but they were missing"
-            )
-
         try:
             parsed_data = self._map_parser.parse(
                 response,

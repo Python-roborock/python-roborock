@@ -98,6 +98,7 @@ major_tags= ["refactor"]
 lint.ignore = ["F403", "E741"]
 lint.select=["E", "F", "UP", "I"]
 line-length = 120
+extend-exclude = ["roborock/map/proto/*_pb2.py"]
 
 [tool.ruff.lint.per-file-ignores]
 "*/__init__.py" = ["F401"]

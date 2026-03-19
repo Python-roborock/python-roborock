@@ -57,6 +57,9 @@ class Q7PropertiesApi(Trait):
         self._device = device
         self._product = product
 
+        if not device.sn or not product.model:
+            raise ValueError("B01 Q7 map content requires device serial number and product model metadata")
+
         self.clean_summary = CleanSummaryTrait(channel)
         self.map = MapTrait(channel)
         self.map_content = MapContentTrait(

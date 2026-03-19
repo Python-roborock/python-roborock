@@ -57,25 +57,23 @@ def test_q7_map_content_preserves_specific_roborock_errors(q7_api: Q7PropertiesA
             q7_api.map_content.parse_map_content(b"raw")
 
 
-def test_q7_map_content_missing_metadata_fails_lazily(fake_channel: FakeChannel):
+def test_q7_map_content_requires_metadata_at_init(fake_channel: FakeChannel):
     from roborock.data import HomeDataDevice, HomeDataProduct, RoborockCategory
 
-    q7_api = Q7PropertiesApi(
-        cast(MqttChannel, fake_channel),
-        device=HomeDataDevice(
-            duid="abc123",
-            name="Q7",
-            local_key="key123key123key1",
-            product_id="product-id-q7",
-            sn=None,
-        ),
-        product=HomeDataProduct(
-            id="product-id-q7",
-            name="Roborock Q7",
-            model="roborock.vacuum.sc05",
-            category=RoborockCategory.VACUUM,
-        ),
-    )
-
-    with pytest.raises(RoborockException, match="requires device serial number and model metadata"):
-        q7_api.map_content.parse_map_content(b"raw")
+    with pytest.raises(ValueError, match="requires device serial number and product model metadata"):
+        Q7PropertiesApi(
+            cast(MqttChannel, fake_channel),
+            device=HomeDataDevice(
+                duid="abc123",
+                name="Q7",
+                local_key="key123key123key1",
+                product_id="product-id-q7",
+                sn=None,
+            ),
+            product=HomeDataProduct(
+                id="product-id-q7",
+                name="Roborock Q7",
+                model="roborock.vacuum.sc05",
+                category=RoborockCategory.VACUUM,
+            ),
+        )
