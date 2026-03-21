@@ -166,13 +166,13 @@ class YXDeviceState(RoborockModeEnum):
     UNKNOWN = "unknown", -1
     SLEEP_STATE = "sleepstate", 2
     STANDBY_STATE = "standbystate", 3
-    CLEANING_STATE = "cleaningstate", 5
+    CLEANING_STATE = "cleaning", 5
     TO_CHARGE_STATE = "tochargestate", 6
     REMOTEING_STATE = "remoteingstate", 7
-    CHARGING_STATE = "chargingstate", 8
+    CHARGING_STATE = "charging", 8
     PAUSE_STATE = "pausestate", 10
     FAULT_STATE = "faultstate", 12
-    UPGRADE_STATE = "upgradestate", 14
+    UPGRADE_STATE = "updating", 14
     DUSTING = "dusting", 22
     CREATING_MAP_STATE = "creatingmapstate", 29
     MAP_SAVE_STATE = "mapsavestate", 99
