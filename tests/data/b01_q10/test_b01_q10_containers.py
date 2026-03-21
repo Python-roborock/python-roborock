@@ -5,23 +5,30 @@ from roborock.data.b01_q10 import YXDeviceState
 
 def test_q10_status_values_are_canonical() -> None:
     """Q10 status enum values should expose canonical names."""
-    assert YXDeviceState.SLEEP_STATE.value == "sleeping"
-    assert YXDeviceState.STANDBY_STATE.value == "standby"
-    assert YXDeviceState.CLEANING_STATE.value == "cleaning"
-    assert YXDeviceState.TO_CHARGE_STATE.value == "going_to_charge"
-    assert YXDeviceState.REMOTEING_STATE.value == "remote_control"
-    assert YXDeviceState.CHARGING_STATE.value == "charging"
-    assert YXDeviceState.PAUSE_STATE.value == "paused"
-    assert YXDeviceState.FAULT_STATE.value == "fault"
-    assert YXDeviceState.UPGRADE_STATE.value == "updating"
-    assert YXDeviceState.CREATING_MAP_STATE.value == "creating_map"
-    assert YXDeviceState.MAP_SAVE_STATE.value == "saving_map"
-    assert YXDeviceState.RE_LOCATION_STATE.value == "relocating"
-    assert YXDeviceState.ROBOT_SWEEPING.value == "sweeping"
-    assert YXDeviceState.ROBOT_MOPING.value == "mopping"
-    assert YXDeviceState.ROBOT_SWEEP_AND_MOPING.value == "sweep_and_mop"
-    assert YXDeviceState.ROBOT_TRANSITIONING.value == "transitioning"
-    assert YXDeviceState.ROBOT_WAIT_CHARGE.value == "waiting_to_charge"
+    expected_values = {
+        YXDeviceState.UNKNOWN: "unknown",
+        YXDeviceState.SLEEP_STATE: "sleeping",
+        YXDeviceState.STANDBY_STATE: "standby",
+        YXDeviceState.CLEANING_STATE: "cleaning",
+        YXDeviceState.TO_CHARGE_STATE: "going_to_charge",
+        YXDeviceState.REMOTEING_STATE: "remote_control",
+        YXDeviceState.CHARGING_STATE: "charging",
+        YXDeviceState.PAUSE_STATE: "paused",
+        YXDeviceState.FAULT_STATE: "fault",
+        YXDeviceState.UPGRADE_STATE: "updating",
+        YXDeviceState.DUSTING: "dusting",
+        YXDeviceState.CREATING_MAP_STATE: "creating_map",
+        YXDeviceState.MAP_SAVE_STATE: "saving_map",
+        YXDeviceState.RE_LOCATION_STATE: "relocating",
+        YXDeviceState.ROBOT_SWEEPING: "sweeping",
+        YXDeviceState.ROBOT_MOPING: "mopping",
+        YXDeviceState.ROBOT_SWEEP_AND_MOPING: "sweep_and_mop",
+        YXDeviceState.ROBOT_TRANSITIONING: "transitioning",
+        YXDeviceState.ROBOT_WAIT_CHARGE: "waiting_to_charge",
+    }
+
+    assert {state: state.value for state in expected_values} == expected_values
+    assert all(not value.endswith("state") for value in expected_values.values())
 
 
 def test_q10_status_codes_map_to_canonical_values() -> None:
