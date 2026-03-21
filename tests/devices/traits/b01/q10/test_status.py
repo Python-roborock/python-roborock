@@ -115,6 +115,7 @@ async def test_status_trait_refresh(
     assert q10_api.status.total_clean_count is None
     assert q10_api.status.main_brush_life is None
     assert q10_api.status.cleaning_progress is None
+    assert q10_api.status.fault is None
 
     # Mock the response to refresh
     # battery (122) = 100
@@ -151,6 +152,7 @@ async def test_status_trait_refresh(
     assert q10_api.status.filter_life == 0
     assert q10_api.status.sensor_life == 0
     assert q10_api.status.cleaning_progress == 100
+    assert q10_api.status.fault == 0
 
 
 def test_status_trait_update_listener(q10_api: Q10PropertiesApi) -> None:

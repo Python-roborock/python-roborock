@@ -107,3 +107,4 @@ class Q10Status(RoborockBase):
     clean_task_type: YXDeviceCleanTask | None = field(default=None, metadata={"dps": B01_Q10_DP.CLEAN_TASK_TYPE})
     back_type: YXBackType | None = field(default=None, metadata={"dps": B01_Q10_DP.BACK_TYPE})
     cleaning_progress: int | None = field(default=None, metadata={"dps": B01_Q10_DP.CLEAN_PROGRESS})
+    fault: int | None = field(default=None, metadata={"dps": B01_Q10_DP.FAULT})
