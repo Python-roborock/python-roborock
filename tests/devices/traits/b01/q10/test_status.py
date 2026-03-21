@@ -112,6 +112,9 @@ async def test_status_trait_refresh(
     assert q10_api.status.battery is None
     assert q10_api.status.status is None
     assert q10_api.status.fan_level is None
+    assert q10_api.status.total_clean_count is None
+    assert q10_api.status.main_brush_life is None
+    assert q10_api.status.cleaning_progress is None
 
     # Mock the response to refresh
     # battery (122) = 100
@@ -140,6 +143,14 @@ async def test_status_trait_refresh(
     assert q10_api.status.battery == 100
     assert q10_api.status.status == YXDeviceState.CHARGING_STATE
     assert q10_api.status.fan_level == YXFanLevel.BALANCED
+    assert q10_api.status.total_clean_area == 0
+    assert q10_api.status.total_clean_count == 0
+    assert q10_api.status.total_clean_time == 0
+    assert q10_api.status.main_brush_life == 0
+    assert q10_api.status.side_brush_life == 0
+    assert q10_api.status.filter_life == 0
+    assert q10_api.status.sensor_life == 0
+    assert q10_api.status.cleaning_progress == 100
 
 
 def test_status_trait_update_listener(q10_api: Q10PropertiesApi) -> None:
