@@ -1,4 +1,4 @@
-"""Test cases for B01 Q10 containers."""
+"""Test cases for B01 Q10 code mappings."""
 
 from roborock.data.b01_q10 import YXDeviceState
 
