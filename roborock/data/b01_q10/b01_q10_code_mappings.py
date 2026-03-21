@@ -164,24 +164,24 @@ class YXCleanType(RoborockModeEnum):
 
 class YXDeviceState(RoborockModeEnum):
     UNKNOWN = "unknown", -1
-    SLEEP_STATE = "sleepstate", 2
-    STANDBY_STATE = "standbystate", 3
+    SLEEP_STATE = "sleeping", 2
+    STANDBY_STATE = "standby", 3
     CLEANING_STATE = "cleaning", 5
-    TO_CHARGE_STATE = "tochargestate", 6
-    REMOTEING_STATE = "remoteingstate", 7
+    TO_CHARGE_STATE = "going_to_charge", 6
+    REMOTEING_STATE = "remote_control", 7
     CHARGING_STATE = "charging", 8
-    PAUSE_STATE = "pausestate", 10
-    FAULT_STATE = "faultstate", 12
+    PAUSE_STATE = "paused", 10
+    FAULT_STATE = "fault", 12
     UPGRADE_STATE = "updating", 14
     DUSTING = "dusting", 22
-    CREATING_MAP_STATE = "creatingmapstate", 29
-    MAP_SAVE_STATE = "mapsavestate", 99
-    RE_LOCATION_STATE = "relocationstate", 101
-    ROBOT_SWEEPING = "robotsweeping", 102
-    ROBOT_MOPING = "robotmoping", 103
-    ROBOT_SWEEP_AND_MOPING = "robotsweepandmoping", 104
-    ROBOT_TRANSITIONING = "robottransitioning", 105
-    ROBOT_WAIT_CHARGE = "robotwaitcharge", 108
+    CREATING_MAP_STATE = "creating_map", 29
+    MAP_SAVE_STATE = "saving_map", 99
+    RE_LOCATION_STATE = "relocating", 101
+    ROBOT_SWEEPING = "sweeping", 102
+    ROBOT_MOPING = "mopping", 103
+    ROBOT_SWEEP_AND_MOPING = "sweep_and_mop", 104
+    ROBOT_TRANSITIONING = "transitioning", 105
+    ROBOT_WAIT_CHARGE = "waiting_to_charge", 108
 
 
 class YXBackType(RoborockModeEnum):
