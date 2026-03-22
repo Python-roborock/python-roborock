@@ -1,8 +1,6 @@
-from __future__ import annotations
-
 from dataclasses import dataclass, field, fields
 from enum import IntEnum, StrEnum
-from typing import Any
+from typing import Any, Self
 
 from roborock.data.code_mappings import RoborockProductNickname
 from roborock.data.containers import RoborockBase
@@ -566,7 +564,7 @@ class DeviceFeatures(RoborockBase):
         new_feature_info_str: str,
         feature_info: list[int],
         product_nickname: RoborockProductNickname | None,
-    ) -> DeviceFeatures:
+    ) -> Self:
         """Creates a DeviceFeatures instance from raw feature flags.
         :param new_feature_info: A int from get_init_status (sometimes can be found in homedata, but it is not always)
         :param new_feature_info_str: A hex string from get_init_status or home_data.

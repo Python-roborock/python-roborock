@@ -1,6 +1,7 @@
 """Fixtures for V1 trait tests."""
 
 from copy import deepcopy
+from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
@@ -107,16 +108,34 @@ def dock_type_code_fixture(request: pytest.FixtureRequest) -> RoborockDockTypeCo
     return RoborockDockTypeCode.s7_max_ultra_dock
 
 
+@pytest.fixture(name="mock_app_get_init_status")
+def mock_app_get_init_status_fixture(device_info: HomeDataDevice, products: list[HomeDataProduct]) -> dict[str, Any]:
+    """Fixture to provide model-specific APP_GET_INIT_STATUS data.
+
+    Uses real device feature data from device_info.yaml when available for the
+    product model, falling back to the default mock data otherwise.
+    """
+    product = next((product for product in products if product.id == device_info.product_id), None)
+    if product is None:
+        raise ValueError(f"Product {device_info.product_id} not found")
+    device_info_data = mock_data.DEVICE_INFO.get(product.model, {})
+    return {
+        **mock_data.APP_GET_INIT_STATUS,
+        **device_info_data,
+    }
+
+
 @pytest.fixture(autouse=True)
 async def discover_features_fixture(
     device: RoborockDevice,
     mock_rpc_channel: AsyncMock,
+    mock_app_get_init_status: dict[str, Any],
     dock_type_code: RoborockDockTypeCode | None,
 ) -> None:
     """Fixture to handle device feature discovery."""
     assert device.v1_properties
     mock_rpc_channel.send_command.side_effect = [
-        [mock_data.APP_GET_INIT_STATUS],
+        [mock_app_get_init_status],
         {
             **mock_data.STATUS,
             "dock_type": dock_type_code,
