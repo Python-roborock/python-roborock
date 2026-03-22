@@ -109,3 +109,4 @@ def test_yx_clean_type_legacy_values_stable() -> None:
 def test_yx_clean_type_from_value_compat_aliases(input_value: str, expected: YXCleanType) -> None:
     """Test YXCleanType accepts readable values."""
     assert YXCleanType.from_value(input_value) is expected
+    assert expected.value == input_value
