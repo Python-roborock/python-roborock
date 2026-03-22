@@ -5,7 +5,7 @@ These tests exercise the custom enum methods using arbitrary enum values.
 import pytest
 
 from roborock import HomeDataProduct, RoborockCategory
-from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP, YXCleanType
+from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
 
 
 def test_from_code() -> None:
@@ -50,22 +50,6 @@ def test_invalid_from_value() -> None:
     """Test invalid from_value method."""
     with pytest.raises(ValueError, match="invalid_value is not a valid value for B01_Q10_DP"):
         B01_Q10_DP.from_value("invalid_value")
-
-
-@pytest.mark.parametrize(
-    ("raw_value", "expected"),
-    [
-        ("bothwork", YXCleanType.VAC_AND_MOP),
-        ("onlysweep", YXCleanType.VACUUM),
-        ("onlymop", YXCleanType.MOP),
-        ("BothWork", YXCleanType.VAC_AND_MOP),
-        ("ONLYSWEEP", YXCleanType.VACUUM),
-        ("OnlyMop", YXCleanType.MOP),
-    ],
-)
-def test_yxcleantype_from_value_legacy_aliases(raw_value: str, expected: YXCleanType) -> None:
-    """Ensure legacy clean type strings resolve to canonical enum members."""
-    assert YXCleanType.from_value(raw_value) is expected
 
 
 @pytest.mark.parametrize(

@@ -1,5 +1,3 @@
-from typing import Self
-
 from ..code_mappings import RoborockModeEnum
 
 
@@ -157,29 +155,11 @@ class YXRoomMaterial(RoborockModeEnum):
     OTHER = "other", 255
 
 
-_YX_CLEAN_TYPE_LEGACY_VALUES: dict[str, str] = {
-    "bothwork": "vac_and_mop",
-    "onlysweep": "vacuum",
-    "onlymop": "mop",
-}
-
-
 class YXCleanType(RoborockModeEnum):
     UNKNOWN = "unknown", -1
-    VAC_AND_MOP = "vac_and_mop", 1
-    VACUUM = "vacuum", 2
-    MOP = "mop", 3
-
-    # Legacy aliases
-    BOTH_WORK = VAC_AND_MOP
-    ONLY_SWEEP = VACUUM
-    ONLY_MOP = MOP
-
-    @classmethod
-    def from_value(cls, value: str) -> Self:
-        """Find enum member by string value with legacy support."""
-        normalized_value = _YX_CLEAN_TYPE_LEGACY_VALUES.get(value.lower(), value)
-        return super().from_value(normalized_value)
+    VAC_AND_MOP = "vac_and_mop", 1  # bothwork
+    VACUUM = "vacuum", 2  # onlysweep
+    MOP = "mop", 3  # onlymop
 
 
 class YXDeviceState(RoborockModeEnum):
