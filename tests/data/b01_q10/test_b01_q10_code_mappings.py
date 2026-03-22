@@ -14,7 +14,7 @@ def test_q10_status_values_are_canonical() -> None:
         YXDeviceState.REMOTEING_STATE: "remote_control",
         YXDeviceState.CHARGING_STATE: "charging",
         YXDeviceState.PAUSE_STATE: "paused",
-        YXDeviceState.FAULT_STATE: "fault",
+        YXDeviceState.FAULT_STATE: "error",
         YXDeviceState.UPGRADE_STATE: "updating",
         YXDeviceState.DUSTING: "dusting",
         YXDeviceState.CREATING_MAP_STATE: "creating_map",
