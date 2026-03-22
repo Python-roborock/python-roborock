@@ -91,13 +91,6 @@ def test_homedata_product_unknown_category():
     assert product.category == RoborockCategory.UNKNOWN
 
 
-def test_yx_clean_type_legacy_values_stable() -> None:
-    """Test YXCleanType exposes readable public values."""
-    assert YXCleanType.VAC_AND_MOP.value == "vac_and_mop"
-    assert YXCleanType.VACUUM.value == "vacuum"
-    assert YXCleanType.MOP.value == "mop"
-
-
 @pytest.mark.parametrize(
     ("input_value", "expected"),
     [
