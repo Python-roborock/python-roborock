@@ -157,9 +157,25 @@ class YXRoomMaterial(RoborockModeEnum):
 
 class YXCleanType(RoborockModeEnum):
     UNKNOWN = "unknown", -1
-    BOTH_WORK = "bothwork", 1
-    ONLY_SWEEP = "onlysweep", 2
-    ONLY_MOP = "onlymop", 3
+    VAC_AND_MOP = "vac_and_mop", 1
+    VACUUM = "vacuum", 2
+    MOP = "mop", 3
+
+    # Legacy aliases
+    BOTH_WORK = VAC_AND_MOP
+    ONLY_SWEEP = VACUUM
+    ONLY_MOP = MOP
+
+    @classmethod
+    def from_value(cls, value: str):
+        """Find enum member by string value with legacy support."""
+        legacy_values = {
+            "bothwork": "vac_and_mop",
+            "onlysweep": "vacuum",
+            "onlymop": "mop",
+        }
+        normalized_value = legacy_values.get(value.lower(), value)
+        return super().from_value(normalized_value)
 
 
 class YXDeviceState(RoborockModeEnum):
