@@ -99,9 +99,7 @@ def test_homedata_product_unknown_category():
         ("mop", YXCleanType.MOP),
     ],
 )
-def test_yx_clean_type_from_value_readable_values(
-    readable_value: str, expected_clean_type: YXCleanType
-) -> None:
+def test_yx_clean_type_from_value_readable_values(readable_value: str, expected_clean_type: YXCleanType) -> None:
     """Test YXCleanType accepts canonical readable values."""
     assert YXCleanType.from_value(readable_value) is expected_clean_type
     assert expected_clean_type.value == readable_value
