@@ -95,6 +95,8 @@ def test_homedata_product_unknown_category():
     product = HomeDataProduct.from_dict(data)
     assert product.id == "unknown_cat_id"
     assert product.category == RoborockCategory.UNKNOWN
+
+
 def test_yx_device_state_fault_uses_error_value() -> None:
     """Test YXDeviceState uses a cross-device-consistent error label."""
     assert YXDeviceState.FAULT_STATE.value == "error"
