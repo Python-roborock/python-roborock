@@ -171,7 +171,7 @@ class YXDeviceState(RoborockModeEnum):
     REMOTEING_STATE = "remote_control", 7
     CHARGING_STATE = "charging", 8
     PAUSE_STATE = "paused", 10
-    FAULT_STATE = "fault", 12
+    FAULT_STATE = "error", 12
     UPGRADE_STATE = "updating", 14
     DUSTING = "dusting", 22
     CREATING_MAP_STATE = "creating_map", 29
@@ -187,18 +187,18 @@ class YXDeviceState(RoborockModeEnum):
 class YXBackType(RoborockModeEnum):
     UNKNOWN = "unknown", -1
     IDLE = "idle", 0
-    BACK_DUSTING = "backdusting", 4
-    BACK_CHARGING = "backcharging", 5
+    BACK_DUSTING = "back_dusting", 4
+    BACK_CHARGING = "back_charging", 5
 
 
 class YXDeviceWorkMode(RoborockModeEnum):
     UNKNOWN = "unknown", -1
-    BOTH_WORK = "bothwork", 1
-    ONLY_SWEEP = "onlysweep", 2
-    ONLY_MOP = "onlymop", 3
+    BOTH_WORK = "vac_and_mop", 1
+    ONLY_SWEEP = "vacuum", 2
+    ONLY_MOP = "mop", 3
     CUSTOMIZED = "customized", 4
-    SAVE_WORRY = "saveworry", 5
-    SWEEP_MOP = "sweepmop", 6
+    SAVE_WORRY = "save_worry", 5
+    SWEEP_MOP = "sweep_mop", 6
 
 
 class YXDeviceCleanTask(RoborockModeEnum):
@@ -206,8 +206,8 @@ class YXDeviceCleanTask(RoborockModeEnum):
     IDLE = "idle", 0
     SMART = "smart", 1
     ELECTORAL = "electoral", 2
-    DIVIDE_AREAS = "divideareas", 3
-    CREATING_MAP = "creatingmap", 4
+    DIVIDE_AREAS = "divide_areas", 3
+    CREATING_MAP = "creating_map", 4
     PART = "part", 5
 
 

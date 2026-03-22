@@ -5,7 +5,13 @@ These tests exercise the custom enum methods using arbitrary enum values.
 import pytest
 
 from roborock import HomeDataProduct, RoborockCategory
-from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
+from roborock.data.b01_q10.b01_q10_code_mappings import (
+    B01_Q10_DP,
+    YXBackType,
+    YXDeviceCleanTask,
+    YXDeviceState,
+    YXDeviceWorkMode,
+)
 
 
 def test_from_code() -> None:
@@ -89,3 +95,29 @@ def test_homedata_product_unknown_category():
     product = HomeDataProduct.from_dict(data)
     assert product.id == "unknown_cat_id"
     assert product.category == RoborockCategory.UNKNOWN
+
+
+def test_yx_device_state_fault_uses_error_value() -> None:
+    """Test YXDeviceState uses a cross-device-consistent error label."""
+    assert YXDeviceState.FAULT_STATE.value == "error"
+
+
+def test_yx_back_type_values_are_readable() -> None:
+    """Test YXBackType values are exposed as readable snake_case."""
+    assert YXBackType.BACK_DUSTING.value == "back_dusting"
+    assert YXBackType.BACK_CHARGING.value == "back_charging"
+
+
+def test_yx_device_work_mode_values_are_readable() -> None:
+    """Test YXDeviceWorkMode values align with readable cleaning labels."""
+    assert YXDeviceWorkMode.BOTH_WORK.value == "vac_and_mop"
+    assert YXDeviceWorkMode.ONLY_SWEEP.value == "vacuum"
+    assert YXDeviceWorkMode.ONLY_MOP.value == "mop"
+    assert YXDeviceWorkMode.SAVE_WORRY.value == "save_worry"
+    assert YXDeviceWorkMode.SWEEP_MOP.value == "sweep_mop"
+
+
+def test_yx_device_clean_task_values_are_readable() -> None:
+    """Test YXDeviceCleanTask values are exposed as readable snake_case."""
+    assert YXDeviceCleanTask.DIVIDE_AREAS.value == "divide_areas"
+    assert YXDeviceCleanTask.CREATING_MAP.value == "creating_map"
