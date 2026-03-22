@@ -1278,7 +1278,7 @@ async def q10_empty_dustbin(ctx: click.Context, device_id: str) -> None:
 @click.option(
     "--mode",
     required=True,
-    type=click.Choice(["vac_and_mop", "vacuum", "mop", "bothwork", "onlysweep", "onlymop"], case_sensitive=False),
+    type=click.Choice(["vac_and_mop", "vacuum", "mop"], case_sensitive=False),
     help='Clean mode (preferred: "vac_and_mop", "vacuum", "mop")',
 )
 @click.pass_context
