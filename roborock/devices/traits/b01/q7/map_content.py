@@ -8,8 +8,6 @@ This intentionally mirrors the v1 `MapContentTrait` contract:
 For B01/Q7 devices, the underlying raw map payload is retrieved via `MapTrait`.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 
 from vacuum_map_parser_base.map_data import MapData
