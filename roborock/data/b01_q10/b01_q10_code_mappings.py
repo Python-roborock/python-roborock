@@ -136,9 +136,9 @@ class YXFanLevel(RoborockModeEnum):
 
 class YXWaterLevel(RoborockModeEnum):
     UNKNOWN = "unknown", -1
-    CLOSE = "close", 0
+    OFF = "off", 0  # close
     LOW = "low", 1
-    MIDDLE = "middle", 2
+    MEDIUM = "medium", 2  # middle
     HIGH = "high", 3
 
 
@@ -157,31 +157,31 @@ class YXRoomMaterial(RoborockModeEnum):
 
 class YXCleanType(RoborockModeEnum):
     UNKNOWN = "unknown", -1
-    BOTH_WORK = "bothwork", 1
-    ONLY_SWEEP = "onlysweep", 2
-    ONLY_MOP = "onlymop", 3
+    VAC_AND_MOP = "vac_and_mop", 1  # bothwork
+    VACUUM = "vacuum", 2  # onlysweep
+    MOP = "mop", 3  # onlymop
 
 
 class YXDeviceState(RoborockModeEnum):
     UNKNOWN = "unknown", -1
-    SLEEP_STATE = "sleepstate", 2
-    STANDBY_STATE = "standbystate", 3
-    CLEANING_STATE = "cleaningstate", 5
-    TO_CHARGE_STATE = "tochargestate", 6
-    REMOTEING_STATE = "remoteingstate", 7
-    CHARGING_STATE = "chargingstate", 8
-    PAUSE_STATE = "pausestate", 10
-    FAULT_STATE = "faultstate", 12
-    UPGRADE_STATE = "upgradestate", 14
-    DUSTING = "dusting", 22
-    CREATING_MAP_STATE = "creatingmapstate", 29
-    MAP_SAVE_STATE = "mapsavestate", 99
-    RE_LOCATION_STATE = "relocationstate", 101
-    ROBOT_SWEEPING = "robotsweeping", 102
-    ROBOT_MOPING = "robotmoping", 103
-    ROBOT_SWEEP_AND_MOPING = "robotsweepandmoping", 104
-    ROBOT_TRANSITIONING = "robottransitioning", 105
-    ROBOT_WAIT_CHARGE = "robotwaitcharge", 108
+    SLEEPING = "sleeping", 2  # sleepstate
+    IDLE = "idle", 3  # standbystate
+    CLEANING = "cleaning", 5  # cleaningstate
+    RETURNING_HOME = "returning_home", 6  # tochargestate
+    REMOTE_CONTROL_ACTIVE = "remote_control_active", 7  # remoteingstate
+    CHARGING = "charging", 8  # chargingstate
+    PAUSED = "paused", 10  # pausestate
+    ERROR = "error", 12  # faultstate
+    UPDATING = "updating", 14  # upgradestate
+    EMPTYING_THE_BIN = "emptying_the_bin", 22  # dusting
+    MAPPING = "mapping", 29  # creatingmapstate
+    SAVING_MAP = "saving_map", 99  # mapsavestate
+    RELOCATING = "relocating", 101  # relocationstate
+    SWEEPING = "sweeping", 102  # robotsweeping
+    MOPPING = "mopping", 103  # robotmoping
+    SWEEP_AND_MOP = "sweep_and_mop", 104  # robotsweepandmoping
+    TRANSITIONING = "transitioning", 105  # robottransitioning
+    WAITING_TO_CHARGE = "waiting_to_charge", 108  # robotwaitcharge
 
 
 class YXBackType(RoborockModeEnum):

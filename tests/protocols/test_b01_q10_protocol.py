@@ -97,7 +97,7 @@ def test_decode_unknown_dps_code() -> None:
         (B01_Q10_DP.REQUEST_DPS, {}),
         (B01_Q10_DP.REQUEST_DPS, None),
         (B01_Q10_DP.START_CLEAN, {"cmd": 1}),
-        (B01_Q10_DP.WATER_LEVEL, YXWaterLevel.MIDDLE.code),
+        (B01_Q10_DP.WATER_LEVEL, YXWaterLevel.MEDIUM.code),
     ],
 )
 def test_encode_mqtt_payload(command: B01_Q10_DP, params: dict[str, Any], snapshot) -> None:

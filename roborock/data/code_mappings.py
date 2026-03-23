@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import logging
 from collections import namedtuple
 from enum import Enum, IntEnum, StrEnum
@@ -17,7 +15,7 @@ class RoborockEnum(IntEnum):
         return super().name.lower()
 
     @classmethod
-    def _missing_(cls: type[RoborockEnum], key) -> RoborockEnum:
+    def _missing_(cls: type[Self], key) -> Self:
         if hasattr(cls, "unknown"):
             warning = f"Missing {cls.__name__} code: {key} - defaulting to 'unknown'"
             if warning not in completed_warnings:
@@ -32,23 +30,23 @@ class RoborockEnum(IntEnum):
         return default_value
 
     @classmethod
-    def as_dict(cls: type[RoborockEnum]):
+    def as_dict(cls: type[Self]):
         return {i.name: i.value for i in cls if i.name != "missing"}
 
     @classmethod
-    def as_enum_dict(cls: type[RoborockEnum]):
+    def as_enum_dict(cls: type[Self]):
         return {i.value: i for i in cls if i.name != "missing"}
 
     @classmethod
-    def values(cls: type[RoborockEnum]) -> list[int]:
+    def values(cls: type[Self]) -> list[int]:
         return list(cls.as_dict().values())
 
     @classmethod
-    def keys(cls: type[RoborockEnum]) -> list[str]:
+    def keys(cls: type[Self]) -> list[str]:
         return list(cls.as_dict().keys())
 
     @classmethod
-    def items(cls: type[RoborockEnum]):
+    def items(cls: type[Self]):
         return cls.as_dict().items()
 
 

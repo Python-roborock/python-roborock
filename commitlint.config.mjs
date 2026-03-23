@@ -8,7 +8,11 @@ export default {
         // Disable the rule that enforces lowercase in subject
         "subject-case": [0], // 0 = disable, 1 = warn, 2 = error
         // Disable the rule that enforces a maximum line length in the body
-        "body-max-line-length": [0, "always"]
+        "body-max-line-length": [0, "always"],
+        // Disable header max length for AI-generated commits
+        "header-max-length": [0],
+        // Disable the rule that prevents periods at the end of subjects
+        "header-full-stop": [0]
     },
 
 };

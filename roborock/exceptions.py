@@ -1,7 +1,5 @@
 """Roborock exceptions."""
 
-from __future__ import annotations
-
 
 class RoborockException(Exception):
     """Class for Roborock exceptions."""

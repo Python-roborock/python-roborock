@@ -4,8 +4,6 @@ For B01/Q7, the Roborock app uses `service.get_record_list` which returns totals
 and a `record_list` whose items contain a JSON string in `detail`.
 """
 
-from __future__ import annotations
-
 import logging
 
 from roborock import CleanRecordDetail, CleanRecordList, CleanRecordSummary

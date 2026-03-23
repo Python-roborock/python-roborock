@@ -1,7 +1,5 @@
 """Trait for device network information."""
 
-from __future__ import annotations
-
 import logging
 
 from roborock.data import NetworkInfo

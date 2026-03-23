@@ -1,3 +1,5 @@
+from typing import Self
+
 from ..code_mappings import RoborockEnum
 
 
@@ -91,7 +93,7 @@ class RoborockStartType(RoborockEnum):
 
 class RoborockDssCodes(RoborockEnum):
     @classmethod
-    def _missing_(cls: type[RoborockEnum], key) -> RoborockEnum:
+    def _missing_(cls: type[Self], key) -> Self:
         # If the calculated value is not provided, then it should be viewed as okay.
         # As the math will sometimes result in you getting numbers that don't matter.
         return cls.okay  # type: ignore

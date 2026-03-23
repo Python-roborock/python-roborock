@@ -5,7 +5,7 @@ These tests exercise the custom enum methods using arbitrary enum values.
 import pytest
 
 from roborock import HomeDataProduct, RoborockCategory
-from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
+from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP, YXCleanType
 
 
 def test_from_code() -> None:
@@ -89,3 +89,17 @@ def test_homedata_product_unknown_category():
     product = HomeDataProduct.from_dict(data)
     assert product.id == "unknown_cat_id"
     assert product.category == RoborockCategory.UNKNOWN
+
+
+@pytest.mark.parametrize(
+    ("readable_value", "expected_clean_type"),
+    [
+        ("vac_and_mop", YXCleanType.VAC_AND_MOP),
+        ("vacuum", YXCleanType.VACUUM),
+        ("mop", YXCleanType.MOP),
+    ],
+)
+def test_yx_clean_type_from_value_readable_values(readable_value: str, expected_clean_type: YXCleanType) -> None:
+    """Test YXCleanType accepts canonical readable values."""
+    assert YXCleanType.from_value(readable_value) is expected_clean_type
+    assert expected_clean_type.value == readable_value

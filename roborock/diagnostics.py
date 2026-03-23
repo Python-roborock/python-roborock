@@ -9,13 +9,11 @@ data is collected and exposed to clients via higher level APIs like the
 DeviceManager.
 """
 
-from __future__ import annotations
-
 import time
 from collections import Counter
 from collections.abc import Generator, Mapping
 from contextlib import contextmanager
-from typing import Any, TypeVar, cast
+from typing import Any, Self, TypeVar, cast
 
 
 class Diagnostics:
@@ -28,7 +26,7 @@ class Diagnostics:
     def __init__(self) -> None:
         """Initialize Diagnostics."""
         self._counter: Counter = Counter()
-        self._subkeys: dict[str, Diagnostics] = {}
+        self._subkeys: dict[str, Self] = {}
 
     def increment(self, key: str, count: int = 1) -> None:
         """Increment a counter for the specified key/event."""
@@ -49,7 +47,7 @@ class Diagnostics:
             data[k] = v
         return data
 
-    def subkey(self, key: str) -> Diagnostics:
+    def subkey(self, key: str) -> Self:
         """Return sub-Diagnostics object with the specified subkey.
 
         This will create a new Diagnostics object if one does not already exist
@@ -63,7 +61,7 @@ class Diagnostics:
             The Diagnostics object for the specified subkey.
         """
         if key not in self._subkeys:
-            self._subkeys[key] = Diagnostics()
+            self._subkeys[key] = type(self)()
         return self._subkeys[key]
 
     @contextmanager

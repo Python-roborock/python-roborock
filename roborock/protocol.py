@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import binascii
 import gzip
 import hashlib
