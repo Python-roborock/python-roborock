@@ -6,7 +6,7 @@ import asyncio
 import json
 import logging
 from collections.abc import Callable
-from typing import Any, TypeVar
+from typing import TypeAlias, TypeVar
 
 from roborock.devices.transport.mqtt_channel import MqttChannel
 from roborock.exceptions import RoborockException
@@ -16,6 +16,7 @@ from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 _LOGGER = logging.getLogger(__name__)
 _TIMEOUT = 10.0
 _T = TypeVar("_T")
+DecodedB01Response: TypeAlias = dict[str, object] | str
 
 
 def _matches_map_response(response_message: RoborockMessage, *, version: bytes | None) -> bytes | None:
@@ -61,11 +62,11 @@ async def _send_command(
 async def send_decoded_command(
     mqtt_channel: MqttChannel,
     request_message: Q7RequestMessage,
-) -> Any:
+) -> DecodedB01Response:
     """Send a command on the MQTT channel and get a decoded response."""
     _LOGGER.debug("Sending B01 MQTT command: %s", request_message)
 
-    def find_response(response_message: RoborockMessage) -> Any | None:
+    def find_response(response_message: RoborockMessage) -> DecodedB01Response | None:
         """Handle incoming messages and resolve the future."""
         try:
             decoded_dps = decode_rpc_response(response_message)
