@@ -37,6 +37,7 @@ from roborock.const import (
     ROBOROCK_G20S_Ultra,
 )
 from roborock.exceptions import RoborockException
+from roborock.roborock_message import RoborockDataProtocol
 
 from ..containers import NamedRoomMapping, RoborockBase, RoborockBaseTimer, _attr_repr
 from .v1_clean_modes import WashTowelModes
@@ -293,11 +294,11 @@ class StatusV2(RoborockBase):
 
     msg_ver: int | None = None
     msg_seq: int | None = None
-    state: RoborockStateCode | None = None
-    battery: int | None = None
+    state: RoborockStateCode | None = field(default=None, metadata={"dps": RoborockDataProtocol.STATE})
+    battery: int | None = field(default=None, metadata={"dps": RoborockDataProtocol.BATTERY})
     clean_time: int | None = None
     clean_area: int | None = None
-    error_code: RoborockErrorCode | None = None
+    error_code: RoborockErrorCode | None = field(default=None, metadata={"dps": RoborockDataProtocol.ERROR_CODE})
     map_present: int | None = None
     in_cleaning: RoborockInCleaning | None = None
     in_returning: int | None = None
@@ -307,12 +308,12 @@ class StatusV2(RoborockBase):
     back_type: int | None = None
     wash_phase: int | None = None
     wash_ready: int | None = None
-    fan_power: int | None = None
+    fan_power: int | None = field(default=None, metadata={"dps": RoborockDataProtocol.FAN_POWER})
     dnd_enabled: int | None = None
     map_status: int | None = None
     is_locating: int | None = None
     lock_status: int | None = None
-    water_box_mode: int | None = None
+    water_box_mode: int | None = field(default=None, metadata={"dps": RoborockDataProtocol.WATER_BOX_MODE})
     water_box_carriage_status: int | None = None
     mop_forbidden_enable: int | None = None
     camera_status: int | None = None
@@ -330,13 +331,13 @@ class StatusV2(RoborockBase):
     collision_avoid_status: int | None = None
     switch_map_mode: int | None = None
     dock_error_status: RoborockDockErrorCode | None = None
-    charge_status: int | None = None
+    charge_status: int | None = field(default=None, metadata={"dps": RoborockDataProtocol.CHARGE_STATUS})
     unsave_map_reason: int | None = None
     unsave_map_flag: int | None = None
     wash_status: int | None = None
     distance_off: int | None = None
     in_warmup: int | None = None
-    dry_status: int | None = None
+    dry_status: int | None = field(default=None, metadata={"dps": RoborockDataProtocol.DRYING_STATUS})
     rdt: int | None = None
     clean_percent: int | None = None
     rss: int | None = None
@@ -626,9 +627,9 @@ class CleanSummaryWithDetail(CleanSummary):
 
 @dataclass
 class Consumable(RoborockBase):
-    main_brush_work_time: int | None = None
-    side_brush_work_time: int | None = None
-    filter_work_time: int | None = None
+    main_brush_work_time: int | None = field(default=None, metadata={"dps": RoborockDataProtocol.MAIN_BRUSH_WORK_TIME})
+    side_brush_work_time: int | None = field(default=None, metadata={"dps": RoborockDataProtocol.SIDE_BRUSH_WORK_TIME})
+    filter_work_time: int | None = field(default=None, metadata={"dps": RoborockDataProtocol.FILTER_WORK_TIME})
     filter_element_work_time: int | None = None
     sensor_dirty_time: int | None = None
     strainer_work_times: int | None = None

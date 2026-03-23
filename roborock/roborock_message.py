@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import StrEnum
 
-from roborock import RoborockEnum
+from roborock.data.code_mappings import RoborockEnum
 from roborock.util import get_next_int, get_timestamp
 
 
