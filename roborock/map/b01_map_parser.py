@@ -15,7 +15,7 @@ import binascii
 import hashlib
 import io
 import zlib
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
@@ -25,83 +25,12 @@ from vacuum_map_parser_base.config.image_config import ImageConfig
 from vacuum_map_parser_base.map_data import ImageData, MapData
 
 from roborock.exceptions import RoborockException
-from roborock.map.proto.b01_scmap_pb2 import (  # type: ignore[attr-defined]
-    DevicePointInfo,
-    MapBoundaryInfo,
-    MapExtInfo,
-    MapHeadInfo,
-    RobotMap,
-    RoomDataInfo,
-)
+from roborock.map.proto.b01_scmap_pb2 import RobotMap  # type: ignore[attr-defined]
 
 from .map_parser import ParsedMapData
 
 _B64_CHARS = set(b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=")
 _MAP_FILE_FORMAT = "PNG"
-
-
-@dataclass(frozen=True)
-class _ScPoint:
-    x: float | None = None
-    y: float | None = None
-
-
-@dataclass(frozen=True)
-class _ScMapBoundaryInfo:
-    map_md5: str | None = None
-    v_min_x: int | None = None
-    v_max_x: int | None = None
-    v_min_y: int | None = None
-    v_max_y: int | None = None
-
-
-@dataclass(frozen=True)
-class _ScMapExtInfo:
-    task_begin_date: int | None = None
-    map_upload_date: int | None = None
-    map_valid: int | None = None
-    radian: int | None = None
-    force: int | None = None
-    clean_path: int | None = None
-    boundary_info: _ScMapBoundaryInfo | None = None
-    map_version: int | None = None
-    map_value_type: int | None = None
-
-
-@dataclass(frozen=True)
-class _ScMapHead:
-    map_head_id: int | None = None
-    size_x: int | None = None
-    size_y: int | None = None
-    min_x: float | None = None
-    min_y: float | None = None
-    max_x: float | None = None
-    max_y: float | None = None
-    resolution: float | None = None
-
-
-@dataclass(frozen=True)
-class _ScRoomData:
-    room_id: int | None = None
-    room_name: str | None = None
-    room_type_id: int | None = None
-    material_id: int | None = None
-    clean_state: int | None = None
-    room_clean: int | None = None
-    room_clean_index: int | None = None
-    room_name_post: _ScPoint | None = None
-    color_id: int | None = None
-    floor_direction: int | None = None
-    global_seq: int | None = None
-
-
-@dataclass(frozen=True)
-class _ScMapPayload:
-    map_type: int | None = None
-    map_ext_info: _ScMapExtInfo | None = None
-    map_head: _ScMapHead | None = None
-    map_data: bytes | None = None
-    room_data_info: tuple[_ScRoomData, ...] = field(default_factory=tuple)
 
 
 @dataclass
@@ -121,9 +50,9 @@ class B01MapParser:
     def parse(self, raw_payload: bytes, *, serial: str, model: str) -> ParsedMapData:
         """Parse a raw MAP_RESPONSE payload and return a PNG + MapData."""
         inflated = _decode_b01_map_payload(raw_payload, serial=serial, model=model)
-        scmap = _parse_scmap_payload(inflated)
-        size_x, size_y, grid = _extract_grid(scmap)
-        room_names = _extract_room_names(scmap.room_data_info)
+        parsed = _parse_scmap_payload(inflated)
+        size_x, size_y, grid = _extract_grid(parsed)
+        room_names = _extract_room_names(parsed)
 
         image = _render_occupancy_image(grid, size_x=size_x, size_y=size_y, scale=self._config.map_scale)
 
@@ -203,108 +132,37 @@ def _decode_map_data_bytes(value: bytes) -> bytes:
         return value
 
 
-def _parse_sc_point(parsed: DevicePointInfo) -> _ScPoint:
-    return _ScPoint(
-        x=parsed.x if parsed.HasField("x") else None,
-        y=parsed.y if parsed.HasField("y") else None,
-    )
-
-
-def _parse_sc_map_boundary_info(parsed: MapBoundaryInfo) -> _ScMapBoundaryInfo:
-    return _ScMapBoundaryInfo(
-        map_md5=parsed.mapMd5 if parsed.HasField("mapMd5") else None,
-        v_min_x=parsed.vMinX if parsed.HasField("vMinX") else None,
-        v_max_x=parsed.vMaxX if parsed.HasField("vMaxX") else None,
-        v_min_y=parsed.vMinY if parsed.HasField("vMinY") else None,
-        v_max_y=parsed.vMaxY if parsed.HasField("vMaxY") else None,
-    )
-
-
-def _parse_sc_map_ext_info(parsed: MapExtInfo) -> _ScMapExtInfo:
-    return _ScMapExtInfo(
-        task_begin_date=parsed.taskBeginDate if parsed.HasField("taskBeginDate") else None,
-        map_upload_date=parsed.mapUploadDate if parsed.HasField("mapUploadDate") else None,
-        map_valid=parsed.mapValid if parsed.HasField("mapValid") else None,
-        radian=parsed.radian if parsed.HasField("radian") else None,
-        force=parsed.force if parsed.HasField("force") else None,
-        clean_path=parsed.cleanPath if parsed.HasField("cleanPath") else None,
-        boundary_info=_parse_sc_map_boundary_info(parsed.boudaryInfo) if parsed.HasField("boudaryInfo") else None,
-        map_version=parsed.mapVersion if parsed.HasField("mapVersion") else None,
-        map_value_type=parsed.mapValueType if parsed.HasField("mapValueType") else None,
-    )
-
-
-def _parse_sc_map_head(parsed: MapHeadInfo) -> _ScMapHead:
-    return _ScMapHead(
-        map_head_id=parsed.mapHeadId if parsed.HasField("mapHeadId") else None,
-        size_x=parsed.sizeX if parsed.HasField("sizeX") else None,
-        size_y=parsed.sizeY if parsed.HasField("sizeY") else None,
-        min_x=parsed.minX if parsed.HasField("minX") else None,
-        min_y=parsed.minY if parsed.HasField("minY") else None,
-        max_x=parsed.maxX if parsed.HasField("maxX") else None,
-        max_y=parsed.maxY if parsed.HasField("maxY") else None,
-        resolution=parsed.resolution if parsed.HasField("resolution") else None,
-    )
-
-
-def _parse_sc_room_data(parsed: RoomDataInfo) -> _ScRoomData:
-    return _ScRoomData(
-        room_id=parsed.roomId if parsed.HasField("roomId") else None,
-        room_name=parsed.roomName if parsed.HasField("roomName") else None,
-        room_type_id=parsed.roomTypeId if parsed.HasField("roomTypeId") else None,
-        material_id=parsed.meterialId if parsed.HasField("meterialId") else None,
-        clean_state=parsed.cleanState if parsed.HasField("cleanState") else None,
-        room_clean=parsed.roomClean if parsed.HasField("roomClean") else None,
-        room_clean_index=parsed.roomCleanIndex if parsed.HasField("roomCleanIndex") else None,
-        room_name_post=_parse_sc_point(parsed.roomNamePost) if parsed.HasField("roomNamePost") else None,
-        color_id=parsed.colorId if parsed.HasField("colorId") else None,
-        floor_direction=parsed.floor_direction if parsed.HasField("floor_direction") else None,
-        global_seq=parsed.global_seq if parsed.HasField("global_seq") else None,
-    )
-
-
-def _parse_scmap_payload(payload: bytes) -> _ScMapPayload:
-    """Parse inflated SCMap bytes into typed map metadata."""
+def _parse_scmap_payload(payload: bytes) -> RobotMap:
+    """Parse inflated SCMap bytes into a generated protobuf message."""
     parsed = RobotMap()
     _parse_proto(payload, parsed, context="B01 SCMap")
-
-    map_data = None
-    if parsed.HasField("mapData"):
-        if not parsed.mapData.HasField("mapData"):
-            raise RoborockException("B01 map payload missing mapData")
-        map_data = _decode_map_data_bytes(parsed.mapData.mapData)
-
-    return _ScMapPayload(
-        map_type=parsed.mapType if parsed.HasField("mapType") else None,
-        map_ext_info=_parse_sc_map_ext_info(parsed.mapExtInfo) if parsed.HasField("mapExtInfo") else None,
-        map_head=_parse_sc_map_head(parsed.mapHead) if parsed.HasField("mapHead") else None,
-        map_data=map_data,
-        room_data_info=tuple(_parse_sc_room_data(room) for room in parsed.roomDataInfo),
-    )
+    return parsed
 
 
-def _extract_grid(scmap: _ScMapPayload) -> tuple[int, int, bytes]:
-    if scmap.map_head is None or scmap.map_data is None:
+def _extract_grid(parsed: RobotMap) -> tuple[int, int, bytes]:
+    if not parsed.HasField("mapHead") or not parsed.HasField("mapData"):
         raise RoborockException("Failed to parse B01 map header/grid")
 
-    size_x = scmap.map_head.size_x or 0
-    size_y = scmap.map_head.size_y or 0
-    if not size_x or not size_y or not scmap.map_data:
+    size_x = parsed.mapHead.sizeX if parsed.mapHead.HasField("sizeX") else 0
+    size_y = parsed.mapHead.sizeY if parsed.mapHead.HasField("sizeY") else 0
+    if not size_x or not size_y or not parsed.mapData.HasField("mapData"):
         raise RoborockException("Failed to parse B01 map header/grid")
 
+    map_data = _decode_map_data_bytes(parsed.mapData.mapData)
     expected_len = size_x * size_y
-    if len(scmap.map_data) < expected_len:
+    if len(map_data) < expected_len:
         raise RoborockException("B01 map data shorter than expected dimensions")
 
-    return size_x, size_y, scmap.map_data[:expected_len]
+    return size_x, size_y, map_data[:expected_len]
 
 
-def _extract_room_names(rooms: tuple[_ScRoomData, ...]) -> dict[int, str]:
+def _extract_room_names(parsed: RobotMap) -> dict[int, str]:
     # Expose room id/name mapping without inventing room geometry/polygons.
     room_names: dict[int, str] = {}
-    for room in rooms:
-        if room.room_id is not None:
-            room_names[room.room_id] = room.room_name or f"Room {room.room_id}"
+    for room in parsed.roomDataInfo:
+        if room.HasField("roomId"):
+            room_id = room.roomId
+            room_names[room_id] = room.roomName if room.HasField("roomName") else f"Room {room_id}"
     return room_names
 
 

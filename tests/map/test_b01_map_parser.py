@@ -144,27 +144,29 @@ def test_b01_scmap_parser_maps_observed_schema_fields() -> None:
 
     parsed = _parse_scmap_payload(payload)
 
-    assert parsed.map_type == 1
-    assert parsed.map_ext_info is not None
-    assert parsed.map_ext_info.task_begin_date == 100
-    assert parsed.map_ext_info.map_upload_date == 200
-    assert parsed.map_ext_info.boundary_info is not None
-    assert parsed.map_ext_info.boundary_info.v_max_y == 40
-    assert parsed.map_head is not None
-    assert parsed.map_head.map_head_id == 7
-    assert parsed.map_head.size_x == 2
-    assert parsed.map_head.size_y == 2
-    assert parsed.map_head.resolution == pytest.approx(0.05)
-    assert parsed.map_data == bytes([0, 127, 128, 128])
-    assert parsed.room_data_info[0].room_id == 42
-    assert parsed.room_data_info[0].room_name == "Kitchen"
-    assert parsed.room_data_info[0].room_name_post is not None
-    assert parsed.room_data_info[0].room_name_post.x == pytest.approx(11.25)
-    assert parsed.room_data_info[0].room_name_post.y == pytest.approx(22.5)
-    assert parsed.room_data_info[0].color_id == 7
-    assert parsed.room_data_info[0].global_seq == 9
-    assert parsed.room_data_info[1].room_id == 99
-    assert parsed.room_data_info[1].room_name is None
+    assert parsed.mapType == 1
+    assert parsed.HasField("mapExtInfo")
+    assert parsed.mapExtInfo.taskBeginDate == 100
+    assert parsed.mapExtInfo.mapUploadDate == 200
+    assert parsed.mapExtInfo.HasField("boudaryInfo")
+    assert parsed.mapExtInfo.boudaryInfo.vMaxY == 40
+    assert parsed.HasField("mapHead")
+    assert parsed.mapHead.mapHeadId == 7
+    assert parsed.mapHead.sizeX == 2
+    assert parsed.mapHead.sizeY == 2
+    assert parsed.mapHead.resolution == pytest.approx(0.05)
+    assert parsed.HasField("mapData")
+    assert parsed.mapData.HasField("mapData")
+    assert zlib.decompress(parsed.mapData.mapData) == bytes([0, 127, 128, 128])
+    assert parsed.roomDataInfo[0].roomId == 42
+    assert parsed.roomDataInfo[0].roomName == "Kitchen"
+    assert parsed.roomDataInfo[0].HasField("roomNamePost")
+    assert parsed.roomDataInfo[0].roomNamePost.x == pytest.approx(11.25)
+    assert parsed.roomDataInfo[0].roomNamePost.y == pytest.approx(22.5)
+    assert parsed.roomDataInfo[0].colorId == 7
+    assert parsed.roomDataInfo[0].global_seq == 9
+    assert parsed.roomDataInfo[1].roomId == 99
+    assert not parsed.roomDataInfo[1].HasField("roomName")
 
 
 def test_b01_map_parser_rejects_invalid_payload() -> None:
