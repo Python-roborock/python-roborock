@@ -2,7 +2,7 @@
 
 This page is still under construction. All of the following are the commands we have reverse engineered. It is not an exhaustive list of all the possible commands.
 
-Commands do not immediately make it to this page. You can find more commands [here](https://github.com/humbertogontijo/python-roborock/blob/main/roborock/roborock_typing.py#L18)
+Commands do not immediately make it to this page. You can find more commands [here](https://github.com/Python-roborock/python-roborock/blob/main/roborock/roborock_typing.py#L18)
 
 Commands can have multiple parameters that can change from one model to another.
 
