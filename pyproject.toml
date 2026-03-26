@@ -32,7 +32,7 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/humbertogontijo/python-roborock"
+Repository = "https://github.com/python-roborock/python-roborock"
 Documentation = "https://python-roborock.readthedocs.io/"
 
 [project.scripts]
