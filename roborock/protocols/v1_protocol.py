@@ -15,7 +15,7 @@ from typing import Any, Protocol, TypeVar, overload
 from roborock.data import RoborockBase, RRiot
 from roborock.exceptions import RoborockException, RoborockInvalidStatus, RoborockUnsupportedFeature
 from roborock.protocol import Utils
-from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
+from roborock.roborock_message import RoborockDataProtocol, RoborockMessage, RoborockMessageProtocol
 from roborock.roborock_typing import RoborockCommand
 from roborock.util import get_next_int, get_timestamp
 
@@ -24,6 +24,7 @@ _LOGGER = logging.getLogger(__name__)
 __all__ = [
     "SecurityData",
     "create_security_data",
+    "decode_data_protocol_message",
     "decode_rpc_response",
     "V1RpcChannel",
 ]
@@ -139,6 +140,28 @@ class ResponseMessage:
     """The API error message of the response if any."""
 
 
+def _decode_dps_message(message: RoborockMessage) -> dict[int, Any] | None:
+    """Decode a V1 push message containing data protocol updates."""
+    if not message.payload:
+        return None
+    try:
+        payload = json.loads(message.payload.decode())
+    except (json.JSONDecodeError, TypeError, UnicodeDecodeError) as e:
+        raise RoborockException(f"Invalid V1 message payload: {e} for {message.payload!r}") from e
+
+    datapoints = payload.get("dps")
+    if not isinstance(datapoints, dict):
+        return None
+    result: dict[int, Any] = {}
+    for key, value in datapoints.items():
+        try:
+            code = int(key)
+        except (ValueError, TypeError):
+            continue
+        result[code] = value
+    return result if result else None
+
+
 def decode_rpc_response(message: RoborockMessage) -> ResponseMessage:
     """Decode a V1 RPC_RESPONSE message.
 
@@ -149,17 +172,13 @@ def decode_rpc_response(message: RoborockMessage) -> ResponseMessage:
     """
     if not message.payload:
         return ResponseMessage(request_id=message.seq, data={})
-    try:
-        payload = json.loads(message.payload.decode())
-    except (json.JSONDecodeError, TypeError, UnicodeDecodeError) as e:
-        raise RoborockException(f"Invalid V1 message payload: {e} for {message.payload!r}") from e
 
-    _LOGGER.debug("Decoded V1 message payload: %s", payload)
-    datapoints = payload.get("dps", {})
-    if not isinstance(datapoints, dict):
-        raise RoborockException(f"Invalid V1 message format: 'dps' should be a dictionary for {message.payload!r}")
+    if (datapoints := _decode_dps_message(message)) is None:
+        raise RoborockException(
+            f"Invalid V1 message format: missing or invalid 'dps' in payload for {message.payload!r}"
+        )
 
-    if not (data_point := datapoints.get(str(RoborockMessageProtocol.RPC_RESPONSE))):
+    if not (data_point := datapoints.get(RoborockMessageProtocol.RPC_RESPONSE)):
         raise RoborockException(
             f"Invalid V1 message format: missing '{RoborockMessageProtocol.RPC_RESPONSE}' data point"
         )
@@ -204,6 +223,31 @@ def decode_rpc_response(message: RoborockMessage) -> ResponseMessage:
     if not request_id and api_error:
         raise api_error
     return ResponseMessage(request_id=request_id, data=result, api_error=api_error)
+
+
+def decode_data_protocol_message(message: RoborockMessage) -> dict[RoborockDataProtocol, Any] | None:
+    """Decode a V1 push message containing data protocol updates.
+
+    V1 devices push unsolicited status updates containing data points keyed
+    by RoborockDataProtocol codes (e.g., 121=STATE, 122=BATTERY). This function
+    extracts those data points from the message payload.
+
+    Returns a dict mapping RoborockDataProtocol to values, or None if the
+    message does not contain any recognized data protocol updates.
+    """
+    if not (datapoints := _decode_dps_message(message)):
+        return None
+
+    result: dict[RoborockDataProtocol, Any] = {}
+    for code, value in datapoints.items():
+        try:
+            protocol = RoborockDataProtocol(code)
+        except ValueError:
+            _LOGGER.debug("Ignoring unknown V1 data protocol code: %s", code)
+            continue
+        result[protocol] = value
+
+    return result if result else None
 
 
 @dataclass

@@ -236,6 +236,7 @@ async def create_device_manager(
                     channel.rpc_channel,
                     channel.mqtt_rpc_channel,
                     channel.map_rpc_channel,
+                    channel.add_dps_listener,
                     web_api,
                     device_cache=device_cache,
                     map_parser_config=map_parser_config,

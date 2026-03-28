@@ -17,9 +17,10 @@ from roborock.protocols.v1_protocol import (
     RequestMessage,
     SecurityData,
     create_map_response_decoder,
+    decode_data_protocol_message,
     decode_rpc_response,
 )
-from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
+from roborock.roborock_message import RoborockDataProtocol, RoborockMessage, RoborockMessageProtocol
 from roborock.roborock_typing import RoborockCommand
 from tests import mock_data
 
@@ -309,3 +310,88 @@ def test_invalid_unicode() -> None:
     )
     with pytest.raises(RoborockException, match="Invalid V1 message payload"):
         decode_rpc_response(message)
+
+
+def test_decode_data_protocol_message() -> None:
+    """Test decoding a V1 push message with data protocol updates."""
+    payload = json.dumps({"t": 1652547161, "dps": {"121": 8, "122": 95}}).encode()
+    message = RoborockMessage(
+        protocol=RoborockMessageProtocol.GENERAL_RESPONSE,
+        payload=payload,
+    )
+    result = decode_data_protocol_message(message)
+    assert result is not None
+    assert result[RoborockDataProtocol.STATE] == 8
+    assert result[RoborockDataProtocol.BATTERY] == 95
+
+
+def test_decode_data_protocol_message_all_status_fields() -> None:
+    """Test decoding a push message with all known status data protocol fields."""
+    payload = json.dumps(
+        {
+            "t": 1652547161,
+            "dps": {"120": 0, "121": 5, "122": 100, "123": 102, "124": 204, "133": 1},
+        }
+    ).encode()
+    message = RoborockMessage(
+        protocol=RoborockMessageProtocol.GENERAL_RESPONSE,
+        payload=payload,
+    )
+    result = decode_data_protocol_message(message)
+    assert result is not None
+    assert result[RoborockDataProtocol.ERROR_CODE] == 0
+    assert result[RoborockDataProtocol.STATE] == 5
+    assert result[RoborockDataProtocol.BATTERY] == 100
+    assert result[RoborockDataProtocol.FAN_POWER] == 102
+    assert result[RoborockDataProtocol.WATER_BOX_MODE] == 204
+    assert result[RoborockDataProtocol.CHARGE_STATUS] == 1
+
+
+def test_decode_data_protocol_message_unknown_codes() -> None:
+    """Test that unknown data protocol codes are ignored."""
+    payload = json.dumps({"t": 1652547161, "dps": {"121": 8, "999": 42}}).encode()
+    message = RoborockMessage(
+        protocol=RoborockMessageProtocol.GENERAL_RESPONSE,
+        payload=payload,
+    )
+    result = decode_data_protocol_message(message)
+    assert result is not None
+    assert len(result) == 1
+    assert result[RoborockDataProtocol.STATE] == 8
+
+
+def test_decode_data_protocol_message_empty_payload() -> None:
+    """Test decoding with empty payload returns None."""
+    message = RoborockMessage(
+        protocol=RoborockMessageProtocol.GENERAL_RESPONSE,
+        payload=None,
+    )
+    assert decode_data_protocol_message(message) is None
+
+
+def test_decode_data_protocol_message_rpc_response() -> None:
+    """Test that an RPC response (code 102) produces None since the value is not a data protocol."""
+    # This contains an RPC response (102) which has a JSON string value, not a data protocol code
+    payload = json.dumps(
+        {
+            "t": 1652547161,
+            "dps": {"102": '{"id":20001,"result":[{"state":8}]}'},
+        }
+    ).encode()
+    message = RoborockMessage(
+        protocol=RoborockMessageProtocol.GENERAL_RESPONSE,
+        payload=payload,
+    )
+    # Code 102 is not in RoborockDataProtocol enum, so it should be ignored.
+    # The result should be None (no recognized data protocol codes).
+    assert decode_data_protocol_message(message) is None
+
+
+def test_decode_data_protocol_message_no_dps() -> None:
+    """Test decoding message without dps returns None."""
+    payload = json.dumps({"t": 1652547161}).encode()
+    message = RoborockMessage(
+        protocol=RoborockMessageProtocol.GENERAL_RESPONSE,
+        payload=payload,
+    )
+    assert decode_data_protocol_message(message) is None

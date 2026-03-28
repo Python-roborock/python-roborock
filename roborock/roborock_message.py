@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Self
 
-from roborock import RoborockEnum
+from roborock.data.code_mappings import RoborockEnum
 from roborock.util import get_next_int, get_timestamp
 
 

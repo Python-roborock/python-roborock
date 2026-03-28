@@ -1,5 +1,6 @@
 """Tests for the StatusTrait class."""
 
+import asyncio
 from typing import cast
 from unittest.mock import AsyncMock
 
@@ -14,6 +15,7 @@ from roborock.devices.device import RoborockDevice
 from roborock.devices.traits.v1.device_features import DeviceFeaturesTrait
 from roborock.devices.traits.v1.status import StatusTrait
 from roborock.exceptions import RoborockException
+from roborock.roborock_message import RoborockDataProtocol
 from roborock.roborock_typing import RoborockCommand
 from tests import mock_data
 from tests.mock_data import STATUS
@@ -122,3 +124,77 @@ def test_water_slide_mode_mapping() -> None:
     assert status_trait.water_mode_name == "low"
     status_trait.water_box_mode = 200
     assert status_trait.water_mode_name == "off"
+
+
+def test_update_from_dps(status_trait: StatusTrait) -> None:
+    """Test updating status from data protocol push message."""
+    assert status_trait.battery is None
+    assert status_trait.state is None
+
+    status_trait.update_from_dps(
+        {
+            RoborockDataProtocol.STATE: 5,
+            RoborockDataProtocol.BATTERY: 85,
+            RoborockDataProtocol.FAN_POWER: 102,
+        }
+    )
+
+    assert status_trait.state == 5
+    assert status_trait.battery == 85
+    assert status_trait.fan_power == 102
+
+
+def test_update_from_dps_partial(status_trait: StatusTrait) -> None:
+    """Test that partial updates only modify the specified fields."""
+    status_trait.battery = 100
+    status_trait.state = RoborockStateCode.charging
+
+    status_trait.update_from_dps(
+        {
+            RoborockDataProtocol.BATTERY: 90,
+        }
+    )
+
+    assert status_trait.battery == 90
+    assert status_trait.state == RoborockStateCode.charging  # Unchanged
+
+
+def test_update_listener(status_trait: StatusTrait) -> None:
+    """Test that update listeners receive notifications."""
+    event = asyncio.Event()
+    unsubscribe = status_trait.add_update_listener(event.set)
+
+    status_trait.update_from_dps(
+        {
+            RoborockDataProtocol.BATTERY: 88,
+        }
+    )
+
+    assert event.is_set()
+    event.clear()
+
+    unsubscribe()
+
+    status_trait.update_from_dps(
+        {
+            RoborockDataProtocol.BATTERY: 87,
+        }
+    )
+
+    assert not event.is_set()
+
+
+def test_update_listener_ignores_unrelated(status_trait: StatusTrait) -> None:
+    """Test that update listeners are not notified for unrecognized data points."""
+    event = asyncio.Event()
+    unsubscribe = status_trait.add_update_listener(event.set)
+
+    # TASK_COMPLETE is not annotated with dps metadata on StatusV2
+    status_trait.update_from_dps(
+        {
+            RoborockDataProtocol.TASK_COMPLETE: 1,
+        }
+    )
+
+    assert not event.is_set()
+    unsubscribe()

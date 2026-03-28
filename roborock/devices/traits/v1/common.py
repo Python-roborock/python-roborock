@@ -5,11 +5,14 @@ This is an internal library and should not be used directly by consumers.
 
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import fields
-from typing import ClassVar
+from typing import Any, ClassVar
 
+from roborock.callbacks import CallbackList
 from roborock.data import RoborockBase
 from roborock.protocols.v1_protocol import V1RpcChannel
+from roborock.roborock_message import RoborockDataProtocol
 from roborock.roborock_typing import RoborockCommand
 
 _LOGGER = logging.getLogger(__name__)
@@ -173,3 +176,74 @@ def map_rpc_channel(cls):
 
     cls.map_rpc_channel = True  # type: ignore[attr-defined]
     return wrapper
+
+
+# TODO(allenporter): Merge with roborock.devices.traits.b01.q10.common.TraitUpdateListener
+class TraitUpdateListener(ABC):
+    """Trait update listener.
+
+    This is a base class for traits to support notifying listeners when they
+    have been updated. Clients may register callbacks to be notified when the
+    trait has been updated. When the listener callback is invoked, the client
+    should read the trait's properties to get the updated values.
+    """
+
+    def __init__(self, logger: logging.Logger) -> None:
+        """Initialize the trait update listener."""
+        self._update_callbacks: CallbackList[None] = CallbackList(logger=logger)
+
+    def add_update_listener(self, callback: Callable[[], None]) -> Callable[[], None]:
+        """Register a callback when the trait has been updated.
+
+        Returns a callable to remove the listener.
+        """
+        # We wrap the callback to ignore the value passed to it.
+        return self._update_callbacks.add_callback(lambda _: callback())
+
+    def _notify_update(self) -> None:
+        """Notify all update listeners."""
+        self._update_callbacks(None)
+
+
+class DpsDataConverter:
+    """Utility to handle the transformation and merging of DPS data into models.
+
+    This class pre-calculates the mapping between Data Point IDs and dataclass fields
+    to optimize repeated updates from device streams.
+    """
+
+    def __init__(self, dps_type_map: dict[RoborockDataProtocol, type], dps_field_map: dict[RoborockDataProtocol, str]):
+        """Initialize the converter for a specific RoborockBase-derived class."""
+        self._dps_type_map = dps_type_map
+        self._dps_field_map = dps_field_map
+
+    @classmethod
+    def from_dataclass(cls, dataclass_type: type[RoborockBase]):
+        """Initialize the converter for a specific RoborockBase-derived class."""
+        dps_type_map: dict[RoborockDataProtocol, type] = {}
+        dps_field_map: dict[RoborockDataProtocol, str] = {}
+        for field_obj in fields(dataclass_type):
+            if field_obj.metadata and "dps" in field_obj.metadata:
+                dps_id = field_obj.metadata["dps"]
+                dps_type_map[dps_id] = field_obj.type
+                dps_field_map[dps_id] = field_obj.name
+        return cls(dps_type_map, dps_field_map)
+
+    def update_from_dps(self, target: RoborockBase, decoded_dps: dict[RoborockDataProtocol, Any]) -> bool:
+        """Convert and merge raw DPS data into the target object.
+
+        Uses the pre-calculated type mapping to ensure values are converted to the
+        correct Python types before being updated on the target.
+
+        Args:
+            target: The target object to update.
+            decoded_dps: The decoded DPS data to convert.
+
+        Returns:
+            True if any values were updated, False otherwise.
+        """
+        conversions = RoborockBase.convert_dict(self._dps_type_map, decoded_dps)
+        for dps_id, value in conversions.items():
+            field_name = self._dps_field_map[dps_id]
+            setattr(target, field_name, value)
+        return bool(conversions)

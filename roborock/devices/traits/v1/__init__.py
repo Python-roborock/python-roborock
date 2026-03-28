@@ -53,6 +53,7 @@ code in HomeDataProduct Schema that is required for the field to be supported.
 """
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field, fields
 from typing import Any, get_args
 
@@ -60,8 +61,10 @@ from roborock.data.containers import HomeData, HomeDataProduct, RoborockBase
 from roborock.data.v1.v1_code_mappings import RoborockDockTypeCode
 from roborock.devices.cache import DeviceCache
 from roborock.devices.traits import Trait
+from roborock.exceptions import RoborockException
 from roborock.map.map_parser import MapParserConfig
-from roborock.protocols.v1_protocol import V1RpcChannel
+from roborock.protocols.v1_protocol import V1RpcChannel, decode_data_protocol_message
+from roborock.roborock_message import RoborockDataProtocol, RoborockMessage
 from roborock.web_api import UserWebApiClient
 
 from . import (
@@ -176,6 +179,7 @@ class PropertiesApi(Trait):
         rpc_channel: V1RpcChannel,
         mqtt_rpc_channel: V1RpcChannel,
         map_rpc_channel: V1RpcChannel,
+        add_dps_listener: Callable[[Callable[[dict[RoborockDataProtocol, Any]], None]], Callable[[], None]],
         web_api: UserWebApiClient,
         device_cache: DeviceCache,
         map_parser_config: MapParserConfig | None = None,
@@ -189,6 +193,8 @@ class PropertiesApi(Trait):
         self._web_api = web_api
         self._device_cache = device_cache
         self._region = region
+        self._unsub: Callable[[], None] | None = None
+        self._add_dps_listener = add_dps_listener
 
         self.device_features = DeviceFeaturesTrait(product, self._device_cache)
         self.status = StatusTrait(self.device_features, region=self._region)
@@ -226,6 +232,27 @@ class PropertiesApi(Trait):
             return self._map_rpc_channel
         else:
             return self._rpc_channel
+
+    async def start(self) -> None:
+        """Start the properties API and discover features."""
+        if self._unsub:
+            return
+        await self.discover_features()
+        self._unsub = self._add_dps_listener(self._on_dps_update)
+
+    def close(self) -> None:
+        if self._unsub:
+            self._unsub()
+            self._unsub = None
+
+    def _on_dps_update(self, dps: dict[RoborockDataProtocol, Any]) -> None:
+        """Handle incoming messages from the device.
+
+        This will notify all traits of the new values.
+        """
+        _LOGGER.debug("Received message from device: %s", dps)
+        self.status.update_from_dps(dps)
+        self.consumables.update_from_dps(dps)
 
     async def discover_features(self) -> None:
         """Populate any supported traits that were not initialized in __init__."""
@@ -330,6 +357,7 @@ def create(
     rpc_channel: V1RpcChannel,
     mqtt_rpc_channel: V1RpcChannel,
     map_rpc_channel: V1RpcChannel,
+    add_dps_listener: Callable[[Callable[[dict[RoborockDataProtocol, Any]], None]], Callable[[], None]],
     web_api: UserWebApiClient,
     device_cache: DeviceCache,
     map_parser_config: MapParserConfig | None = None,
@@ -343,6 +371,7 @@ def create(
         rpc_channel,
         mqtt_rpc_channel,
         map_rpc_channel,
+        add_dps_listener,
         web_api,
         device_cache,
         map_parser_config,

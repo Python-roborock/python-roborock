@@ -23,7 +23,7 @@ from roborock.protocol import (
     create_mqtt_encoder,
 )
 from roborock.protocols.v1_protocol import MapResponse, SecurityData, V1RpcChannel
-from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
+from roborock.roborock_message import RoborockDataProtocol, RoborockMessage, RoborockMessageProtocol
 from roborock.roborock_typing import RoborockCommand
 from tests import mock_data
 from tests.fixtures.channel_fixtures import FakeChannel
@@ -250,8 +250,8 @@ async def test_v1_channel_subscribe_local_success(
     mock_local_session.assert_called_once_with(TEST_HOST)
     mock_local_channel.connect.assert_called_once()
 
-    # Verify local connection established and not mqtt
-    assert not mock_mqtt_channel.subscribers
+    # Verify mqtt is also established
+    assert mock_mqtt_channel.subscribers
     assert mock_local_channel.subscribers
 
     # Verify properties
@@ -580,3 +580,35 @@ async def test_v1_channel_send_map_command(
 
     # Verify the result is the data from our mocked decoder
     assert result == decompressed_map_data
+
+
+async def test_v1_channel_add_dps_listener(
+    v1_channel: V1Channel,
+    mock_mqtt_channel: FakeChannel,
+) -> None:
+    """Test that DPS listeners receive decoded protocol updates from MQTT."""
+    mock_mqtt_channel.response_queue.append(TEST_NETWORK_INFO_RESPONSE)
+    await v1_channel.subscribe(Mock())
+
+    # Create a mock listener for DPS updates
+    dps_listener = Mock()
+    unsub_dps = v1_channel.add_dps_listener(dps_listener)
+
+    # Simulate an incoming MQTT message with data protocol payload.
+    dps_payload = json.dumps({"dps": {"121": 5}}).encode()
+    push_message = RoborockMessage(
+        protocol=RoborockMessageProtocol.GENERAL_REQUEST,
+        payload=dps_payload,
+    )
+    mock_mqtt_channel.notify_subscribers(push_message)
+
+    dps_listener.assert_called_once()
+    called_args = dps_listener.call_args[0][0]
+    assert called_args[RoborockDataProtocol.STATE] == 5
+
+    unsub_dps()
+
+    # Verify unsubscribe works
+    dps_listener.reset_mock()
+    v1_channel._on_mqtt_message(push_message)
+    dps_listener.assert_not_called()
