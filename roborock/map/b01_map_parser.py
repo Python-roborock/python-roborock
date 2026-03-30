@@ -29,7 +29,6 @@ from roborock.map.proto.b01_scmap_pb2 import RobotMap  # type: ignore[attr-defin
 
 from .map_parser import ParsedMapData
 
-_B64_CHARS = set(b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=")
 _MAP_FILE_FORMAT = "PNG"
 
 
@@ -91,9 +90,6 @@ def _derive_map_key(serial: str, model: str) -> bytes:
 
 def _decode_base64_payload(raw_payload: bytes) -> bytes:
     blob = raw_payload.strip()
-    if len(blob) < 32 or any(b not in _B64_CHARS for b in blob):
-        raise RoborockException("Failed to decode B01 map payload")
-
     padded = blob + b"=" * (-len(blob) % 4)
     try:
         return base64.b64decode(padded, validate=True)
@@ -125,13 +121,6 @@ def _parse_proto(blob: bytes, message: Message, *, context: str) -> None:
         raise RoborockException(f"Failed to parse {context}") from err
 
 
-def _decode_map_data_bytes(value: bytes) -> bytes:
-    try:
-        return zlib.decompress(value)
-    except zlib.error:
-        return value
-
-
 def _parse_scmap_payload(payload: bytes) -> RobotMap:
     """Parse inflated SCMap bytes into a generated protobuf message."""
     parsed = RobotMap()
@@ -148,7 +137,7 @@ def _extract_grid(parsed: RobotMap) -> tuple[int, int, bytes]:
     if not size_x or not size_y or not parsed.mapData.HasField("mapData"):
         raise RoborockException("Failed to parse B01 map header/grid")
 
-    map_data = _decode_map_data_bytes(parsed.mapData.mapData)
+    map_data = parsed.mapData.mapData
     expected_len = size_x * size_y
     if len(map_data) < expected_len:
         raise RoborockException("B01 map data shorter than expected dimensions")
