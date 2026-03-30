@@ -18,7 +18,6 @@ import zlib
 from dataclasses import dataclass
 
 from Crypto.Cipher import AES
-from Crypto.Util.Padding import pad, unpad
 from google.protobuf.message import DecodeError, Message
 from PIL import Image
 from vacuum_map_parser_base.config.image_config import ImageConfig
@@ -26,6 +25,7 @@ from vacuum_map_parser_base.map_data import ImageData, MapData
 
 from roborock.exceptions import RoborockException
 from roborock.map.proto.b01_scmap_pb2 import RobotMap  # type: ignore[attr-defined]
+from roborock.protocol import Utils
 
 from .map_parser import ParsedMapData
 
@@ -83,7 +83,7 @@ def _derive_map_key(serial: str, model: str) -> bytes:
     model_suffix = model.split(".")[-1]
     model_key = (model_suffix + "0" * 16)[:16].encode()
     material = f"{serial}+{model_suffix}+{serial}".encode()
-    encrypted = AES.new(model_key, AES.MODE_ECB).encrypt(pad(material, AES.block_size))
+    encrypted = Utils.encrypt_ecb(material, model_key)
     md5 = hashlib.md5(base64.b64encode(encrypted), usedforsecurity=False).hexdigest()
     return md5[8:24].encode()
 
@@ -99,15 +99,16 @@ def _decode_base64_payload(raw_payload: bytes) -> bytes:
 
 def _decode_b01_map_payload(raw_payload: bytes, *, serial: str, model: str) -> bytes:
     """Decode raw B01 `MAP_RESPONSE` payload into inflated SCMap bytes."""
+    # TODO: Move this lower-level B01 transport decode under `roborock.protocols`
+    # so this module only handles SCMap parsing/rendering.
     encrypted_payload = _decode_base64_payload(raw_payload)
     if len(encrypted_payload) % AES.block_size != 0:
         raise RoborockException("Unexpected encrypted B01 map payload length")
 
     map_key = _derive_map_key(serial, model)
-    decrypted_hex = AES.new(map_key, AES.MODE_ECB).decrypt(encrypted_payload)
 
     try:
-        compressed_hex = unpad(decrypted_hex, AES.block_size).decode("ascii")
+        compressed_hex = Utils.decrypt_ecb(encrypted_payload, map_key).decode("ascii")
         compressed_payload = bytes.fromhex(compressed_hex)
         return zlib.decompress(compressed_payload)
     except (ValueError, UnicodeDecodeError, zlib.error) as err:
