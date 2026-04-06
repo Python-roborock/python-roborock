@@ -12,9 +12,9 @@ from ..containers import RoborockBase
 from .b01_q10_code_mappings import (
     B01_Q10_DP,
     YXBackType,
+    YXCleanType,
     YXDeviceCleanTask,
     YXDeviceState,
-    YXDeviceWorkMode,
     YXFanLevel,
     YXWaterLevel,
 )
@@ -103,7 +103,7 @@ class Q10Status(RoborockBase):
     side_brush_life: int | None = field(default=None, metadata={"dps": B01_Q10_DP.SIDE_BRUSH_LIFE})
     filter_life: int | None = field(default=None, metadata={"dps": B01_Q10_DP.FILTER_LIFE})
     sensor_life: int | None = field(default=None, metadata={"dps": B01_Q10_DP.SENSOR_LIFE})
-    clean_mode: YXDeviceWorkMode | None = field(default=None, metadata={"dps": B01_Q10_DP.CLEAN_MODE})
+    clean_mode: YXCleanType | None = field(default=None, metadata={"dps": B01_Q10_DP.CLEAN_MODE})
     clean_task_type: YXDeviceCleanTask | None = field(default=None, metadata={"dps": B01_Q10_DP.CLEAN_TASK_TYPE})
     back_type: YXBackType | None = field(default=None, metadata={"dps": B01_Q10_DP.BACK_TYPE})
     cleaning_progress: int | None = field(default=None, metadata={"dps": B01_Q10_DP.CLEAN_PROGRESS})
