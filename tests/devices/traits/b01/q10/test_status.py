@@ -11,6 +11,7 @@ import pytest
 
 from roborock.data.b01_q10.b01_q10_code_mappings import (
     B01_Q10_DP,
+    YXCleanType,
     YXDeviceCleanTask,
     YXDeviceState,
     YXFanLevel,
@@ -153,6 +154,7 @@ async def test_status_trait_refresh(
     assert q10_api.status.sensor_life == 0
     assert q10_api.status.cleaning_progress == 100
     assert q10_api.status.fault == 0
+    assert q10_api.status.clean_mode == YXCleanType.VAC_AND_MOP
 
 
 def test_status_trait_update_listener(q10_api: Q10PropertiesApi) -> None:
