@@ -12,6 +12,7 @@ from roborock.devices.transport.mqtt_channel import MqttChannel
 from .command import CommandTrait
 from .status import StatusTrait
 from .vacuum import VacuumTrait
+from .remote import RemoteTrait
 
 __all__ = [
     "Q10PropertiesApi",
@@ -32,11 +33,15 @@ class Q10PropertiesApi(Trait):
     vacuum: VacuumTrait
     """Trait for sending vacuum related commands to Q10 devices."""
 
+    remote: RemoteTrait
+    """Trait for sending remote control related commands to Q10 devices."""
+
     def __init__(self, channel: MqttChannel) -> None:
         """Initialize the B01Props API."""
         self._channel = channel
         self.command = CommandTrait(channel)
         self.vacuum = VacuumTrait(self.command)
+        self.remote = RemoteTrait(self.command)
         self.status = StatusTrait()
         self._subscribe_task: asyncio.Task[None] | None = None
 
