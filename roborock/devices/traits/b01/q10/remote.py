@@ -16,14 +16,14 @@ REMOTE_COMMANDS = {
 }
 
 class RemoteTrait:
-    """Trait for sending vacuum commands.
+    """Trait for sending remote control commands.
 
     This is a wrapper around the CommandTrait for sending vacuum related
     commands to Q10 devices.
     """
 
     def __init__(self, command: CommandTrait) -> None:
-        """Initialize the VacuumTrait."""
+        """Initialize the RemoteTrait."""
         self._command = command
 
     async def send_common_dp(self, command: B01_Q10_DP, value: Any) -> None:
