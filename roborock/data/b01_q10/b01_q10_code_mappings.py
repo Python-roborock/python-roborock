@@ -1,4 +1,5 @@
 from ..code_mappings import RoborockModeEnum
+from enum import Enum
 
 
 class B01_Q10_DP(RoborockModeEnum):
@@ -217,3 +218,11 @@ class YXDeviceDustCollectionFrequency(RoborockModeEnum):
     INTERVAL_30 = "interval_30", 30
     INTERVAL_45 = "interval_45", 45
     INTERVAL_60 = "interval_60", 60
+
+class RemoteCommand(Enum):
+    FORWARD = 0
+    LEFT = 2
+    RIGHT = 3
+    STOP = 4
+    EXIT = 5
+
