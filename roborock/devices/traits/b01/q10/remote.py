@@ -4,7 +4,6 @@ from roborock.data.b01_q10.b01_q10_code_mappings import (
     B01_Q10_DP,
     RemoteCommand,
 )
-from typing import Any
 
 from .command import CommandTrait
 
