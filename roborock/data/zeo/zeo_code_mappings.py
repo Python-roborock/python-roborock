@@ -75,6 +75,7 @@ class ZeoTemperature(RoborockEnum):
     high = 4
     max = 5
     twenty_c = 6
+    ninety_c = 7
 
 
 class ZeoRinse(RoborockEnum):
@@ -87,6 +88,7 @@ class ZeoRinse(RoborockEnum):
 
 
 class ZeoSpin(RoborockEnum):
+    null = 0
     none = 1
     very_low = 2
     low = 3
