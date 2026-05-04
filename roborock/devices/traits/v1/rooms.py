@@ -2,7 +2,6 @@
 
 import logging
 from dataclasses import dataclass
-from functools import cached_property
 
 from roborock.data import HomeData, HomeDataRoom, NamedRoomMapping, RoborockBase
 from roborock.devices.traits.v1 import common
@@ -90,17 +89,16 @@ class RoomsTrait(Rooms, common.V1TraitMixin):
         super().__init__()
         self._home_data = home_data
         self._device_uid = device_uid
+        self._shared_device_uid = next(
+            (device.duid for device in home_data.received_devices if device.duid == device_uid), None
+        )
         self._web_api = web_api
         self._discovered_iot_ids: set[str] = set()
-        self._shared_room_names: dict[str, str] = {}
-
-    @cached_property
-    def _is_shared(self) -> bool:
-        return any(d.duid == self._device_uid for d in self._home_data.received_devices)
+        self._room_names: dict[str, str] = dict(home_data.rooms_name_map)
 
     @property
     def _room_name_map(self) -> dict[str, str]:
-        return {**self._home_data.rooms_name_map, **self._shared_room_names}
+        return self._room_names
 
     async def refresh(self) -> None:
         """Refresh room mappings and backfill unknown room names from the web API."""
@@ -120,9 +118,8 @@ class RoomsTrait(Rooms, common.V1TraitMixin):
             _LOGGER.debug("Refreshing room list to discover new room names")
             if updated_rooms := await self._refresh_rooms():
                 _LOGGER.debug("Updating rooms: %s", list(updated_rooms))
-                if self._is_shared:
-                    self._shared_room_names = {room.iot_id: room.name for room in updated_rooms}
-                else:
+                self._room_names = {room.iot_id: room.name for room in updated_rooms}
+                if self._shared_device_uid is None:
                     self._home_data.rooms = updated_rooms
             self._discovered_iot_ids.update(new_iot_ids)
         try:
@@ -141,8 +138,11 @@ class RoomsTrait(Rooms, common.V1TraitMixin):
     async def _refresh_rooms(self) -> list[HomeDataRoom]:
         """Fetch the latest rooms from the web API."""
         try:
-            if self._is_shared:
-                return await self._web_api.get_shared_device_rooms(self._device_uid)
+            if self._shared_device_uid is not None:
+                rooms_by_id = {room.iot_id: room for room in self._home_data.rooms}
+                shared_rooms = await self._web_api.get_shared_device_rooms(self._shared_device_uid)
+                rooms_by_id.update({room.iot_id: room for room in shared_rooms})
+                return list(rooms_by_id.values())
             return await self._web_api.get_rooms()
         except Exception:
             _LOGGER.debug("Failed to fetch rooms from web API", exc_info=True)

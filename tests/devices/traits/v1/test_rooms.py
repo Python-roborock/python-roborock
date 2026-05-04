@@ -1,15 +1,17 @@
 """Tests for the RoomMapping related functionality."""
 
+from copy import deepcopy
 from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
 
-from roborock.data.containers import HomeDataRoom, NamedRoomMapping
+from roborock.data.containers import HomeData, HomeDataRoom, NamedRoomMapping
 from roborock.devices.device import RoborockDevice
 from roborock.devices.traits.v1.rooms import RoomsTrait
 from roborock.devices.traits.v1.status import StatusTrait
 from roborock.roborock_typing import RoborockCommand
+from tests.devices.traits.v1.fixtures import HOME_DATA
 
 
 @pytest.fixture
@@ -79,29 +81,25 @@ async def test_refresh_unknown_room_names_overwrites_home_data(
     mock_rpc_channel: AsyncMock,
 ) -> None:
     """Test web rooms are used to refresh home data for missing iot ids."""
-    original_rooms = list(rooms_trait._home_data.rooms or ())
-    try:
-        web_api_client.get_rooms.return_value = [
-            HomeDataRoom(id=2362048, name="Living Room"),
-            HomeDataRoom(id=2362044, name="Example room 2"),
-            HomeDataRoom(id=2362041, name="Example room 3"),
-            HomeDataRoom(id=9999999, name="Office"),
-        ]
+    web_api_client.get_rooms.return_value = [
+        HomeDataRoom(id=2362048, name="Living Room"),
+        HomeDataRoom(id=2362044, name="Example room 2"),
+        HomeDataRoom(id=2362041, name="Example room 3"),
+        HomeDataRoom(id=9999999, name="Office"),
+    ]
 
-        room_mapping_data = [[16, "2362048"], [17, "9999999"]]
-        mock_rpc_channel.send_command.side_effect = [room_mapping_data]
+    room_mapping_data = [[16, "2362048"], [17, "9999999"]]
+    mock_rpc_channel.send_command.side_effect = [room_mapping_data]
 
-        await rooms_trait.refresh()
+    await rooms_trait.refresh()
 
-        assert rooms_trait.rooms
-        assert rooms_trait.rooms[0] == NamedRoomMapping(segment_id=16, iot_id="2362048", raw_name="Living Room")
-        assert rooms_trait.rooms[1] == NamedRoomMapping(segment_id=17, iot_id="9999999", raw_name="Office")
+    assert rooms_trait.rooms
+    assert rooms_trait.rooms[0] == NamedRoomMapping(segment_id=16, iot_id="2362048", raw_name="Living Room")
+    assert rooms_trait.rooms[1] == NamedRoomMapping(segment_id=17, iot_id="9999999", raw_name="Office")
 
-        home_data_rooms = {str(room.id): room.name for room in rooms_trait._home_data.rooms or ()}
-        assert home_data_rooms["2362048"] == "Living Room"
-        assert home_data_rooms["9999999"] == "Office"
-    finally:
-        rooms_trait._home_data.rooms = original_rooms
+    home_data_rooms = {str(room.id): room.name for room in rooms_trait._home_data.rooms or ()}
+    assert home_data_rooms["2362048"] == "Living Room"
+    assert home_data_rooms["9999999"] == "Office"
 
 
 async def test_refresh_unknown_room_names_web_api_called_once(
@@ -110,25 +108,21 @@ async def test_refresh_unknown_room_names_web_api_called_once(
     mock_rpc_channel: AsyncMock,
 ) -> None:
     """Test unknown room IDs trigger one web lookup per iot_id."""
-    original_rooms = list(rooms_trait._home_data.rooms or ())
-    try:
-        web_api_client.get_rooms.return_value = [
-            HomeDataRoom(id=9999911, name="Living Room"),
-        ]
+    web_api_client.get_rooms.return_value = [
+        HomeDataRoom(id=9999911, name="Living Room"),
+    ]
 
-        room_mapping_data = [[16, "9999911"]]
-        mock_rpc_channel.send_command.side_effect = [room_mapping_data, room_mapping_data]
+    room_mapping_data = [[16, "9999911"]]
+    mock_rpc_channel.send_command.side_effect = [room_mapping_data, room_mapping_data]
 
-        await rooms_trait.refresh()
-        assert rooms_trait.rooms
-        assert rooms_trait.rooms[0].name == "Living Room"
+    await rooms_trait.refresh()
+    assert rooms_trait.rooms
+    assert rooms_trait.rooms[0].name == "Living Room"
 
-        await rooms_trait.refresh()
-        assert rooms_trait.rooms
-        assert rooms_trait.rooms[0].name == "Living Room"
-        web_api_client.get_rooms.assert_called_once()
-    finally:
-        rooms_trait._home_data.rooms = original_rooms
+    await rooms_trait.refresh()
+    assert rooms_trait.rooms
+    assert rooms_trait.rooms[0].name == "Living Room"
+    web_api_client.get_rooms.assert_called_once()
 
 
 async def test_refresh_unknown_room_names_unresolved_uses_room_fallback(
@@ -209,32 +203,34 @@ async def test_refresh_unknown_room_names_failure_falls_back_to_room_segment_id(
     web_api_client.get_rooms.assert_called_once()
 
 
-async def test_refresh_shared_room_names_use_shared_device_rooms_without_mutating_home_data(
+def _build_shared_home_data() -> HomeData:
+    home_data = deepcopy(HOME_DATA)
+    home_data.received_devices = [home_data.devices.pop(0)]
+    return home_data
+
+
+@pytest.mark.parametrize("home_data", [_build_shared_home_data()], indirect=True)
+async def test_refresh_shared_room_names_use_shared_device_rooms(
     rooms_trait: RoomsTrait,
+    home_data: HomeData,
     web_api_client: AsyncMock,
     mock_rpc_channel: AsyncMock,
 ) -> None:
     """Test shared devices resolve room names via the shared-device room list."""
-    original_rooms = list(rooms_trait._home_data.rooms or ())
-    try:
-        # Mark the device as shared by adding it to received_devices
-        device = next(d for d in rooms_trait._home_data.devices if d.duid == rooms_trait._device_uid)
-        rooms_trait._home_data.received_devices = [device]
-        rooms_trait._home_data.devices = []
+    assert home_data.received_devices
+    assert not rooms_trait.rooms
 
-        web_api_client.get_shared_device_rooms.return_value = [
-            HomeDataRoom(id=9999999, name="Office"),
-        ]
-        room_mapping_data = [[16, "2362048"], [17, "9999999"]]
-        mock_rpc_channel.send_command.side_effect = [room_mapping_data]
+    web_api_client.get_shared_device_rooms.return_value = [
+        HomeDataRoom(id=9999999, name="Office"),
+    ]
+    room_mapping_data = [[16, "2362048"], [17, "9999999"]]
+    mock_rpc_channel.send_command.side_effect = [room_mapping_data]
 
-        await rooms_trait.refresh()
+    await rooms_trait.refresh()
 
-        assert rooms_trait.rooms
-        assert rooms_trait.rooms[0] == NamedRoomMapping(segment_id=16, iot_id="2362048", raw_name="Example room 1")
-        assert rooms_trait.rooms[1] == NamedRoomMapping(segment_id=17, iot_id="9999999", raw_name="Office")
-        assert rooms_trait._home_data.rooms == original_rooms
-        web_api_client.get_shared_device_rooms.assert_called_once_with(rooms_trait._device_uid)
-        web_api_client.get_rooms.assert_not_called()
-    finally:
-        rooms_trait._home_data.rooms = original_rooms
+    assert rooms_trait.rooms == [
+        NamedRoomMapping(segment_id=16, iot_id="2362048", raw_name="Example room 1"),
+        NamedRoomMapping(segment_id=17, iot_id="9999999", raw_name="Office"),
+    ]
+    web_api_client.get_shared_device_rooms.assert_called_once_with(rooms_trait._device_uid)
+    web_api_client.get_rooms.assert_not_called()
