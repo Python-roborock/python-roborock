@@ -46,8 +46,8 @@ def web_api_client_fixture() -> AsyncMock:
     return AsyncMock()
 
 
-@pytest.fixture(name="home_data")
-def home_data_fixture(request: pytest.FixtureRequest) -> HomeData:
+@pytest.fixture(name="trait_home_data")
+def trait_home_data_fixture(request: pytest.FixtureRequest) -> HomeData:
     """Fixture to provide HomeData, optionally overridden via indirect parametrization."""
     return deepcopy(getattr(request, "param", HOME_DATA))
 
@@ -59,15 +59,15 @@ def roborock_cache_fixture() -> Cache:
 
 
 @pytest.fixture(autouse=True, name="device_cache")
-def device_cache_fixture(roborock_cache: Cache, home_data: HomeData) -> DeviceCache:
+def device_cache_fixture(roborock_cache: Cache, trait_home_data: HomeData) -> DeviceCache:
     """Fixture to provide a DeviceCache instance for tests."""
-    return DeviceCache(home_data.get_all_devices()[0].duid, roborock_cache)
+    return DeviceCache(trait_home_data.get_all_devices()[0].duid, roborock_cache)
 
 
 @pytest.fixture(name="device_info")
-def device_info_fixture(home_data: HomeData) -> HomeDataDevice:
+def device_info_fixture(trait_home_data: HomeData) -> HomeDataDevice:
     """Fixture to provide a DeviceInfo instance for tests."""
-    return home_data.get_all_devices()[0]
+    return trait_home_data.get_all_devices()[0]
 
 
 @pytest.fixture(name="products")
@@ -85,7 +85,7 @@ def device_fixture(
     web_api_client: AsyncMock,
     device_cache: DeviceCache,
     device_info: HomeDataDevice,
-    home_data: HomeData,
+    trait_home_data: HomeData,
     products: list[HomeDataProduct],
 ) -> RoborockDevice:
     """Fixture to set up the device for tests."""
@@ -97,7 +97,7 @@ def device_fixture(
         trait=v1.create(
             device_info.duid,
             product,
-            home_data,
+            trait_home_data,
             mock_rpc_channel,
             mock_mqtt_rpc_channel,
             mock_map_rpc_channel,

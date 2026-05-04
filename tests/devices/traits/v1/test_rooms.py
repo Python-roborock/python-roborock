@@ -209,15 +209,15 @@ def _build_shared_home_data() -> HomeData:
     return home_data
 
 
-@pytest.mark.parametrize("home_data", [_build_shared_home_data()], indirect=True)
+@pytest.mark.parametrize("trait_home_data", [_build_shared_home_data()], indirect=True)
 async def test_refresh_shared_room_names_use_shared_device_rooms(
     rooms_trait: RoomsTrait,
-    home_data: HomeData,
+    trait_home_data: HomeData,
     web_api_client: AsyncMock,
     mock_rpc_channel: AsyncMock,
 ) -> None:
     """Test shared devices resolve room names via the shared-device room list."""
-    assert home_data.received_devices
+    assert trait_home_data.received_devices
     assert not rooms_trait.rooms
 
     web_api_client.get_shared_device_rooms.return_value = [
