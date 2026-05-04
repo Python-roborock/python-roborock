@@ -207,3 +207,34 @@ async def test_refresh_unknown_room_names_failure_falls_back_to_room_segment_id(
     assert rooms_trait.rooms[0] == NamedRoomMapping(segment_id=16, iot_id="9999401")
     assert rooms_trait.rooms[0].name == "Room 16"
     web_api_client.get_rooms.assert_called_once()
+
+
+async def test_refresh_shared_room_names_use_shared_device_rooms_without_mutating_home_data(
+    rooms_trait: RoomsTrait,
+    web_api_client: AsyncMock,
+    mock_rpc_channel: AsyncMock,
+) -> None:
+    """Test shared devices resolve room names via the shared-device room list."""
+    original_rooms = list(rooms_trait._home_data.rooms or ())
+    try:
+        # Mark the device as shared by adding it to received_devices
+        device = next(d for d in rooms_trait._home_data.devices if d.duid == rooms_trait._device_uid)
+        rooms_trait._home_data.received_devices = [device]
+        rooms_trait._home_data.devices = []
+
+        web_api_client.get_shared_device_rooms.return_value = [
+            HomeDataRoom(id=9999999, name="Office"),
+        ]
+        room_mapping_data = [[16, "2362048"], [17, "9999999"]]
+        mock_rpc_channel.send_command.side_effect = [room_mapping_data]
+
+        await rooms_trait.refresh()
+
+        assert rooms_trait.rooms
+        assert rooms_trait.rooms[0] == NamedRoomMapping(segment_id=16, iot_id="2362048", raw_name="Example room 1")
+        assert rooms_trait.rooms[1] == NamedRoomMapping(segment_id=17, iot_id="9999999", raw_name="Office")
+        assert rooms_trait._home_data.rooms == original_rooms
+        web_api_client.get_shared_device_rooms.assert_called_once_with(rooms_trait._device_uid)
+        web_api_client.get_rooms.assert_not_called()
+    finally:
+        rooms_trait._home_data.rooms = original_rooms
