@@ -13,6 +13,7 @@ from roborock.data import (
     HomeData,
     HomeDataDevice,
     HomeDataProduct,
+    RoborockCategory,
     UserData,
 )
 from roborock.devices.device import DeviceReadyCallback, RoborockDevice
@@ -228,6 +229,10 @@ async def create_device_manager(
         device_cache: DeviceCache = DeviceCache(device.duid, cache)
         match device.pv:
             case DeviceVersion.V1:
+                if product.category != RoborockCategory.VACUUM:
+                    raise UnsupportedDeviceError(
+                        f"Device {device.name} has unsupported V1 category {product.category}: {product.model}"
+                    )
                 channel = create_v1_channel(user_data, mqtt_params, mqtt_session, device, device_cache)
                 trait = v1.create(
                     device.duid,
