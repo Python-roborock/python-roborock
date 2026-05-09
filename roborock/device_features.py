@@ -653,6 +653,7 @@ WASH_N_FILL_DOCK_TYPES = [
     RoborockDockTypeCode.qrevo_s_dock,
     RoborockDockTypeCode.saros_r10_dock,
     RoborockDockTypeCode.qrevo_curv_dock,
+    RoborockDockTypeCode.saros_20_dock,
 ]
 
 
