@@ -263,6 +263,15 @@ def test_no_value():
     assert "missing" not in RoborockDockTypeCode.values()
 
 
+def test_qrevo_s5v_dock_type():
+    """Test that dock type code 22 (Qrevo S5V dock) is properly recognized."""
+    modified_status = STATUS.copy()
+    modified_status["dock_type"] = 22
+    s = S7MaxVStatus.from_dict(modified_status)
+    assert s.dock_type == RoborockDockTypeCode.qrevo_s5v_dock
+    assert s.dock_type.value == 22
+
+
 def test_multi_maps_list_info(snapshot: SnapshotAssertion) -> None:
     """Test that MultiMapsListInfo can be deserialized correctly."""
     data = {

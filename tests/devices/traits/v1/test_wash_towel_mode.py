@@ -31,6 +31,7 @@ def wash_towel_mode_trait(
         (RoborockDockTypeCode.s8_dock),
         (RoborockDockTypeCode.p10_dock),
         (RoborockDockTypeCode.qrevo_s_dock),
+        (RoborockDockTypeCode.qrevo_s5v_dock),
     ],
 )
 async def test_wash_towel_mode_available(

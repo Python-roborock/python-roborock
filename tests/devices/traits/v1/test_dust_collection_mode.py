@@ -29,6 +29,7 @@ def dust_collection_mode_trait(
         (RoborockDockTypeCode.s8_dock),
         (RoborockDockTypeCode.p10_dock),
         (RoborockDockTypeCode.qrevo_s_dock),
+        (RoborockDockTypeCode.qrevo_s5v_dock),
     ],
 )
 async def test_dust_collection_mode_available(
