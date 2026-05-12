@@ -357,7 +357,7 @@ graph LR
 1. **Temporary Subscriptions**: Each RPC creates a temporary subscription that matches the request ID
 2. **Subscription Reuse**: `MqttSession` keeps subscriptions alive for 60 seconds (or idle timeout) to enable reuse during command bursts
 3. **Timeout Handling**: Commands timeout after 10 seconds if no response is received
-4. **Multiple Strategies**: `V1Channel` tries local first, then falls back to MQTT if local fails
+4. **Multiple Strategies**: `V1Channel` tries connect to both Local faster local commands and MQTT for streaming updates.
 
 ## Class Design & Components
 

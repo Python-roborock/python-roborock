@@ -46,9 +46,11 @@ from .v1_code_mappings import (
     ClearWaterBoxStatus,
     DirtyWaterBoxStatus,
     DustBagStatus,
+    RoborockChargeStatus,
     RoborockCleanType,
     RoborockDockDustCollectionModeCode,
     RoborockDockErrorCode,
+    RoborockDockState,
     RoborockDockTypeCode,
     RoborockErrorCode,
     RoborockFanPowerCode,
@@ -98,13 +100,14 @@ class FieldNameBase(StrEnum):
 
 
 class StatusField(FieldNameBase):
-    """An enum that represents a field in the `Status` class.
+    """An enum that represents a field in the `StatusV2` class.
 
     This is used with `roborock.devices.traits.v1.status.DeviceFeaturesTrait`
     to understand if a feature is supported by the device using `is_field_supported`.
 
-    The enum values are names of fields in the `Status` class. Each field is annotated
-    with a metadata value to determine if the field is supported by the device.
+    The enum values are names of fields in the `StatusV2` class. Each field is
+    annotated with `dps` metadata to map the field to a `RoborockDataProtocol`
+    value used to check support against the product schema.
     """
 
     STATE = "state"
@@ -161,7 +164,9 @@ class Status(RoborockBase):
     collision_avoid_status: int | None = None
     switch_map_mode: int | None = None
     dock_error_status: RoborockDockErrorCode | None = None
-    charge_status: int | None = field(default=None, metadata={"dps": RoborockDataProtocol.CHARGE_STATUS})
+    charge_status: RoborockChargeStatus | None = field(
+        default=None, metadata={"dps": RoborockDataProtocol.CHARGE_STATUS}
+    )
     unsave_map_reason: int | None = None
     unsave_map_flag: int | None = None
     wash_status: int | None = None
@@ -329,7 +334,9 @@ class StatusV2(RoborockBase):
     collision_avoid_status: int | None = None
     switch_map_mode: int | None = None
     dock_error_status: RoborockDockErrorCode | None = None
-    charge_status: int | None = field(default=None, metadata={"dps": RoborockDataProtocol.CHARGE_STATUS})
+    charge_status: RoborockChargeStatus | None = field(
+        default=None, metadata={"dps": RoborockDataProtocol.CHARGE_STATUS}
+    )
     unsave_map_reason: int | None = None
     unsave_map_flag: int | None = None
     wash_status: int | None = None
@@ -413,6 +420,41 @@ class StatusV2(RoborockBase):
         if self.dss:
             return (self.dss >> 15) & 3
         return None
+
+    @property
+    def dock_state(self) -> RoborockDockState:
+        """A synthesized, high-level dock state reflecting the UI's display.
+
+        This property simplifies integration by handling the complex logic
+        of checking state, charge_status, and battery level simultaneously. It handles
+        newer off-peak charging logic seamlessly while maintaining backwards compatibility
+        with older devices.
+        """
+        if self.state is None or self.state == RoborockStateCode.unknown:
+            return RoborockDockState.unknown
+
+        # 6. DUSTING
+        if self.state == RoborockStateCode.emptying_the_bin:
+            return RoborockDockState.dusting
+
+        # 5. FULL
+        if self.state == RoborockStateCode.charging_complete or (
+            self.state == RoborockStateCode.charging and self.battery == 100
+        ):
+            return RoborockDockState.full
+
+        # 3 & 4. CHARGING and CHARGE_WAITING
+        if self.state == RoborockStateCode.charging:
+            if self.charge_status == RoborockChargeStatus.charge_waiting:
+                return RoborockDockState.off_peak_waiting
+            return RoborockDockState.charging
+
+        # 2. RECHARGING
+        if self.state in (RoborockStateCode.returning_home, RoborockStateCode.docking):
+            return RoborockDockState.returning
+
+        # 1. IDLE (Not on dock, or doing something else)
+        return RoborockDockState.idle
 
     def __repr__(self) -> str:
         return _attr_repr(self)
@@ -629,8 +671,9 @@ class ConsumableField(FieldNameBase):
     This is used with `roborock.devices.traits.v1.status.DeviceFeaturesTrait`
     to understand if a feature is supported by the device using `is_field_supported`.
 
-    The enum values are names of fields in the `Consumable` class. Each field is annotated
-    with a metadata value to determine if the field is supported by the device.
+    The enum values are names of fields in the `Consumable` class. Each field is
+    annotated with `dps` metadata to map the field to a `RoborockDataProtocol`
+    value used to check support against the product schema.
     """
 
     MAIN_BRUSH_WORK_TIME = "main_brush_work_time"

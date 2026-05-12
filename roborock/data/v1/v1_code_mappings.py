@@ -1,3 +1,4 @@
+from enum import StrEnum
 from typing import Self
 
 from ..code_mappings import RoborockEnum
@@ -61,6 +62,60 @@ class RoborockCleanType(RoborockEnum):
     quick_build = 4
     video_patrol = 5
     pet_patrol = 6
+
+
+class RoborockChargeStatus(RoborockEnum):
+    """Describes the charging status of the device."""
+
+    unknown = -1
+    charge_waiting = 0
+    charging = 1
+
+
+class RoborockDockState(StrEnum):
+    """Synthesized high-level dock and power state of the device.
+
+    This enum represents a unified "UI-level" state that combines multiple raw
+    device data points (`state`, `charge_status`, `battery`) into a single,
+    human-readable status that accurately reflects what the vacuum is doing
+    relative to the dock.
+
+    It is highly recommended for consumers of this API
+    to use this synthesized state to determine if the vacuum is charging or
+    docked, rather than attempting to parse the raw integer data points, as
+    this safely handles backward compatibility for older models that lack
+    explicit off-peak schedule reporting.
+    """
+
+    unknown = "unknown"
+    """The dock state could not be determined or is unmapped."""
+
+    idle = "idle"
+    """The vacuum is away from the dock (e.g., cleaning, paused, or errored).
+    In the official app, this state presents the 'Return to Dock' or 'Recharge' action."""
+
+    returning = "returning"
+    """The vacuum is actively navigating its way back to the dock.
+    In the official app, this state presents the 'Stop' or 'Pause' action."""
+
+    charging = "charging"
+    """The vacuum is on the dock and actively receiving electricity.
+    In the official app, this state is displayed as 'Charging'."""
+
+    off_peak_waiting = "off_peak_waiting"
+    """The vacuum is on the dock but charging is paused. It is waiting for the
+    user's scheduled 'Valley Electricity' off-peak hours to begin before
+    drawing power.
+    In the official app, this state is displayed as 'Charging paused during peak hours'."""
+
+    full = "full"
+    """The vacuum is on the dock and the battery is at 100% capacity.
+    In the official app, this state is displayed as 'Fully charged'."""
+
+    dusting = "dusting"
+    """The vacuum is on the dock and is currently being evacuated by the
+    auto-empty base.
+    In the official app, this state is displayed as 'Emptying dustbin'."""
 
 
 class RoborockStartType(RoborockEnum):
