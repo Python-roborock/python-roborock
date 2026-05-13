@@ -1,13 +1,14 @@
 import re
 from typing import Any
+from unittest.mock import AsyncMock, Mock
 
 import aiohttp
 import pytest
 from aioresponses.compat import normalize_url
 
 from roborock import HomeData, HomeDataRoom, HomeDataScene, UserData
-from roborock.exceptions import RoborockAccountDoesNotExist
-from roborock.web_api import IotLoginInfo, RoborockApiClient
+from roborock.exceptions import RoborockAccountDoesNotExist, RoborockInvalidCredentials
+from roborock.web_api import IotLoginInfo, RoborockApiClient, UserWebApiClient
 from tests.mock_data import HOME_DATA_RAW, USER_DATA
 
 pytest_plugins = [
@@ -414,3 +415,25 @@ async def test_get_shared_device_rooms(mock_rest, result_payload) -> None:
         HomeDataRoom(id=2362048, name="Living Room"),
         HomeDataRoom(id=2362044, name="Kitchen"),
     ]
+
+async def test_user_web_api_client_unauthorized_hook() -> None:
+    """Test that UserWebApiClient triggers unauthorized hook on RoborockInvalidCredentials."""
+    mock_hook = Mock()
+    mock_api = AsyncMock(spec=RoborockApiClient)
+
+    # Setup mock to raise RoborockInvalidCredentials
+    mock_api.get_home_data_v3.side_effect = RoborockInvalidCredentials("Unauthorized")
+
+    client = UserWebApiClient(mock_api, UserData.from_dict(USER_DATA), unauthorized_hook=mock_hook)
+
+    with pytest.raises(RoborockInvalidCredentials):
+        await client.get_home_data()
+
+    mock_hook.assert_called_once()
+
+    # Test another method
+    mock_hook.reset_mock()
+    mock_api.get_rooms.side_effect = RoborockInvalidCredentials("Unauthorized")
+    with pytest.raises(RoborockInvalidCredentials):
+        await client.get_rooms()
+    mock_hook.assert_called_once()

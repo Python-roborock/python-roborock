@@ -6,6 +6,7 @@ import math
 import secrets
 import string
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import aiohttp
@@ -764,22 +765,40 @@ class UserWebApiClient:
     to avoid needing to pass UserData around and mock out the web API.
     """
 
-    def __init__(self, web_api: RoborockApiClient, user_data: UserData) -> None:
+    def __init__(
+        self, web_api: RoborockApiClient, user_data: UserData, unauthorized_hook: Callable[[], None] | None = None
+    ) -> None:
         """Initialize the wrapper with the API client and user data."""
         self._web_api = web_api
         self._user_data = user_data
+        self._unauthorized_hook = unauthorized_hook
 
     async def get_home_data(self) -> HomeData:
         """Fetch home data using the API client."""
-        return await self._web_api.get_home_data_v3(self._user_data)
+        try:
+            return await self._web_api.get_home_data_v3(self._user_data)
+        except RoborockInvalidCredentials:
+            if self._unauthorized_hook:
+                self._unauthorized_hook()
+            raise
 
     async def get_routines(self, device_id: str) -> list[HomeDataScene]:
         """Fetch routines (scenes) for a specific device."""
-        return await self._web_api.get_scenes(self._user_data, device_id)
+        try:
+            return await self._web_api.get_scenes(self._user_data, device_id)
+        except RoborockInvalidCredentials:
+            if self._unauthorized_hook:
+                self._unauthorized_hook()
+            raise
 
     async def get_rooms(self) -> list[HomeDataRoom]:
         """Fetch rooms using the API client."""
-        return await self._web_api.get_rooms(self._user_data)
+        try:
+            return await self._web_api.get_rooms(self._user_data)
+        except RoborockInvalidCredentials:
+            if self._unauthorized_hook:
+                self._unauthorized_hook()
+            raise
 
     async def get_shared_device_rooms(self, device_id: str) -> list[HomeDataRoom]:
         """Fetch shared-device rooms using the API client."""
@@ -787,4 +806,9 @@ class UserWebApiClient:
 
     async def execute_routine(self, scene_id: int) -> None:
         """Execute a specific routine (scene) by its ID."""
-        await self._web_api.execute_scene(self._user_data, scene_id)
+        try:
+            await self._web_api.execute_scene(self._user_data, scene_id)
+        except RoborockInvalidCredentials:
+            if self._unauthorized_hook:
+                self._unauthorized_hook()
+            raise
