@@ -2,6 +2,39 @@
 
 <!-- version list -->
 
+## v5.11.0 (2026-05-12)
+
+### Features
+
+- Add null option to ZeoMode and ZeoProgram enums
+  ([#823](https://github.com/Python-roborock/python-roborock/pull/823),
+  [`905f916`](https://github.com/Python-roborock/python-roborock/commit/905f91686cea233ff914a607dcd21e8f7489d108))
+
+- Add Saros 20 dock type code (27) to RoborockDockTypeCode
+  ([#830](https://github.com/Python-roborock/python-roborock/pull/830),
+  [`6c6c396`](https://github.com/Python-roborock/python-roborock/commit/6c6c39658300139b13af9d47c77f953fc433ab42))
+
+- Add saros20 ([#830](https://github.com/Python-roborock/python-roborock/pull/830),
+  [`6c6c396`](https://github.com/Python-roborock/python-roborock/commit/6c6c39658300139b13af9d47c77f953fc433ab42))
+
+- Add some new Zeo code mappings
+  ([#823](https://github.com/Python-roborock/python-roborock/pull/823),
+  [`905f916`](https://github.com/Python-roborock/python-roborock/commit/905f91686cea233ff914a607dcd21e8f7489d108))
+
+
+## v5.10.1 (2026-05-12)
+
+### Bug Fixes
+
+- Handle Web API unauthorized errors
+  ([#825](https://github.com/Python-roborock/python-roborock/pull/825),
+  [`ad8d8f0`](https://github.com/Python-roborock/python-roborock/commit/ad8d8f095a260ee720c3e0193bcba5bd691c9f96))
+
+- Mark non vacuum v1 devices as not supported
+  ([#828](https://github.com/Python-roborock/python-roborock/pull/828),
+  [`2e9a848`](https://github.com/Python-roborock/python-roborock/commit/2e9a84807f5d0c2cffb5b0b6592b9baa6ee14c64))
+
+
 ## v5.10.0 (2026-05-03)
 
 ### Features
