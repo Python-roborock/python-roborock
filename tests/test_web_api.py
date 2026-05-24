@@ -416,6 +416,7 @@ async def test_get_shared_device_rooms(mock_rest, result_payload) -> None:
         HomeDataRoom(id=2362044, name="Kitchen"),
     ]
 
+
 async def test_user_web_api_client_unauthorized_hook() -> None:
     """Test that UserWebApiClient triggers unauthorized hook on RoborockInvalidCredentials."""
     mock_hook = Mock()
