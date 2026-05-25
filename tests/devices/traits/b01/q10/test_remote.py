@@ -31,7 +31,7 @@ def remote_fixture(q10_api: Q10PropertiesApi) -> RemoteTrait:
         (lambda x: x.left(), {"101": {"dpRemote": 2}}),
         (lambda x: x.right(), {"101": {"dpRemote": 3}}),
         (lambda x: x.stop(), {"101": {"dpRemote": 4}}),
-        (lambda x: x.exit(), {"101": {"dpRemote": 5}}),
+        (lambda x: x.exit_remote(), {"101": {"dpRemote": 5}}),
     ],
 )
 async def test_remote_commands(

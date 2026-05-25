@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import IntEnum
 
 from ..code_mappings import RoborockModeEnum
 
@@ -221,7 +221,7 @@ class YXDeviceDustCollectionFrequency(RoborockModeEnum):
     INTERVAL_60 = "interval_60", 60
 
 
-class RemoteCommand(Enum):
+class RemoteCommand(IntEnum):
     FORWARD = 0
     LEFT = 2
     RIGHT = 3

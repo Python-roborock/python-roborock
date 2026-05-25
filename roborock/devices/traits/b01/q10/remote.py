@@ -38,6 +38,6 @@ class RemoteTrait:
         """Stop last moving command or start remote control."""
         await self._send_remote(RemoteCommand.STOP)
 
-    async def exit(self) -> None:
+    async def exit_remote(self) -> None:
         """Exit remote control."""
         await self._send_remote(RemoteCommand.EXIT)
