@@ -5,8 +5,7 @@ from typing import Any
 
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
 from roborock.data.b01_q10.b01_q10_containers import Q10Status
-
-from .common import DpsDataConverter, TraitUpdateListener
+from roborock.devices.traits.common import DpsDataConverter, TraitUpdateListener
 
 _LOGGER = logging.getLogger(__name__)
 

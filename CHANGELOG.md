@@ -2,6 +2,127 @@
 
 <!-- version list -->
 
+## v5.13.0 (2026-05-24)
+
+### Features
+
+- Bump map parser to 0.1.5 ([#831](https://github.com/Python-roborock/python-roborock/pull/831),
+  [`29db86c`](https://github.com/Python-roborock/python-roborock/commit/29db86c06a476d4208f83a4de5db57f5b5e970f3))
+
+
+## v5.12.0 (2026-05-17)
+
+### Features
+
+- Add Qrevo S5V dock type code (22) to RoborockDockTypeCode
+  ([#829](https://github.com/Python-roborock/python-roborock/pull/829),
+  [`8d8a443`](https://github.com/Python-roborock/python-roborock/commit/8d8a4437a3a14f989a5b4345192833018e17b399))
+
+
+## v5.11.0 (2026-05-12)
+
+### Features
+
+- Add null option to ZeoMode and ZeoProgram enums
+  ([#823](https://github.com/Python-roborock/python-roborock/pull/823),
+  [`905f916`](https://github.com/Python-roborock/python-roborock/commit/905f91686cea233ff914a607dcd21e8f7489d108))
+
+- Add Saros 20 dock type code (27) to RoborockDockTypeCode
+  ([#830](https://github.com/Python-roborock/python-roborock/pull/830),
+  [`6c6c396`](https://github.com/Python-roborock/python-roborock/commit/6c6c39658300139b13af9d47c77f953fc433ab42))
+
+- Add saros20 ([#830](https://github.com/Python-roborock/python-roborock/pull/830),
+  [`6c6c396`](https://github.com/Python-roborock/python-roborock/commit/6c6c39658300139b13af9d47c77f953fc433ab42))
+
+- Add some new Zeo code mappings
+  ([#823](https://github.com/Python-roborock/python-roborock/pull/823),
+  [`905f916`](https://github.com/Python-roborock/python-roborock/commit/905f91686cea233ff914a607dcd21e8f7489d108))
+
+
+## v5.10.1 (2026-05-12)
+
+### Bug Fixes
+
+- Handle Web API unauthorized errors
+  ([#825](https://github.com/Python-roborock/python-roborock/pull/825),
+  [`ad8d8f0`](https://github.com/Python-roborock/python-roborock/commit/ad8d8f095a260ee720c3e0193bcba5bd691c9f96))
+
+- Mark non vacuum v1 devices as not supported
+  ([#828](https://github.com/Python-roborock/python-roborock/pull/828),
+  [`2e9a848`](https://github.com/Python-roborock/python-roborock/commit/2e9a84807f5d0c2cffb5b0b6592b9baa6ee14c64))
+
+
+## v5.10.0 (2026-05-03)
+
+### Features
+
+- Implement direct device trait updates from data protocol messages using `dps` metadata and add
+  corresponding update listeners
+  ([#799](https://github.com/Python-roborock/python-roborock/pull/799),
+  [`ba57677`](https://github.com/Python-roborock/python-roborock/commit/ba576778bb51f7e381e16ec93ff218d4a898e009))
+
+
+## v5.9.1 (2026-05-02)
+
+### Bug Fixes
+
+- Fix operator precedence bug with walrus operator in cli.py command execution
+  ([#822](https://github.com/Python-roborock/python-roborock/pull/822),
+  [`c3ae98b`](https://github.com/Python-roborock/python-roborock/commit/c3ae98b9ff7acadb97d4d5be8e3409d9fa8ed2a5))
+
+
+## v5.9.0 (2026-04-29)
+
+### Chores
+
+- Address review feedback for dock_state
+  ([#821](https://github.com/Python-roborock/python-roborock/pull/821),
+  [`3fdb963`](https://github.com/Python-roborock/python-roborock/commit/3fdb963401c8e81a39faf9ce5c11e9ecec303d91))
+
+### Features
+
+- Implement RoborockDockState synthesis and RoborockChargeStatus enum
+  ([#821](https://github.com/Python-roborock/python-roborock/pull/821),
+  [`3fdb963`](https://github.com/Python-roborock/python-roborock/commit/3fdb963401c8e81a39faf9ce5c11e9ecec303d91))
+
+- Implement RoborockDockState synthesis and RoborockChargeStatus enum for improved device status
+  reporting ([#821](https://github.com/Python-roborock/python-roborock/pull/821),
+  [`3fdb963`](https://github.com/Python-roborock/python-roborock/commit/3fdb963401c8e81a39faf9ce5c11e9ecec303d91))
+
+### Refactoring
+
+- Centralize trait update listener and dps converter
+  ([#820](https://github.com/Python-roborock/python-roborock/pull/820),
+  [`d125afb`](https://github.com/Python-roborock/python-roborock/commit/d125afbd53b03e883e539bddc28faef836be8cb9))
+
+
+## v5.8.0 (2026-04-26)
+
+### Features
+
+- Fix AppInitStatus to handle missing fields and add RoborockParsingException
+  ([#819](https://github.com/Python-roborock/python-roborock/pull/819),
+  [`aeb320a`](https://github.com/Python-roborock/python-roborock/commit/aeb320a59352adf26469f41a4c6fe728b6170a99))
+
+- Implement RoborockParsingException for trait responses and update AppInitStatus to handle missing
+  fields ([#819](https://github.com/Python-roborock/python-roborock/pull/819),
+  [`aeb320a`](https://github.com/Python-roborock/python-roborock/commit/aeb320a59352adf26469f41a4c6fe728b6170a99))
+
+### Refactoring
+
+- Wrap room response processing in try-except block and fix test docstring
+  ([#819](https://github.com/Python-roborock/python-roborock/pull/819),
+  [`aeb320a`](https://github.com/Python-roborock/python-roborock/commit/aeb320a59352adf26469f41a4c6fe728b6170a99))
+
+
+## v5.7.1 (2026-04-22)
+
+### Bug Fixes
+
+- Allow protobuf 7.x ([#815](https://github.com/Python-roborock/python-roborock/pull/815),
+  [`072767f`](https://github.com/Python-roborock/python-roborock/commit/072767f52dc8473616f6d9f0d36d88f21f047fba))
+
+
 ## v5.7.0 (2026-04-07)
 
 ### Chores

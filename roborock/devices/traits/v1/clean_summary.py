@@ -2,6 +2,7 @@ import logging
 
 from roborock.data import CleanRecord, CleanSummaryWithDetail, RoborockBase
 from roborock.devices.traits.v1 import common
+from roborock.exceptions import RoborockParsingException
 from roborock.roborock_typing import RoborockCommand
 from roborock.util import unpack_list
 
@@ -87,4 +88,12 @@ class CleanSummaryTrait(CleanSummaryWithDetail, common.V1TraitMixin):
     async def get_clean_record(self, record_id: int) -> CleanRecord:
         """Load a specific clean record by ID."""
         response = await self.rpc_channel.send_command(RoborockCommand.GET_CLEAN_RECORD, params=[record_id])
-        return self.clean_record_converter.convert(response)
+        try:
+            return self.clean_record_converter.convert(response)
+        except (TypeError, ValueError) as err:
+            raise RoborockParsingException(
+                trait_name=type(self).__name__,
+                command=RoborockCommand.GET_CLEAN_RECORD,
+                payload=response,
+                inner_error=err,
+            ) from err

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from roborock.data import HomeData, HomeDataRoom, NamedRoomMapping, RoborockBase
 from roborock.devices.traits.v1 import common
+from roborock.exceptions import RoborockParsingException
 from roborock.roborock_typing import RoborockCommand
 from roborock.web_api import UserWebApiClient
 
@@ -94,7 +95,12 @@ class RoomsTrait(Rooms, common.V1TraitMixin):
         """Refresh room mappings and backfill unknown room names from the web API."""
         response = await self.rpc_channel.send_command(self.command)
         if not isinstance(response, list):
-            raise ValueError(f"Unexpected RoomsTrait response format: {response!r}")
+            raise RoborockParsingException(
+                trait_name=type(self).__name__,
+                command=self.command,
+                payload=response,
+                inner_error="Unexpected RoomsTrait response format",
+            )
 
         segment_map = RoomsConverter.extract_segment_map(response)
         # Track all iot ids seen before. Refresh the room list when new ids are found.
@@ -105,8 +111,16 @@ class RoomsTrait(Rooms, common.V1TraitMixin):
                 _LOGGER.debug("Updating rooms: %s", list(updated_rooms))
                 self._home_data.rooms = updated_rooms
             self._discovered_iot_ids.update(new_iot_ids)
+        try:
+            rooms = self.converter.convert(response)
+        except (TypeError, ValueError) as err:
+            raise RoborockParsingException(
+                trait_name=type(self).__name__,
+                command=self.command,
+                payload=response,
+                inner_error=err,
+            ) from err
 
-        rooms = self.converter.convert(response)
         rooms = rooms.with_room_names(self._home_data.rooms_name_map)
         common.merge_trait_values(self, rooms)
 

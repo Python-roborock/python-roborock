@@ -199,7 +199,7 @@ class RoborockDevice(ABC, TraitsMixin):
         unsub = await self._channel.subscribe(self._on_message)
         try:
             if self.v1_properties is not None:
-                await self.v1_properties.discover_features()
+                await self.v1_properties.start()
             elif self.b01_q10_properties is not None:
                 await self.b01_q10_properties.start()
         except RoborockException:
@@ -216,6 +216,8 @@ class RoborockDevice(ABC, TraitsMixin):
                 await self._connect_task
             except asyncio.CancelledError:
                 pass
+        if self.v1_properties is not None:
+            self.v1_properties.close()
         if self.b01_q10_properties is not None:
             await self.b01_q10_properties.close()
         if self._unsub:

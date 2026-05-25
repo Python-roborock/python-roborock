@@ -1335,7 +1335,7 @@ wheels = [
 
 [[package]]
 name = "python-roborock"
-version = "5.7.0"
+version = "5.13.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
@@ -1377,7 +1377,7 @@ requires-dist = [
     { name = "click-shell", specifier = "~=2.1" },
     { name = "construct", specifier = ">=2.10.57,<3" },
     { name = "paho-mqtt", specifier = ">=1.6.1,<3.0.0" },
-    { name = "protobuf", specifier = ">=6.31.1,<7" },
+    { name = "protobuf", specifier = ">=6.31.1,<8" },
     { name = "pycryptodome", specifier = "~=3.18" },
     { name = "pycryptodomex", marker = "sys_platform == 'darwin'", specifier = "~=3.18" },
     { name = "pyrate-limiter", specifier = ">=4.0.0,<5" },
@@ -1586,15 +1586,15 @@ wheels = [
 
 [[package]]
 name = "vacuum-map-parser-roborock"
-version = "0.1.4"
+version = "0.1.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pillow" },
     { name = "vacuum-map-parser-base" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/39/b4/82583167a6b667151a6432fe9084232a090b36985751cd5c428998b2d080/vacuum_map_parser_roborock-0.1.4.tar.gz", hash = "sha256:07ab7cd8aaf0e94da62d2a228013b2f6b8acb0e6d2215b697b6441ffdfd70e89", size = 15315, upload-time = "2025-05-05T03:53:33.459Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e1/7c/2145c808234bb5da7cac5218bfd219715a2f995cca8a36015380cf3f490f/vacuum_map_parser_roborock-0.1.5.tar.gz", hash = "sha256:906109447d350f493ba8b59496c1d3075f4527173d7b02842d63a897da11ea1e", size = 15557, upload-time = "2026-05-18T01:05:40.149Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2a/56/e80291e0bfd38078bf9338fe379076d1fd55dea0174eee71897e55a0c9dc/vacuum_map_parser_roborock-0.1.4-py3-none-any.whl", hash = "sha256:8b5a00484a88c5d103a99ed7580677939c0801430f04752d9ae6265dfcec5969", size = 13758, upload-time = "2025-05-05T03:53:32.544Z" },
+    { url = "https://files.pythonhosted.org/packages/e8/f7/2511990496bb80b33701d8458a9272f11121e319f299cd98ed51f6728959/vacuum_map_parser_roborock-0.1.5-py3-none-any.whl", hash = "sha256:125422c863049a519e2d76ad8683a6756e44414fc9e30a5e2b7dd5281b481281", size = 13998, upload-time = "2026-05-18T01:05:39.275Z" },
 ]
 
 [[package]]
