@@ -68,6 +68,9 @@ include = ["roborock"]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.uv]
+exclude-newer = "3 days"
+
 [tool.semantic_release]
 branch = "main"
 version_toml = ["pyproject.toml:project.version"]
