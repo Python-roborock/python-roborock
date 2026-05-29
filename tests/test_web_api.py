@@ -7,8 +7,8 @@ import pytest
 from aioresponses.compat import normalize_url
 
 from roborock import HomeData, HomeDataScene, UserData
-from roborock.exceptions import RoborockAccountDoesNotExist, RoborockInvalidCredentials
-from roborock.web_api import IotLoginInfo, RoborockApiClient, UserWebApiClient
+from roborock.exceptions import RoborockAccountDoesNotExist, RoborockException, RoborockInvalidCredentials
+from roborock.web_api import IotLoginInfo, PreparedRequest, RoborockApiClient, UserWebApiClient
 from tests.mock_data import HOME_DATA_RAW, USER_DATA
 
 pytest_plugins = [
@@ -398,3 +398,24 @@ async def test_user_web_api_client_unauthorized_hook() -> None:
     with pytest.raises(RoborockInvalidCredentials):
         await client.get_rooms()
     mock_hook.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "exception",
+    [
+        aiohttp.ClientError("connection failed"),
+        TimeoutError("timed out"),
+        OSError("dns failure"),
+    ],
+    ids=["client_error", "timeout", "os_error"],
+)
+async def test_prepared_request_wraps_network_errors(exception: Exception, mock_rest: Any) -> None:
+    """Network errors from aiohttp must be wrapped as RoborockException so
+    consumers can rely on the typed exception hierarchy."""
+    url_pattern = re.compile(r"https://example\.com/api/test.*")
+    mock_rest.post(url_pattern, exception=exception)
+
+    req = PreparedRequest("https://example.com")
+    with pytest.raises(RoborockException) as exc_info:
+        await req.request("post", "/api/test")
+    assert exc_info.value.__cause__ is exception

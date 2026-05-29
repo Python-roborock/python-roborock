@@ -692,6 +692,8 @@ class PreparedRequest:
             _LOGGER.info("Resp raw: %s", resp_raw)
             # Still raise the err so that it's clear it failed.
             raise err
+        except (aiohttp.ClientError, TimeoutError, OSError) as err:
+            raise RoborockException(f"Network error contacting {_url}: {err}") from err
         finally:
             if close_session:
                 await session.close()
