@@ -2,6 +2,40 @@
 
 <!-- version list -->
 
+## v5.14.1 (2026-06-01)
+
+### Bug Fixes
+
+- Wrap aiohttp network errors in RoborockException
+  ([#835](https://github.com/Python-roborock/python-roborock/pull/835),
+  [`c3db8e2`](https://github.com/Python-roborock/python-roborock/commit/c3db8e2c674739297439e967bb28e492ba8fe99b))
+
+
+## v5.14.0 (2026-05-26)
+
+### Features
+
+- Add Q10 remote trait ([#813](https://github.com/Python-roborock/python-roborock/pull/813),
+  [`1ac49be`](https://github.com/Python-roborock/python-roborock/commit/1ac49bed2420066028946f786f0eb8c155b3f509))
+
+
+## v5.13.0 (2026-05-24)
+
+### Features
+
+- Bump map parser to 0.1.5 ([#831](https://github.com/Python-roborock/python-roborock/pull/831),
+  [`29db86c`](https://github.com/Python-roborock/python-roborock/commit/29db86c06a476d4208f83a4de5db57f5b5e970f3))
+
+
+## v5.12.0 (2026-05-17)
+
+### Features
+
+- Add Qrevo S5V dock type code (22) to RoborockDockTypeCode
+  ([#829](https://github.com/Python-roborock/python-roborock/pull/829),
+  [`8d8a443`](https://github.com/Python-roborock/python-roborock/commit/8d8a4437a3a14f989a5b4345192833018e17b399))
+
+
 ## v5.11.0 (2026-05-12)
 
 ### Features

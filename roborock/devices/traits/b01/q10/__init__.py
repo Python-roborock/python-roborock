@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-from typing import Any
 
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
 from roborock.devices.rpc.b01_q10_channel import stream_decoded_responses
@@ -10,6 +9,7 @@ from roborock.devices.traits import Trait
 from roborock.devices.transport.mqtt_channel import MqttChannel
 
 from .command import CommandTrait
+from .remote import RemoteTrait
 from .status import StatusTrait
 from .vacuum import VacuumTrait
 
@@ -32,11 +32,15 @@ class Q10PropertiesApi(Trait):
     vacuum: VacuumTrait
     """Trait for sending vacuum related commands to Q10 devices."""
 
+    remote: RemoteTrait
+    """Trait for sending remote control related commands to Q10 devices."""
+
     def __init__(self, channel: MqttChannel) -> None:
         """Initialize the B01Props API."""
         self._channel = channel
         self.command = CommandTrait(channel)
         self.vacuum = VacuumTrait(self.command)
+        self.remote = RemoteTrait(self.command)
         self.status = StatusTrait()
         self._subscribe_task: asyncio.Task[None] | None = None
 
