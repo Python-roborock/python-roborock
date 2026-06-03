@@ -97,9 +97,15 @@ def test_homedata_product_unknown_category():
         ("vac_and_mop", YXCleanType.VAC_AND_MOP),
         ("vacuum", YXCleanType.VACUUM),
         ("mop", YXCleanType.MOP),
+        ("customized", YXCleanType.CUSTOMIZED),
     ],
 )
 def test_yx_clean_type_from_value_readable_values(readable_value: str, expected_clean_type: YXCleanType) -> None:
     """Test YXCleanType accepts canonical readable values."""
     assert YXCleanType.from_value(readable_value) is expected_clean_type
     assert expected_clean_type.value == readable_value
+
+
+def test_yx_clean_type_from_code_customized() -> None:
+    """Test YXCleanType accepts custom mode code used by Q10 status updates."""
+    assert YXCleanType.from_code(4) is YXCleanType.CUSTOMIZED
