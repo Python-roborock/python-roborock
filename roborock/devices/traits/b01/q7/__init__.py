@@ -116,6 +116,22 @@ class Q7PropertiesApi(Trait):
         """Enable or disable the child lock."""
         await self.set_prop(RoborockB01Props.CHILD_LOCK, int(enabled))
 
+    async def set_do_not_disturb(self, enabled: bool, begin_time: int, end_time: int) -> None:
+        """Configure do-not-disturb.
+
+        The device expects all three values together via ``service.set_quiet_time``
+        (individual ``prop.set`` calls are ignored). ``begin_time``/``end_time`` are
+        minutes since midnight.
+        """
+        await self.send(
+            RoborockB01Q7Methods.SET_QUIET_TIME,
+            {
+                "is_open": int(enabled),
+                "quiet_begin_time": begin_time,
+                "quiet_end_time": end_time,
+            },
+        )
+
     async def start_clean(self) -> None:
         """Start cleaning."""
         await self.send(
