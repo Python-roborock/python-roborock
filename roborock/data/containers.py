@@ -329,6 +329,24 @@ class HomeDataScene(RoborockBase):
 
 
 @dataclass
+class FirmwareInfo(RoborockBase):
+    """Firmware/OTA info from the cloud (`ota/firmware/{duid}/updatev2`)."""
+
+    version: str | None = None
+    """Latest available firmware version."""
+    current_version: str | None = None
+    """Currently installed firmware version."""
+    updatable: bool | None = None
+    """Whether a newer firmware is available to install."""
+    desc: str | None = None
+    """Release notes / description."""
+    release_time: str | None = None
+    """Release timestamp of the available firmware."""
+    force_update: bool | None = None
+    """Whether the update is mandatory (cannot be skipped)."""
+
+
+@dataclass
 class HomeDataSchedule(RoborockBase):
     id: int
     cron: str
