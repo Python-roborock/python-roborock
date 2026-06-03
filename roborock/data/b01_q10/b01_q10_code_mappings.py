@@ -162,7 +162,7 @@ class YXCleanType(RoborockModeEnum):
     VAC_AND_MOP = "vac_and_mop", 1  # bothwork
     VACUUM = "vacuum", 2  # onlysweep
     MOP = "mop", 3  # onlymop
-    CUSTOMIZED = "customized", 4
+    CUSTOMIZED = "customized", 4  # custom mode
 
 
 class YXDeviceState(RoborockModeEnum):
