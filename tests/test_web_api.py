@@ -74,6 +74,18 @@ async def test_get_scenes():
     ]
 
 
+async def test_get_inbox_messages():
+    """Test that we can fetch device inbox messages."""
+    api = RoborockApiClient(username="test_user@gmail.com")
+    ud = await api.pass_login("password")
+    messages = await api.get_inbox_messages(ud, "NOTIFICATION", device_id="abc123")
+    assert len(messages) == 2
+    assert messages[0].content == "Battery low. Please charge."
+    assert messages[0].read is False
+    assert messages[0].trigger == "NOTIFICATION"
+    assert messages[1].read is True
+
+
 async def test_execute_scene(mock_rest):
     """Test that we can execute a scene"""
     api = RoborockApiClient(username="test_user@gmail.com")

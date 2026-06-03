@@ -14,7 +14,7 @@ from aiohttp import ContentTypeError, FormData
 from pyrate_limiter import Duration, Limiter, Rate
 
 from roborock import HomeDataSchedule
-from roborock.data import HomeData, HomeDataRoom, HomeDataScene, ProductResponse, RRiot, UserData
+from roborock.data import HomeData, HomeDataRoom, HomeDataScene, InboxMessage, ProductResponse, RRiot, UserData
 from roborock.exceptions import (
     RoborockAccountDoesNotExist,
     RoborockException,
@@ -579,6 +579,42 @@ class RoborockApiClient:
             return [HomeDataScene.from_dict(scene) for scene in scenes]
         else:
             raise RoborockException("scene_response result was an unexpected type")
+
+    async def get_inbox_messages(
+        self,
+        user_data: UserData,
+        message_type: str = "NOTIFICATION",
+        device_id: str | None = None,
+        offset: int = 0,
+        limit: int = 20,
+    ) -> list[InboxMessage]:
+        """Get inbox messages of a given type, newest first.
+
+        ``message_type`` is one of NOTIFICATION/WARNING (device-scoped, require
+        ``device_id``) or SYSTEM/MARKETING/SHARE (account-scoped). rriot API host with
+        Hawk auth.
+        """
+        rriot = user_data.rriot
+        if rriot is None:
+            raise RoborockException("rriot is none")
+        if rriot.r.a is None:
+            raise RoborockException("Missing field 'a' in rriot reference")
+        path = "/user/inbox"
+        params = {"offset": str(offset), "limit": str(limit), "type": message_type}
+        if device_id is not None:
+            params["duid"] = device_id
+        inbox_request = PreparedRequest(
+            rriot.r.a,
+            self.session,
+            {
+                "Authorization": _get_hawk_authentication(rriot, path, params=params),
+            },
+        )
+        inbox_response = await inbox_request.request("get", path, params=params)
+        if not inbox_response or not inbox_response.get("success"):
+            raise RoborockException(inbox_response)
+        result = inbox_response.get("result") or {}
+        return [InboxMessage.from_dict(message) for message in result.get("list", [])]
 
     async def execute_scene(self, user_data: UserData, scene_id: int) -> None:
         rriot = user_data.rriot
