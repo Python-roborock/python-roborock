@@ -8,14 +8,18 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from syrupy import SnapshotAssertion
 
-from roborock.data import HomeData, S7MaxVStatus, UserData
-from roborock.devices.cache import DeviceCache, NoCache
+from roborock.data import HomeData, NetworkInfo, S7MaxVStatus, UserData
+from roborock.devices.cache import DeviceCache, DeviceCacheData, InMemoryCache, NoCache
 from roborock.devices.device import RoborockDevice
+from roborock.devices.rpc.v1_channel import V1Channel
 from roborock.devices.traits import v1
 from roborock.devices.traits.v1.common import V1TraitMixin
-from roborock.protocols.v1_protocol import decode_rpc_response
+from roborock.devices.transport.local_channel import LocalSession
+from roborock.exceptions import RoborockException
+from roborock.protocols.v1_protocol import SecurityData, decode_rpc_response
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 from tests import mock_data
+from tests.fixtures.channel_fixtures import FakeChannel
 
 USER_DATA = UserData.from_dict(mock_data.USER_DATA)
 HOME_DATA = HomeData.from_dict(mock_data.HOME_DATA_RAW)
@@ -181,3 +185,92 @@ async def test_device_trait_command_parsing(
     assert device.v1_properties
     device_dict = device.diagnostic_data()
     assert device_dict == snapshot
+
+
+@pytest.mark.parametrize(
+    "start_error",
+    [RoborockException("transient status fetch failed"), ValueError("unexpected")],
+    ids=["roborock-exception", "non-roborock-exception"],
+)
+async def test_connect_unsubscribes_when_start_fails(
+    device: RoborockDevice,
+    channel: AsyncMock,
+    start_error: Exception,
+) -> None:
+    """connect() must release the channel when start() fails, for any exception.
+
+    Regression: the cleanup was scoped to ``except RoborockException``, so a
+    non-Roborock failure in start() propagated without unsubscribing, leaving the
+    channel subscribed and the next attempt unable to re-subscribe.
+    """
+    unsub = Mock()
+    channel.subscribe = AsyncMock(return_value=unsub)
+    device.v1_properties.start = AsyncMock(side_effect=start_error)
+
+    with pytest.raises(type(start_error)):
+        await device.connect()
+
+    channel.subscribe.assert_awaited_once()
+    unsub.assert_called_once()  # channel released before propagating
+    assert device._unsub is None  # not marked connected; safe for connect_loop to retry
+
+
+async def test_connect_retries_after_transient_start_failure() -> None:
+    """End-to-end regression for the Q5 multi-vacuum bug.
+
+    A device backed by a real V1Channel: the first connect() subscribes, then
+    start() fails transiently. The retry must re-subscribe cleanly rather than
+    raising "Only one subscription allowed at a time", and the device must end
+    up connected.
+    """
+    duid = HOME_DATA.devices[0].duid
+
+    mqtt_channel = FakeChannel()
+    await mqtt_channel.connect()
+    local_channel = FakeChannel()
+    local_session = Mock(spec=LocalSession, return_value=local_channel)
+
+    # Cache the network info so local connect doesn't need an MQTT round-trip.
+    cache = InMemoryCache()
+    device_cache = DeviceCache(duid, cache)
+    await device_cache.set(DeviceCacheData(network_info=NetworkInfo.from_dict(mock_data.NETWORK_INFO)))
+
+    v1_channel = V1Channel(
+        device_uid=duid,
+        security_data=SecurityData(endpoint="test_endpoint", nonce=b"test_nonce_16byte"),
+        mqtt_channel=mqtt_channel,
+        local_session=local_session,
+        device_cache=device_cache,
+    )
+    device = RoborockDevice(
+        device_info=HOME_DATA.devices[0],
+        product=HOME_DATA.products[0],
+        channel=v1_channel,
+        trait=v1.create(
+            duid,
+            HOME_DATA.products[0],
+            HOME_DATA,
+            AsyncMock(),
+            AsyncMock(),
+            AsyncMock(),
+            Mock(),
+            AsyncMock(),
+            device_cache=device_cache,
+            region=USER_DATA.region,
+        ),
+    )
+
+    # First connect() subscribes successfully, then start() fails transiently;
+    # the second succeeds.
+    device.v1_properties.start = AsyncMock(side_effect=[RoborockException("transient"), None])
+
+    with pytest.raises(RoborockException):
+        await device.connect()
+    assert device._unsub is None  # channel released after the transient failure
+
+    # The retry must NOT raise "Only one subscription allowed at a time".
+    await device.connect()
+    assert device._unsub is not None
+    assert device.is_connected
+
+    await device.close()
