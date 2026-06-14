@@ -45,10 +45,14 @@ class MapContent(RoborockBase):
     """Rooms (segments) reported by the device, with ids and names."""
 
     path: list[Q10Point] = field(default_factory=list)
-    """Latest live cleaning path points (only available while the robot moves)."""
+    """Full path of the current cleaning session (oldest point first).
+
+    The robot accumulates this server-side and serves the whole trajectory so
+    far in one packet, so it is complete even if we connect mid-session. Only
+    populated while a cleaning session is active."""
 
     robot_position: Q10Point | None = None
-    """Current robot position (the most recent trace point), if known."""
+    """Current robot position (the most recent path point), if known."""
 
     raw_api_response: bytes | None = None
     """Raw bytes of the map payload from the device (opaque blob for re-parsing)."""
@@ -100,10 +104,14 @@ class MapContentTrait(MapContent, Trait):
         self.rooms = packet.rooms
 
     async def refresh_trace(self) -> None:
-        """Fetch the live cleaning path and current robot position.
+        """Fetch the current session's cleaning path and robot position.
 
-        The robot only emits trace packets while it is actively moving, so this
-        raises :class:`RoborockException` (timeout) for an idle/docked robot.
+        Populates :attr:`path` with the full trajectory of the active cleaning
+        session (the robot accumulates it, so the whole path is returned even
+        when we connect mid-session) and :attr:`robot_position` with the most
+        recent point. The robot only emits trace packets while a session is
+        active, so this raises :class:`RoborockException` (timeout) for an
+        idle/docked robot.
         """
         raw_payload = await request_trace(self._channel)
         trace = parse_trace_packet(raw_payload)

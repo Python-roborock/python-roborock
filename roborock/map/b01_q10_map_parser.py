@@ -83,17 +83,24 @@ class Q10Point:
 
 @dataclass
 class Q10TracePacket:
-    """Decoded contents of a Q10 ``02 01`` live position packet.
+    """Decoded contents of a Q10 ``02 01`` cleaning-path packet.
 
-    The robot only emits these while it is actively moving (cleaning), so an
-    idle/docked robot will not produce them. Observed firmware sends the current
-    position as a single point per packet rather than an accumulated path, so
-    ``points`` typically holds one point.
+    The robot accumulates the **full path of the current cleaning session** and
+    serves it in a single packet: ``points`` holds the whole trajectory so far
+    (oldest first), growing as the robot cleans. This was confirmed live -- a
+    corridor run produced packets of 1, then 3, then 15 points, each a strict
+    superset describing the path travelled. Because the robot keeps the path
+    server-side, a client that connects mid-session still receives the complete
+    path (this is how the app shows the trail even after a cold launch).
+
+    The robot only emits these while a session is active, so an idle/docked robot
+    will not produce them. The most recent point is the current robot position.
     """
 
     points: list[Q10Point] = field(default_factory=list)
     sequence: int = 0
-    """Header sequence counter; increments as new position packets are sent."""
+    """Session counter (byte 3); increments per cleaning session, tracking the
+    device clean count. Not a per-packet sequence."""
 
     @property
     def robot_position(self) -> Q10Point | None:
@@ -102,8 +109,11 @@ class Q10TracePacket:
 
 
 # Trace packet (``02 01``): a 10-byte header followed by big-endian int16 (x, y)
-# point pairs. Header layout was confirmed against live ss07 captures (the
-# sequence counter is at byte 3; bytes 4-9 are a constant type/flag + padding).
+# point pairs forming the accumulated session path. Header layout confirmed
+# against live ss07 captures: byte 3 is a session counter (tracks the device
+# clean count); bytes 8-9 are a u16be point count minus one (verified: a 15-point
+# packet carried 0x000e == 14). The parser reads all 4-byte pairs in the body
+# rather than trusting the count field, so a truncated tail can't desync it.
 # NOTE: the format documented by roborock-qseries-map-bridge (18-byte header)
 # did not match this firmware -- this 10-byte layout is what the device sent.
 _TRACE_HEADER_LENGTH = 10

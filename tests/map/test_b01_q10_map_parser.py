@@ -18,6 +18,8 @@ from roborock.map.b01_q10_map_parser import (
 FIXTURE = Path(__file__).resolve().parent / "testdata" / "b01_q10_map.bin"
 TRACE_FIXTURE = Path(__file__).resolve().parent / "testdata" / "b01_q10_trace.bin"
 TRACE_MULTI_FIXTURE = Path(__file__).resolve().parent / "testdata" / "b01_q10_trace_multi.bin"
+# Real 15-point packet captured from an R1 corridor run (full session path).
+TRACE_SESSION_FIXTURE = Path(__file__).resolve().parent / "testdata" / "b01_q10_trace_session.bin"
 
 
 def _payload() -> bytes:
@@ -91,12 +93,32 @@ def test_packet_markers_are_distinct() -> None:
 
 
 def test_parse_trace_packet_real_single_point() -> None:
-    """A real ss07 position packet decodes to a single current-position point."""
+    """A real ss07 packet captured early in a session has a single path point."""
     trace = parse_trace_packet(TRACE_FIXTURE.read_bytes())
     assert trace.sequence == 9
     assert [(p.x, p.y) for p in trace.points] == [(169, 0)]
     assert trace.robot_position is not None
     assert (trace.robot_position.x, trace.robot_position.y) == (169, 0)
+
+
+def test_parse_trace_packet_real_session_path() -> None:
+    """A real 15-point packet (corridor run) decodes the full accumulated path.
+
+    Captured live from an R1: the same session emitted packets of 1, then 3,
+    then 15 points, proving the path accumulates rather than reporting only the
+    current position. The most recent point is the current robot position.
+    """
+    trace = parse_trace_packet(TRACE_SESSION_FIXTURE.read_bytes())
+    points = [(p.x, p.y) for p in trace.points]
+    assert len(points) == 15
+    assert points[0] == (-34, 0)  # oldest
+    assert points[-1] == (276, -1)  # most recent == current position
+    # After the initial repositioning, x marches steadily down the corridor.
+    tail_x = [p[0] for p in points[2:]]
+    assert tail_x == sorted(tail_x)
+    assert points[-1][0] - points[0][0] > 300  # spans the corridor
+    assert trace.robot_position is not None
+    assert (trace.robot_position.x, trace.robot_position.y) == (276, -1)
 
 
 def test_parse_trace_packet_multi_point() -> None:
