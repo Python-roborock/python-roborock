@@ -1326,6 +1326,69 @@ async def q10_vacuum_dock(ctx: click.Context, device_id: str) -> None:
         click.echo(f"Error: {e}")
 
 
+async def _q10_set(ctx: click.Context, device_id: str, apply: Callable[[Any], Any], message: str) -> None:
+    """Run a Q10 settings write and report the result."""
+    context: RoborockContext = ctx.obj
+    try:
+        properties = await _q10_properties(context, device_id)
+        await apply(properties.settings)
+        click.echo(message)
+    except RoborockUnsupportedFeature:
+        click.echo("Device does not support B01 Q10 protocol. Is it a Q10?")
+    except (RoborockException, ValueError) as e:
+        click.echo(f"Error: {e}")
+
+
+@session.command()
+@click.option("--device_id", required=True, help="Device ID")
+@click.option("--volume", required=True, type=int, help="Volume 0-100")
+@click.pass_context
+@async_command
+async def q10_set_volume(ctx: click.Context, device_id: str, volume: int) -> None:
+    """Set the speaker volume on a Q10 device."""
+    await _q10_set(ctx, device_id, lambda s: s.set_volume(volume), f"Volume set to {volume}")
+
+
+@session.command()
+@click.option("--device_id", required=True, help="Device ID")
+@click.option("--enabled", required=True, type=bool, help="Enable (True) or disable (False)")
+@click.pass_context
+@async_command
+async def q10_set_child_lock(ctx: click.Context, device_id: str, enabled: bool) -> None:
+    """Enable or disable the child lock on a Q10 device."""
+    await _q10_set(ctx, device_id, lambda s: s.set_child_lock(enabled), f"Child lock set to {enabled}")
+
+
+@session.command()
+@click.option("--device_id", required=True, help="Device ID")
+@click.option("--enabled", required=True, type=bool, help="Enable (True) or disable (False)")
+@click.pass_context
+@async_command
+async def q10_set_dnd(ctx: click.Context, device_id: str, enabled: bool) -> None:
+    """Enable or disable Do Not Disturb on a Q10 device."""
+    await _q10_set(ctx, device_id, lambda s: s.set_do_not_disturb(enabled), f"Do Not Disturb set to {enabled}")
+
+
+@session.command()
+@click.option("--device_id", required=True, help="Device ID")
+@click.option("--enabled", required=True, type=bool, help="Enable (True) or disable (False)")
+@click.pass_context
+@async_command
+async def q10_set_led(ctx: click.Context, device_id: str, enabled: bool) -> None:
+    """Enable or disable the indicator light (LED) on a Q10 device."""
+    await _q10_set(ctx, device_id, lambda s: s.set_button_light(enabled), f"LED set to {enabled}")
+
+
+@session.command()
+@click.option("--device_id", required=True, help="Device ID")
+@click.option("--enabled", required=True, type=bool, help="Enable (True) or disable (False)")
+@click.pass_context
+@async_command
+async def q10_set_dust_collection(ctx: click.Context, device_id: str, enabled: bool) -> None:
+    """Enable or disable automatic dust collection on a Q10 device."""
+    await _q10_set(ctx, device_id, lambda s: s.set_dust_collection(enabled), f"Dust collection set to {enabled}")
+
+
 @session.command()
 @click.option("--device_id", required=True, help="Device ID")
 @click.pass_context
