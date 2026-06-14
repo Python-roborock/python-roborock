@@ -186,3 +186,27 @@ def test_render_path_on_map_draws_position() -> None:
     img = Image.open(io.BytesIO(png)).convert("RGBA")
     assert img.size == (8 * 4, 6 * 4)
     assert img.getpixel((12, 8)) == (255, 211, 0, 255)
+
+
+def test_load_overlays_places_zones_with_calibration() -> None:
+    """Decoded no-go / no-mop zones become pixel-space MapData areas."""
+    trait = _trait_with_map()
+    trait.calibration = GridCalibration(resolution=1.0, origin_x=0.0, origin_y=5.0, y_sign=1)
+    trait.path = [Q10Point(1, 1)]  # path origin -> charger
+
+    def rect(zone_type: int, corners: list[tuple[int, int]]) -> bytes:
+        out = bytes([zone_type, len(corners)])
+        for x, y in corners:
+            out += int.to_bytes(x & 0xFFFF, 2, "big") + int.to_bytes(y & 0xFFFF, 2, "big")
+        return out.ljust(18, b"\x00")
+
+    blob = bytes([1, 2]) + rect(0, [(0, 0), (4, 0), (4, 4), (0, 4)]) + rect(3, [(1, 1), (2, 1), (2, 2), (1, 2)])
+    trait.load_overlays(restricted_zone_up=blob)
+
+    assert len(trait.zones) == 2
+    assert trait.map_data is not None
+    assert len(trait.map_data.no_go_areas or []) == 1
+    assert len(trait.map_data.no_mopping_areas or []) == 1
+    # charger = path origin in pixels: (1, 5-1) = (1, 4)
+    assert trait.map_data.charger is not None
+    assert (trait.map_data.charger.x, trait.map_data.charger.y) == (1.0, 4.0)

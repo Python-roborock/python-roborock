@@ -20,7 +20,7 @@ import logging
 from dataclasses import dataclass, field
 
 from PIL import Image, ImageDraw
-from vacuum_map_parser_base.map_data import MapData, Path, Point
+from vacuum_map_parser_base.map_data import Area, MapData, Path, Point, Wall
 
 from roborock.data import RoborockBase
 from roborock.devices.traits.common import TraitUpdateListener
@@ -35,6 +35,7 @@ from roborock.map.b01_q10_map_parser import (
     parse_map_packet,
     parse_trace_packet,
 )
+from roborock.map.b01_q10_overlays import ZONE_TYPE_NO_GO, ZONE_TYPE_NO_MOP, Q10Zone, parse_zone_blob
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 
 _LOGGER = logging.getLogger(__name__)
@@ -84,6 +85,13 @@ class MapContent(RoborockBase):
     """World<->pixel transform, solved from a cleaning path (see
     :meth:`MapContentTrait.solve_calibration`). Required to place the path,
     robot position and vector overlays onto the map raster."""
+
+    zones: list[Q10Zone] = field(default_factory=list)
+    """Restricted zones (no-go / no-mop) in world coordinates, from the device's
+    ``dpRestrictedZoneUp``. See :meth:`MapContentTrait.load_overlays`."""
+
+    virtual_walls: list[Q10Zone] = field(default_factory=list)
+    """Virtual walls (line segments) in world coordinates."""
 
     raw_api_response: bytes | None = None
     """Raw bytes of the map payload from the device (opaque blob for re-parsing)."""
@@ -183,7 +191,57 @@ class MapContentTrait(MapContent, TraitUpdateListener):
         if calibration is not None:
             self.calibration = calibration
             self._populate_map_data_overlays(calibration)
+            self._place_zones_on_map_data(calibration)
         return calibration
+
+    def load_overlays(
+        self,
+        *,
+        restricted_zone_up: bytes | str | None = None,
+        virtual_wall_up: bytes | str | None = None,
+    ) -> None:
+        """Decode the device's vector-overlay blobs (from the status DPs).
+
+        Pass the raw ``dpRestrictedZoneUp`` / ``dpVirtualWallUp`` values
+        (``Q10Status.restricted_zone_up`` / ``virtual_wall_up``). Stores them as
+        world-coordinate :attr:`zones` / :attr:`virtual_walls`, and -- if a
+        calibration is available -- places them onto ``map_data`` as
+        ``no_go_areas`` / ``no_mopping_areas`` / ``walls`` in pixel space.
+        """
+        self.zones = parse_zone_blob(restricted_zone_up)
+        self.virtual_walls = parse_zone_blob(virtual_wall_up)
+        if self.calibration is not None:
+            self._place_zones_on_map_data(self.calibration)
+
+    def _place_zones_on_map_data(self, calibration: GridCalibration) -> None:
+        """Convert world-coordinate zones/walls into pixel-space MapData layers."""
+        if self.map_data is None:
+            return
+
+        def to_area(zone: Q10Zone) -> Area | None:
+            if len(zone.vertices) != 4:
+                return None  # MapData.Area is a quad
+            pts = [calibration.world_to_pixel(x, y) for x, y in zone.vertices]
+            return Area(pts[0][0], pts[0][1], pts[1][0], pts[1][1], pts[2][0], pts[2][1], pts[3][0], pts[3][1])
+
+        no_go = [area for zone in self.zones if zone.type == ZONE_TYPE_NO_GO and (area := to_area(zone))]
+        no_mop = [area for zone in self.zones if zone.type == ZONE_TYPE_NO_MOP and (area := to_area(zone))]
+        self.map_data.no_go_areas = no_go or None
+        self.map_data.no_mopping_areas = no_mop or None
+
+        walls: list[Wall] = []
+        for zone in self.virtual_walls:
+            if len(zone.vertices) >= 2:
+                (x0, y0), (x1, y1) = zone.vertices[0], zone.vertices[1]
+                p0 = calibration.world_to_pixel(x0, y0)
+                p1 = calibration.world_to_pixel(x1, y1)
+                walls.append(Wall(p0[0], p0[1], p1[0], p1[1]))
+        self.map_data.walls = walls or None
+
+        # The robot starts a session at its dock, so the path origin is the charger.
+        if self.path:
+            cx, cy = calibration.world_to_pixel(self.path[0].x, self.path[0].y)
+            self.map_data.charger = Point(cx, cy)
 
     def _populate_map_data_overlays(self, calibration: GridCalibration) -> None:
         """Fill MapData.path / vacuum_position in grid-pixel coords.
@@ -229,9 +287,26 @@ class MapContentTrait(MapContent, TraitUpdateListener):
             # The base image is flipped top-to-bottom then upscaled by ``scale``.
             return (px * scale, (height - 1 - py) * scale)
 
-        draw = ImageDraw.Draw(base)
+        draw = ImageDraw.Draw(base, "RGBA")
+
+        def world_to_image(x: float, y: float) -> tuple[float, float]:
+            px, py = calibration.world_to_pixel(x, y)
+            return (px * scale, (height - 1 - py) * scale)
+
+        # No-go (blue) and no-mop (magenta) zones beneath the path.
+        for zone in self.zones:
+            if len(zone.vertices) < 3:
+                continue
+            polygon = [world_to_image(x, y) for x, y in zone.vertices]
+            fill = (0, 120, 255, 70) if zone.type == ZONE_TYPE_NO_GO else (255, 0, 200, 70)
+            outline = (0, 80, 200, 255) if zone.type == ZONE_TYPE_NO_GO else (200, 0, 160, 255)
+            draw.polygon(polygon, fill=fill, outline=outline)
+
         if len(self.path) >= 2:
             draw.line([to_image(point) for point in self.path], fill=line_color, width=max(1, scale // 2))
+        if self.path:  # path origin == dock / charger
+            dx, dy = to_image(self.path[0])
+            draw.ellipse([dx - scale, dy - scale, dx + scale, dy + scale], outline=(40, 200, 40, 255), width=2)
         if self.robot_position is not None:
             cx, cy = to_image(self.robot_position)
             radius = scale
