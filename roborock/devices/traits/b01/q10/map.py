@@ -29,6 +29,7 @@ from roborock.map.b01_grid_layers import GridCalibration, GridLayers, solve_cali
 from roborock.map.b01_q10_map_parser import (
     B01Q10MapParser,
     B01Q10MapParserConfig,
+    Q10Carpet,
     Q10Point,
     Q10Room,
     decompose_layers,
@@ -92,6 +93,11 @@ class MapContent(RoborockBase):
 
     virtual_walls: list[Q10Zone] = field(default_factory=list)
     """Virtual walls (line segments) in world coordinates."""
+
+    carpets: list[Q10Carpet] = field(default_factory=list)
+    """Carpet areas (user-defined + auto-detected) in world coordinates, decoded
+    from the map packet tail. Placed onto ``map_data.carpet_map`` once a
+    calibration is available."""
 
     raw_api_response: bytes | None = None
     """Raw bytes of the map payload from the device (opaque blob for re-parsing)."""
@@ -173,7 +179,10 @@ class MapContentTrait(MapContent, TraitUpdateListener):
         self.image_content = parsed.image_content
         self.map_data = parsed.map_data
         self.rooms = packet.rooms
+        self.carpets = packet.carpets
         self.layers = decompose_layers(packet)
+        if self.calibration is not None:
+            self._place_zones_on_map_data(self.calibration)
 
     def solve_calibration(self) -> GridCalibration | None:
         """Fit and cache the world<->pixel calibration from the current path.
@@ -238,6 +247,21 @@ class MapContentTrait(MapContent, TraitUpdateListener):
                 walls.append(Wall(p0[0], p0[1], p1[0], p1[1]))
         self.map_data.walls = walls or None
 
+        # Carpets -> carpet_map (set of pixel indices), filling each rectangle's bbox.
+        if self.carpets and self.layers is not None:
+            width, height = self.layers.width, self.layers.height
+            carpet_cells: set[int] = set()
+            for carpet in self.carpets:
+                pixels = [calibration.world_to_pixel(x, y) for x, y in carpet.vertices]
+                xs = [p[0] for p in pixels]
+                ys = [p[1] for p in pixels]
+                x0, x1 = int(min(xs)), int(max(xs))
+                y0, y1 = int(min(ys)), int(max(ys))
+                for py in range(max(0, y0), min(height, y1 + 1)):
+                    for px in range(max(0, x0), min(width, x1 + 1)):
+                        carpet_cells.add(py * width + px)
+            self.map_data.carpet_map = carpet_cells or None
+
         # The robot starts a session at its dock, so the path origin is the charger.
         if self.path:
             cx, cy = calibration.world_to_pixel(self.path[0].x, self.path[0].y)
@@ -292,6 +316,13 @@ class MapContentTrait(MapContent, TraitUpdateListener):
         def world_to_image(x: float, y: float) -> tuple[float, float]:
             px, py = calibration.world_to_pixel(x, y)
             return (px * scale, (height - 1 - py) * scale)
+
+        # Carpets (purple, beneath zones).
+        for carpet in self.carpets:
+            if len(carpet.vertices) < 3:
+                continue
+            polygon = [world_to_image(x, y) for x, y in carpet.vertices]
+            draw.polygon(polygon, fill=(150, 90, 220, 60), outline=(120, 60, 190, 200))
 
         # No-go (blue) and no-mop (magenta) zones beneath the path.
         for zone in self.zones:

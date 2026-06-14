@@ -77,6 +77,8 @@ _LAYOUT_COMPRESSED_OFFSET = 29
 _ROOM_RECORD_LENGTH = 47
 _ROOM_NAME_LENGTH_OFFSET = 26
 _MAX_ROOMS = 32
+# Sanity bound for the carpet vector section's vertices-per-polygon field.
+_MAX_CARPET_VERTICES = 16
 
 # Grid cell values >= this are walls / borders rather than room segments.
 _WALL_THRESHOLD = 240
@@ -98,6 +100,16 @@ class Q10Room:
 
 
 @dataclass
+class Q10Carpet:
+    """A carpet area (polygon) carried in the map packet, in world coordinates.
+
+    Includes both user-defined and auto-detected ("self-identifying") carpets.
+    """
+
+    vertices: list[tuple[int, int]] = field(default_factory=list)
+
+
+@dataclass
 class Q10MapPacket:
     """Decoded contents of a Q10 ``01 01`` map packet."""
 
@@ -106,6 +118,8 @@ class Q10MapPacket:
     height: int
     grid: bytes
     rooms: list[Q10Room] = field(default_factory=list)
+    carpets: list[Q10Carpet] = field(default_factory=list)
+    """Carpet areas decoded from the packet tail (world coordinates)."""
 
 
 @dataclass
@@ -295,7 +309,41 @@ def parse_map_packet(payload: bytes) -> Q10MapPacket:
     decoded = lz4_block_decompress(payload[_LAYOUT_COMPRESSED_OFFSET:layout_end])
     height, grid, room_data = _infer_layout(decoded, width)
     rooms = _parse_rooms(room_data, grid)
-    return Q10MapPacket(map_id=map_id, width=width, height=height, grid=grid, rooms=rooms)
+    carpets = _parse_carpets(payload[layout_end:])
+    return Q10MapPacket(map_id=map_id, width=width, height=height, grid=grid, rooms=rooms, carpets=carpets)
+
+
+def _parse_carpets(tail: bytes) -> list[Q10Carpet]:
+    """Decode carpet areas from the bytes after the compressed grid block.
+
+    The tail begins with a vector section ``[count: u8][vertices_per: u8]`` then
+    ``count`` polygons of ``vertices_per`` int16-BE (x, y) pairs (axis-aligned
+    rectangles in practice). Confirmed on two ss07 devices (R1: 3, RDC: 2). The
+    remaining tail (a run-length raster + signature) is not decoded here.
+    """
+    if len(tail) < 2:
+        return []
+    count = tail[0]
+    vertices_per = tail[1]
+    if count == 0 or not 1 <= vertices_per <= _MAX_CARPET_VERTICES:
+        return []
+
+    carpets: list[Q10Carpet] = []
+    offset = 2
+    for _ in range(count):
+        end = offset + vertices_per * 4
+        if end > len(tail):
+            break
+        vertices = [
+            (
+                int.from_bytes(tail[offset + j * 4 : offset + j * 4 + 2], "big", signed=True),
+                int.from_bytes(tail[offset + j * 4 + 2 : offset + j * 4 + 4], "big", signed=True),
+            )
+            for j in range(vertices_per)
+        ]
+        carpets.append(Q10Carpet(vertices=vertices))
+        offset = end
+    return carpets
 
 
 @dataclass

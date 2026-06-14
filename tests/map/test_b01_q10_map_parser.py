@@ -174,6 +174,24 @@ def test_parse_trace_empty_path_has_no_position() -> None:
     assert trace.robot_position is None
 
 
+def test_parse_carpets_from_map_packet_tail() -> None:
+    """Carpet rectangles appended after the grid decode to world polygons."""
+    rects = [
+        [(100, 200), (300, 200), (300, 50), (100, 50)],
+        [(-40, -10), (10, -10), (10, -60), (-40, -60)],
+    ]
+    tail = bytes([len(rects), 4])
+    for rect in rects:
+        for x, y in rect:
+            tail += int.to_bytes(x & 0xFFFF, 2, "big") + int.to_bytes(y & 0xFFFF, 2, "big")
+    packet = parse_map_packet(FIXTURE.read_bytes() + tail)
+    assert [c.vertices for c in packet.carpets] == rects  # incl. signed coords
+
+
+def test_parse_map_packet_without_carpet_tail() -> None:
+    assert parse_map_packet(FIXTURE.read_bytes()).carpets == []
+
+
 def test_parse_trace_rejects_non_trace_packet() -> None:
     with pytest.raises(RoborockException, match="not a Q10 trace packet"):
         parse_trace_packet(_payload())
