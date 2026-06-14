@@ -6,15 +6,19 @@ and the trait updates its cached state from them via ``update_from_map_response`
 """
 
 import asyncio
+import io
 from collections.abc import AsyncGenerator
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock
 
 import pytest
+from PIL import Image
 
 from roborock.devices.traits.b01.q10 import Q10PropertiesApi, create
 from roborock.devices.traits.b01.q10.map import MapContentTrait
 from roborock.exceptions import RoborockException
+from roborock.map.b01_grid_layers import GridCalibration
+from roborock.map.b01_q10_map_parser import Q10Point
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 
 FIXTURE = Path("tests/map/testdata/b01_q10_map.bin")
@@ -138,3 +142,47 @@ async def test_subscribe_loop_routes_trace_push(
 
     await _wait_for(lambda: bool(q10_api.map.path))
     assert q10_api.map.robot_position is not None
+
+
+# --- Layers / calibration / rendering ----------------------------------------
+
+
+def _trait_with_map() -> MapContentTrait:
+    """A trait with a map already pushed into it."""
+    trait = MapContentTrait()
+    trait.update_from_map_response(_map_message(FIXTURE.read_bytes()))
+    return trait
+
+
+def test_map_push_populates_layers() -> None:
+    """A pushed map is also decomposed into separable layers."""
+    trait = _trait_with_map()
+    assert trait.layers is not None
+    assert trait.layers.class_counts.get("floor") == 26
+    assert {room.id for room in trait.layers.rooms} == {2, 3}
+
+
+def test_solve_calibration_needs_map_and_dense_path() -> None:
+    """No map or too-short a path -> no calibration."""
+    trait = MapContentTrait()
+    trait.path = [Q10Point(i, 0) for i in range(30)]
+    assert trait.solve_calibration() is None  # no layers yet
+
+
+def test_render_path_on_map_requires_map() -> None:
+    trait = MapContentTrait()
+    with pytest.raises(RoborockException, match="No map available"):
+        trait.render_path_on_map()
+
+
+def test_render_path_on_map_draws_position() -> None:
+    """With a calibration set, the robot position is drawn at the mapped pixel."""
+    trait = _trait_with_map()
+    # identity-ish calibration: world (x,y) -> pixel (x, 5 - y) in the 8x6 grid.
+    trait.calibration = GridCalibration(resolution=1.0, origin_x=0.0, origin_y=5.0, y_sign=1)
+    trait.path = [Q10Point(1, 2), Q10Point(3, 2)]
+    trait.robot_position = Q10Point(3, 2)  # -> pixel (3, 3) -> image (12, 8) at scale 4
+    png = trait.render_path_on_map(position_color=(255, 211, 0, 255))
+    img = Image.open(io.BytesIO(png)).convert("RGBA")
+    assert img.size == (8 * 4, 6 * 4)
+    assert img.getpixel((12, 8)) == (255, 211, 0, 255)

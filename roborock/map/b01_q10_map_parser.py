@@ -312,6 +312,11 @@ class B01Q10MapParser:
     def __init__(self, config: B01Q10MapParserConfig | None = None) -> None:
         self._config = config or B01Q10MapParserConfig()
 
+    @property
+    def config(self) -> B01Q10MapParserConfig:
+        """The parser configuration (image scale, ...)."""
+        return self._config
+
     def parse(self, payload: bytes) -> ParsedMapData:
         """Parse a raw Q10 map packet into a rendered PNG + ``MapData``."""
         packet = parse_map_packet(payload)

@@ -15,15 +15,17 @@ trait is purely push-driven and mirrors the Q10 ``StatusTrait`` contract:
 Unlike the Q7, the Q10 map payload is unencrypted, so no map key is required.
 """
 
+import io
 import logging
 from dataclasses import dataclass, field
 
-from vacuum_map_parser_base.map_data import MapData
+from PIL import Image, ImageDraw
+from vacuum_map_parser_base.map_data import MapData, Path, Point
 
 from roborock.data import RoborockBase
 from roborock.devices.traits.common import TraitUpdateListener
 from roborock.exceptions import RoborockException
-from roborock.map.b01_grid_layers import GridLayers
+from roborock.map.b01_grid_layers import GridCalibration, GridLayers, solve_calibration
 from roborock.map.b01_q10_map_parser import (
     B01Q10MapParser,
     B01Q10MapParserConfig,
@@ -43,6 +45,12 @@ _TRUNCATE_LENGTH = 20
 # packet kind: a full map (``01 01``) or a live trace/path (``02 01``).
 _MAP_PACKET_MARKER = b"\x01\x01"
 _TRACE_PACKET_MARKER = b"\x02\x01"
+
+# World-units-per-pixel candidates for calibration, bracketing the ~13-16
+# measured on live ss07 captures. A dense cleaning path selects the best fit.
+_Q10_RESOLUTIONS = [step * 0.5 for step in range(20, 37)]  # 10.0 .. 18.0
+# A path needs enough shape to constrain the fit; a few points cannot.
+_MIN_CALIBRATION_POINTS = 20
 
 
 @dataclass
@@ -71,6 +79,11 @@ class MapContent(RoborockBase):
 
     robot_position: Q10Point | None = None
     """Current robot position (the most recent path point), if known."""
+
+    calibration: GridCalibration | None = None
+    """World<->pixel transform, solved from a cleaning path (see
+    :meth:`MapContentTrait.solve_calibration`). Required to place the path,
+    robot position and vector overlays onto the map raster."""
 
     raw_api_response: bytes | None = None
     """Raw bytes of the map payload from the device (opaque blob for re-parsing)."""
@@ -153,3 +166,76 @@ class MapContentTrait(MapContent, TraitUpdateListener):
         self.map_data = parsed.map_data
         self.rooms = packet.rooms
         self.layers = decompose_layers(packet)
+
+    def solve_calibration(self) -> GridCalibration | None:
+        """Fit and cache the world<->pixel calibration from the current path.
+
+        Requires both a parsed map and a reasonably dense cleaning path (both
+        arrive as device pushes; the path is only populated during an active
+        clean). Returns the calibration (also stored on :attr:`calibration`), or
+        ``None`` if there is no map or the path is too short/featureless to fit.
+        """
+        if self.layers is None or len(self.path) < _MIN_CALIBRATION_POINTS:
+            return None
+        calibration = solve_calibration(
+            self.layers, [(point.x, point.y) for point in self.path], resolutions=_Q10_RESOLUTIONS
+        )
+        if calibration is not None:
+            self.calibration = calibration
+            self._populate_map_data_overlays(calibration)
+        return calibration
+
+    def _populate_map_data_overlays(self, calibration: GridCalibration) -> None:
+        """Fill MapData.path / vacuum_position in grid-pixel coords.
+
+        The Q10 ``ImageData`` uses an identity ``img_transformation``, so points
+        expressed in grid-pixel space render correctly through the standard
+        ``vacuum_map_parser`` image generator (it applies the flip + scale).
+        """
+        if self.map_data is None:
+            return
+        pixels = [Point(*calibration.world_to_pixel(point.x, point.y)) for point in self.path]
+        self.map_data.path = Path(len(pixels), 1, 0, [pixels])
+        if self.robot_position is not None:
+            px, py = calibration.world_to_pixel(self.robot_position.x, self.robot_position.y)
+            self.map_data.vacuum_position = Point(px, py)
+
+    def render_path_on_map(
+        self,
+        *,
+        line_color: tuple[int, int, int, int] = (235, 64, 52, 255),
+        position_color: tuple[int, int, int, int] = (255, 211, 0, 255),
+    ) -> bytes:
+        """Return the map image (PNG) with the session path + robot position drawn.
+
+        Solves the calibration on demand if not already cached. Raises
+        :class:`RoborockException` if there is no map, or no calibration can be
+        fitted (e.g. no cleaning path captured yet).
+        """
+        if self.image_content is None or self.layers is None:
+            raise RoborockException("No map available; no map has been pushed yet")
+        calibration = self.calibration or self.solve_calibration()
+        if calibration is None:
+            raise RoborockException(
+                "No calibration available; a cleaning path must be captured (pushed) during a clean"
+            )
+
+        scale = self._map_parser.config.map_scale
+        height = self.layers.height
+        base = Image.open(io.BytesIO(self.image_content)).convert("RGBA")
+
+        def to_image(point: Q10Point) -> tuple[float, float]:
+            px, py = calibration.world_to_pixel(point.x, point.y)
+            # The base image is flipped top-to-bottom then upscaled by ``scale``.
+            return (px * scale, (height - 1 - py) * scale)
+
+        draw = ImageDraw.Draw(base)
+        if len(self.path) >= 2:
+            draw.line([to_image(point) for point in self.path], fill=line_color, width=max(1, scale // 2))
+        if self.robot_position is not None:
+            cx, cy = to_image(self.robot_position)
+            radius = scale
+            draw.ellipse([cx - radius, cy - radius, cx + radius, cy + radius], fill=position_color)
+        buffer = io.BytesIO()
+        base.save(buffer, format="PNG")
+        return buffer.getvalue()

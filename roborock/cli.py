@@ -701,6 +701,42 @@ async def q10_position(ctx, device_id: str, include_path: bool):
 
 @session.command()
 @click.option("--device_id", required=True)
+@click.option("--output-file", required=True, help="Path to save the map image with the path drawn.")
+@click.pass_context
+@async_command
+async def q10_map_with_path(ctx, device_id: str, output_file: str):
+    """Render the Q10 map with the current cleaning path + robot position drawn.
+
+    Needs the robot to be actively cleaning (the path/calibration come from the
+    live trace). Fetches the map and the path, solves the world<->pixel
+    calibration, and writes the annotated PNG.
+    """
+    context: RoborockContext = ctx.obj
+    device_manager = await context.get_device_manager()
+    device = await device_manager.get_device(device_id)
+    if device.b01_q10_properties is None:
+        click.echo("Feature not supported by device")
+        return
+    map_trait = device.b01_q10_properties.map
+    await map_trait.refresh()
+    try:
+        await map_trait.refresh_trace()
+    except RoborockException:
+        click.echo("No live path available (the robot only reports its path while cleaning).")
+        return
+    try:
+        image = map_trait.render_path_on_map()
+    except RoborockException as err:
+        click.echo(f"Could not render path on map: {err}")
+        return
+    with open(output_file, "wb") as f:
+        f.write(image)
+    cal = map_trait.calibration
+    click.echo(f"Saved map with {len(map_trait.path)}-point path to {output_file} (calibration: {cal})")
+
+
+@session.command()
+@click.option("--device_id", required=True)
 @click.pass_context
 @async_command
 async def consumables(ctx, device_id: str):
