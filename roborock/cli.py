@@ -574,6 +574,39 @@ async def map_data(ctx, device_id: str, include_path: bool):
 
 @session.command()
 @click.option("--device_id", required=True)
+@click.option("--include_path", is_flag=True, default=False, help="Include all path points in the output.")
+@click.pass_context
+@async_command
+async def q10_position(ctx, device_id: str, include_path: bool):
+    """Get the current Q10 robot position and live cleaning path.
+
+    The Q10 only streams its position/path while it is actively cleaning, so this
+    will report that no live trace is available for an idle/docked robot.
+    """
+    context: RoborockContext = ctx.obj
+    device_manager = await context.get_device_manager()
+    device = await device_manager.get_device(device_id)
+    if device.b01_q10_properties is None:
+        click.echo("Feature not supported by device")
+        return
+    map_trait = device.b01_q10_properties.map
+    try:
+        await map_trait.refresh_trace()
+    except RoborockException:
+        click.echo("No live trace available (the robot only reports position while cleaning).")
+        return
+    position = map_trait.robot_position
+    summary: dict[str, Any] = {
+        "robot_position": {"x": position.x, "y": position.y} if position else None,
+        "path_points": len(map_trait.path),
+    }
+    if include_path:
+        summary["path"] = [[p.x, p.y] for p in map_trait.path]
+    click.echo(dump_json(summary))
+
+
+@session.command()
+@click.option("--device_id", required=True)
 @click.pass_context
 @async_command
 async def consumables(ctx, device_id: str):

@@ -41,14 +41,14 @@ async def stream_decoded_responses(
         yield decoded_dps
 
 
-async def request_map(mqtt_channel: MqttChannel, *, timeout: float | None = None) -> bytes:
-    """Request the current map and return the raw ``MAP_RESPONSE`` payload.
+# MAP_RESPONSE (protocol 301) payloads start with a 2-byte marker identifying the
+# packet kind: a full map (``01 01``) or a live trace/path (``02 01``).
+_MAP_PACKET_MARKER = b"\x01\x01"
+_TRACE_PACKET_MARKER = b"\x02\x01"
 
-    The Q10 does not have a dedicated "get map" command. Instead, requesting the
-    device state (``dpRequestDps``) triggers the robot to push its current map as
-    a ``MAP_RESPONSE`` (protocol 301) message shortly afterwards. This subscribes
-    for that push, sends the trigger, and resolves on the first map message.
-    """
+
+async def _request_map_response(mqtt_channel: MqttChannel, marker: bytes, what: str, timeout: float | None) -> bytes:
+    """Trigger a map push and resolve on the first ``MAP_RESPONSE`` with ``marker``."""
     if timeout is None:
         timeout = _MAP_TIMEOUT
     loop = asyncio.get_running_loop()
@@ -57,7 +57,11 @@ async def request_map(mqtt_channel: MqttChannel, *, timeout: float | None = None
     def on_message(message: RoborockMessage) -> None:
         if future.done():
             return
-        if message.protocol == RoborockMessageProtocol.MAP_RESPONSE and message.payload:
+        if (
+            message.protocol == RoborockMessageProtocol.MAP_RESPONSE
+            and message.payload
+            and message.payload[:2] == marker
+        ):
             future.set_result(message.payload)
 
     unsub = await mqtt_channel.subscribe(on_message)
@@ -65,9 +69,28 @@ async def request_map(mqtt_channel: MqttChannel, *, timeout: float | None = None
         await send_command(mqtt_channel, B01_Q10_DP.REQUEST_DPS, {})
         return await asyncio.wait_for(future, timeout=timeout)
     except TimeoutError as ex:
-        raise RoborockException(f"Timed out waiting for Q10 map after {timeout}s") from ex
+        raise RoborockException(f"Timed out waiting for Q10 {what} after {timeout}s") from ex
     finally:
         unsub()
+
+
+async def request_map(mqtt_channel: MqttChannel, *, timeout: float | None = None) -> bytes:
+    """Request the current map and return the raw ``01 01`` ``MAP_RESPONSE`` payload.
+
+    The Q10 does not have a dedicated "get map" command. Instead, requesting the
+    device state (``dpRequestDps``) triggers the robot to push its current map as
+    a ``MAP_RESPONSE`` (protocol 301) message shortly afterwards.
+    """
+    return await _request_map_response(mqtt_channel, _MAP_PACKET_MARKER, "map", timeout)
+
+
+async def request_trace(mqtt_channel: MqttChannel, *, timeout: float | None = None) -> bytes:
+    """Request the live trace/path and return the raw ``02 01`` ``MAP_RESPONSE`` payload.
+
+    The robot only emits trace packets while it is actively moving (cleaning), so
+    this will time out for an idle/docked robot.
+    """
+    return await _request_map_response(mqtt_channel, _TRACE_PACKET_MARKER, "trace", timeout)
 
 
 async def send_command(

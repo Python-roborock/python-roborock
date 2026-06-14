@@ -12,6 +12,7 @@ from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 from tests.fixtures.channel_fixtures import FakeChannel
 
 FIXTURE = Path("tests/map/testdata/b01_q10_map.bin")
+TRACE_FIXTURE = Path("tests/map/testdata/b01_q10_trace.bin")
 
 
 @pytest.fixture
@@ -65,3 +66,24 @@ def test_parse_without_refresh_raises(fake_channel: FakeChannel) -> None:
     trait = _trait(fake_channel)
     with pytest.raises(RoborockException, match="No map payload available"):
         trait.parse_map_content()
+
+
+async def test_refresh_trace_populates_path_and_position(fake_channel: FakeChannel) -> None:
+    """refresh_trace() parses the live position from a real ss07 trace packet."""
+    fake_channel.response_queue.append(_map_message(TRACE_FIXTURE.read_bytes()))
+
+    trait = _trait(fake_channel)
+    await trait.refresh_trace()
+
+    assert [(p.x, p.y) for p in trait.path] == [(169, 0)]
+    assert trait.robot_position is not None
+    assert (trait.robot_position.x, trait.robot_position.y) == (169, 0)
+
+
+async def test_refresh_trace_ignores_map_packets(fake_channel: FakeChannel, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A map (01 01) push must not satisfy a trace request."""
+    monkeypatch.setattr("roborock.devices.rpc.b01_q10_channel._MAP_TIMEOUT", 0.05)
+    fake_channel.response_queue.append(_map_message(FIXTURE.read_bytes()))  # map, not trace
+    trait = _trait(fake_channel)
+    with pytest.raises(RoborockException, match="Timed out waiting for Q10 trace"):
+        await trait.refresh_trace()

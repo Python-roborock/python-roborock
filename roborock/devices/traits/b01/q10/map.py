@@ -15,11 +15,18 @@ from dataclasses import dataclass, field
 from vacuum_map_parser_base.map_data import MapData
 
 from roborock.data import RoborockBase
-from roborock.devices.rpc.b01_q10_channel import request_map
+from roborock.devices.rpc.b01_q10_channel import request_map, request_trace
 from roborock.devices.traits import Trait
 from roborock.devices.transport.mqtt_channel import MqttChannel
 from roborock.exceptions import RoborockException
-from roborock.map.b01_q10_map_parser import B01Q10MapParser, B01Q10MapParserConfig, Q10Room, parse_map_packet
+from roborock.map.b01_q10_map_parser import (
+    B01Q10MapParser,
+    B01Q10MapParserConfig,
+    Q10Point,
+    Q10Room,
+    parse_map_packet,
+    parse_trace_packet,
+)
 
 _TRUNCATE_LENGTH = 20
 
@@ -36,6 +43,12 @@ class MapContent(RoborockBase):
 
     rooms: list[Q10Room] = field(default_factory=list)
     """Rooms (segments) reported by the device, with ids and names."""
+
+    path: list[Q10Point] = field(default_factory=list)
+    """Latest live cleaning path points (only available while the robot moves)."""
+
+    robot_position: Q10Point | None = None
+    """Current robot position (the most recent trace point), if known."""
 
     raw_api_response: bytes | None = None
     """Raw bytes of the map payload from the device (opaque blob for re-parsing)."""
@@ -85,3 +98,14 @@ class MapContentTrait(MapContent, Trait):
         self.image_content = parsed.image_content
         self.map_data = parsed.map_data
         self.rooms = packet.rooms
+
+    async def refresh_trace(self) -> None:
+        """Fetch the live cleaning path and current robot position.
+
+        The robot only emits trace packets while it is actively moving, so this
+        raises :class:`RoborockException` (timeout) for an idle/docked robot.
+        """
+        raw_payload = await request_trace(self._channel)
+        trace = parse_trace_packet(raw_payload)
+        self.path = trace.points
+        self.robot_position = trace.robot_position

@@ -9,11 +9,15 @@ from roborock.map.b01_q10_map_parser import (
     B01Q10MapParser,
     Q10Room,
     is_map_packet,
+    is_trace_packet,
     lz4_block_decompress,
     parse_map_packet,
+    parse_trace_packet,
 )
 
 FIXTURE = Path(__file__).resolve().parent / "testdata" / "b01_q10_map.bin"
+TRACE_FIXTURE = Path(__file__).resolve().parent / "testdata" / "b01_q10_trace.bin"
+TRACE_MULTI_FIXTURE = Path(__file__).resolve().parent / "testdata" / "b01_q10_trace_multi.bin"
 
 
 def _payload() -> bytes:
@@ -77,6 +81,48 @@ def test_parser_renders_png_and_room_names() -> None:
 def test_parse_rejects_non_map_packet() -> None:
     with pytest.raises(RoborockException, match="not a Q10 map packet"):
         parse_map_packet(b"\x02\x01" + b"\x00" * 40)
+
+
+def test_packet_markers_are_distinct() -> None:
+    map_payload = _payload()
+    trace_payload = TRACE_FIXTURE.read_bytes()
+    assert is_map_packet(map_payload) and not is_trace_packet(map_payload)
+    assert is_trace_packet(trace_payload) and not is_map_packet(trace_payload)
+
+
+def test_parse_trace_packet_real_single_point() -> None:
+    """A real ss07 position packet decodes to a single current-position point."""
+    trace = parse_trace_packet(TRACE_FIXTURE.read_bytes())
+    assert trace.sequence == 9
+    assert [(p.x, p.y) for p in trace.points] == [(169, 0)]
+    assert trace.robot_position is not None
+    assert (trace.robot_position.x, trace.robot_position.y) == (169, 0)
+
+
+def test_parse_trace_packet_multi_point() -> None:
+    """A multi-point packet decodes all points; position is the most recent."""
+    trace = parse_trace_packet(TRACE_MULTI_FIXTURE.read_bytes())
+    assert [(p.x, p.y) for p in trace.points] == [(100, 200), (150, 250), (-50, 300)]
+    # Signed coordinates are supported (negative x).
+    assert trace.robot_position is not None
+    assert (trace.robot_position.x, trace.robot_position.y) == (-50, 300)
+
+
+def test_parse_trace_empty_path_has_no_position() -> None:
+    header_only = b"\x02\x01" + b"\x00" * 8  # 10-byte header, no points
+    trace = parse_trace_packet(header_only)
+    assert trace.points == []
+    assert trace.robot_position is None
+
+
+def test_parse_trace_rejects_non_trace_packet() -> None:
+    with pytest.raises(RoborockException, match="not a Q10 trace packet"):
+        parse_trace_packet(_payload())
+
+
+def test_parse_trace_rejects_misaligned_points() -> None:
+    with pytest.raises(RoborockException, match="not 4-byte"):
+        parse_trace_packet(b"\x02\x01" + b"\x00" * 8 + b"\x01\x02\x03")
 
 
 def test_parse_rejects_bad_layout_length() -> None:

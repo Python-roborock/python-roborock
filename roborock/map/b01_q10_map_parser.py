@@ -73,9 +73,71 @@ class Q10MapPacket:
     rooms: list[Q10Room] = field(default_factory=list)
 
 
+@dataclass
+class Q10Point:
+    """A single point in Q10 map/trace coordinate space."""
+
+    x: int
+    y: int
+
+
+@dataclass
+class Q10TracePacket:
+    """Decoded contents of a Q10 ``02 01`` live position packet.
+
+    The robot only emits these while it is actively moving (cleaning), so an
+    idle/docked robot will not produce them. Observed firmware sends the current
+    position as a single point per packet rather than an accumulated path, so
+    ``points`` typically holds one point.
+    """
+
+    points: list[Q10Point] = field(default_factory=list)
+    sequence: int = 0
+    """Header sequence counter; increments as new position packets are sent."""
+
+    @property
+    def robot_position(self) -> Q10Point | None:
+        """The current robot position (the most recent point)."""
+        return self.points[-1] if self.points else None
+
+
+# Trace packet (``02 01``): a 10-byte header followed by big-endian int16 (x, y)
+# point pairs. Header layout was confirmed against live ss07 captures (the
+# sequence counter is at byte 3; bytes 4-9 are a constant type/flag + padding).
+# NOTE: the format documented by roborock-qseries-map-bridge (18-byte header)
+# did not match this firmware -- this 10-byte layout is what the device sent.
+_TRACE_HEADER_LENGTH = 10
+_TRACE_SEQUENCE_OFFSET = 3
+
+
 def is_map_packet(payload: bytes) -> bool:
     """Return True if the payload is a Q10 full-map (``01 01``) packet."""
     return payload[:2] == MAP_PACKET_MARKER
+
+
+def is_trace_packet(payload: bytes) -> bool:
+    """Return True if the payload is a Q10 live trace (``02 01``) packet."""
+    return payload[:2] == TRACE_PACKET_MARKER
+
+
+def parse_trace_packet(payload: bytes) -> Q10TracePacket:
+    """Parse a Q10 ``02 01`` trace packet into path points + robot position."""
+    if not is_trace_packet(payload):
+        raise RoborockException("Payload is not a Q10 trace packet")
+    if len(payload) < _TRACE_HEADER_LENGTH:
+        raise RoborockException("Q10 trace packet is shorter than its header")
+    body = payload[_TRACE_HEADER_LENGTH:]
+    if len(body) % 4:
+        raise RoborockException("Q10 trace points are not 4-byte (x, y) pairs")
+
+    points = [
+        Q10Point(
+            x=int.from_bytes(body[offset : offset + 2], "big", signed=True),
+            y=int.from_bytes(body[offset + 2 : offset + 4], "big", signed=True),
+        )
+        for offset in range(0, len(body), 4)
+    ]
+    return Q10TracePacket(points=points, sequence=payload[_TRACE_SEQUENCE_OFFSET])
 
 
 def lz4_block_decompress(data: bytes) -> bytes:
