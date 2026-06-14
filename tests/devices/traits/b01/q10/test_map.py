@@ -210,3 +210,19 @@ def test_load_overlays_places_zones_with_calibration() -> None:
     # charger = path origin in pixels: (1, 5-1) = (1, 4)
     assert trait.map_data.charger is not None
     assert (trait.map_data.charger.x, trait.map_data.charger.y) == (1.0, 4.0)
+
+
+def test_load_overlays_partial_update_keeps_existing_zones(fake_channel: FakeChannel) -> None:
+    """A status push without the zone DP (None) must not wipe loaded zones."""
+    trait = _trait(fake_channel)
+    blob = (
+        bytes([1, 1])
+        + bytes([0, 4])
+        + b"".join(int.to_bytes(v & 0xFFFF, 2, "big") for xy in [(0, 0), (4, 0), (4, 4), (0, 4)] for v in xy)
+    )
+    trait.load_overlays(restricted_zone_up=blob)
+    assert len(trait.zones) == 1
+    # A later partial update carrying only the (empty) virtual-wall DP.
+    trait.load_overlays(restricted_zone_up=None, virtual_wall_up=b"\x00")
+    assert len(trait.zones) == 1  # zones preserved
+    assert trait.virtual_walls == []

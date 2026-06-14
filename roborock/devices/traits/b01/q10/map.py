@@ -216,9 +216,15 @@ class MapContentTrait(MapContent, TraitUpdateListener):
         world-coordinate :attr:`zones` / :attr:`virtual_walls`, and -- if a
         calibration is available -- places them onto ``map_data`` as
         ``no_go_areas`` / ``no_mopping_areas`` / ``walls`` in pixel space.
+
+        ``None`` means "data point absent from this update" and leaves the
+        existing value untouched (a partial status push must not wipe overlays).
+        An explicit empty blob does clear them.
         """
-        self.zones = parse_zone_blob(restricted_zone_up)
-        self.virtual_walls = parse_zone_blob(virtual_wall_up)
+        if restricted_zone_up is not None:
+            self.zones = parse_zone_blob(restricted_zone_up)
+        if virtual_wall_up is not None:
+            self.virtual_walls = parse_zone_blob(virtual_wall_up)
         if self.calibration is not None:
             self._place_zones_on_map_data(self.calibration)
 
