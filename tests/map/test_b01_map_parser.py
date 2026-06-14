@@ -11,7 +11,14 @@ from Crypto.Util.Padding import pad
 from PIL import Image
 
 from roborock.exceptions import RoborockException
-from roborock.map.b01_map_parser import B01MapParser, _parse_scmap_payload
+from roborock.map.b01_grid_layers import LAYER_BACKGROUND, LAYER_FLOOR, LAYER_WALL
+from roborock.map.b01_map_parser import (
+    B01MapParser,
+    _parse_scmap_payload,
+    classify_q7_cell,
+    decompose_q7_layers,
+    q7_calibration,
+)
 from roborock.map.proto.b01_scmap_pb2 import RobotMap  # type: ignore[attr-defined]
 from roborock.protocols.b01_q7_protocol import create_map_key, decode_map_payload
 
@@ -124,6 +131,31 @@ def test_b01_scmap_parser_maps_observed_schema_fields() -> None:
     assert parsed.roomDataInfo[0].global_seq == 9
     assert parsed.roomDataInfo[1].roomId == 99
     assert not parsed.roomDataInfo[1].HasField("roomName")
+
+
+def test_classify_q7_cell() -> None:
+    assert classify_q7_cell(0) == LAYER_BACKGROUND
+    assert classify_q7_cell(127) == LAYER_WALL
+    assert classify_q7_cell(128) == LAYER_FLOOR
+
+
+def test_q7_layers_and_calibration_from_fixture() -> None:
+    """Q7 reuses the shared grid decomposition + reads calibration from mapHead."""
+    inflated = gzip.decompress(FIXTURE.read_bytes())
+
+    layers = decompose_q7_layers(inflated)
+    assert set(layers.class_counts) == {LAYER_BACKGROUND, LAYER_WALL, LAYER_FLOOR}
+    assert layers.class_counts[LAYER_FLOOR] > 0
+    assert layers.rooms == []  # Q7 raster has no per-room segmentation
+
+    cal = q7_calibration(inflated)
+    assert cal is not None
+    # mapHead gives minX=-5, minY=-7, resolution=0.05 -> origin from those.
+    assert cal.resolution == pytest.approx(0.05, abs=1e-4)
+    assert cal.origin_x == pytest.approx(5.0 / cal.resolution, abs=1.0)
+    # World origin (0,0) maps inside the grid.
+    px, py = cal.world_to_pixel(0.0, 0.0)
+    assert 0 <= px < layers.width and 0 <= py < layers.height
 
 
 def test_b01_map_parser_rejects_invalid_payload() -> None:
