@@ -61,6 +61,11 @@ class GridLayers:
     rooms: list[RoomLayer]
     classifier: Callable[[int], str]
     class_counts: dict[str, int] = field(default_factory=dict)
+    flip: bool = True
+    """Whether display rendering flips the grid top-to-bottom. Devices whose grid
+    is stored bottom-up (V1/Q7 convention) flip; the Q10 grid is stored top-down,
+    so it does not. Used as the default for the ``render_*`` methods so every
+    layer matches the device's composited map orientation."""
 
     def cell_class(self, value: int) -> str:
         """Classify a single raw cell value into a canonical layer name."""
@@ -72,13 +77,16 @@ class GridLayers:
         color: tuple[int, int, int, int],
         *,
         scale: int = 1,
-        flip: bool = True,
+        flip: bool | None = None,
     ) -> bytes:
         """Render cells matching ``predicate`` as ``color`` over transparency.
 
         ``flip`` applies the same top-to-bottom flip the composited map uses so
-        layers line up pixel-for-pixel; ``scale`` nearest-neighbour upsamples.
+        layers line up pixel-for-pixel (defaults to the device's :attr:`flip`);
+        ``scale`` nearest-neighbour upsamples.
         """
+        if flip is None:
+            flip = self.flip
         transparent = (0, 0, 0, 0)
         px = bytearray()
         for value in self.grid:
@@ -92,12 +100,14 @@ class GridLayers:
         img.save(buf, format=_PNG)
         return buf.getvalue()
 
-    def render_class(self, layer: str, color: tuple[int, int, int, int], *, scale: int = 1, flip: bool = True) -> bytes:
+    def render_class(
+        self, layer: str, color: tuple[int, int, int, int], *, scale: int = 1, flip: bool | None = None
+    ) -> bytes:
         """Render a whole class layer (e.g. ``"wall"``) to an RGBA PNG."""
         return self.render_mask(lambda v: self.classifier(v) == layer, color, scale=scale, flip=flip)
 
     def render_room(
-        self, room_id: int, color: tuple[int, int, int, int], *, scale: int = 1, flip: bool = True
+        self, room_id: int, color: tuple[int, int, int, int], *, scale: int = 1, flip: bool | None = None
     ) -> bytes:
         """Render a single room's pixels to an RGBA PNG."""
         room = next((r for r in self.rooms if r.id == room_id), None)
@@ -196,11 +206,14 @@ def decompose_grid(
     grid: bytes,
     rooms: Iterable[tuple[int, str, int, int]],
     classifier: Callable[[int], str],
+    *,
+    flip: bool = True,
 ) -> GridLayers:
     """Build :class:`GridLayers` from a grid + room records + a classifier.
 
     ``rooms`` items are ``(id, name, pixel_value, pixel_count)`` tuples. Per-room
-    bounding boxes are computed in one pass over the grid.
+    bounding boxes are computed in one pass over the grid. ``flip`` records the
+    device's display orientation (see :attr:`GridLayers.flip`).
     """
     room_meta = list(rooms)
     bboxes: dict[int, list[int]] = {pv: [width, height, -1, -1] for (_, _, pv, _) in room_meta}
@@ -236,4 +249,5 @@ def decompose_grid(
         rooms=room_layers,
         classifier=classifier,
         class_counts=counts,
+        flip=flip,
     )

@@ -20,7 +20,7 @@ https://github.com/v1b3c0d3x3r/roborock-qseries-map-bridge
 
 import colorsys
 import io
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from PIL import Image
 from vacuum_map_parser_base.config.image_config import ImageConfig
@@ -64,7 +64,8 @@ def classify_q10_cell(value: int) -> str:
 def decompose_layers(packet: "Q10MapPacket") -> GridLayers:
     """Split a parsed Q10 map packet into separable grid-pixel layers."""
     rooms = [(room.id, room.name, room.pixel_value, room.pixel_count) for room in packet.rooms]
-    return decompose_grid(packet.width, packet.height, packet.grid, rooms, classify_q10_cell)
+    # The ss07 grid is stored top-down (row 0 = top), so no display flip is applied.
+    return decompose_grid(packet.width, packet.height, packet.grid, rooms, classify_q10_cell, flip=False)
 
 
 MAP_PACKET_MARKER = b"\x01\x01"
@@ -77,8 +78,8 @@ _LAYOUT_COMPRESSED_OFFSET = 29
 _ROOM_RECORD_LENGTH = 47
 _ROOM_NAME_LENGTH_OFFSET = 26
 _MAX_ROOMS = 32
-# Sanity bound for the carpet vector section's vertices-per-polygon field.
-_MAX_CARPET_VERTICES = 16
+# Sanity bound for the erase-zone vector section's vertices-per-polygon field.
+_MAX_ERASE_ZONE_VERTICES = 16
 
 # Grid cell values >= this are walls / borders rather than room segments.
 _WALL_THRESHOLD = 240
@@ -100,10 +101,17 @@ class Q10Room:
 
 
 @dataclass
-class Q10Carpet:
-    """A carpet area (polygon) carried in the map packet, in world coordinates.
+class Q10EraseZone:
+    """A user-drawn "erase" area (polygon) carried in the map packet.
 
-    Includes both user-defined and auto-detected ("self-identifying") carpets.
+    These are the app's *Erase* tool rectangles -- regions the user marked to be
+    removed from the map (e.g. phantom floor the lidar mapped through windows).
+    Coordinates are world units (millimetres), same frame as the path/zones.
+
+    Confirmed by a controlled diff: removing the two erase zones on a live device
+    dropped this section's count from 2 to 0 while the grid and the trailing
+    raster were byte-identical. (Earlier revisions misidentified this section as
+    "carpets"; it is the erase-zone list.)
     """
 
     vertices: list[tuple[int, int]] = field(default_factory=list)
@@ -118,8 +126,8 @@ class Q10MapPacket:
     height: int
     grid: bytes
     rooms: list[Q10Room] = field(default_factory=list)
-    carpets: list[Q10Carpet] = field(default_factory=list)
-    """Carpet areas decoded from the packet tail (world coordinates)."""
+    erase_zones: list[Q10EraseZone] = field(default_factory=list)
+    """Erase areas decoded from the packet tail (world coordinates)."""
 
 
 @dataclass
@@ -309,26 +317,28 @@ def parse_map_packet(payload: bytes) -> Q10MapPacket:
     decoded = lz4_block_decompress(payload[_LAYOUT_COMPRESSED_OFFSET:layout_end])
     height, grid, room_data = _infer_layout(decoded, width)
     rooms = _parse_rooms(room_data, grid)
-    carpets = _parse_carpets(payload[layout_end:])
-    return Q10MapPacket(map_id=map_id, width=width, height=height, grid=grid, rooms=rooms, carpets=carpets)
+    erase_zones = _parse_erase_zones(payload[layout_end:])
+    return Q10MapPacket(map_id=map_id, width=width, height=height, grid=grid, rooms=rooms, erase_zones=erase_zones)
 
 
-def _parse_carpets(tail: bytes) -> list[Q10Carpet]:
-    """Decode carpet areas from the bytes after the compressed grid block.
+def _parse_erase_zones(tail: bytes) -> list[Q10EraseZone]:
+    """Decode erase areas from the bytes after the compressed grid block.
 
     The tail begins with a vector section ``[count: u8][vertices_per: u8]`` then
     ``count`` polygons of ``vertices_per`` int16-BE (x, y) pairs (axis-aligned
-    rectangles in practice). Confirmed on two ss07 devices (R1: 3, RDC: 2). The
-    remaining tail (a run-length raster + signature) is not decoded here.
+    rectangles in practice). Identified by a controlled diff on a live ss07
+    device: deleting the two app *Erase* zones dropped ``count`` 2->0 with the
+    rest of the packet byte-identical. The remaining tail (a run-length raster +
+    signature) is unrelated to erase and is not decoded here.
     """
     if len(tail) < 2:
         return []
     count = tail[0]
     vertices_per = tail[1]
-    if count == 0 or not 1 <= vertices_per <= _MAX_CARPET_VERTICES:
+    if count == 0 or not 1 <= vertices_per <= _MAX_ERASE_ZONE_VERTICES:
         return []
 
-    carpets: list[Q10Carpet] = []
+    erase_zones: list[Q10EraseZone] = []
     offset = 2
     for _ in range(count):
         end = offset + vertices_per * 4
@@ -341,9 +351,24 @@ def _parse_carpets(tail: bytes) -> list[Q10Carpet]:
             )
             for j in range(vertices_per)
         ]
-        carpets.append(Q10Carpet(vertices=vertices))
+        erase_zones.append(Q10EraseZone(vertices=vertices))
         offset = end
-    return carpets
+    return erase_zones
+
+
+def erased_packet(packet: "Q10MapPacket", cells: set[int]) -> "Q10MapPacket":
+    """Return a copy of ``packet`` with ``cells`` (grid indices) set to background.
+
+    Used to apply the app's erase zones: cells inside an erase rectangle are blanked
+    to the background class so they drop out of the rendered map and every layer.
+    """
+    if not cells:
+        return packet
+    grid = bytearray(packet.grid)
+    for cell in cells:
+        if 0 <= cell < len(grid):
+            grid[cell] = _BACKGROUND_VALUE
+    return replace(packet, grid=bytes(grid))
 
 
 @dataclass
@@ -367,7 +392,10 @@ class B01Q10MapParser:
 
     def parse(self, payload: bytes) -> ParsedMapData:
         """Parse a raw Q10 map packet into a rendered PNG + ``MapData``."""
-        packet = parse_map_packet(payload)
+        return self.parsed_from_packet(parse_map_packet(payload))
+
+    def parsed_from_packet(self, packet: Q10MapPacket) -> ParsedMapData:
+        """Render a (possibly erase-modified) packet into a PNG + ``MapData``."""
         image = self._render(packet)
 
         map_data = MapData()
@@ -396,7 +424,8 @@ class B01Q10MapParser:
         for value in packet.grid:
             rgb.extend(palette[value])
         img = Image.frombytes("RGB", (packet.width, packet.height), bytes(rgb))
-        img = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+        # The ss07 grid is stored top-down (row 0 = top of the home), so it is
+        # rendered as-is -- unlike the V1/Q7 convention, no vertical flip.
         scale = self._config.map_scale
         if scale > 1:
             img = img.resize((packet.width * scale, packet.height * scale), resample=Image.Resampling.NEAREST)

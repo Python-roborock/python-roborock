@@ -29,10 +29,11 @@ from roborock.map.b01_grid_layers import GridCalibration, GridLayers, solve_cali
 from roborock.map.b01_q10_map_parser import (
     B01Q10MapParser,
     B01Q10MapParserConfig,
-    Q10Carpet,
+    Q10EraseZone,
     Q10Point,
     Q10Room,
     decompose_layers,
+    erased_packet,
     parse_map_packet,
     parse_trace_packet,
 )
@@ -94,10 +95,10 @@ class MapContent(RoborockBase):
     virtual_walls: list[Q10Zone] = field(default_factory=list)
     """Virtual walls (line segments) in world coordinates."""
 
-    carpets: list[Q10Carpet] = field(default_factory=list)
-    """Carpet areas (user-defined + auto-detected) in world coordinates, decoded
-    from the map packet tail. Placed onto ``map_data.carpet_map`` once a
-    calibration is available."""
+    erase_zones: list[Q10EraseZone] = field(default_factory=list)
+    """Erase areas (the app's *Erase* tool) in world coordinates, decoded from the
+    map packet tail. Once a calibration is available the cells inside them are
+    blanked from the rendered map and every layer (see :meth:`MapContentTrait`)."""
 
     raw_api_response: bytes | None = None
     """Raw bytes of the map payload from the device (opaque blob for re-parsing)."""
@@ -179,9 +180,10 @@ class MapContentTrait(MapContent, TraitUpdateListener):
         self.image_content = parsed.image_content
         self.map_data = parsed.map_data
         self.rooms = packet.rooms
-        self.carpets = packet.carpets
+        self.erase_zones = packet.erase_zones
         self.layers = decompose_layers(packet)
         if self.calibration is not None:
+            self._apply_erase(self.calibration)
             self._place_zones_on_map_data(self.calibration)
 
     def solve_calibration(self) -> GridCalibration | None:
@@ -199,6 +201,7 @@ class MapContentTrait(MapContent, TraitUpdateListener):
         )
         if calibration is not None:
             self.calibration = calibration
+            self._apply_erase(calibration)
             self._populate_map_data_overlays(calibration)
             self._place_zones_on_map_data(calibration)
         return calibration
@@ -253,32 +256,52 @@ class MapContentTrait(MapContent, TraitUpdateListener):
                 walls.append(Wall(p0[0], p0[1], p1[0], p1[1]))
         self.map_data.walls = walls or None
 
-        # Carpets -> carpet_map (set of pixel indices), filling each rectangle's bbox.
-        if self.carpets and self.layers is not None:
-            width, height = self.layers.width, self.layers.height
-            carpet_cells: set[int] = set()
-            for carpet in self.carpets:
-                pixels = [calibration.world_to_pixel(x, y) for x, y in carpet.vertices]
-                xs = [p[0] for p in pixels]
-                ys = [p[1] for p in pixels]
-                x0, x1 = int(min(xs)), int(max(xs))
-                y0, y1 = int(min(ys)), int(max(ys))
-                for py in range(max(0, y0), min(height, y1 + 1)):
-                    for px in range(max(0, x0), min(width, x1 + 1)):
-                        carpet_cells.add(py * width + px)
-            self.map_data.carpet_map = carpet_cells or None
-
         # The robot starts a session at its dock, so the path origin is the charger.
         if self.path:
             cx, cy = calibration.world_to_pixel(self.path[0].x, self.path[0].y)
             self.map_data.charger = Point(cx, cy)
 
+    def _erased_cells(self, calibration: GridCalibration) -> set[int]:
+        """Grid-cell indices covered by the erase zones (axis-aligned bbox fill)."""
+        if not self.erase_zones or self.layers is None:
+            return set()
+        width, height = self.layers.width, self.layers.height
+        cells: set[int] = set()
+        for zone in self.erase_zones:
+            pixels = [calibration.world_to_pixel(x, y) for x, y in zone.vertices]
+            xs = [p[0] for p in pixels]
+            ys = [p[1] for p in pixels]
+            x0, x1 = int(min(xs)), int(max(xs))
+            y0, y1 = int(min(ys)), int(max(ys))
+            for py in range(max(0, y0), min(height, y1 + 1)):
+                for px in range(max(0, x0), min(width, x1 + 1)):
+                    cells.add(py * width + px)
+        return cells
+
+    def _apply_erase(self, calibration: GridCalibration) -> None:
+        """Blank erase-zone cells out of the rendered map, layers, and ``map_data``.
+
+        The erase rectangles are world-coordinate areas the user marked for removal
+        (e.g. phantom floor seen through windows). With a calibration we can place
+        them in pixel space, blank those cells to background, and re-render so the
+        phantom areas disappear -- matching what the app shows.
+        """
+        if self.layers is None or self.raw_api_response is None:
+            return
+        cells = self._erased_cells(calibration)
+        if not cells:
+            return
+        packet = erased_packet(parse_map_packet(self.raw_api_response), cells)
+        parsed = self._map_parser.parsed_from_packet(packet)
+        self.image_content = parsed.image_content
+        self.map_data = parsed.map_data
+        self.layers = decompose_layers(packet)
+
     def _populate_map_data_overlays(self, calibration: GridCalibration) -> None:
         """Fill MapData.path / vacuum_position in grid-pixel coords.
 
-        The Q10 ``ImageData`` uses an identity ``img_transformation``, so points
-        expressed in grid-pixel space render correctly through the standard
-        ``vacuum_map_parser`` image generator (it applies the flip + scale).
+        Points are stored in grid-pixel space (origin top-left), matching the
+        Q10's top-down, un-flipped raster so they line up with the rendered image.
         """
         if self.map_data is None:
             return
@@ -309,26 +332,21 @@ class MapContentTrait(MapContent, TraitUpdateListener):
             )
 
         scale = self._map_parser.config.map_scale
-        height = self.layers.height
         base = Image.open(io.BytesIO(self.image_content)).convert("RGBA")
-
-        def to_image(point: Q10Point) -> tuple[float, float]:
-            px, py = calibration.world_to_pixel(point.x, point.y)
-            # The base image is flipped top-to-bottom then upscaled by ``scale``.
-            return (px * scale, (height - 1 - py) * scale)
-
-        draw = ImageDraw.Draw(base, "RGBA")
 
         def world_to_image(x: float, y: float) -> tuple[float, float]:
             px, py = calibration.world_to_pixel(x, y)
-            return (px * scale, (height - 1 - py) * scale)
+            # The ss07 grid renders top-down (no flip), so grid-pixel (px, py) maps
+            # straight to image space, only upscaled by ``scale``.
+            return (px * scale, py * scale)
 
-        # Carpets (purple, beneath zones).
-        for carpet in self.carpets:
-            if len(carpet.vertices) < 3:
-                continue
-            polygon = [world_to_image(x, y) for x, y in carpet.vertices]
-            draw.polygon(polygon, fill=(150, 90, 220, 60), outline=(120, 60, 190, 200))
+        def to_image(point: Q10Point) -> tuple[float, float]:
+            return world_to_image(point.x, point.y)
+
+        draw = ImageDraw.Draw(base, "RGBA")
+
+        # Erase zones are applied to the raster itself (cells blanked), so they are
+        # not drawn here -- the base image already reflects them.
 
         # No-go (blue) and no-mop (magenta) zones beneath the path.
         for zone in self.zones:

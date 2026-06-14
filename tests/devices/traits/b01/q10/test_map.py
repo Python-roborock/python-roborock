@@ -18,7 +18,7 @@ from roborock.devices.traits.b01.q10 import Q10PropertiesApi, create
 from roborock.devices.traits.b01.q10.map import MapContentTrait
 from roborock.exceptions import RoborockException
 from roborock.map.b01_grid_layers import GridCalibration
-from roborock.map.b01_q10_map_parser import Q10Point
+from roborock.map.b01_q10_map_parser import Q10EraseZone, Q10Point
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 
 FIXTURE = Path("tests/map/testdata/b01_q10_map.bin")
@@ -181,11 +181,13 @@ def test_render_path_on_map_draws_position() -> None:
     # identity-ish calibration: world (x,y) -> pixel (x, 5 - y) in the 8x6 grid.
     trait.calibration = GridCalibration(resolution=1.0, origin_x=0.0, origin_y=5.0, y_sign=1)
     trait.path = [Q10Point(1, 2), Q10Point(3, 2)]
-    trait.robot_position = Q10Point(3, 2)  # -> pixel (3, 3) -> image (12, 8) at scale 4
+    # world (3, 2) -> grid pixel (3, 3); the ss07 grid renders top-down (no flip),
+    # so that maps straight to image (12, 12) at scale 4.
+    trait.robot_position = Q10Point(3, 2)
     png = trait.render_path_on_map(position_color=(255, 211, 0, 255))
     img = Image.open(io.BytesIO(png)).convert("RGBA")
     assert img.size == (8 * 4, 6 * 4)
-    assert img.getpixel((12, 8)) == (255, 211, 0, 255)
+    assert img.getpixel((12, 12)) == (255, 211, 0, 255)
 
 
 def test_load_overlays_places_zones_with_calibration() -> None:
@@ -210,6 +212,43 @@ def test_load_overlays_places_zones_with_calibration() -> None:
     # charger = path origin in pixels: (1, 5-1) = (1, 4)
     assert trait.map_data.charger is not None
     assert (trait.map_data.charger.x, trait.map_data.charger.y) == (1.0, 4.0)
+
+
+async def test_apply_erase_blanks_cells_with_calibration(fake_channel: FakeChannel) -> None:
+    """With a calibration, erase-zone cells are blanked from the layers + image."""
+    fake_channel.response_queue.append(_map_message(FIXTURE.read_bytes()))
+    trait = _trait(fake_channel)
+    await trait.refresh()
+    assert trait.layers is not None
+    before_floor = trait.layers.class_counts.get("floor")
+    before_image = trait.image_content
+    assert before_floor and before_floor > 0
+
+    # identity-ish calibration: world (x, y) -> pixel (x, 5 - y) over the 8x6 grid.
+    trait.calibration = GridCalibration(resolution=1.0, origin_x=0.0, origin_y=5.0, y_sign=1)
+    # A rectangle covering the whole grid in world coords erases every cell.
+    trait.erase_zones = [Q10EraseZone(vertices=[(0, 0), (7, 0), (7, 5), (0, 5)])]
+    trait._apply_erase(trait.calibration)
+
+    assert trait.layers.class_counts.get("floor", 0) == 0  # all floor erased
+    assert trait.image_content != before_image  # re-rendered
+
+
+async def test_apply_erase_partial_rectangle(fake_channel: FakeChannel) -> None:
+    """An erase rectangle only blanks the cells it covers, leaving the rest."""
+    fake_channel.response_queue.append(_map_message(FIXTURE.read_bytes()))
+    trait = _trait(fake_channel)
+    await trait.refresh()
+    assert trait.layers is not None
+    before_floor = trait.layers.class_counts.get("floor", 0)
+
+    trait.calibration = GridCalibration(resolution=1.0, origin_x=0.0, origin_y=5.0, y_sign=1)
+    # Cover only the top two grid rows (pixel y 0..1 -> world y 4..5).
+    trait.erase_zones = [Q10EraseZone(vertices=[(0, 4), (7, 4), (7, 5), (0, 5)])]
+    trait._apply_erase(trait.calibration)
+
+    after_floor = trait.layers.class_counts.get("floor", 0)
+    assert 0 < after_floor < before_floor  # some, not all, floor removed
 
 
 def test_load_overlays_partial_update_keeps_existing_zones(fake_channel: FakeChannel) -> None:
