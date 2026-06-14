@@ -208,7 +208,7 @@ def _infer_layout(decoded: bytes, width: int) -> tuple[int, bytes, bytes]:
     front, so we search for the split that makes the grid rectangular and lines
     up with the marker.
     """
-    for room_count in range(1, _MAX_ROOMS):
+    for room_count in range(0, _MAX_ROOMS + 1):
         room_data_length = 2 + room_count * _ROOM_RECORD_LENGTH
         area = len(decoded) - room_data_length
         if area <= 0 or area % width:

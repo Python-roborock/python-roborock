@@ -26,6 +26,33 @@ def _payload() -> bytes:
     return FIXTURE.read_bytes()
 
 
+def _literal_lz4_block(data: bytes) -> bytes:
+    block = bytearray()
+    literal_length = len(data)
+    if literal_length < 15:
+        block.append(literal_length << 4)
+    else:
+        block.append(0xF0)
+        remaining = literal_length - 15
+        while remaining >= 0xFF:
+            block.append(0xFF)
+            remaining -= 0xFF
+        block.append(remaining)
+    block.extend(data)
+    return bytes(block)
+
+
+def _synthetic_map_payload(width: int, decoded_layout: bytes) -> bytes:
+    compressed = _literal_lz4_block(decoded_layout)
+    payload = bytearray(29)
+    payload[0:2] = b"\x01\x01"
+    payload[2:6] = (0x01020304).to_bytes(4, "big")
+    payload[8:10] = width.to_bytes(2, "little")
+    payload[27:29] = len(compressed).to_bytes(2, "big")
+    payload.extend(compressed)
+    return bytes(payload)
+
+
 def test_lz4_block_roundtrip_all_literals() -> None:
     """A simple all-literals block decodes back to the original bytes."""
     original = bytes(range(60)) * 3
@@ -57,6 +84,16 @@ def test_parse_map_packet() -> None:
     assert packet.map_id == 0x01020304
     assert len(packet.grid) == packet.width * packet.height
     assert [(r.id, r.raw_name) for r in packet.rooms] == [(2, "rr_living_room"), (3, "bedroom")]
+
+
+def test_parse_map_packet_allows_zero_room_metadata() -> None:
+    """A map can be present before the robot has room segmentation records."""
+    grid = bytes([240, 240, 249, 243, 240, 240])
+    packet = parse_map_packet(_synthetic_map_payload(width=3, decoded_layout=grid + b"\x01\x00"))
+    assert packet.width == 3
+    assert packet.height == 2
+    assert packet.grid == grid
+    assert packet.rooms == []
 
 
 def test_room_name_normalization() -> None:
