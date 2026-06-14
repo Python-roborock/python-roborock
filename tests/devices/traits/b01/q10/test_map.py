@@ -190,6 +190,21 @@ def test_render_path_on_map_draws_position() -> None:
     assert img.getpixel((12, 12)) == (255, 211, 0, 255)
 
 
+def test_parse_map_content_preserves_path_overlays_after_calibration() -> None:
+    """Reparsing a calibrated map keeps path and vacuum position on MapData."""
+    trait = _trait_with_map()
+    trait.calibration = GridCalibration(resolution=1.0, origin_x=0.0, origin_y=5.0, y_sign=1)
+    trait.path = [Q10Point(1, 2), Q10Point(3, 2)]
+    trait.robot_position = Q10Point(3, 2)
+
+    trait.parse_map_content()
+
+    assert trait.map_data is not None
+    assert trait.map_data.path is not None
+    assert trait.map_data.vacuum_position is not None
+    assert (trait.map_data.vacuum_position.x, trait.map_data.vacuum_position.y) == (3.0, 3.0)
+
+
 def test_load_overlays_places_zones_with_calibration() -> None:
     """Decoded no-go / no-mop zones become pixel-space MapData areas."""
     trait = _trait_with_map()
@@ -214,11 +229,9 @@ def test_load_overlays_places_zones_with_calibration() -> None:
     assert (trait.map_data.charger.x, trait.map_data.charger.y) == (1.0, 4.0)
 
 
-async def test_apply_erase_blanks_cells_with_calibration(fake_channel: FakeChannel) -> None:
+def test_apply_erase_blanks_cells_with_calibration() -> None:
     """With a calibration, erase-zone cells are blanked from the layers + image."""
-    fake_channel.response_queue.append(_map_message(FIXTURE.read_bytes()))
-    trait = _trait(fake_channel)
-    await trait.refresh()
+    trait = _trait_with_map()
     assert trait.layers is not None
     before_floor = trait.layers.class_counts.get("floor")
     before_image = trait.image_content
@@ -234,11 +247,9 @@ async def test_apply_erase_blanks_cells_with_calibration(fake_channel: FakeChann
     assert trait.image_content != before_image  # re-rendered
 
 
-async def test_apply_erase_partial_rectangle(fake_channel: FakeChannel) -> None:
+def test_apply_erase_partial_rectangle() -> None:
     """An erase rectangle only blanks the cells it covers, leaving the rest."""
-    fake_channel.response_queue.append(_map_message(FIXTURE.read_bytes()))
-    trait = _trait(fake_channel)
-    await trait.refresh()
+    trait = _trait_with_map()
     assert trait.layers is not None
     before_floor = trait.layers.class_counts.get("floor", 0)
 
@@ -251,9 +262,9 @@ async def test_apply_erase_partial_rectangle(fake_channel: FakeChannel) -> None:
     assert 0 < after_floor < before_floor  # some, not all, floor removed
 
 
-def test_load_overlays_partial_update_keeps_existing_zones(fake_channel: FakeChannel) -> None:
+def test_load_overlays_partial_update_keeps_existing_zones() -> None:
     """A status push without the zone DP (None) must not wipe loaded zones."""
-    trait = _trait(fake_channel)
+    trait = MapContentTrait()
     blob = (
         bytes([1, 1])
         + bytes([0, 4])

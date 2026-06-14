@@ -15,7 +15,7 @@ zones, ...) are placed into this same space by the device's calibration.
 import io
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
-from math import ceil, floor
+from math import ceil
 
 from PIL import Image
 
@@ -180,8 +180,8 @@ def solve_calibration(
                 continue  # path wider/taller than the map at this resolution
             pts = list(zip(sx, sy))
             # Slide so every point stays in-bounds: px = px_f + ox in [0, w), py = oy - py_f in [0, h).
-            for ox in range(ceil(-min_sx), floor(w - max_sx)):
-                for oy in range(ceil(max_sy), floor(h + min_sy)):
+            for ox in range(ceil(-min_sx), ceil(w - max_sx)):
+                for oy in range(ceil(max_sy), ceil(h + min_sy)):
                     on_floor = 0
                     blocked = 0
                     for px_f, py_f in pts:

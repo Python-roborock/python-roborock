@@ -184,6 +184,7 @@ class MapContentTrait(MapContent, TraitUpdateListener):
         self.layers = decompose_layers(packet)
         if self.calibration is not None:
             self._apply_erase(self.calibration)
+            self._populate_map_data_overlays(self.calibration)
             self._place_zones_on_map_data(self.calibration)
 
     def solve_calibration(self) -> GridCalibration | None:

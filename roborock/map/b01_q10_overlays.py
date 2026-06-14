@@ -47,7 +47,7 @@ def parse_zone_blob(data: bytes | str | None) -> list[Q10Zone]:
     """Decode a Q10 zone/wall overlay blob into a list of :class:`Q10Zone`.
 
     Accepts the raw bytes or the base64 string straight from the data point.
-    Returns ``[]`` for empty/absent/unparseable blobs (the device sends a single
+    Returns ``[]`` for empty/absent/unparsable blobs (the device sends a single
     ``0x00`` byte when there are none).
     """
     raw = _as_bytes(data)

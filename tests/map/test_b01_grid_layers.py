@@ -146,6 +146,15 @@ def test_solve_calibration_recovers_known_transform() -> None:
     assert (cal.origin_x, cal.origin_y, cal.y_sign) == (3.0, 8.0, 1)
 
 
+def test_solve_calibration_considers_right_edge_fit() -> None:
+    """A valid placement is not skipped when the path bbox reaches the map edge."""
+    layers = decompose_grid(4, 2, bytes([1] * 8), [], lambda v: LAYER_FLOOR)
+    points = [(0.0, 0.0), (3.2, 0.0), (6.4, 0.0)]
+    cal = solve_calibration(layers, points, resolutions=[2.0], y_signs=[1])
+    assert cal is not None
+    assert (cal.origin_x, cal.origin_y, cal.y_sign) == (0.0, 0.0, 1)
+
+
 def test_solve_calibration_returns_none_when_unfittable() -> None:
     layers = _floor_block_layers()
     # Points so far apart no resolution keeps them on the 6x6 floor block.
