@@ -12,6 +12,7 @@ from ..containers import RoborockBase
 from .b01_q10_code_mappings import (
     B01_Q10_DP,
     YXBackType,
+    YXCleanLine,
     YXCleanType,
     YXDeviceCleanTask,
     YXDeviceState,
@@ -51,18 +52,21 @@ class dpSelfIdentifyingCarpet(RoborockBase):
 
 @dataclass
 class dpNetInfo(RoborockBase):
-    wifiName: str
-    ipAdress: str
-    mac: str
-    signal: int
+    # Field names are snake_case so they match the device's camelCase keys once
+    # `RoborockBase.from_dict` decamelizes them (e.g. "wifiName" -> "wifi_name").
+    # The "ip_adress" spelling intentionally mirrors the device's "ipAdress" typo.
+    wifi_name: str | None = None
+    ip_adress: str | None = None
+    mac: str | None = None
+    signal: int | None = None
 
 
 @dataclass
 class dpNotDisturbExpand(RoborockBase):
-    disturb_dust_enable: int
-    disturb_light: int
-    disturb_resume_clean: int
-    disturb_voice: int
+    disturb_dust_enable: int | None = None
+    disturb_light: int | None = None
+    disturb_resume_clean: int | None = None
+    disturb_voice: int | None = None
 
 
 @dataclass
@@ -77,8 +81,9 @@ class dpVoiceVersion(RoborockBase):
 
 @dataclass
 class dpTimeZone(RoborockBase):
-    timeZoneCity: str
-    timeZoneSec: int
+    # snake_case so the decamelized device keys ("timeZoneCity") map correctly.
+    time_zone_city: str | None = None
+    time_zone_sec: int | None = None
 
 
 @dataclass
@@ -108,3 +113,32 @@ class Q10Status(RoborockBase):
     back_type: YXBackType | None = field(default=None, metadata={"dps": B01_Q10_DP.BACK_TYPE})
     cleaning_progress: int | None = field(default=None, metadata={"dps": B01_Q10_DP.CLEAN_PROGRESS})
     fault: int | None = field(default=None, metadata={"dps": B01_Q10_DP.FAULT})
+
+    # Additional settings and state reported in the device's full status dump.
+    volume: int | None = field(default=None, metadata={"dps": B01_Q10_DP.VOLUME})
+    not_disturb: int | None = field(default=None, metadata={"dps": B01_Q10_DP.NOT_DISTURB})
+    not_disturb_expand: dpNotDisturbExpand | None = field(default=None, metadata={"dps": B01_Q10_DP.NOT_DISTURB_EXPAND})
+    child_lock: int | None = field(default=None, metadata={"dps": B01_Q10_DP.CHILD_LOCK})
+    mop_state: int | None = field(default=None, metadata={"dps": B01_Q10_DP.MOP_STATE})
+    auto_boost: int | None = field(default=None, metadata={"dps": B01_Q10_DP.AUTO_BOOST})
+    dust_switch: int | None = field(default=None, metadata={"dps": B01_Q10_DP.DUST_SWITCH})
+    dust_setting: int | None = field(default=None, metadata={"dps": B01_Q10_DP.DUST_SETTING})
+    map_save_switch: bool | None = field(default=None, metadata={"dps": B01_Q10_DP.MAP_SAVE_SWITCH})
+    multi_map_switch: int | None = field(default=None, metadata={"dps": B01_Q10_DP.MULTI_MAP_SWITCH})
+    recent_clean_record: bool | None = field(default=None, metadata={"dps": B01_Q10_DP.RECENT_CLEAN_RECORD})
+    breakpoint_clean: int | None = field(default=None, metadata={"dps": B01_Q10_DP.BREAKPOINT_CLEAN})
+    valley_point_charging: bool | None = field(default=None, metadata={"dps": B01_Q10_DP.VALLEY_POINT_CHARGING})
+    carpet_clean_type: int | None = field(default=None, metadata={"dps": B01_Q10_DP.CARPET_CLEAN_TYPE})
+    clean_line: YXCleanLine | None = field(default=None, metadata={"dps": B01_Q10_DP.CLEAN_LINE})
+    ground_clean: int | None = field(default=None, metadata={"dps": B01_Q10_DP.GROUND_CLEAN})
+    line_laser_obstacle_avoidance: int | None = field(
+        default=None, metadata={"dps": B01_Q10_DP.LINE_LASER_OBSTACLE_AVOIDANCE}
+    )
+    add_clean_state: int | None = field(default=None, metadata={"dps": B01_Q10_DP.ADD_CLEAN_STATE})
+    timer_type: int | None = field(default=None, metadata={"dps": B01_Q10_DP.TIMER_TYPE})
+    user_plan: int | None = field(default=None, metadata={"dps": B01_Q10_DP.USER_PLAN})
+    robot_type: int | None = field(default=None, metadata={"dps": B01_Q10_DP.ROBOT_TYPE})
+    robot_country_code: str | None = field(default=None, metadata={"dps": B01_Q10_DP.ROBOT_COUNTRY_CODE})
+    area_unit: int | None = field(default=None, metadata={"dps": B01_Q10_DP.AREA_UNIT})
+    time_zone: dpTimeZone | None = field(default=None, metadata={"dps": B01_Q10_DP.TIME_ZONE})
+    net_info: dpNetInfo | None = field(default=None, metadata={"dps": B01_Q10_DP.NET_INFO})

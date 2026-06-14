@@ -50,6 +50,7 @@ from roborock.devices.cache import Cache, CacheData
 from roborock.devices.device import RoborockDevice
 from roborock.devices.device_manager import DeviceManager, UserParams, create_device_manager
 from roborock.devices.traits import Trait
+from roborock.devices.traits.b01.q10 import Q10PropertiesApi
 from roborock.devices.traits.b01.q10.vacuum import VacuumTrait
 from roborock.devices.traits.v1 import V1TraitMixin
 from roborock.devices.traits.v1.consumeable import ConsumableAttribute
@@ -439,13 +440,37 @@ async def _display_v1_trait(context: RoborockContext, device_id: str, display_fu
     click.echo(dump_json(trait.as_dict()))
 
 
-async def _q10_vacuum_trait(context: RoborockContext, device_id: str) -> VacuumTrait:
-    """Get VacuumTrait from Q10 device."""
+async def _q10_properties(context: RoborockContext, device_id: str) -> Q10PropertiesApi:
+    """Get the B01 Q10 properties API for a device."""
     device_manager = await context.get_device_manager()
     device = await device_manager.get_device(device_id)
     if device.b01_q10_properties is None:
         raise RoborockUnsupportedFeature("Device does not support B01 Q10 protocol. Is it a Q10?")
-    return device.b01_q10_properties.vacuum
+    return device.b01_q10_properties
+
+
+async def _q10_vacuum_trait(context: RoborockContext, device_id: str) -> VacuumTrait:
+    """Get VacuumTrait from Q10 device."""
+    return (await _q10_properties(context, device_id)).vacuum
+
+
+async def _display_q10_status(context: RoborockContext, device_id: str) -> None:
+    """Refresh and display the status of a B01 Q10 device.
+
+    Unlike V1 devices, the Q10 reports its status asynchronously: ``refresh()``
+    sends a request and the device streams the values back, so we poll the
+    status trait briefly until it has been populated.
+    """
+    properties = await _q10_properties(context, device_id)
+    await properties.refresh()
+    for _ in range(50):
+        if properties.status.status is not None:
+            break
+        await asyncio.sleep(0.1)
+    else:
+        click.echo("Timed out waiting for status from device")
+        return
+    click.echo(dump_json(properties.status.as_dict()))
 
 
 @session.command()
@@ -455,7 +480,14 @@ async def _q10_vacuum_trait(context: RoborockContext, device_id: str) -> VacuumT
 async def status(ctx, device_id: str):
     """Get device status."""
     context: RoborockContext = ctx.obj
-    await _display_v1_trait(context, device_id, lambda v1: v1.status)
+    device_manager = await context.get_device_manager()
+    device = await device_manager.get_device(device_id)
+    if device.v1_properties is not None:
+        await _display_v1_trait(context, device_id, lambda v1: v1.status)
+    elif device.b01_q10_properties is not None:
+        await _display_q10_status(context, device_id)
+    else:
+        click.echo("Feature not supported by device")
 
 
 @session.command()

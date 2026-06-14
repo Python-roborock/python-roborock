@@ -11,11 +11,14 @@ import pytest
 
 from roborock.data.b01_q10.b01_q10_code_mappings import (
     B01_Q10_DP,
+    YXCleanLine,
     YXCleanType,
     YXDeviceCleanTask,
     YXDeviceState,
     YXFanLevel,
+    YXWaterLevel,
 )
+from roborock.data.b01_q10.b01_q10_containers import dpNetInfo, dpNotDisturbExpand, dpTimeZone
 from roborock.devices.traits.b01.q10 import Q10PropertiesApi, create
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 
@@ -155,6 +158,48 @@ async def test_status_trait_refresh(
     assert q10_api.status.cleaning_progress == 100
     assert q10_api.status.fault == 0
     assert q10_api.status.clean_mode == YXCleanType.VAC_AND_MOP
+    assert q10_api.status.water_level == YXWaterLevel.LOW
+
+    # Additional settings/state captured from the full status dump.
+    assert q10_api.status.volume == 74
+    assert q10_api.status.not_disturb == 1
+    assert q10_api.status.child_lock == 0
+    assert q10_api.status.mop_state == 1
+    assert q10_api.status.auto_boost == 0
+    assert q10_api.status.dust_switch == 1
+    assert q10_api.status.map_save_switch is True
+    assert q10_api.status.recent_clean_record is False
+    assert q10_api.status.valley_point_charging is False
+    assert q10_api.status.clean_line == YXCleanLine.FAST
+    assert q10_api.status.line_laser_obstacle_avoidance == 1
+    assert q10_api.status.robot_country_code == "us"
+    assert q10_api.status.robot_type == 1
+
+    # Nested containers are parsed into their dataclasses.
+    assert q10_api.status.not_disturb_expand == dpNotDisturbExpand(
+        disturb_dust_enable=1, disturb_light=1, disturb_resume_clean=1, disturb_voice=1
+    )
+    assert q10_api.status.time_zone == dpTimeZone(time_zone_city="America/Los_Angeles", time_zone_sec=-28800)
+    assert q10_api.status.net_info == dpNetInfo(
+        wifi_name="wifi-network-name", ip_adress="1.1.1.2", mac="99:AA:88:BB:77:CC", signal=-50
+    )
+
+
+async def test_status_trait_vacuum_only_refresh(
+    q10_api: Q10PropertiesApi,
+    message_queue: asyncio.Queue[RoborockMessage],
+) -> None:
+    """Test decoding a full status dump from a vacuum-only (no mop) Q10."""
+    payload = (TEST_DATA_DIR / "dpRequestDps_vacuum_only.json").read_bytes()
+    message_queue.put_nowait(build_message(payload))
+
+    await wait_for_attribute_value(q10_api.status, "battery", 75)
+
+    assert q10_api.status.fan_level == YXFanLevel.MAX_PLUS
+    assert q10_api.status.water_level == YXWaterLevel.MEDIUM
+    assert q10_api.status.clean_mode == YXCleanType.VACUUM
+    assert q10_api.status.recent_clean_record is True
+    assert q10_api.status.total_clean_count == 7
 
 
 def test_status_trait_update_listener(q10_api: Q10PropertiesApi) -> None:
