@@ -1,6 +1,6 @@
 """Settings writer trait for Q10 B01 devices."""
 
-from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
+from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP, YXDeviceDustCollectionFrequency
 
 from .command import CommandTrait
 
@@ -44,3 +44,19 @@ class SettingsTrait:
     async def set_dust_collection(self, enabled: bool) -> None:
         """Enable or disable automatic dust collection at the dock."""
         await self._write(B01_Q10_DP.DUST_SWITCH, int(enabled))
+
+    async def set_dust_collection_frequency(self, frequency: YXDeviceDustCollectionFrequency | int) -> None:
+        """Set how often the dock empties the bin.
+
+        Accepts a :class:`YXDeviceDustCollectionFrequency` (``DAILY`` or after
+        every 15/30/45/60 cleans) or its integer code (0, 15, 30, 45, 60). The
+        value is the interval in cleans, with ``0`` meaning daily.
+        """
+        if isinstance(frequency, YXDeviceDustCollectionFrequency):
+            code = frequency.code
+        else:
+            valid = {member.code for member in YXDeviceDustCollectionFrequency}
+            if frequency not in valid:
+                raise ValueError(f"dust collection frequency must be one of {sorted(valid)}")
+            code = frequency
+        await self._write(B01_Q10_DP.DUST_SETTING, code)

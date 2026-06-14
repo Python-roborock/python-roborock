@@ -43,7 +43,12 @@ from pyshark.packet.packet import Packet  # type: ignore
 
 from roborock import RoborockCommand
 from roborock.data import RoborockBase, UserData
-from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP, YXCleanType, YXFanLevel
+from roborock.data.b01_q10.b01_q10_code_mappings import (
+    B01_Q10_DP,
+    YXCleanType,
+    YXDeviceDustCollectionFrequency,
+    YXFanLevel,
+)
 from roborock.data.code_mappings import SHORT_MODEL_TO_ENUM
 from roborock.device_features import DeviceFeatures
 from roborock.devices.cache import Cache, CacheData
@@ -1387,6 +1392,23 @@ async def q10_set_led(ctx: click.Context, device_id: str, enabled: bool) -> None
 async def q10_set_dust_collection(ctx: click.Context, device_id: str, enabled: bool) -> None:
     """Enable or disable automatic dust collection on a Q10 device."""
     await _q10_set(ctx, device_id, lambda s: s.set_dust_collection(enabled), f"Dust collection set to {enabled}")
+
+
+@session.command()
+@click.option("--device_id", required=True, help="Device ID")
+@click.option(
+    "--frequency",
+    required=True,
+    type=click.Choice([str(m.code) for m in YXDeviceDustCollectionFrequency]),
+    help="Empty after every N cleans (0 = daily).",
+)
+@click.pass_context
+@async_command
+async def q10_set_dust_frequency(ctx: click.Context, device_id: str, frequency: str) -> None:
+    """Set how often the dock empties the bin (0 = daily, else every N cleans)."""
+    code = int(frequency)
+    label = "daily" if code == 0 else f"every {code} cleans"
+    await _q10_set(ctx, device_id, lambda s: s.set_dust_collection_frequency(code), f"Dust frequency set to {label}")
 
 
 @session.command()

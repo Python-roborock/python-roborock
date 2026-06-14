@@ -5,6 +5,7 @@ from typing import cast
 
 import pytest
 
+from roborock.data.b01_q10.b01_q10_code_mappings import YXDeviceDustCollectionFrequency
 from roborock.devices.traits.b01.q10.command import CommandTrait
 from roborock.devices.traits.b01.q10.settings import SettingsTrait
 from roborock.devices.transport.mqtt_channel import MqttChannel
@@ -60,3 +61,26 @@ async def test_boolean_setters_write_common_wrapped_dp(
 async def test_boolean_setter_disable_sends_zero(fake_channel: FakeChannel, settings: SettingsTrait) -> None:
     await settings.set_child_lock(False)
     assert _sent_dps(fake_channel) == {"101": {"47": 0}}
+
+
+@pytest.mark.parametrize(
+    ("frequency", "code"),
+    [
+        (YXDeviceDustCollectionFrequency.DAILY, 0),
+        (YXDeviceDustCollectionFrequency.INTERVAL_30, 30),
+        (60, 60),
+        (15, 15),
+    ],
+)
+async def test_set_dust_frequency_writes_interval_code(
+    fake_channel: FakeChannel, settings: SettingsTrait, frequency: object, code: int
+) -> None:
+    """Frequency (enum or int) writes its interval code under dpDustSetting (50)."""
+    await settings.set_dust_collection_frequency(frequency)  # type: ignore[arg-type]
+    assert _sent_dps(fake_channel) == {"101": {"50": code}}
+
+
+@pytest.mark.parametrize("bad", [1, 7, 90, -1])
+async def test_set_dust_frequency_rejects_invalid(settings: SettingsTrait, bad: int) -> None:
+    with pytest.raises(ValueError, match="dust collection frequency"):
+        await settings.set_dust_collection_frequency(bad)
