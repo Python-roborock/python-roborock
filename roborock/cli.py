@@ -589,6 +589,59 @@ async def map_image(ctx, device_id: str, output_file: str):
 
 @session.command()
 @click.option("--device_id", required=True)
+@click.option("--output-dir", default=None, help="If set, write one transparent PNG per layer here.")
+@click.pass_context
+@async_command
+async def q10_map_layers(ctx, device_id: str, output_dir: str | None):
+    """List the Q10 map's separable layers (background/wall/floor/per-room).
+
+    With --output-dir, also exports each layer as a transparent PNG that can be
+    stacked in a frontend (background, then floor, then walls, then each room).
+    """
+    import os
+
+    context: RoborockContext = ctx.obj
+    device_manager = await context.get_device_manager()
+    device = await device_manager.get_device(device_id)
+    if device.b01_q10_properties is None:
+        click.echo("Feature not supported by device")
+        return
+    map_trait = device.b01_q10_properties.map
+    await map_trait.refresh()
+    layers = map_trait.layers
+    if layers is None:
+        click.echo("No map layers available.")
+        return
+
+    summary = {
+        "size": {"width": layers.width, "height": layers.height},
+        "class_counts": layers.class_counts,
+        "rooms": [
+            {"id": r.id, "name": r.name, "pixel_count": r.pixel_count, "bbox": list(r.bbox)} for r in layers.rooms
+        ],
+    }
+    click.echo(dump_json(summary))
+
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+        exports = {
+            "background": layers.render_class("background", (210, 210, 215, 255), scale=2),
+            "floor": layers.render_class("floor", (70, 170, 95, 200), scale=2),
+            "wall": layers.render_class("wall", (20, 20, 25, 255), scale=2),
+        }
+        for name, png in exports.items():
+            with open(os.path.join(output_dir, f"layer_{name}.png"), "wb") as f:
+                f.write(png)
+        for room in layers.rooms:
+            png = layers.render_room(room.id, (90, 140, 220, 200), scale=2)
+            safe = "".join(c if c.isalnum() else "_" for c in room.name) or f"room{room.id}"
+            with open(os.path.join(output_dir, f"room_{room.id}_{safe}.png"), "wb") as f:
+                f.write(png)
+        click.echo(f"Wrote {3 + len(layers.rooms)} layer PNGs to {output_dir}")
+
+
+@session.command()
+@click.option("--device_id", required=True)
 @click.option("--include_path", is_flag=True, default=False, help="Include path data in the output.")
 @click.pass_context
 @async_command

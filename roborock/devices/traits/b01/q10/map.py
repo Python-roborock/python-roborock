@@ -23,11 +23,13 @@ from vacuum_map_parser_base.map_data import MapData
 from roborock.data import RoborockBase
 from roborock.devices.traits.common import TraitUpdateListener
 from roborock.exceptions import RoborockException
+from roborock.map.b01_grid_layers import GridLayers
 from roborock.map.b01_q10_map_parser import (
     B01Q10MapParser,
     B01Q10MapParserConfig,
     Q10Point,
     Q10Room,
+    decompose_layers,
     parse_map_packet,
     parse_trace_packet,
 )
@@ -55,6 +57,10 @@ class MapContent(RoborockBase):
 
     rooms: list[Q10Room] = field(default_factory=list)
     """Rooms (segments) reported by the device, with ids and names."""
+
+    layers: GridLayers | None = None
+    """Separable map layers (background / wall / floor / per-room) in grid-pixel
+    space, each renderable to a transparent PNG for frontend compositing."""
 
     path: list[Q10Point] = field(default_factory=list)
     """Full path of the current cleaning session (oldest point first).
@@ -146,3 +152,4 @@ class MapContentTrait(MapContent, TraitUpdateListener):
         self.image_content = parsed.image_content
         self.map_data = parsed.map_data
         self.rooms = packet.rooms
+        self.layers = decompose_layers(packet)

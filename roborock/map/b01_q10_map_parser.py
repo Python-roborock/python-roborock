@@ -28,9 +28,44 @@ from vacuum_map_parser_base.map_data import ImageData, MapData
 
 from roborock.exceptions import RoborockException
 
+from .b01_grid_layers import (
+    LAYER_BACKGROUND,
+    LAYER_FLOOR,
+    LAYER_UNKNOWN,
+    LAYER_WALL,
+    GridLayers,
+    decompose_grid,
+)
 from .map_parser import ParsedMapData
 
 _MAP_FILE_FORMAT = "PNG"
+
+# Semantic raster classes, confirmed against real ss07 captures (rendered and
+# eyeballed): 243 is the background outside the home (~half the grid), 240 is
+# scanned floor not yet assigned to a room, other values >= 240 are walls, and
+# 0 < value < 240 are per-room floor cells (value == room_id * 4).
+_BACKGROUND_VALUE = 243
+_UNSEGMENTED_FLOOR_VALUE = 240
+
+
+def classify_q10_cell(value: int) -> str:
+    """Map a Q10 grid cell value to a canonical layer class."""
+    if value == 0:
+        return LAYER_UNKNOWN
+    if value == _BACKGROUND_VALUE:
+        return LAYER_BACKGROUND
+    if value == _UNSEGMENTED_FLOOR_VALUE:
+        return LAYER_FLOOR
+    if value >= _WALL_THRESHOLD:
+        return LAYER_WALL
+    return LAYER_FLOOR
+
+
+def decompose_layers(packet: "Q10MapPacket") -> GridLayers:
+    """Split a parsed Q10 map packet into separable grid-pixel layers."""
+    rooms = [(room.id, room.name, room.pixel_value, room.pixel_count) for room in packet.rooms]
+    return decompose_grid(packet.width, packet.height, packet.grid, rooms, classify_q10_cell)
+
 
 MAP_PACKET_MARKER = b"\x01\x01"
 TRACE_PACKET_MARKER = b"\x02\x01"
