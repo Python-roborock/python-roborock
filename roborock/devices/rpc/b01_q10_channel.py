@@ -1,5 +1,6 @@
 """Thin wrapper around the MQTT channel for Roborock B01 Q10 devices."""
 
+import asyncio
 import logging
 from collections.abc import AsyncGenerator
 from typing import Any
@@ -12,8 +13,14 @@ from roborock.protocols.b01_q10_protocol import (
     decode_rpc_response,
     encode_mqtt_payload,
 )
+from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 
 _LOGGER = logging.getLogger(__name__)
+
+# Requesting the device state (dpRequestDps) also makes the robot push its current
+# map as a separate MAP_RESPONSE message a few seconds later. Q10 firmware throttles
+# these pushes (~60-70s between maps), so callers should not poll tightly.
+_MAP_TIMEOUT = 20.0
 
 
 async def stream_decoded_responses(
@@ -32,6 +39,35 @@ async def stream_decoded_responses(
             )
             continue
         yield decoded_dps
+
+
+async def request_map(mqtt_channel: MqttChannel, *, timeout: float | None = None) -> bytes:
+    """Request the current map and return the raw ``MAP_RESPONSE`` payload.
+
+    The Q10 does not have a dedicated "get map" command. Instead, requesting the
+    device state (``dpRequestDps``) triggers the robot to push its current map as
+    a ``MAP_RESPONSE`` (protocol 301) message shortly afterwards. This subscribes
+    for that push, sends the trigger, and resolves on the first map message.
+    """
+    if timeout is None:
+        timeout = _MAP_TIMEOUT
+    loop = asyncio.get_running_loop()
+    future: asyncio.Future[bytes] = loop.create_future()
+
+    def on_message(message: RoborockMessage) -> None:
+        if future.done():
+            return
+        if message.protocol == RoborockMessageProtocol.MAP_RESPONSE and message.payload:
+            future.set_result(message.payload)
+
+    unsub = await mqtt_channel.subscribe(on_message)
+    try:
+        await send_command(mqtt_channel, B01_Q10_DP.REQUEST_DPS, {})
+        return await asyncio.wait_for(future, timeout=timeout)
+    except TimeoutError as ex:
+        raise RoborockException(f"Timed out waiting for Q10 map after {timeout}s") from ex
+    finally:
+        unsub()
 
 
 async def send_command(

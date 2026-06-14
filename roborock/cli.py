@@ -529,10 +529,18 @@ async def maps(ctx, device_id: str):
 async def map_image(ctx, device_id: str, output_file: str):
     """Get device map image and save it to a file."""
     context: RoborockContext = ctx.obj
-    trait: MapContentTrait = await _v1_trait(context, device_id, lambda v1: v1.map_content)
-    if trait.image_content:
+    device_manager = await context.get_device_manager()
+    device = await device_manager.get_device(device_id)
+    if device.b01_q10_properties is not None:
+        map_trait = device.b01_q10_properties.map
+        await map_trait.refresh()
+        image_content = map_trait.image_content
+    else:
+        v1_trait: MapContentTrait = await _v1_trait(context, device_id, lambda v1: v1.map_content)
+        image_content = v1_trait.image_content
+    if image_content:
         with open(output_file, "wb") as f:
-            f.write(trait.image_content)
+            f.write(image_content)
         click.echo(f"Map image saved to {output_file}")
     else:
         click.echo("No map image content available.")
@@ -705,7 +713,14 @@ async def set_child_lock(ctx, device_id: str, enabled: bool):
 async def rooms(ctx, device_id: str):
     """Get device room mapping info."""
     context: RoborockContext = ctx.obj
-    await _display_v1_trait(context, device_id, lambda v1: v1.rooms)
+    device_manager = await context.get_device_manager()
+    device = await device_manager.get_device(device_id)
+    if device.b01_q10_properties is not None:
+        map_trait = device.b01_q10_properties.map
+        await map_trait.refresh()
+        click.echo(dump_json({room.id: room.name for room in map_trait.rooms}))
+    else:
+        await _display_v1_trait(context, device_id, lambda v1: v1.rooms)
 
 
 @session.command()
