@@ -127,13 +127,15 @@ class Q10Status(RoborockBase):
     # Whether a mop module is attached, and whether "clean along floor direction" is on.
     mop_state: bool | None = field(default=None, metadata={"dps": B01_Q10_DP.MOP_STATE})
     ground_clean: bool | None = field(default=None, metadata={"dps": B01_Q10_DP.GROUND_CLEAN})
+    # True while an "add area" / re-clean (the app's draw-a-rectangle "re cleaning")
+    # request is in progress; pulses back to False once the robot has the area.
+    add_clean_state: bool | None = field(default=None, metadata={"dps": B01_Q10_DP.ADD_CLEAN_STATE})
     robot_country_code: str | None = field(default=None, metadata={"dps": B01_Q10_DP.ROBOT_COUNTRY_CODE})
     time_zone: dpTimeZone | None = field(default=None, metadata={"dps": B01_Q10_DP.TIME_ZONE})
 
     # TODO(#846): value mappings for these ints are not yet decoded (no app
     # control found / internal / constant); keep as int until reverse-engineered.
     breakpoint_clean: int | None = field(default=None, metadata={"dps": B01_Q10_DP.BREAKPOINT_CLEAN})
-    add_clean_state: int | None = field(default=None, metadata={"dps": B01_Q10_DP.ADD_CLEAN_STATE})
     timer_type: int | None = field(default=None, metadata={"dps": B01_Q10_DP.TIMER_TYPE})
     user_plan: int | None = field(default=None, metadata={"dps": B01_Q10_DP.USER_PLAN})
     robot_type: int | None = field(default=None, metadata={"dps": B01_Q10_DP.ROBOT_TYPE})
