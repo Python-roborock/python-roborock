@@ -1331,6 +1331,23 @@ async def q10_vacuum_dock(ctx: click.Context, device_id: str) -> None:
         click.echo(f"Error: {e}")
 
 
+@session.command()
+@click.option("--device_id", required=True, help="Device ID")
+@click.pass_context
+@async_command
+async def q10_vacuum_spot(ctx: click.Context, device_id: str) -> None:
+    """Start a spot / part clean on a Q10 device."""
+    context: RoborockContext = ctx.obj
+    try:
+        trait = await _q10_vacuum_trait(context, device_id)
+        await trait.spot_clean()
+        click.echo("Starting spot clean...")
+    except RoborockUnsupportedFeature:
+        click.echo("Device does not support B01 Q10 protocol. Is it a Q10?")
+    except RoborockException as e:
+        click.echo(f"Error: {e}")
+
+
 async def _q10_set(ctx: click.Context, device_id: str, apply: Callable[[Any], Any], message: str) -> None:
     """Run a Q10 settings write and report the result."""
     context: RoborockContext = ctx.obj
@@ -1428,9 +1445,7 @@ async def q10_set_dust_frequency(ctx: click.Context, device_id: str, frequency: 
     """Set how often the dock empties the bin (0 = daily, else every N cleans)."""
     freq = YXDeviceDustCollectionFrequency.from_code(int(frequency))
     label = "daily" if freq.code == 0 else f"every {freq.code} cleans"
-    await _q10_set(
-        ctx, device_id, lambda p: p.dust_collection.set_frequency(freq), f"Dust frequency set to {label}"
-    )
+    await _q10_set(ctx, device_id, lambda p: p.dust_collection.set_frequency(freq), f"Dust frequency set to {label}")
 
 
 @session.command()
