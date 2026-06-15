@@ -23,16 +23,37 @@ class VacuumTrait:
     async def start_clean(self) -> None:
         """Start a whole-home clean.
 
-        The ``dpStartClean`` (201) command takes a bare integer task code:
-        ``1`` = whole-home, ``2`` = segment/room, ``3`` = zone, ``4`` = build map,
-        ``5`` = spot. Whole-home and spot take no extra parameters; segment and
-        zone need a room/zone selection whose payload shape is not yet known, so
-        only whole-home (here) and spot (:meth:`spot_clean`) are exposed.
+        The ``dpStartClean`` (201) command selects a task by code: ``1`` =
+        whole-home, ``2`` = segment/room (see :meth:`clean_segments`), ``3`` =
+        zone, ``4`` = build map, ``5`` = spot. Whole-home and spot accept the
+        bare integer code; segment cleaning needs a room selection (an object
+        payload) instead.
 
         Verified live against ss07 hardware: ``{"dps": {"201": 1}}`` starts a
         whole-home clean (clean_task_type -> 1).
         """
         await self._command.send(command=B01_Q10_DP.START_CLEAN, params=1)
+
+    async def clean_segments(self, segment_ids: list[int]) -> None:
+        """Start a room / segment clean for the given segment (room) ids.
+
+        The ids are the same room ids the device reports on its map (see the Q10
+        ``MapContentTrait`` -- ``map.rooms``, each with an ``id``).
+
+        Unlike whole-home and spot, ``dpStartClean`` (201) carries the room
+        selection as an object: ``{"cmd": 2, "clean_paramters": [<id>, ...]}``,
+        where ``cmd`` ``2`` is the segment-clean task code. ``clean_paramters``
+        intentionally mirrors the device's misspelling of "parameters" -- the
+        firmware only accepts that exact key.
+
+        Verified live against ss07 hardware: sending
+        ``{"dps": {"201": {"cmd": 2, "clean_paramters": [9]}}}`` starts cleaning
+        room 9 (clean_task_type -> 2 / electoral). Captured from the official app.
+        """
+        await self._command.send(
+            command=B01_Q10_DP.START_CLEAN,
+            params={"cmd": 2, "clean_paramters": segment_ids},
+        )
 
     async def spot_clean(self) -> None:
         """Start a spot / part clean around the robot's current position.

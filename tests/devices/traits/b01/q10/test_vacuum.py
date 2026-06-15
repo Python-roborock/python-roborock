@@ -30,6 +30,8 @@ def vacuumm_fixture(q10_api: Q10PropertiesApi) -> VacuumTrait:
     [
         # Payloads verified live against ss07 hardware.
         (lambda x: x.start_clean(), {"201": 1}),
+        (lambda x: x.clean_segments([9]), {"201": {"cmd": 2, "clean_paramters": [9]}}),
+        (lambda x: x.clean_segments([1, 2]), {"201": {"cmd": 2, "clean_paramters": [1, 2]}}),
         (lambda x: x.spot_clean(), {"201": 5}),
         (lambda x: x.pause_clean(), {"204": 0}),
         (lambda x: x.resume_clean(), {"205": 0}),
