@@ -4,9 +4,11 @@ import asyncio
 import logging
 
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
-from roborock.devices.rpc.b01_q10_channel import stream_decoded_responses
 from roborock.devices.traits import Trait
 from roborock.devices.transport.mqtt_channel import MqttChannel
+from roborock.exceptions import RoborockException
+from roborock.protocols.b01_q10_protocol import decode_rpc_response
+from roborock.roborock_message import RoborockMessage
 
 from .command import CommandTrait
 from .map import MapContentTrait
@@ -47,7 +49,7 @@ class Q10PropertiesApi(Trait):
         self.vacuum = VacuumTrait(self.command)
         self.remote = RemoteTrait(self.command)
         self.status = StatusTrait()
-        self.map = MapContentTrait(channel)
+        self.map = MapContentTrait()
         self._subscribe_task: asyncio.Task[None] | None = None
 
     async def start(self) -> None:
@@ -71,14 +73,32 @@ class Q10PropertiesApi(Trait):
         await self.command.send(B01_Q10_DP.REQUEST_DPS, params={})
 
     async def _subscribe_loop(self) -> None:
-        """Persistent loop to listen for status updates."""
-        async for decoded_dps in stream_decoded_responses(self._channel):
-            _LOGGER.debug("Received Q10 status update: %s", decoded_dps)
+        """Persistent loop dispatching pushed messages to the read-model traits."""
+        async for message in self._channel.subscribe_stream():
+            self._handle_message(message)
 
-            # Notify all traits about a new message and each trait will
-            # only update what fields that it is responsible for.
-            # More traits can be added here below.
-            self.status.update_from_dps(decoded_dps)
+    def _handle_message(self, message: RoborockMessage) -> None:
+        """Route a single pushed message to the trait responsible for it.
+
+        Map/trace pushes arrive as protocol-301 ``MAP_RESPONSE`` messages (not
+        DPS), so they are handled separately from the status DPS stream. The Q10
+        is entirely push-driven: there is no synchronous get-map request, the
+        device just publishes its current map (a ``dpRequestDps`` nudges it to).
+        """
+        if self.map.update_from_map_response(message):
+            return
+
+        try:
+            decoded_dps = decode_rpc_response(message)
+        except RoborockException as ex:
+            _LOGGER.debug("Failed to decode Q10 RPC response: %s: %s", message, ex)
+            return
+
+        _LOGGER.debug("Received Q10 status update: %s", decoded_dps)
+        # Notify all traits about a new message and each trait will
+        # only update what fields that it is responsible for.
+        # More traits can be added here below.
+        self.status.update_from_dps(decoded_dps)
 
 
 def create(channel: MqttChannel) -> Q10PropertiesApi:

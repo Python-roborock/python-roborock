@@ -1,23 +1,27 @@
 """Map content trait for B01 Q10 devices.
 
-This mirrors the v1 / Q7 ``MapContentTrait`` contract:
-- ``refresh()`` performs I/O and populates cached fields.
-- ``parse_map_content()`` reparses cached raw bytes without I/O.
-- ``image_content``, ``map_data``, ``rooms`` and ``raw_api_response`` are readable.
+Unlike the v1 / Q7 maps, the Q10 has no synchronous "get map" command, so this
+trait is purely push-driven and mirrors the Q10 ``StatusTrait`` contract:
+
+- The device pushes its current map/path as protocol-301 ``MAP_RESPONSE``
+  messages (a ``dpRequestDps`` nudges it to do so). The ``Q10PropertiesApi``
+  subscribe loop routes those messages to :meth:`MapContentTrait.update_from_map_response`.
+- ``update_from_map_response`` parses the payload, updates the cached fields and
+  notifies update listeners (register via :meth:`add_update_listener`).
+- ``parse_map_content()`` reparses the cached raw bytes without I/O.
+- ``image_content``, ``map_data``, ``rooms``, ``path``, ``robot_position`` and
+  ``raw_api_response`` are readable and reflect the most recently pushed map.
 
 Unlike the Q7, the Q10 map payload is unencrypted, so no map key is required.
-The raw payload is retrieved by :func:`request_map`, which triggers the device
-to push its current map.
 """
 
+import logging
 from dataclasses import dataclass, field
 
 from vacuum_map_parser_base.map_data import MapData
 
 from roborock.data import RoborockBase
-from roborock.devices.rpc.b01_q10_channel import request_map, request_trace
-from roborock.devices.traits import Trait
-from roborock.devices.transport.mqtt_channel import MqttChannel
+from roborock.devices.traits.common import TraitUpdateListener
 from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
     B01Q10MapParser,
@@ -27,8 +31,16 @@ from roborock.map.b01_q10_map_parser import (
     parse_map_packet,
     parse_trace_packet,
 )
+from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
+
+_LOGGER = logging.getLogger(__name__)
 
 _TRUNCATE_LENGTH = 20
+
+# MAP_RESPONSE (protocol 301) payloads start with a 2-byte marker identifying the
+# packet kind: a full map (``01 01``) or a live trace/path (``02 01``).
+_MAP_PACKET_MARKER = b"\x01\x01"
+_TRACE_PACKET_MARKER = b"\x02\x01"
 
 
 @dataclass
@@ -64,29 +76,61 @@ class MapContent(RoborockBase):
         return f"MapContent(image_content={img!r}, rooms={self.rooms!r})"
 
 
-class MapContentTrait(MapContent, Trait):
-    """Trait for fetching parsed map content for Q10 devices."""
+class MapContentTrait(MapContent, TraitUpdateListener):
+    """Trait holding the most recently pushed parsed map content for Q10 devices.
+
+    The Q10 has no synchronous get-map request; the device pushes map and trace
+    packets, which the ``Q10PropertiesApi`` subscribe loop feeds into
+    :meth:`update_from_map_response`. Consumers read the cached fields and/or
+    register a callback with :meth:`add_update_listener` to be notified when new
+    map content arrives.
+    """
 
     def __init__(
         self,
-        channel: MqttChannel,
         *,
         map_parser_config: B01Q10MapParserConfig | None = None,
     ) -> None:
         super().__init__()
-        self._channel = channel
+        TraitUpdateListener.__init__(self, logger=_LOGGER)
         self._map_parser = B01Q10MapParser(map_parser_config)
 
-    async def refresh(self) -> None:
-        """Fetch, decode, and parse the current map payload."""
-        raw_payload = await request_map(self._channel)
-        self.raw_api_response = raw_payload
-        self.parse_map_content()
+    def update_from_map_response(self, message: RoborockMessage) -> bool:
+        """Update cached map/trace state from a pushed ``MAP_RESPONSE`` message.
+
+        Returns ``True`` if the message was a recognized Q10 map (``01 01``) or
+        trace (``02 01``) packet (so the caller can stop processing it), and
+        ``False`` otherwise. Update listeners are notified only when a packet is
+        parsed successfully.
+        """
+        if message.protocol != RoborockMessageProtocol.MAP_RESPONSE or not message.payload:
+            return False
+        marker = message.payload[:2]
+        if marker == _MAP_PACKET_MARKER:
+            self.raw_api_response = message.payload
+            try:
+                self.parse_map_content()
+            except RoborockException as ex:
+                _LOGGER.debug("Failed to parse Q10 map packet: %s", ex)
+                return True
+            self._notify_update()
+            return True
+        if marker == _TRACE_PACKET_MARKER:
+            try:
+                trace = parse_trace_packet(message.payload)
+            except RoborockException as ex:
+                _LOGGER.debug("Failed to parse Q10 trace packet: %s", ex)
+                return True
+            self.path = trace.points
+            self.robot_position = trace.robot_position
+            self._notify_update()
+            return True
+        return False
 
     def parse_map_content(self) -> None:
         """Reparse the cached raw map payload without performing any I/O."""
         if self.raw_api_response is None:
-            raise RoborockException("No map payload available; call refresh() first")
+            raise RoborockException("No map payload available; no map has been pushed yet")
 
         try:
             parsed = self._map_parser.parse(self.raw_api_response)
@@ -102,18 +146,3 @@ class MapContentTrait(MapContent, Trait):
         self.image_content = parsed.image_content
         self.map_data = parsed.map_data
         self.rooms = packet.rooms
-
-    async def refresh_trace(self) -> None:
-        """Fetch the current session's cleaning path and robot position.
-
-        Populates :attr:`path` with the full trajectory of the active cleaning
-        session (the robot accumulates it, so the whole path is returned even
-        when we connect mid-session) and :attr:`robot_position` with the most
-        recent point. The robot only emits trace packets while a session is
-        active, so this raises :class:`RoborockException` (timeout) for an
-        idle/docked robot.
-        """
-        raw_payload = await request_trace(self._channel)
-        trace = parse_trace_packet(raw_payload)
-        self.path = trace.points
-        self.robot_position = trace.robot_position

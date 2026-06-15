@@ -50,6 +50,7 @@ from roborock.devices.cache import Cache, CacheData
 from roborock.devices.device import RoborockDevice
 from roborock.devices.device_manager import DeviceManager, UserParams, create_device_manager
 from roborock.devices.traits import Trait
+from roborock.devices.traits.b01.q10 import Q10PropertiesApi
 from roborock.devices.traits.b01.q10.vacuum import VacuumTrait
 from roborock.devices.traits.v1 import V1TraitMixin
 from roborock.devices.traits.v1.consumeable import ConsumableAttribute
@@ -521,6 +522,46 @@ async def maps(ctx, device_id: str):
     await _display_v1_trait(context, device_id, lambda v1: v1.maps)
 
 
+# The Q10 pushes its map ~9s after a dpRequestDps; firmware throttles pushes to
+# ~once per 60-70s, so a single request is answered quickly but rapid re-requests
+# may not be. This bounds how long a one-shot CLI command waits for that push.
+_Q10_MAP_PUSH_TIMEOUT = 30.0
+
+
+async def _await_q10_map_push(
+    properties: Q10PropertiesApi,
+    predicate: Callable[[], bool],
+    *,
+    timeout: float = _Q10_MAP_PUSH_TIMEOUT,
+) -> bool:
+    """Nudge a Q10 to push its map/trace and wait until ``predicate`` holds.
+
+    The Q10 map API is entirely push-driven: there is no synchronous get-map
+    request. A ``dpRequestDps`` causes the device to publish a ``MAP_RESPONSE``,
+    which the device's subscribe loop feeds into the map trait. Here we register
+    an update listener, send the request, and wait for the pushed data to satisfy
+    ``predicate``. Returns whether it did within ``timeout``.
+    """
+    if predicate():
+        return True
+    loop = asyncio.get_running_loop()
+    updated: asyncio.Future[None] = loop.create_future()
+
+    def on_update() -> None:
+        if predicate() and not updated.done():
+            updated.set_result(None)
+
+    unsub = properties.map.add_update_listener(on_update)
+    try:
+        await properties.refresh()
+        await asyncio.wait_for(updated, timeout=timeout)
+        return True
+    except TimeoutError:
+        return False
+    finally:
+        unsub()
+
+
 @session.command()
 @click.option("--device_id", required=True)
 @click.option("--output-file", required=True, help="Path to save the map image.")
@@ -532,9 +573,9 @@ async def map_image(ctx, device_id: str, output_file: str):
     device_manager = await context.get_device_manager()
     device = await device_manager.get_device(device_id)
     if device.b01_q10_properties is not None:
-        map_trait = device.b01_q10_properties.map
-        await map_trait.refresh()
-        image_content = map_trait.image_content
+        properties = device.b01_q10_properties
+        await _await_q10_map_push(properties, lambda: properties.map.image_content is not None)
+        image_content = properties.map.image_content
     else:
         v1_trait: MapContentTrait = await _v1_trait(context, device_id, lambda v1: v1.map_content)
         image_content = v1_trait.image_content
@@ -589,12 +630,12 @@ async def q10_position(ctx, device_id: str, include_path: bool):
     if device.b01_q10_properties is None:
         click.echo("Feature not supported by device")
         return
-    map_trait = device.b01_q10_properties.map
-    try:
-        await map_trait.refresh_trace()
-    except RoborockException:
+    properties = device.b01_q10_properties
+    got_trace = await _await_q10_map_push(properties, lambda: bool(properties.map.path))
+    if not got_trace:
         click.echo("No live trace available (the robot only reports position while cleaning).")
         return
+    map_trait = properties.map
     position = map_trait.robot_position
     summary: dict[str, Any] = {
         "robot_position": {"x": position.x, "y": position.y} if position else None,
@@ -749,9 +790,11 @@ async def rooms(ctx, device_id: str):
     device_manager = await context.get_device_manager()
     device = await device_manager.get_device(device_id)
     if device.b01_q10_properties is not None:
-        map_trait = device.b01_q10_properties.map
-        await map_trait.refresh()
-        click.echo(dump_json({room.id: room.name for room in map_trait.rooms}))
+        properties = device.b01_q10_properties
+        # A valid map may have no room records, so wait on the map arriving
+        # (image_content) rather than on rooms being non-empty.
+        await _await_q10_map_push(properties, lambda: properties.map.image_content is not None)
+        click.echo(dump_json({room.id: room.name for room in properties.map.rooms}))
     else:
         await _display_v1_trait(context, device_id, lambda v1: v1.rooms)
 
