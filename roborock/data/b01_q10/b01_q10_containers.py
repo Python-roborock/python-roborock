@@ -11,7 +11,9 @@ from dataclasses import dataclass, field
 from ..containers import RoborockBase
 from .b01_q10_code_mappings import (
     B01_Q10_DP,
+    YXAreaUnit,
     YXBackType,
+    YXCarpetCleanType,
     YXCleanLine,
     YXCleanType,
     YXDeviceCleanTask,
@@ -112,6 +114,8 @@ class Q10Status(RoborockBase):
 
     # Additional state reported in the device's full status dump.
     clean_line: YXCleanLine | None = field(default=None, metadata={"dps": B01_Q10_DP.CLEAN_LINE})
+    carpet_clean_type: YXCarpetCleanType | None = field(default=None, metadata={"dps": B01_Q10_DP.CARPET_CLEAN_TYPE})
+    area_unit: YXAreaUnit | None = field(default=None, metadata={"dps": B01_Q10_DP.AREA_UNIT})
     auto_boost: bool | None = field(default=None, metadata={"dps": B01_Q10_DP.AUTO_BOOST})
     multi_map_switch: bool | None = field(default=None, metadata={"dps": B01_Q10_DP.MULTI_MAP_SWITCH})
     map_save_switch: bool | None = field(default=None, metadata={"dps": B01_Q10_DP.MAP_SAVE_SWITCH})
@@ -120,20 +124,19 @@ class Q10Status(RoborockBase):
     line_laser_obstacle_avoidance: bool | None = field(
         default=None, metadata={"dps": B01_Q10_DP.LINE_LASER_OBSTACLE_AVOIDANCE}
     )
+    # Whether a mop module is attached, and whether "clean along floor direction" is on.
+    mop_state: bool | None = field(default=None, metadata={"dps": B01_Q10_DP.MOP_STATE})
+    ground_clean: bool | None = field(default=None, metadata={"dps": B01_Q10_DP.GROUND_CLEAN})
     robot_country_code: str | None = field(default=None, metadata={"dps": B01_Q10_DP.ROBOT_COUNTRY_CODE})
     time_zone: dpTimeZone | None = field(default=None, metadata={"dps": B01_Q10_DP.TIME_ZONE})
 
-    # TODO(#846): value mappings for these ints are not yet decoded; keep as int
-    # until reverse-engineered, then promote to enums.
-    mop_state: int | None = field(default=None, metadata={"dps": B01_Q10_DP.MOP_STATE})
+    # TODO(#846): value mappings for these ints are not yet decoded (no app
+    # control found / internal / constant); keep as int until reverse-engineered.
     breakpoint_clean: int | None = field(default=None, metadata={"dps": B01_Q10_DP.BREAKPOINT_CLEAN})
-    carpet_clean_type: int | None = field(default=None, metadata={"dps": B01_Q10_DP.CARPET_CLEAN_TYPE})
-    ground_clean: int | None = field(default=None, metadata={"dps": B01_Q10_DP.GROUND_CLEAN})
     add_clean_state: int | None = field(default=None, metadata={"dps": B01_Q10_DP.ADD_CLEAN_STATE})
     timer_type: int | None = field(default=None, metadata={"dps": B01_Q10_DP.TIMER_TYPE})
     user_plan: int | None = field(default=None, metadata={"dps": B01_Q10_DP.USER_PLAN})
     robot_type: int | None = field(default=None, metadata={"dps": B01_Q10_DP.ROBOT_TYPE})
-    area_unit: int | None = field(default=None, metadata={"dps": B01_Q10_DP.AREA_UNIT})
 
 
 @dataclass

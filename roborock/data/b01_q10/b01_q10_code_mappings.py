@@ -215,11 +215,29 @@ class YXDeviceCleanTask(RoborockModeEnum):
 
 
 class YXDeviceDustCollectionFrequency(RoborockModeEnum):
-    DAILY = "daily", 0
+    # The app exposes "regular" (code 0) vs "frequent", where "frequent" selects
+    # one of the every-N-cleans intervals below.
+    REGULAR = "regular", 0
     INTERVAL_15 = "interval_15", 15
     INTERVAL_30 = "interval_30", 30
     INTERVAL_45 = "interval_45", 45
     INTERVAL_60 = "interval_60", 60
+
+
+class YXAreaUnit(RoborockModeEnum):
+    """Unit used to report cleaned area (dpAreaUnit)."""
+
+    SQUARE_METER = "square_meter", 0
+    SQUARE_FEET = "square_feet", 1
+
+
+class YXCarpetCleanType(RoborockModeEnum):
+    """Carpet handling behavior (dpCarpetCleanType)."""
+
+    RISE = "rise", 0  # lift the mop and boost over carpet
+    AVOID = "avoid", 1
+    IGNORE = "ignore", 2
+    CROSS = "cross", 3
 
 
 class RemoteCommand(IntEnum):

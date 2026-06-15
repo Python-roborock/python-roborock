@@ -11,6 +11,8 @@ import pytest
 
 from roborock.data.b01_q10.b01_q10_code_mappings import (
     B01_Q10_DP,
+    YXAreaUnit,
+    YXCarpetCleanType,
     YXCleanLine,
     YXCleanType,
     YXDeviceCleanTask,
@@ -169,10 +171,13 @@ async def test_status_trait_refresh(
     assert q10_api.child_lock.is_on is False
     assert q10_api.dust_collection.dust_switch is True
     assert q10_api.dust_collection.is_on is True
-    assert q10_api.dust_collection.dust_setting == YXDeviceDustCollectionFrequency.DAILY
+    assert q10_api.dust_collection.dust_setting == YXDeviceDustCollectionFrequency.REGULAR
 
     # Additional state captured on the Status trait.
-    assert q10_api.status.mop_state == 1
+    assert q10_api.status.mop_state is True
+    assert q10_api.status.ground_clean is False
+    assert q10_api.status.carpet_clean_type == YXCarpetCleanType.RISE
+    assert q10_api.status.area_unit == YXAreaUnit.SQUARE_METER
     assert q10_api.status.auto_boost is False
     assert q10_api.status.map_save_switch is True
     assert q10_api.status.recent_clean_record is False

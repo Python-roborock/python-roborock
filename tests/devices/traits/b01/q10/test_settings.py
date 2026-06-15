@@ -70,7 +70,7 @@ async def test_switch_disable_sends_zero(fake_channel: FakeChannel, command: Com
 @pytest.mark.parametrize(
     ("frequency", "code"),
     [
-        (YXDeviceDustCollectionFrequency.DAILY, 0),
+        (YXDeviceDustCollectionFrequency.REGULAR, 0),
         (YXDeviceDustCollectionFrequency.INTERVAL_30, 30),
         (YXDeviceDustCollectionFrequency.INTERVAL_60, 60),
         (YXDeviceDustCollectionFrequency.INTERVAL_15, 15),
