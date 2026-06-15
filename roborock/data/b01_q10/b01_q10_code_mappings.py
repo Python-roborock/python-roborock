@@ -86,12 +86,14 @@ class B01_Q10_DP(RoborockModeEnum):
     SUSPECTED_THRESHOLD_UP = ("dpSuspectedThresholdUp", 100)
     COMMON = ("dpCommon", 101)
     REQUEST_DPS = ("dpRequestDps", 102)  # NOTE: typo "dpRequetdps" in source code
-    # NOTE: the legacy B01 source also listed dpJumpScan (101), dpCliffRestrictedArea
-    # (102) and dpCliffRestrictedAreaUp (103). The first two collided with the
-    # confirmed dpCommon/dpRequestDps codes above (verified against ss07 hardware and
-    # the official app plugin), shadowing them in ``from_code``. They are not used
-    # anywhere and their real codes could not be verified, so they were removed
-    # rather than left as wrong duplicates. Re-add with verified codes if needed.
+    # NOTE: the legacy B01 source also listed dpJumpScan (101) and
+    # dpCliffRestrictedArea (102), which collided with the confirmed dpCommon /
+    # dpRequestDps codes above (verified against ss07 hardware and the official app
+    # plugin) and shadowed them in ``from_code``. Both are unused and their real
+    # codes could not be verified, so they were removed rather than left as wrong
+    # duplicates. dpCliffRestrictedAreaUp (103) is kept: ss07 hardware does push
+    # data point 103 (an empty list when no cliff-restricted areas are set).
+    CLIFF_RESTRICTED_AREA_UP = ("dpCliffRestrictedAreaUp", 103)
     BREAKPOINT_CLEAN = ("dpBreakpointClean", 104)
     VALLEY_POINT_CHARGING = ("dpValleyPointCharging", 105)
     VALLEY_POINT_CHARGING_DATA_UP = ("dpValleyPointChargingDataUp", 106)
