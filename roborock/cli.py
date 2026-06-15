@@ -1336,7 +1336,7 @@ async def _q10_set(ctx: click.Context, device_id: str, apply: Callable[[Any], An
     context: RoborockContext = ctx.obj
     try:
         properties = await _q10_properties(context, device_id)
-        await apply(properties.settings)
+        await apply(properties)
         click.echo(message)
     except RoborockUnsupportedFeature:
         click.echo("Device does not support B01 Q10 protocol. Is it a Q10?")
@@ -1351,7 +1351,7 @@ async def _q10_set(ctx: click.Context, device_id: str, apply: Callable[[Any], An
 @async_command
 async def q10_set_volume(ctx: click.Context, device_id: str, volume: int) -> None:
     """Set the speaker volume on a Q10 device."""
-    await _q10_set(ctx, device_id, lambda s: s.set_volume(volume), f"Volume set to {volume}")
+    await _q10_set(ctx, device_id, lambda p: p.volume.set_volume(volume), f"Volume set to {volume}")
 
 
 @session.command()
@@ -1361,7 +1361,12 @@ async def q10_set_volume(ctx: click.Context, device_id: str, volume: int) -> Non
 @async_command
 async def q10_set_child_lock(ctx: click.Context, device_id: str, enabled: bool) -> None:
     """Enable or disable the child lock on a Q10 device."""
-    await _q10_set(ctx, device_id, lambda s: s.set_child_lock(enabled), f"Child lock set to {enabled}")
+    await _q10_set(
+        ctx,
+        device_id,
+        lambda p: p.child_lock.enable() if enabled else p.child_lock.disable(),
+        f"Child lock set to {enabled}",
+    )
 
 
 @session.command()
@@ -1371,7 +1376,12 @@ async def q10_set_child_lock(ctx: click.Context, device_id: str, enabled: bool) 
 @async_command
 async def q10_set_dnd(ctx: click.Context, device_id: str, enabled: bool) -> None:
     """Enable or disable Do Not Disturb on a Q10 device."""
-    await _q10_set(ctx, device_id, lambda s: s.set_do_not_disturb(enabled), f"Do Not Disturb set to {enabled}")
+    await _q10_set(
+        ctx,
+        device_id,
+        lambda p: p.do_not_disturb.enable() if enabled else p.do_not_disturb.disable(),
+        f"Do Not Disturb set to {enabled}",
+    )
 
 
 @session.command()
@@ -1381,7 +1391,12 @@ async def q10_set_dnd(ctx: click.Context, device_id: str, enabled: bool) -> None
 @async_command
 async def q10_set_led(ctx: click.Context, device_id: str, enabled: bool) -> None:
     """Enable or disable the indicator light (LED) on a Q10 device."""
-    await _q10_set(ctx, device_id, lambda s: s.set_button_light(enabled), f"LED set to {enabled}")
+    await _q10_set(
+        ctx,
+        device_id,
+        lambda p: p.button_light.enable() if enabled else p.button_light.disable(),
+        f"LED set to {enabled}",
+    )
 
 
 @session.command()
@@ -1391,7 +1406,12 @@ async def q10_set_led(ctx: click.Context, device_id: str, enabled: bool) -> None
 @async_command
 async def q10_set_dust_collection(ctx: click.Context, device_id: str, enabled: bool) -> None:
     """Enable or disable automatic dust collection on a Q10 device."""
-    await _q10_set(ctx, device_id, lambda s: s.set_dust_collection(enabled), f"Dust collection set to {enabled}")
+    await _q10_set(
+        ctx,
+        device_id,
+        lambda p: p.dust_collection.enable() if enabled else p.dust_collection.disable(),
+        f"Dust collection set to {enabled}",
+    )
 
 
 @session.command()
@@ -1406,9 +1426,11 @@ async def q10_set_dust_collection(ctx: click.Context, device_id: str, enabled: b
 @async_command
 async def q10_set_dust_frequency(ctx: click.Context, device_id: str, frequency: str) -> None:
     """Set how often the dock empties the bin (0 = daily, else every N cleans)."""
-    code = int(frequency)
-    label = "daily" if code == 0 else f"every {code} cleans"
-    await _q10_set(ctx, device_id, lambda s: s.set_dust_collection_frequency(code), f"Dust frequency set to {label}")
+    freq = YXDeviceDustCollectionFrequency.from_code(int(frequency))
+    label = "daily" if freq.code == 0 else f"every {freq.code} cleans"
+    await _q10_set(
+        ctx, device_id, lambda p: p.dust_collection.set_frequency(freq), f"Dust frequency set to {label}"
+    )
 
 
 @session.command()

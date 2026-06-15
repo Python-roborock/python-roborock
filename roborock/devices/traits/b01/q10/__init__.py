@@ -8,15 +8,28 @@ from roborock.devices.rpc.b01_q10_channel import stream_decoded_responses
 from roborock.devices.traits import Trait
 from roborock.devices.transport.mqtt_channel import MqttChannel
 
+from .button_light import ButtonLightTrait
+from .child_lock import ChildLockTrait
 from .command import CommandTrait
+from .consumable import ConsumableTrait
+from .do_not_disturb import DoNotDisturbTrait
+from .dust_collection import DustCollectionTrait
+from .network_info import NetworkInfoTrait
 from .remote import RemoteTrait
-from .settings import SettingsTrait
 from .status import StatusTrait
 from .vacuum import VacuumTrait
+from .volume import SoundVolumeTrait
 
 __all__ = [
     "Q10PropertiesApi",
-    "SettingsTrait",
+    "ButtonLightTrait",
+    "ChildLockTrait",
+    "ConsumableTrait",
+    "DoNotDisturbTrait",
+    "DustCollectionTrait",
+    "NetworkInfoTrait",
+    "SoundVolumeTrait",
+    "StatusTrait",
 ]
 
 _LOGGER = logging.getLogger(__name__)
@@ -29,7 +42,7 @@ class Q10PropertiesApi(Trait):
     """Trait for sending commands to Q10 devices."""
 
     status: StatusTrait
-    """Trait for managing the status of Q10 devices."""
+    """Trait for managing the core status of Q10 devices."""
 
     vacuum: VacuumTrait
     """Trait for sending vacuum related commands to Q10 devices."""
@@ -37,8 +50,26 @@ class Q10PropertiesApi(Trait):
     remote: RemoteTrait
     """Trait for sending remote control related commands to Q10 devices."""
 
-    settings: SettingsTrait
-    """Trait for changing device settings (volume, child lock, DND, LED, dust)."""
+    volume: SoundVolumeTrait
+    """Trait for reading / setting the speaker volume."""
+
+    child_lock: ChildLockTrait
+    """Trait for reading / controlling the child lock."""
+
+    do_not_disturb: DoNotDisturbTrait
+    """Trait for reading / controlling Do Not Disturb."""
+
+    dust_collection: DustCollectionTrait
+    """Trait for reading / controlling dock auto-empty (dust collection)."""
+
+    button_light: ButtonLightTrait
+    """Trait for controlling the indicator / button light (LED)."""
+
+    network_info: NetworkInfoTrait
+    """Trait exposing the device's network information."""
+
+    consumable: ConsumableTrait
+    """Trait exposing remaining life of consumables."""
 
     def __init__(self, channel: MqttChannel) -> None:
         """Initialize the B01Props API."""
@@ -47,7 +78,23 @@ class Q10PropertiesApi(Trait):
         self.vacuum = VacuumTrait(self.command)
         self.remote = RemoteTrait(self.command)
         self.status = StatusTrait()
-        self.settings = SettingsTrait(self.command)
+        self.volume = SoundVolumeTrait(self.command)
+        self.child_lock = ChildLockTrait(self.command)
+        self.do_not_disturb = DoNotDisturbTrait(self.command)
+        self.dust_collection = DustCollectionTrait(self.command)
+        self.button_light = ButtonLightTrait(self.command)
+        self.network_info = NetworkInfoTrait()
+        self.consumable = ConsumableTrait()
+        # Read-model traits updated from the device's DPS push stream.
+        self._updatable_traits = [
+            self.status,
+            self.volume,
+            self.child_lock,
+            self.do_not_disturb,
+            self.dust_collection,
+            self.network_info,
+            self.consumable,
+        ]
         self._subscribe_task: asyncio.Task[None] | None = None
 
     async def start(self) -> None:
@@ -75,10 +122,10 @@ class Q10PropertiesApi(Trait):
         async for decoded_dps in stream_decoded_responses(self._channel):
             _LOGGER.debug("Received Q10 status update: %s", decoded_dps)
 
-            # Notify all traits about a new message and each trait will
-            # only update what fields that it is responsible for.
-            # More traits can be added here below.
-            self.status.update_from_dps(decoded_dps)
+            # Notify all read-model traits about the new message; each trait
+            # only updates the fields that it is responsible for.
+            for trait in self._updatable_traits:
+                trait.update_from_dps(decoded_dps)
 
 
 def create(channel: MqttChannel) -> Q10PropertiesApi:
