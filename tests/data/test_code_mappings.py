@@ -2,10 +2,13 @@
 These tests exercise the custom enum methods using arbitrary enum values.
 """
 
+import logging
+
 import pytest
 
 from roborock import HomeDataProduct, RoborockCategory
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP, YXCleanType
+from roborock.data.code_mappings import completed_warnings
 
 
 def test_from_code() -> None:
@@ -24,6 +27,29 @@ def test_invalid_from_code() -> None:
 def test_invalid_from_code_optional() -> None:
     """Test invalid from_code_optional method."""
     assert B01_Q10_DP.from_code_optional(999999) is None
+
+
+def test_from_code_optional_does_not_warn(caplog: pytest.LogCaptureFixture) -> None:
+    """from_code_optional must silently return None for unknown codes.
+
+    Regression test: ss07 hardware pushes data points this library does not model
+    (e.g. DPs 112 and 113); resolving them via the optional lookup must not emit
+    the "not a valid code" warning that the strict ``from_code`` logs.
+    """
+    completed_warnings.discard("112 is not a valid code for B01_Q10_DP")
+    completed_warnings.discard("113 is not a valid code for B01_Q10_DP")
+    with caplog.at_level(logging.WARNING):
+        assert B01_Q10_DP.from_code_optional(112) is None
+        assert B01_Q10_DP.from_code_optional(113) is None
+    assert "not a valid code" not in caplog.text
+
+
+def test_from_code_still_warns(caplog: pytest.LogCaptureFixture) -> None:
+    """The strict from_code keeps logging and raising on unknown codes."""
+    completed_warnings.discard("87654 is not a valid code for B01_Q10_DP")
+    with caplog.at_level(logging.WARNING), pytest.raises(ValueError, match="not a valid code"):
+        B01_Q10_DP.from_code(87654)
+    assert "87654 is not a valid code for B01_Q10_DP" in caplog.text
 
 
 def test_from_name() -> None:

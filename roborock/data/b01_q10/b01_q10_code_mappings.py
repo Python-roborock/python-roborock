@@ -85,10 +85,13 @@ class B01_Q10_DP(RoborockModeEnum):
     SUSPECTED_THRESHOLD = ("dpSuspectedThreshold", 99)
     SUSPECTED_THRESHOLD_UP = ("dpSuspectedThresholdUp", 100)
     COMMON = ("dpCommon", 101)
-    JUMP_SCAN = ("dpJumpScan", 101)
     REQUEST_DPS = ("dpRequestDps", 102)  # NOTE: typo "dpRequetdps" in source code
-    CLIFF_RESTRICTED_AREA = ("dpCliffRestrictedArea", 102)
-    CLIFF_RESTRICTED_AREA_UP = ("dpCliffRestrictedAreaUp", 103)
+    # NOTE: the legacy B01 source also listed dpJumpScan (101), dpCliffRestrictedArea
+    # (102) and dpCliffRestrictedAreaUp (103). The first two collided with the
+    # confirmed dpCommon/dpRequestDps codes above (verified against ss07 hardware and
+    # the official app plugin), shadowing them in ``from_code``. They are not used
+    # anywhere and their real codes could not be verified, so they were removed
+    # rather than left as wrong duplicates. Re-add with verified codes if needed.
     BREAKPOINT_CLEAN = ("dpBreakpointClean", 104)
     VALLEY_POINT_CHARGING = ("dpValleyPointCharging", 105)
     VALLEY_POINT_CHARGING_DATA_UP = ("dpValleyPointChargingDataUp", 106)
@@ -96,6 +99,13 @@ class B01_Q10_DP(RoborockModeEnum):
     VOICE_VERSION = ("dpVoiceVersion", 108)
     ROBOT_COUNTRY_CODE = ("dpRobotCountryCode", 109)
     HEARTBEAT = ("dpHeartbeat", 110)
+    # NOTE: ss07 hardware also pushes data points 112 and 113 in its full status
+    # dump. They are absent from the official app's vacuum plugin and stayed 0
+    # across every observed state (docked/charging, segment cleaning, lifted-off-
+    # ground fault, returning to dock, dustbin removed), so their meaning is not
+    # yet known. They are intentionally left unmapped; ``decode_rpc_response``
+    # silently ignores unknown codes via ``from_code_optional``, so they do not
+    # produce "not a valid code" warnings. Map them here once identified.
     STATUS = ("dpStatus", 121)
     BATTERY = ("dpBattery", 122)
     FAN_LEVEL = ("dpFanLevel", 123)  # NOTE: typo "dpfunLevel" in source code

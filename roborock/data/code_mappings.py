@@ -76,11 +76,17 @@ class RoborockModeEnum(StrEnum):
 
     @classmethod
     def from_code_optional(cls, code: int) -> Self | None:
-        """Gracefully return None if the code does not exist."""
-        try:
-            return cls.from_code(code)
-        except ValueError:
-            return None
+        """Gracefully return None if the code does not exist.
+
+        This is the silent counterpart to :meth:`from_code`: callers use it when
+        an unknown code is expected and tolerable (e.g. decoding a device push
+        that may include data points this library does not model yet), so it must
+        not emit the "not a valid code" warning that ``from_code`` logs.
+        """
+        for member in cls:
+            if member.code == code:
+                return member
+        return None
 
     @classmethod
     def from_value(cls, value: str) -> Self:
@@ -115,12 +121,14 @@ class RoborockModeEnum(StrEnum):
             return cls.from_value(str(value))
         except ValueError:
             pass
-        # Try integer code lookup (e.g. "11")
+        # Try integer code lookup (e.g. "11"). Use the silent optional variant so
+        # a value that is neither a name, a DP string, nor a known code resolves
+        # to None without logging a spurious "not a valid code" warning.
         try:
-            return cls.from_code(int(value))
+            int_code = int(value)
         except (ValueError, TypeError):
-            pass
-        return None
+            return None
+        return cls.from_code_optional(int_code)
 
     @classmethod
     def keys(cls) -> list[str]:
