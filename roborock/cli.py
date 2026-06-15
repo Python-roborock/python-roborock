@@ -460,22 +460,52 @@ async def _q10_vacuum_trait(context: RoborockContext, device_id: str) -> VacuumT
 
 
 async def _display_q10_status(context: RoborockContext, device_id: str) -> None:
-    """Refresh and display the status of a B01 Q10 device.
+    """Refresh and display the full status of a B01 Q10 device.
 
-    Unlike V1 devices, the Q10 reports its status asynchronously: ``refresh()``
-    sends a request and the device streams the values back, so we poll the
-    status trait briefly until it has been populated.
+    Unlike V1 devices, the Q10 reports its state asynchronously: ``refresh()``
+    sends a request and the device streams the values back over the persistent
+    subscribe loop. That loop also delivers unsolicited pushes, so the read-model
+    traits may already hold (possibly stale) values from before this command ran
+    -- checking that a field is merely populated isn't enough. To display data
+    the device sent *in response to this refresh*, we register update listeners,
+    fire the refresh, and wait for a fresh update before reading the traits.
+
+    All read-model traits refreshed by :meth:`Q10PropertiesApi.refresh` are shown,
+    not just ``status`` (volume, child lock, do-not-disturb, dust collection,
+    network info and consumables are part of the device's reported state too).
     """
     properties = await _q10_properties(context, device_id)
-    await properties.refresh()
-    for _ in range(50):
-        if properties.status.status is not None:
-            break
-        await asyncio.sleep(0.1)
-    else:
-        click.echo("Timed out waiting for status from device")
-        return
-    click.echo(dump_json(properties.status.as_dict()))
+
+    # Read-model traits populated from the device's DPS push stream.
+    traits = {
+        "status": properties.status,
+        "volume": properties.volume,
+        "child_lock": properties.child_lock,
+        "do_not_disturb": properties.do_not_disturb,
+        "dust_collection": properties.dust_collection,
+        "network_info": properties.network_info,
+        "consumable": properties.consumable,
+    }
+
+    updated = asyncio.Event()
+    unsubscribes = [trait.add_update_listener(updated.set) for trait in traits.values()]
+    try:
+        await properties.refresh()
+        try:
+            await asyncio.wait_for(updated.wait(), timeout=5)
+        except TimeoutError:
+            click.echo("Timed out waiting for status from device")
+            return
+        # The device streams its DPS across several pushes; give the remaining
+        # ones a brief window to arrive after the first fresh update.
+        await asyncio.sleep(0.5)
+    finally:
+        for unsubscribe in unsubscribes:
+            unsubscribe()
+
+    # Each concrete trait also subclasses a RoborockBase read-model, so it has
+    # ``as_dict``; the cast satisfies the typed UpdatableTrait view above.
+    click.echo(dump_json({name: cast(RoborockBase, trait).as_dict() for name, trait in traits.items()}))
 
 
 @session.command()
