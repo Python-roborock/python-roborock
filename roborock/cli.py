@@ -606,9 +606,9 @@ async def q10_map_layers(ctx, device_id: str, output_dir: str | None):
     if device.b01_q10_properties is None:
         click.echo("Feature not supported by device")
         return
-    map_trait = device.b01_q10_properties.map
-    await map_trait.refresh()
-    layers = map_trait.layers
+    properties = device.b01_q10_properties
+    await _await_q10_map_push(properties, lambda: properties.map.layers is not None)
+    layers = properties.map.layers
     if layers is None:
         click.echo("No map layers available.")
         return
@@ -717,11 +717,11 @@ async def q10_map_with_path(ctx, device_id: str, output_file: str):
     if device.b01_q10_properties is None:
         click.echo("Feature not supported by device")
         return
-    map_trait = device.b01_q10_properties.map
-    await map_trait.refresh()
-    try:
-        await map_trait.refresh_trace()
-    except RoborockException:
+    properties = device.b01_q10_properties
+    map_trait = properties.map
+    await _await_q10_map_push(properties, lambda: map_trait.image_content is not None)
+    got_path = await _await_q10_map_push(properties, lambda: bool(map_trait.path))
+    if not got_path:
         click.echo("No live path available (the robot only reports its path while cleaning).")
         return
     try:

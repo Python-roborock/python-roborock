@@ -100,13 +100,13 @@ class Q10PropertiesApi(Trait):
         # More traits can be added here below.
         self.status.update_from_dps(decoded_dps)
 
-            # Feed the map's vector-overlay data points (no-go zones / virtual
-            # walls) to the map trait so they are decoded as they arrive.
-            if B01_Q10_DP.RESTRICTED_ZONE_UP in decoded_dps or B01_Q10_DP.VIRTUAL_WALL_UP in decoded_dps:
-                self.map.load_overlays(
-                    restricted_zone_up=decoded_dps.get(B01_Q10_DP.RESTRICTED_ZONE_UP),
-                    virtual_wall_up=decoded_dps.get(B01_Q10_DP.VIRTUAL_WALL_UP),
-                )
+        # Feed the map's vector-overlay data points (no-go zones / virtual
+        # walls) to the map trait so they are decoded as they arrive.
+        if B01_Q10_DP.RESTRICTED_ZONE_UP in decoded_dps or B01_Q10_DP.VIRTUAL_WALL_UP in decoded_dps:
+            self.map.load_overlays(
+                restricted_zone_up=decoded_dps.get(B01_Q10_DP.RESTRICTED_ZONE_UP),
+                virtual_wall_up=decoded_dps.get(B01_Q10_DP.VIRTUAL_WALL_UP),
+            )
 
 
 def create(channel: MqttChannel) -> Q10PropertiesApi:
