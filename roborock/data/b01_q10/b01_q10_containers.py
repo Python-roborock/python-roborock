@@ -160,9 +160,7 @@ class DoNotDisturb(RoborockBase):
     """Do Not Disturb read-model."""
 
     not_disturb: bool | None = field(default=None, metadata={"dps": B01_Q10_DP.NOT_DISTURB})
-    not_disturb_expand: dpNotDisturbExpand | None = field(
-        default=None, metadata={"dps": B01_Q10_DP.NOT_DISTURB_EXPAND}
-    )
+    not_disturb_expand: dpNotDisturbExpand | None = field(default=None, metadata={"dps": B01_Q10_DP.NOT_DISTURB_EXPAND})
 
 
 @dataclass
@@ -176,8 +174,12 @@ class DustCollection(RoborockBase):
 
 
 @dataclass
-class Consumable(RoborockBase):
-    """Consumable / accessory remaining-life read-model."""
+class Q10Consumable(RoborockBase):
+    """Consumable / accessory remaining-life read-model.
+
+    Named with a ``Q10`` prefix to avoid shadowing the v1 ``Consumable`` when both
+    are star-imported into the ``roborock.data`` namespace.
+    """
 
     main_brush_life: int | None = field(default=None, metadata={"dps": B01_Q10_DP.MAIN_BRUSH_LIFE})
     side_brush_life: int | None = field(default=None, metadata={"dps": B01_Q10_DP.SIDE_BRUSH_LIFE})
@@ -186,7 +188,11 @@ class Consumable(RoborockBase):
 
 
 @dataclass
-class NetworkInfo(RoborockBase):
-    """Network information read-model."""
+class Q10NetworkInfo(RoborockBase):
+    """Network information read-model.
+
+    Named with a ``Q10`` prefix to avoid shadowing the v1 ``NetworkInfo`` when both
+    are star-imported into the ``roborock.data`` namespace.
+    """
 
     net_info: dpNetInfo | None = field(default=None, metadata={"dps": B01_Q10_DP.NET_INFO})
