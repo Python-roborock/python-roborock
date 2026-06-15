@@ -533,17 +533,16 @@ async def _await_q10_map_push(
     predicate: Callable[[], bool],
     *,
     timeout: float = _Q10_MAP_PUSH_TIMEOUT,
+    allow_cached_on_timeout: bool = False,
 ) -> bool:
-    """Nudge a Q10 to push its map/trace and wait until ``predicate`` holds.
+    """Nudge a Q10 to push its map/trace and wait for a fresh update.
 
     The Q10 map API is entirely push-driven: there is no synchronous get-map
     request. A ``dpRequestDps`` causes the device to publish a ``MAP_RESPONSE``,
     which the device's subscribe loop feeds into the map trait. Here we register
-    an update listener, send the request, and wait for the pushed data to satisfy
-    ``predicate``. Returns whether it did within ``timeout``.
+    an update listener, send the request, and wait for a newly pushed update to
+    satisfy ``predicate``. Returns whether it did within ``timeout``.
     """
-    if predicate():
-        return True
     loop = asyncio.get_running_loop()
     updated: asyncio.Future[None] = loop.create_future()
 
@@ -557,7 +556,7 @@ async def _await_q10_map_push(
         await asyncio.wait_for(updated, timeout=timeout)
         return True
     except TimeoutError:
-        return False
+        return allow_cached_on_timeout and predicate()
     finally:
         unsub()
 
@@ -574,7 +573,11 @@ async def map_image(ctx, device_id: str, output_file: str):
     device = await device_manager.get_device(device_id)
     if device.b01_q10_properties is not None:
         properties = device.b01_q10_properties
-        await _await_q10_map_push(properties, lambda: properties.map.image_content is not None)
+        await _await_q10_map_push(
+            properties,
+            lambda: properties.map.image_content is not None,
+            allow_cached_on_timeout=True,
+        )
         image_content = properties.map.image_content
     else:
         v1_trait: MapContentTrait = await _v1_trait(context, device_id, lambda v1: v1.map_content)
@@ -793,7 +796,11 @@ async def rooms(ctx, device_id: str):
         properties = device.b01_q10_properties
         # A valid map may have no room records, so wait on the map arriving
         # (image_content) rather than on rooms being non-empty.
-        await _await_q10_map_push(properties, lambda: properties.map.image_content is not None)
+        await _await_q10_map_push(
+            properties,
+            lambda: properties.map.image_content is not None,
+            allow_cached_on_timeout=True,
+        )
         click.echo(dump_json({room.id: room.name for room in properties.map.rooms}))
     else:
         await _display_v1_trait(context, device_id, lambda v1: v1.rooms)
@@ -1285,6 +1292,7 @@ cli.add_command(set_volume)
 cli.add_command(maps)
 cli.add_command(map_image)
 cli.add_command(map_data)
+cli.add_command(q10_position)
 cli.add_command(consumables)
 cli.add_command(reset_consumable)
 cli.add_command(rooms)

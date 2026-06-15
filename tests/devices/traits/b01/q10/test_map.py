@@ -12,9 +12,11 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
+from roborock.cli import _await_q10_map_push, cli
 from roborock.devices.traits.b01.q10 import Q10PropertiesApi, create
 from roborock.devices.traits.b01.q10.map import MapContentTrait
 from roborock.exceptions import RoborockException
+from roborock.map.b01_q10_map_parser import Q10Point
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 
 FIXTURE = Path("tests/map/testdata/b01_q10_map.bin")
@@ -79,6 +81,63 @@ def test_parse_without_data_raises() -> None:
     trait = MapContentTrait()
     with pytest.raises(RoborockException, match="No map payload available"):
         trait.parse_map_content()
+
+
+def test_q10_position_is_available_as_top_level_cli_command() -> None:
+    assert "q10-position" in cli.commands
+
+
+# --- CLI push waiting --------------------------------------------------------
+
+
+class _FakeQ10Properties:
+    def __init__(self) -> None:
+        self.map = MapContentTrait()
+        self.refresh_count = 0
+
+    async def refresh(self) -> None:
+        self.refresh_count += 1
+
+
+class _FakeQ10PropertiesWithTrace(_FakeQ10Properties):
+    async def refresh(self) -> None:
+        await super().refresh()
+        self.map.update_from_map_response(_map_message(TRACE_FIXTURE.read_bytes()))
+
+
+async def test_await_q10_map_push_waits_for_fresh_update() -> None:
+    """A cached trace alone is not treated as a successful new map push."""
+    properties = _FakeQ10Properties()
+    properties.map.path = [Q10Point(1, 2)]
+
+    got_trace = await _await_q10_map_push(properties, lambda: bool(properties.map.path), timeout=0.01)
+
+    assert got_trace is False
+    assert properties.refresh_count == 1
+
+
+async def test_await_q10_map_push_returns_true_after_update() -> None:
+    properties = _FakeQ10PropertiesWithTrace()
+
+    got_trace = await _await_q10_map_push(properties, lambda: bool(properties.map.path), timeout=0.01)
+
+    assert got_trace is True
+    assert [(p.x, p.y) for p in properties.map.path] == [(169, 0)]
+
+
+async def test_await_q10_map_push_can_fall_back_to_cached_map_on_timeout() -> None:
+    properties = _FakeQ10Properties()
+    properties.map.image_content = b"cached-png"
+
+    got_map = await _await_q10_map_push(
+        properties,
+        lambda: properties.map.image_content is not None,
+        timeout=0.01,
+        allow_cached_on_timeout=True,
+    )
+
+    assert got_map is True
+    assert properties.refresh_count == 1
 
 
 # --- Integration through the Q10PropertiesApi subscribe loop -----------------
