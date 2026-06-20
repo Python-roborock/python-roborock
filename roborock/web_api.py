@@ -558,6 +558,33 @@ class RoborockApiClient:
         else:
             raise RoborockException("home_response result was an unexpected type")
 
+    async def get_shared_device_rooms(self, user_data: UserData, device_id: str) -> list[HomeDataRoom]:
+        """Fetch room names for a shared (received) device."""
+        rriot = user_data.rriot
+        if rriot is None:
+            raise RoborockException("rriot is none")
+        if rriot.r.a is None:
+            raise RoborockException("Missing field 'a' in rriot reference")
+        path = f"/user/deviceshare/query/{device_id}/rooms"
+        room_request = PreparedRequest(
+            rriot.r.a,
+            self.session,
+            {"Authorization": _get_hawk_authentication(rriot, path)},
+        )
+        room_response = await room_request.request("get", path)
+        if not room_response.get("success"):
+            raise RoborockException(room_response)
+        rooms = room_response.get("result")
+        if isinstance(rooms, list):
+            output_list = []
+            for room in rooms:
+                normalized_room = room
+                if isinstance(room, dict) and "id" not in room and "roomId" in room:
+                    normalized_room = {**room, "id": room["roomId"]}
+                output_list.append(HomeDataRoom.from_dict(normalized_room))
+            return output_list
+        raise RoborockException("get_shared_device_rooms result was an unexpected type")
+
     async def get_scenes(self, user_data: UserData, device_id: str) -> list[HomeDataScene]:
         rriot = user_data.rriot
         if rriot is None:
@@ -774,6 +801,10 @@ class UserWebApiClient:
             if self._unauthorized_hook:
                 self._unauthorized_hook()
             raise
+
+    async def get_shared_device_rooms(self, device_id: str) -> list[HomeDataRoom]:
+        """Fetch shared-device rooms using the API client."""
+        return await self._web_api.get_shared_device_rooms(self._user_data, device_id)
 
     async def execute_routine(self, scene_id: int) -> None:
         """Execute a specific routine (scene) by its ID."""

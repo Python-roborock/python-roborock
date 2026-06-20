@@ -2,6 +2,28 @@
 
 <!-- version list -->
 
+## v5.15.1 (2026-06-19)
+
+### Bug Fixes
+
+- Move CLI dependencies from `dev` to `cli`
+  ([#853](https://github.com/Python-roborock/python-roborock/pull/853),
+  [`518ab31`](https://github.com/Python-roborock/python-roborock/commit/518ab31f7aa5ab092a3e3c59270f9b7a12af23b1))
+
+
+## v5.15.0 (2026-06-16)
+
+### Chores
+
+- Address allens comments ([#826](https://github.com/Python-roborock/python-roborock/pull/826),
+  [`5948eed`](https://github.com/Python-roborock/python-roborock/commit/5948eed60b175f641014620ccccc3897fb67da63))
+
+### Features
+
+- Add shared rooms endpoint ([#826](https://github.com/Python-roborock/python-roborock/pull/826),
+  [`5948eed`](https://github.com/Python-roborock/python-roborock/commit/5948eed60b175f641014620ccccc3897fb67da63))
+
+
 ## v5.14.2 (2026-06-04)
 
 ### Bug Fixes

@@ -20,6 +20,11 @@ Install this via pip (or your favourite package manager):
 
 `pip install python-roborock`
 
+To use the `roborock` command line tool, install the `cli` extra, which pulls in
+its additional dependencies (click, pyyaml, pyshark):
+
+`pip install python-roborock[cli]`
+
 ## Example Usage
 
 See [examples/example.py](examples/example.py) for a more full featured example,

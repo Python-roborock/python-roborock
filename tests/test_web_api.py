@@ -6,7 +6,7 @@ import aiohttp
 import pytest
 from aioresponses.compat import normalize_url
 
-from roborock import HomeData, HomeDataScene, UserData
+from roborock import HomeData, HomeDataRoom, HomeDataScene, UserData
 from roborock.exceptions import RoborockAccountDoesNotExist, RoborockException, RoborockInvalidCredentials
 from roborock.web_api import IotLoginInfo, PreparedRequest, RoborockApiClient, UserWebApiClient
 from tests.mock_data import HOME_DATA_RAW, USER_DATA
@@ -375,6 +375,46 @@ async def test_get_schedules(mock_rest) -> None:
     assert schedule.cron == "03 13 15 12 ?"
     assert schedule.repeated is False
     assert schedule.enabled is True
+
+
+@pytest.mark.parametrize(
+    "result_payload",
+    [
+        # roomId field (deviceshare endpoint convention)
+        [
+            {"roomId": "2362048", "name": "Living Room"},
+            {"roomId": 2362044, "name": "Kitchen"},
+        ],
+        # id field (matches /user/homes/{id}/rooms — defensive in case the API normalizes)
+        [
+            {"id": 2362048, "name": "Living Room"},
+            {"id": 2362044, "name": "Kitchen"},
+        ],
+    ],
+)
+async def test_get_shared_device_rooms(mock_rest, result_payload) -> None:
+    """Test that shared-device rooms are fetched from the deviceshare query path."""
+    api = RoborockApiClient(username="test_user@gmail.com")
+    ud = await api.pass_login("password")
+
+    mock_rest.get(
+        "https://api-us.roborock.com/user/deviceshare/query/device-id-q7/rooms",
+        status=200,
+        payload={
+            "api": None,
+            "code": 200,
+            "result": result_payload,
+            "status": "ok",
+            "success": True,
+        },
+    )
+
+    rooms = await api.get_shared_device_rooms(ud, "device-id-q7")
+
+    assert rooms == [
+        HomeDataRoom(id=2362048, name="Living Room"),
+        HomeDataRoom(id=2362044, name="Kitchen"),
+    ]
 
 
 async def test_user_web_api_client_unauthorized_hook() -> None:
