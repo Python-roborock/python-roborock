@@ -5,6 +5,8 @@ import base64
 from roborock.map.b01_q10_overlays import (
     ZONE_TYPE_NO_GO,
     ZONE_TYPE_NO_MOP,
+    ZONE_TYPE_THRESHOLD,
+    ZONE_TYPE_VIRTUAL_WALL,
     parse_zone_blob,
 )
 
@@ -19,6 +21,19 @@ def _rect(zone_type: int, corners: list[tuple[int, int]]) -> bytes:
     for x, y in corners:
         out += int.to_bytes(x & 0xFFFF, 2, "big") + int.to_bytes(y & 0xFFFF, 2, "big")
     return out
+
+
+def test_zone_type_constants() -> None:
+    """ss07 + ioBroker: 0 no-go, 1 virtual wall, 2 no-mop, 3 threshold."""
+    assert (ZONE_TYPE_NO_GO, ZONE_TYPE_VIRTUAL_WALL, ZONE_TYPE_NO_MOP, ZONE_TYPE_THRESHOLD) == (0, 1, 2, 3)
+
+
+def test_parse_zone_blob_distinguishes_no_mop_and_threshold() -> None:
+    """A no-mop (2) and a door-threshold (3) zone keep distinct types."""
+    no_mop = _rect(ZONE_TYPE_NO_MOP, [(0, 0), (10, 0), (10, 10), (0, 10)])
+    threshold = _rect(ZONE_TYPE_THRESHOLD, [(20, 20), (30, 20), (30, 22), (20, 22)])
+    zones = parse_zone_blob(_blob(1, [no_mop, threshold]))
+    assert [z.type for z in zones] == [ZONE_TYPE_NO_MOP, ZONE_TYPE_THRESHOLD]
 
 
 def test_parse_zone_blob_two_typed_rectangles() -> None:
