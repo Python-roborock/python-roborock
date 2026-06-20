@@ -237,7 +237,7 @@ async def test_connect_retries_after_transient_start_failure() -> None:
 
     v1_channel = V1Channel(
         device_uid=duid,
-        security_data=SecurityData(endpoint="test_endpoint", nonce=b"test_nonce_16byte"),
+        security_data=SecurityData(endpoint="test_endpoint", nonce=b"test_nonce_16byt"),
         mqtt_channel=mqtt_channel,
         local_session=local_session,
         device_cache=device_cache,

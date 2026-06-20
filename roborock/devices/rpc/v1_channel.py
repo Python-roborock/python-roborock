@@ -325,7 +325,7 @@ class V1Channel(Channel):
                     self._logger.debug("MQTT connection also failed: %s", err)
                     raise
                 self._logger.debug("MQTT subscription failed, continuing with local-only connection: %s", err)
-        except BaseException:
+        except Exception:
             # Any failure during setup must leave the channel re-subscribable:
             # cancel the reconnect task, drop subscriptions, and clear _callback.
             self._teardown()

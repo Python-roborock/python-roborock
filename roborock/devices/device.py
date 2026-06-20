@@ -202,7 +202,7 @@ class RoborockDevice(ABC, TraitsMixin):
                 await self.v1_properties.start()
             elif self.b01_q10_properties is not None:
                 await self.b01_q10_properties.start()
-        except BaseException:
+        except Exception:
             # Any failure in start() must unsubscribe before propagating, so a
             # retry by connect_loop() gets a clean channel. Broader than
             # RoborockException so non-Roborock errors also release the channel.

@@ -31,7 +31,7 @@ from tests.fixtures.channel_fixtures import FakeChannel
 USER_DATA = UserData.from_dict(mock_data.USER_DATA)
 TEST_DEVICE_UID = "abc123"
 TEST_LOCAL_KEY = "local_key"
-TEST_SECURITY_DATA = SecurityData(endpoint="test_endpoint", nonce=b"test_nonce_16byte")
+TEST_SECURITY_DATA = SecurityData(endpoint="test_endpoint", nonce=b"test_nonce_16byt")
 TEST_HOST = mock_data.TEST_LOCAL_API_HOST
 
 
