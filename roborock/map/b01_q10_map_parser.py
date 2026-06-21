@@ -342,7 +342,14 @@ class B01Q10MapParser:
 
     def parse(self, payload: bytes) -> ParsedMapData:
         """Parse a raw Q10 map packet into a rendered PNG + ``MapData``."""
-        packet = parse_map_packet(payload)
+        return self.parse_packet(parse_map_packet(payload))
+
+    def parse_packet(self, packet: Q10MapPacket) -> ParsedMapData:
+        """Render an already-parsed Q10 map packet into a PNG + ``MapData``.
+
+        The protocol layer parses the wire bytes into a :class:`Q10MapPacket`;
+        this renders that packet without re-parsing it.
+        """
         image = self._render(packet)
 
         map_data = MapData()

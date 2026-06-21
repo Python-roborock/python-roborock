@@ -2,41 +2,42 @@
 
 import logging
 from collections.abc import AsyncGenerator
-from typing import Any
 
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
 from roborock.devices.transport.mqtt_channel import MqttChannel
 from roborock.exceptions import RoborockException
 from roborock.protocols.b01_q10_protocol import (
     ParamsType,
-    decode_rpc_response,
+    Q10Message,
+    decode_message,
     encode_mqtt_payload,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
 
-async def stream_decoded_responses(
+async def stream_decoded_messages(
     mqtt_channel: MqttChannel,
-) -> AsyncGenerator[dict[B01_Q10_DP, Any], None]:
-    """Stream decoded DPS messages received via MQTT.
+) -> AsyncGenerator[Q10Message, None]:
+    """Stream decoded Q10 messages received via MQTT.
 
-    Messages that are not decodable DPS responses (e.g. protocol-301
-    ``MAP_RESPONSE`` map pushes) are skipped; callers that need the raw
-    messages should subscribe to :meth:`MqttChannel.subscribe_stream` directly.
+    Each pushed ``RoborockMessage`` is decoded into a typed :data:`Q10Message`
+    (a DPS status update, a map packet, or a trace packet). Messages that fail
+    to decode or carry an unrecognized payload are skipped.
     """
 
-    async for response_message in mqtt_channel.subscribe_stream():
+    async for message in mqtt_channel.subscribe_stream():
         try:
-            decoded_dps = decode_rpc_response(response_message)
+            decoded = decode_message(message)
         except RoborockException as ex:
             _LOGGER.debug(
-                "Failed to decode B01 Q10 RPC response: %s: %s",
-                response_message,
+                "Failed to decode B01 Q10 message: %s: %s",
+                message,
                 ex,
             )
             continue
-        yield decoded_dps
+        if decoded is not None:
+            yield decoded
 
 
 async def send_command(

@@ -16,8 +16,7 @@ import pytest
 from roborock.cli import _await_q10_map_push, cli
 from roborock.devices.traits.b01.q10 import Q10PropertiesApi, create
 from roborock.devices.traits.b01.q10.map import MapContentTrait
-from roborock.exceptions import RoborockException
-from roborock.map.b01_q10_map_parser import Q10Point
+from roborock.map.b01_q10_map_parser import Q10Point, parse_map_packet, parse_trace_packet
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 
 FIXTURE = Path("tests/map/testdata/b01_q10_map.bin")
@@ -30,16 +29,15 @@ def _map_message(
     return RoborockMessage(protocol=protocol, payload=payload, version=b"B01")
 
 
-def test_update_from_map_response_populates_image_and_rooms() -> None:
-    """A pushed 01 01 map packet populates the image, rooms and map data."""
-    payload = FIXTURE.read_bytes()
+def test_update_from_map_packet_populates_image_and_rooms() -> None:
+    """A parsed 01 01 map packet populates the image, rooms and map data."""
+    packet = parse_map_packet(FIXTURE.read_bytes())
     trait = MapContentTrait()
     updates: list[None] = []
     trait.add_update_listener(lambda: updates.append(None))
 
-    assert trait.update_from_map_response(_map_message(payload)) is True
+    trait.update_from_map_packet(packet)
 
-    assert trait.raw_api_response == payload
     assert trait.image_content is not None
     assert trait.image_content[:8] == b"\x89PNG\r\n\x1a\n"
     assert {room.id: room.name for room in trait.rooms} == {2: "Living Room", 3: "Bedroom"}
@@ -47,41 +45,19 @@ def test_update_from_map_response_populates_image_and_rooms() -> None:
     assert len(updates) == 1
 
 
-def test_update_from_map_response_populates_path_and_position() -> None:
-    """A pushed 02 01 trace packet populates the path and robot position."""
+def test_update_from_trace_packet_populates_path_and_position() -> None:
+    """A parsed 02 01 trace packet populates the path and robot position."""
+    packet = parse_trace_packet(TRACE_FIXTURE.read_bytes())
     trait = MapContentTrait()
     updates: list[None] = []
     trait.add_update_listener(lambda: updates.append(None))
 
-    assert trait.update_from_map_response(_map_message(TRACE_FIXTURE.read_bytes())) is True
+    trait.update_from_trace_packet(packet)
 
     assert [(p.x, p.y) for p in trait.path] == [(169, 0)]
     assert trait.robot_position is not None
     assert (trait.robot_position.x, trait.robot_position.y) == (169, 0)
     assert len(updates) == 1
-
-
-def test_update_from_map_response_ignores_non_map_messages() -> None:
-    """Non-MAP_RESPONSE messages are left for the status path to handle."""
-    trait = MapContentTrait()
-    updates: list[None] = []
-    trait.add_update_listener(lambda: updates.append(None))
-
-    rpc = _map_message(b"\x01\x01whatever", protocol=RoborockMessageProtocol.RPC_RESPONSE)
-    assert trait.update_from_map_response(rpc) is False
-
-    # An unrecognized MAP_RESPONSE marker is also not consumed.
-    assert trait.update_from_map_response(_map_message(b"\x09\x09junk")) is False
-
-    assert trait.image_content is None
-    assert not trait.path
-    assert not updates
-
-
-def test_parse_without_data_raises() -> None:
-    trait = MapContentTrait()
-    with pytest.raises(RoborockException, match="No map payload available"):
-        trait.parse_map_content()
 
 
 def test_q10_position_is_available_as_top_level_cli_command() -> None:
@@ -103,7 +79,7 @@ class _FakeQ10Properties:
 class _FakeQ10PropertiesWithTrace(_FakeQ10Properties):
     async def refresh(self) -> None:
         await super().refresh()
-        self.map.update_from_map_response(_map_message(TRACE_FIXTURE.read_bytes()))
+        self.map.update_from_trace_packet(parse_trace_packet(TRACE_FIXTURE.read_bytes()))
 
 
 async def test_await_q10_map_push_waits_for_fresh_update() -> None:
