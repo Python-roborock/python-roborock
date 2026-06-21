@@ -34,12 +34,18 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, cast
 
-import click
-import click_shell
-import yaml
-from pyshark import FileCapture  # type: ignore
-from pyshark.capture.live_capture import LiveCapture, UnknownInterfaceException  # type: ignore
-from pyshark.packet.packet import Packet  # type: ignore
+try:
+    import click
+    import click_shell
+    import yaml
+    from pyshark import FileCapture  # type: ignore
+    from pyshark.capture.live_capture import LiveCapture, UnknownInterfaceException  # type: ignore
+    from pyshark.packet.packet import Packet  # type: ignore
+except ImportError as err:
+    raise SystemExit(
+        f"The 'roborock' command line tool requires extra dependencies that are not installed ({err.name}).\n"
+        "Install them with:\n\n    pip install python-roborock[cli]\n"
+    ) from err
 
 from roborock import RoborockCommand
 from roborock.data import RoborockBase, UserData
