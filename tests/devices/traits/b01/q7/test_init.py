@@ -215,6 +215,23 @@ async def test_q7_api_set_do_not_disturb(
 
 
 @pytest.mark.parametrize(
+    ("begin_time", "end_time"),
+    [(-1, 420), (1440, 420), (1200, -1), (1200, 1440)],
+)
+async def test_q7_api_set_do_not_disturb_invalid_time(
+    begin_time: int,
+    end_time: int,
+    q7_api: Q7PropertiesApi,
+    fake_channel: FakeChannel,
+):
+    """Test out-of-range times raise ValueError and nothing is sent."""
+    with pytest.raises(ValueError, match="minutes since midnight"):
+        await q7_api.set_do_not_disturb(True, begin_time, end_time)
+
+    assert len(fake_channel.published_messages) == 0
+
+
+@pytest.mark.parametrize(
     ("mode", "expected_code"),
     [
         (CleanTypeMapping.VACUUM, 0),

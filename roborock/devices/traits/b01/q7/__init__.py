@@ -121,8 +121,15 @@ class Q7PropertiesApi(Trait):
 
         The device expects all three values together via ``service.set_quiet_time``
         (individual ``prop.set`` calls are ignored). ``begin_time``/``end_time`` are
-        minutes since midnight.
+        minutes since midnight and must be in the range 0-1439 (inclusive).
+
+        Ranges that cross midnight are supported by passing a ``begin_time`` that is
+        greater than ``end_time`` (e.g. 22:00-07:00 is ``begin_time=1320``,
+        ``end_time=420``).
         """
+        for name, value in (("begin_time", begin_time), ("end_time", end_time)):
+            if not 0 <= value <= 1439:
+                raise ValueError(f"{name} must be between 0 and 1439 minutes since midnight, got {value}")
         await self.send(
             RoborockB01Q7Methods.SET_QUIET_TIME,
             {
