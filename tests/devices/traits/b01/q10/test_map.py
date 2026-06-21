@@ -8,6 +8,7 @@ and the trait updates its cached state from them via ``update_from_map_response`
 import asyncio
 from collections.abc import AsyncGenerator
 from pathlib import Path
+from typing import cast
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -110,7 +111,9 @@ async def test_await_q10_map_push_waits_for_fresh_update() -> None:
     properties = _FakeQ10Properties()
     properties.map.path = [Q10Point(1, 2)]
 
-    got_trace = await _await_q10_map_push(properties, lambda: bool(properties.map.path), timeout=0.01)
+    got_trace = await _await_q10_map_push(
+        cast(Q10PropertiesApi, properties), lambda: bool(properties.map.path), timeout=0.01
+    )
 
     assert got_trace is False
     assert properties.refresh_count == 1
@@ -119,7 +122,9 @@ async def test_await_q10_map_push_waits_for_fresh_update() -> None:
 async def test_await_q10_map_push_returns_true_after_update() -> None:
     properties = _FakeQ10PropertiesWithTrace()
 
-    got_trace = await _await_q10_map_push(properties, lambda: bool(properties.map.path), timeout=0.01)
+    got_trace = await _await_q10_map_push(
+        cast(Q10PropertiesApi, properties), lambda: bool(properties.map.path), timeout=0.01
+    )
 
     assert got_trace is True
     assert [(p.x, p.y) for p in properties.map.path] == [(169, 0)]
@@ -130,7 +135,7 @@ async def test_await_q10_map_push_can_fall_back_to_cached_map_on_timeout() -> No
     properties.map.image_content = b"cached-png"
 
     got_map = await _await_q10_map_push(
-        properties,
+        cast(Q10PropertiesApi, properties),
         lambda: properties.map.image_content is not None,
         timeout=0.01,
         allow_cached_on_timeout=True,
