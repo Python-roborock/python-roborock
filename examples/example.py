@@ -56,29 +56,34 @@ async def main():
 
     # Create a device manager that can discover devices.
     device_manager = await create_device_manager(user_params, cache=cache)
-    devices = await device_manager.get_devices()
 
-    # Get all vacuum devices that support the v1 PropertiesApi
-    device_results = []
-    for device in devices:
-        if not device.v1_properties:
-            continue
+    try:
+        devices = await device_manager.get_devices()
 
-        # Refresh the current device status
-        status_trait = device.v1_properties.status
-        await status_trait.refresh()
+        # Get all vacuum devices that support the v1 PropertiesApi
+        device_results = []
+        for device in devices:
+            if not device.v1_properties:
+                continue
 
-        # Print the device status as JSON
-        device_results.append(
-            {
-                "device": device.name,
-                "status": remove_none_values(dataclasses.asdict(status_trait)),
-            }
-        )
+            # Refresh the current device status
+            status_trait = device.v1_properties.status
+            await status_trait.refresh()
 
-    print(json.dumps(device_results, indent=2))
+            # Print the device status as JSON
+            device_results.append(
+                {
+                    "device": device.name,
+                    "status": remove_none_values(dataclasses.asdict(status_trait)),
+                }
+            )
 
-    await cache.flush()
+        print(json.dumps(device_results, indent=2))
+
+    finally:
+        # Close device manager to cancel background tasks before flushing cache
+        await device_manager.close()
+        await cache.flush()
 
 
 if __name__ == "__main__":
