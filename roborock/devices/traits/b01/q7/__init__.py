@@ -108,6 +108,10 @@ class Q7PropertiesApi(Trait):
         """Set the cleaning repeat state (cycles)."""
         await self.set_prop(RoborockB01Props.REPEAT_STATE, repeat.code)
 
+    async def set_volume(self, volume: int) -> None:
+        """Set the robot voice volume (0-100)."""
+        await self.set_prop(RoborockB01Props.VOLUME, volume)
+
     async def start_clean(self) -> None:
         """Start cleaning."""
         await self.send(
