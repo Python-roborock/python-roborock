@@ -152,6 +152,46 @@ async def test_q7_api_set_water_level(
     assert payload_data["dps"]["10000"]["params"] == {RoborockB01Props.WATER: WaterLevelMapping.HIGH.code}
 
 
+@pytest.mark.parametrize("volume", [0, 50, 100])
+async def test_q7_api_set_volume(
+    volume: int,
+    q7_api: Q7PropertiesApi,
+    fake_channel: FakeChannel,
+    message_builder: B01MessageBuilder,
+):
+    """Test setting the robot voice volume."""
+    fake_channel.response_queue.append(message_builder.build({"result": "ok"}))
+    await q7_api.set_volume(volume)
+
+    assert len(fake_channel.published_messages) == 1
+    message = fake_channel.published_messages[0]
+    payload_data = json.loads(unpad(message.payload, AES.block_size))
+    assert payload_data["dps"]["10000"]["method"] == "prop.set"
+    assert payload_data["dps"]["10000"]["params"] == {RoborockB01Props.VOLUME: volume}
+
+
+@pytest.mark.parametrize(
+    ("enabled", "expected_code"),
+    [(True, 1), (False, 0)],
+)
+async def test_q7_api_set_child_lock(
+    enabled: bool,
+    expected_code: int,
+    q7_api: Q7PropertiesApi,
+    fake_channel: FakeChannel,
+    message_builder: B01MessageBuilder,
+):
+    """Test toggling the child lock."""
+    fake_channel.response_queue.append(message_builder.build({"result": "ok"}))
+    await q7_api.set_child_lock(enabled)
+
+    assert len(fake_channel.published_messages) == 1
+    message = fake_channel.published_messages[0]
+    payload_data = json.loads(unpad(message.payload, AES.block_size))
+    assert payload_data["dps"]["10000"]["method"] == "prop.set"
+    assert payload_data["dps"]["10000"]["params"] == {RoborockB01Props.CHILD_LOCK: expected_code}
+
+
 @pytest.mark.parametrize(
     ("mode", "expected_code"),
     [

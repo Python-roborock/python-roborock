@@ -6,9 +6,16 @@ import aiohttp
 import pytest
 from aioresponses.compat import normalize_url
 
-from roborock import HomeData, HomeDataScene, UserData
+from roborock import HomeData, HomeDataRoom, HomeDataScene, UserData
 from roborock.exceptions import RoborockAccountDoesNotExist, RoborockException, RoborockInvalidCredentials
-from roborock.web_api import IotLoginInfo, PreparedRequest, RoborockApiClient, UserWebApiClient
+from roborock.web_api import (
+    IotLoginInfo,
+    PreparedRequest,
+    RoborockApiClient,
+    UserWebApiClient,
+    _compact_json,
+    _get_hawk_authentication,
+)
 from tests.mock_data import HOME_DATA_RAW, USER_DATA
 
 pytest_plugins = [
@@ -375,6 +382,82 @@ async def test_get_schedules(mock_rest) -> None:
     assert schedule.cron == "03 13 15 12 ?"
     assert schedule.repeated is False
     assert schedule.enabled is True
+
+
+async def test_create_job(mock_rest) -> None:
+    """A /jobs write (schedule or one-time clean) POSTs the body and returns the parsed result."""
+    api = RoborockApiClient(username="test_user@gmail.com")
+    ud = await api.pass_login("password")
+
+    mock_rest.post(
+        "https://api-us.roborock.com/user/devices/123456/jobs",
+        status=200,
+        payload={"api": None, "result": "done", "status": "ok", "success": True},
+    )
+
+    job = {"cron": "05 10 * * ?", "repeated": True, "enabled": True, "param": {"rooms": [1, 2], "roomCount": 2}}
+    response = await api.create_job(ud, "123456", job)
+    assert response["success"] is True
+    assert response["result"] == "done"
+
+
+def test_hawk_authentication_signs_body(monkeypatch) -> None:
+    """Body-bearing writes sign md5(compact JSON body) in the Hawk payload slot; GET is unchanged."""
+    from roborock import web_api
+
+    monkeypatch.setattr(web_api.time, "time", lambda: 1_700_000_000)
+    monkeypatch.setattr(web_api.secrets, "token_urlsafe", lambda n: "fixednonce")
+    rriot = UserData.from_dict(USER_DATA).rriot
+    assert rriot is not None
+
+    body = {"b": 2, "a": 1}
+    signed = _get_hawk_authentication(rriot, "/p", body=body)
+    unsigned = _get_hawk_authentication(rriot, "/p")
+    formdata_signed = _get_hawk_authentication(rriot, "/p", formdata=body)
+
+    assert signed != unsigned  # the body is actually covered by the MAC
+    assert signed != formdata_signed  # body-signing differs from formdata-signing
+    assert _compact_json(body) == '{"b":2,"a":1}'
+
+
+@pytest.mark.parametrize(
+    "result_payload",
+    [
+        # roomId field (deviceshare endpoint convention)
+        [
+            {"roomId": "2362048", "name": "Living Room"},
+            {"roomId": 2362044, "name": "Kitchen"},
+        ],
+        # id field (matches /user/homes/{id}/rooms — defensive in case the API normalizes)
+        [
+            {"id": 2362048, "name": "Living Room"},
+            {"id": 2362044, "name": "Kitchen"},
+        ],
+    ],
+)
+async def test_get_shared_device_rooms(mock_rest, result_payload) -> None:
+    """Test that shared-device rooms are fetched from the deviceshare query path."""
+    api = RoborockApiClient(username="test_user@gmail.com")
+    ud = await api.pass_login("password")
+
+    mock_rest.get(
+        "https://api-us.roborock.com/user/deviceshare/query/device-id-q7/rooms",
+        status=200,
+        payload={
+            "api": None,
+            "code": 200,
+            "result": result_payload,
+            "status": "ok",
+            "success": True,
+        },
+    )
+
+    rooms = await api.get_shared_device_rooms(ud, "device-id-q7")
+
+    assert rooms == [
+        HomeDataRoom(id=2362048, name="Living Room"),
+        HomeDataRoom(id=2362044, name="Kitchen"),
+    ]
 
 
 async def test_user_web_api_client_unauthorized_hook() -> None:
