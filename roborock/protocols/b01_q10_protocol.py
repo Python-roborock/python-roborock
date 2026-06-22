@@ -2,10 +2,19 @@
 
 import json
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
 from roborock.exceptions import RoborockException
+from roborock.map.b01_q10_map_parser import (
+    Q10MapPacket,
+    Q10TracePacket,
+    is_map_packet,
+    is_trace_packet,
+    parse_map_packet,
+    parse_trace_packet,
+)
 from roborock.roborock_message import (
     RoborockMessage,
     RoborockMessageProtocol,
@@ -85,3 +94,37 @@ def decode_rpc_response(message: RoborockMessage) -> dict[B01_Q10_DP, Any]:
         result.update(common_dps_result)
 
     return result
+
+
+@dataclass
+class Q10DpsUpdate:
+    """A decoded Q10 DPS status update pushed by the device."""
+
+    dps: dict[B01_Q10_DP, Any]
+    """Data points keyed by ``B01_Q10_DP`` code."""
+
+
+# A single decoded message from a Q10 device: a DPS status update, a full map
+# packet, or a live cleaning-path (trace) packet. Map/trace packets arrive as
+# protocol-301 ``MAP_RESPONSE`` pushes; everything else is a DPS update.
+Q10Message = Q10DpsUpdate | Q10MapPacket | Q10TracePacket
+
+
+def decode_message(message: RoborockMessage) -> Q10Message | None:
+    """Decode a pushed Q10 ``RoborockMessage`` into a typed message.
+
+    ``MAP_RESPONSE`` (protocol 301) payloads carry the binary map (``01 01``) or
+    trace (``02 01``) packets, which are parsed by the map parser; any other
+    ``MAP_RESPONSE`` marker is unrecognized and yields ``None``. Every other
+    protocol is treated as a DPS status update.
+
+    Raises ``RoborockException`` if a recognized payload fails to parse.
+    """
+    if message.protocol == RoborockMessageProtocol.MAP_RESPONSE:
+        payload = message.payload or b""
+        if is_map_packet(payload):
+            return parse_map_packet(payload)
+        if is_trace_packet(payload):
+            return parse_trace_packet(payload)
+        return None
+    return Q10DpsUpdate(dps=decode_rpc_response(message))

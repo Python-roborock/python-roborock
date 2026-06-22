@@ -2,6 +2,64 @@
 
 <!-- version list -->
 
+## v5.20.0 (2026-06-22)
+
+### Bug Fixes
+
+- Allow Q10 maps without room records
+  ([#847](https://github.com/Python-roborock/python-roborock/pull/847),
+  [`10e51f5`](https://github.com/Python-roborock/python-roborock/commit/10e51f57c9036c680d1de4b985a77a130694ffa1))
+
+- Frame Q10 02 01 trace as full cleaning-session path
+  ([#847](https://github.com/Python-roborock/python-roborock/pull/847),
+  [`10e51f5`](https://github.com/Python-roborock/python-roborock/commit/10e51f57c9036c680d1de4b985a77a130694ffa1))
+
+- Q10 map header is u16be width+height; drop stray trace point
+  ([#847](https://github.com/Python-roborock/python-roborock/pull/847),
+  [`10e51f5`](https://github.com/Python-roborock/python-roborock/commit/10e51f57c9036c680d1de4b985a77a130694ffa1))
+
+- Tighten Q10 map CLI push handling
+  ([#847](https://github.com/Python-roborock/python-roborock/pull/847),
+  [`10e51f5`](https://github.com/Python-roborock/python-roborock/commit/10e51f57c9036c680d1de4b985a77a130694ffa1))
+
+- Unblock lint when tests import roborock.cli
+  ([#847](https://github.com/Python-roborock/python-roborock/pull/847),
+  [`10e51f5`](https://github.com/Python-roborock/python-roborock/commit/10e51f57c9036c680d1de4b985a77a130694ffa1))
+
+### Features
+
+- Add Q10 (B01/ss07) map support with rooms and rendered image
+  ([#847](https://github.com/Python-roborock/python-roborock/pull/847),
+  [`10e51f5`](https://github.com/Python-roborock/python-roborock/commit/10e51f57c9036c680d1de4b985a77a130694ffa1))
+
+- Add Q10 live position parsing from 02 01 packets
+  ([#847](https://github.com/Python-roborock/python-roborock/pull/847),
+  [`10e51f5`](https://github.com/Python-roborock/python-roborock/commit/10e51f57c9036c680d1de4b985a77a130694ffa1))
+
+- Q10 (B01/ss07) map support — rooms + rendered map image
+  ([#847](https://github.com/Python-roborock/python-roborock/pull/847),
+  [`10e51f5`](https://github.com/Python-roborock/python-roborock/commit/10e51f57c9036c680d1de4b985a77a130694ffa1))
+
+### Refactoring
+
+- Make Q10 map support fully push-driven
+  ([#847](https://github.com/Python-roborock/python-roborock/pull/847),
+  [`10e51f5`](https://github.com/Python-roborock/python-roborock/commit/10e51f57c9036c680d1de4b985a77a130694ffa1))
+
+- Parse Q10 map/trace packets in the protocol layer
+  ([#847](https://github.com/Python-roborock/python-roborock/pull/847),
+  [`10e51f5`](https://github.com/Python-roborock/python-roborock/commit/10e51f57c9036c680d1de4b985a77a130694ffa1))
+
+
+## v5.19.0 (2026-06-21)
+
+### Features
+
+- **q7**: Add set_do_not_disturb trait method
+  ([#844](https://github.com/Python-roborock/python-roborock/pull/844),
+  [`3bbf72e`](https://github.com/Python-roborock/python-roborock/commit/3bbf72ed9f8c4f835cccff0ae433e3a1a7525dd3))
+
+
 ## v5.18.0 (2026-06-21)
 
 ### Bug Fixes
