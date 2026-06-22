@@ -8,7 +8,14 @@ from aioresponses.compat import normalize_url
 
 from roborock import HomeData, HomeDataRoom, HomeDataScene, UserData
 from roborock.exceptions import RoborockAccountDoesNotExist, RoborockException, RoborockInvalidCredentials
-from roborock.web_api import IotLoginInfo, PreparedRequest, RoborockApiClient, UserWebApiClient
+from roborock.web_api import (
+    IotLoginInfo,
+    PreparedRequest,
+    RoborockApiClient,
+    UserWebApiClient,
+    _compact_json,
+    _get_hawk_authentication,
+)
 from tests.mock_data import HOME_DATA_RAW, USER_DATA
 
 pytest_plugins = [
@@ -375,6 +382,42 @@ async def test_get_schedules(mock_rest) -> None:
     assert schedule.cron == "03 13 15 12 ?"
     assert schedule.repeated is False
     assert schedule.enabled is True
+
+
+async def test_create_job(mock_rest) -> None:
+    """A /jobs write (schedule or one-time clean) POSTs the body and returns the parsed result."""
+    api = RoborockApiClient(username="test_user@gmail.com")
+    ud = await api.pass_login("password")
+
+    mock_rest.post(
+        "https://api-us.roborock.com/user/devices/123456/jobs",
+        status=200,
+        payload={"api": None, "result": "done", "status": "ok", "success": True},
+    )
+
+    job = {"cron": "05 10 * * ?", "repeated": True, "enabled": True, "param": {"rooms": [1, 2], "roomCount": 2}}
+    response = await api.create_job(ud, "123456", job)
+    assert response["success"] is True
+    assert response["result"] == "done"
+
+
+def test_hawk_authentication_signs_body(monkeypatch) -> None:
+    """Body-bearing writes sign md5(compact JSON body) in the Hawk payload slot; GET is unchanged."""
+    from roborock import web_api
+
+    monkeypatch.setattr(web_api.time, "time", lambda: 1_700_000_000)
+    monkeypatch.setattr(web_api.secrets, "token_urlsafe", lambda n: "fixednonce")
+    rriot = UserData.from_dict(USER_DATA).rriot
+    assert rriot is not None
+
+    body = {"b": 2, "a": 1}
+    signed = _get_hawk_authentication(rriot, "/p", body=body)
+    unsigned = _get_hawk_authentication(rriot, "/p")
+    formdata_signed = _get_hawk_authentication(rriot, "/p", formdata=body)
+
+    assert signed != unsigned  # the body is actually covered by the MAC
+    assert signed != formdata_signed  # body-signing differs from formdata-signing
+    assert _compact_json(body) == '{"b":2,"a":1}'
 
 
 @pytest.mark.parametrize(
