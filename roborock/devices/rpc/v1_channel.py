@@ -325,9 +325,18 @@ class V1Channel(Channel):
                     self._logger.debug("MQTT connection also failed: %s", err)
                     raise
                 self._logger.debug("MQTT subscription failed, continuing with local-only connection: %s", err)
+        except RoborockException:
+            # Expected failure path (e.g. both local and MQTT transports down).
+            # Release the channel so the next subscribe() starts clean.
+            self._teardown()
+            raise
         except Exception:
-            # Any failure during setup must leave the channel re-subscribable:
-            # cancel the reconnect task, drop subscriptions, and clear _callback.
+            # Not expected here. We normally avoid a bare ``except Exception`` in
+            # this codebase, but leaving a partial subscription behind (reconnect
+            # task, MQTT subscription, stale callback) would brick the device, so we
+            # deliberately catch broadly, log the unexpected error, and tear down
+            # before propagating.
+            self._logger.exception("Unexpected error during subscribe; tearing down to avoid a leak")
             self._teardown()
             raise
 
