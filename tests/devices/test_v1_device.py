@@ -205,14 +205,20 @@ async def test_connect_unsubscribes_when_start_fails(
     """
     unsub = Mock()
     channel.subscribe = AsyncMock(return_value=unsub)
-    device.v1_properties.start = AsyncMock(side_effect=start_error)
+    device.v1_properties.start = AsyncMock(side_effect=start_error)  # type: ignore[method-assign, union-attr]
 
     with pytest.raises(type(start_error)):
         await device.connect()
 
+    # The channel was released before the error propagated.
     channel.subscribe.assert_awaited_once()
-    unsub.assert_called_once()  # channel released before propagating
-    assert device._unsub is None  # not marked connected; safe for connect_loop to retry
+    unsub.assert_called_once()
+
+    # The device is left re-connectable: once start() recovers, connect()
+    # succeeds instead of raising "Already connected to the device".
+    device.v1_properties.start = AsyncMock(return_value=None)  # type: ignore[method-assign, union-attr]
+    await device.connect()
+    assert channel.subscribe.await_count == 2
 
 
 async def test_connect_retries_after_transient_start_failure() -> None:
@@ -238,7 +244,7 @@ async def test_connect_retries_after_transient_start_failure() -> None:
     v1_channel = V1Channel(
         device_uid=duid,
         security_data=SecurityData(endpoint="test_endpoint", nonce=b"test_nonce_16byt"),
-        mqtt_channel=mqtt_channel,
+        mqtt_channel=mqtt_channel,  # type: ignore[arg-type]
         local_session=local_session,
         device_cache=device_cache,
     )
@@ -262,15 +268,15 @@ async def test_connect_retries_after_transient_start_failure() -> None:
 
     # First connect() subscribes successfully, then start() fails transiently;
     # the second succeeds.
-    device.v1_properties.start = AsyncMock(side_effect=[RoborockException("transient"), None])
+    device.v1_properties.start = AsyncMock(side_effect=[RoborockException("transient"), None])  # type: ignore[method-assign, union-attr]
 
     with pytest.raises(RoborockException):
         await device.connect()
-    assert device._unsub is None  # channel released after the transient failure
 
-    # The retry must NOT raise "Only one subscription allowed at a time".
+    # The retry must NOT raise "Only one subscription allowed at a time"; the
+    # clean release after the transient failure lets connect() re-subscribe and
+    # the device ends up connected.
     await device.connect()
-    assert device._unsub is not None
     assert device.is_connected
 
     await device.close()
