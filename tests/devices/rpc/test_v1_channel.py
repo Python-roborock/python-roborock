@@ -31,7 +31,7 @@ from tests.fixtures.channel_fixtures import FakeChannel
 USER_DATA = UserData.from_dict(mock_data.USER_DATA)
 TEST_DEVICE_UID = "abc123"
 TEST_LOCAL_KEY = "local_key"
-TEST_SECURITY_DATA = SecurityData(endpoint="test_endpoint", nonce=b"test_nonce_16byte")
+TEST_SECURITY_DATA = SecurityData(endpoint="test_endpoint", nonce=b"test_nonce_16byt")
 TEST_HOST = mock_data.TEST_LOCAL_API_HOST
 
 
@@ -642,3 +642,69 @@ async def test_v1_channel_dps_listener_raises_exception(
 
     unsub_dps1()
     unsub_dps2()
+
+
+async def test_v1_channel_resubscribe_after_unsub(
+    v1_channel: V1Channel,
+    mock_mqtt_channel: FakeChannel,
+) -> None:
+    """A subscribe -> unsub -> subscribe cycle must not raise, and the new callback works.
+
+    Regression: unsub() previously failed to reset the subscription, so the second
+    subscribe() tripped the "Only one subscription allowed at a time" guard.
+    This is the exact failure that bricked a second vacuum sharing an account.
+    """
+    mock_mqtt_channel.response_queue.append(TEST_NETWORK_INFO_RESPONSE)
+    callback = Mock()
+    unsub = await v1_channel.subscribe(callback)
+
+    # The subscribed callback receives messages arriving on the channel.
+    mock_mqtt_channel.notify_subscribers(TEST_RESPONSE)
+    callback.assert_called_once_with(TEST_RESPONSE)
+
+    # After unsub, the old callback no longer receives messages.
+    unsub()
+    callback.reset_mock()
+    mock_mqtt_channel.notify_subscribers(TEST_RESPONSE)
+    callback.assert_not_called()
+
+    # Re-subscribing must succeed (network info is now cached, no MQTT needed) and
+    # the new callback then receives messages.
+    new_callback = Mock()
+    unsub2 = await v1_channel.subscribe(new_callback)
+    mock_mqtt_channel.notify_subscribers(TEST_RESPONSE)
+    new_callback.assert_called_once_with(TEST_RESPONSE)
+    unsub2()
+
+
+async def test_v1_channel_subscribe_failure_is_atomic(
+    v1_channel: V1Channel,
+    mock_mqtt_channel: FakeChannel,
+    mock_local_channel: FakeChannel,
+) -> None:
+    """A failure partway through subscribe() leaves the channel re-subscribable.
+
+    Regression: a failed subscribe() previously leaked the background reconnect
+    task and a partial subscription, so the next attempt could neither reuse nor
+    cleanly recreate the channel.
+    """
+    # Both transports down: local connect fails and the MQTT subscribe fails.
+    mock_local_channel.connect.side_effect = RoborockException("local down")
+    mock_mqtt_channel.subscribe.side_effect = RoborockException("mqtt down")
+
+    with pytest.raises(RoborockException):
+        await v1_channel.subscribe(Mock())
+
+    # The failed subscribe left no dangling subscription on the channel.
+    assert not mock_mqtt_channel.subscribers
+
+    # And the channel is re-subscribable once the transports recover: the new
+    # subscription succeeds and its callback receives messages.
+    mock_local_channel.connect.side_effect = None
+    mock_mqtt_channel.subscribe.side_effect = mock_mqtt_channel._subscribe
+    mock_mqtt_channel.response_queue.append(TEST_NETWORK_INFO_RESPONSE)
+    callback = Mock()
+    unsub = await v1_channel.subscribe(callback)
+    mock_mqtt_channel.notify_subscribers(TEST_RESPONSE)
+    callback.assert_called_once_with(TEST_RESPONSE)
+    unsub()

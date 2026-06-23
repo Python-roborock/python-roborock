@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v5.20.1 (2026-06-22)
+
+### Bug Fixes
+
+- Make V1Channel re-subscribable after a failed subscribe
+  ([#845](https://github.com/Python-roborock/python-roborock/pull/845),
+  [`03193d7`](https://github.com/Python-roborock/python-roborock/commit/03193d79668331c6fb1baa86655dc27bcd5e574b))
+
+- Narrow subscribe/connect cleanup to Exception; use 16-byte test nonce
+  ([#845](https://github.com/Python-roborock/python-roborock/pull/845),
+  [`03193d7`](https://github.com/Python-roborock/python-roborock/commit/03193d79668331c6fb1baa86655dc27bcd5e574b))
+
+### Refactoring
+
+- Distinguish expected vs unexpected exceptions in subscribe/connect cleanup
+  ([#845](https://github.com/Python-roborock/python-roborock/pull/845),
+  [`03193d7`](https://github.com/Python-roborock/python-roborock/commit/03193d79668331c6fb1baa86655dc27bcd5e574b))
+
+
 ## v5.20.0 (2026-06-22)
 
 ### Bug Fixes
