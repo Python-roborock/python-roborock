@@ -87,6 +87,20 @@ def test_parse_virtual_wall_blob_real_capture() -> None:
     assert walls[0].vertices == [(-1595, -1682), (-1522, -788)]
 
 
+def test_parse_virtual_wall_blob_real_rdc_two_walls() -> None:
+    """Real DP-57 read-back from our RDC ss07 with two Invisible Walls drawn.
+
+    Captured live after drawing the walls in the official app; the old
+    parse_zone_blob silently returned [] for this exact blob (the regression
+    this fix addresses).
+    """
+    walls = parse_virtual_wall_blob("AgAz/QMCDv0D/83+Dv/O/OY=")
+    assert [(w.type, w.vertices) for w in walls] == [
+        (ZONE_TYPE_VIRTUAL_WALL, [(-765, 51), (-765, 526)]),
+        (ZONE_TYPE_VIRTUAL_WALL, [(-498, -51), (-794, -50)]),
+    ]
+
+
 def test_parse_virtual_wall_blob_empty_variants() -> None:
     assert parse_virtual_wall_blob(None) == []
     assert parse_virtual_wall_blob(b"\x00") == []  # device's "no walls" sentinel
