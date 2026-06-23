@@ -7,6 +7,7 @@ from roborock.map.b01_q10_overlays import (
     ZONE_TYPE_NO_MOP,
     ZONE_TYPE_THRESHOLD,
     ZONE_TYPE_VIRTUAL_WALL,
+    parse_virtual_wall_blob,
     parse_zone_blob,
 )
 
@@ -71,3 +72,47 @@ def test_parse_zone_blob_real_record_size_inferred() -> None:
     rect = _rect(ZONE_TYPE_NO_GO, [(100, 200), (300, 200), (300, 50), (100, 50)])
     zones = parse_zone_blob(_blob(1, [rect], record_size=38))
     assert len(zones) == 1 and zones[0].vertices[0] == (100, 200)
+
+
+def test_parse_virtual_wall_blob_real_capture() -> None:
+    """Real DP-57 read-back from an ss07 (one wall drawn in the app).
+
+    Frame is ``[count]`` + 8-byte ``(y, x)`` records -- no version byte. The
+    decoder swaps axes to ``(x, y)`` so walls share the restricted-zone order.
+    Provenance: PR #850 review thread.
+    """
+    walls = parse_virtual_wall_blob("Aflu+cX87PoO")
+    assert len(walls) == 1
+    assert walls[0].type == ZONE_TYPE_VIRTUAL_WALL
+    assert walls[0].vertices == [(-1595, -1682), (-1522, -788)]
+
+
+def test_parse_virtual_wall_blob_empty_variants() -> None:
+    assert parse_virtual_wall_blob(None) == []
+    assert parse_virtual_wall_blob(b"\x00") == []  # device's "no walls" sentinel
+    assert parse_virtual_wall_blob("AA==") == []  # base64 of 0x00
+
+
+def test_parse_virtual_wall_blob_multiple_walls() -> None:
+    """Two walls back-to-back; each is a separate 8-byte (y, x) record."""
+    wall_a = bytes.fromhex("000a0014001e0028")  # (y,x)=(10,20)->(30,40)
+    wall_b = bytes.fromhex("fffb0005fff6000a")  # (y,x)=(-5,5)->(-10,10)
+    walls = parse_virtual_wall_blob(bytes([2]) + wall_a + wall_b)
+    assert [w.vertices for w in walls] == [[(20, 10), (40, 30)], [(5, -5), (10, -10)]]
+
+
+def test_parse_virtual_wall_blob_truncated_record_dropped() -> None:
+    """A trailing record shorter than 8 bytes is dropped, not misread."""
+    blob = bytes([2]) + bytes([0x00, 0x0A, 0x00, 0x14, 0x00, 0x1E, 0x00, 0x28]) + b"\x00\x00"
+    walls = parse_virtual_wall_blob(blob)
+    assert [w.vertices for w in walls] == [[(20, 10), (40, 30)]]
+
+
+def test_zone_parser_misframes_virtual_wall_blob() -> None:
+    """The restricted-zone parser must NOT be used on DP 57 -- it mis-frames it.
+
+    Regression guard for the original bug: a DP-57 blob fed to parse_zone_blob
+    reads the leading 0x01 as a version and the next coordinate byte as a record
+    count, yielding garbage (here: nothing), so DP 57 needs its own decoder.
+    """
+    assert parse_zone_blob("Aflu+cX87PoO") != parse_virtual_wall_blob("Aflu+cX87PoO")

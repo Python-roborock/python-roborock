@@ -43,7 +43,13 @@ from roborock.map.b01_q10_map_parser import (
     parse_map_packet,
     parse_trace_packet,
 )
-from roborock.map.b01_q10_overlays import ZONE_TYPE_NO_GO, ZONE_TYPE_NO_MOP, Q10Zone, parse_zone_blob
+from roborock.map.b01_q10_overlays import (
+    ZONE_TYPE_NO_GO,
+    ZONE_TYPE_NO_MOP,
+    Q10Zone,
+    parse_virtual_wall_blob,
+    parse_zone_blob,
+)
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 
 _LOGGER = logging.getLogger(__name__)
@@ -264,7 +270,7 @@ class MapContentTrait(MapContent, TraitUpdateListener):
         if restricted_zone_up is not None:
             self.zones = parse_zone_blob(restricted_zone_up)
         if virtual_wall_up is not None:
-            self.virtual_walls = parse_zone_blob(virtual_wall_up)
+            self.virtual_walls = parse_virtual_wall_blob(virtual_wall_up)
         if self.calibration is not None:
             self._place_zones_on_map_data(self.calibration)
 
