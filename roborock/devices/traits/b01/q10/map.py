@@ -25,11 +25,17 @@ from vacuum_map_parser_base.map_data import Area, MapData, Path, Point, Wall
 from roborock.data import RoborockBase
 from roborock.devices.traits.common import TraitUpdateListener
 from roborock.exceptions import RoborockException
-from roborock.map.b01_grid_layers import GridCalibration, GridLayers, solve_calibration
+from roborock.map.b01_grid_layers import (
+    GridCalibration,
+    GridLayers,
+    solve_calibration,
+    solve_calibration_with_origin,
+)
 from roborock.map.b01_q10_map_parser import (
     B01Q10MapParser,
     B01Q10MapParserConfig,
     Q10EraseZone,
+    Q10HeaderCalibration,
     Q10Point,
     Q10Room,
     decompose_layers,
@@ -52,8 +58,13 @@ _TRACE_PACKET_MARKER = b"\x02\x01"
 # World-units-per-pixel candidates for calibration, bracketing the ~13-16
 # measured on live ss07 captures. A dense cleaning path selects the best fit.
 _Q10_RESOLUTIONS = [step * 0.5 for step in range(20, 37)]  # 10.0 .. 18.0
-# A path needs enough shape to constrain the fit; a few points cannot.
+# A path needs enough shape to constrain a full (origin + resolution) fit; a few
+# points cannot.
 _MIN_CALIBRATION_POINTS = 20
+# When the grid-frame header supplies the origin, only the resolution is fit, so
+# a much shorter path suffices to confirm it (early in a clean, not just a dense
+# one). See :func:`solve_calibration_with_origin`.
+_MIN_HEADER_CALIBRATION_POINTS = 4
 
 
 @dataclass
@@ -102,6 +113,12 @@ class MapContent(RoborockBase):
 
     raw_api_response: bytes | None = None
     """Raw bytes of the map payload from the device (opaque blob for re-parsing)."""
+
+    header_calibration: Q10HeaderCalibration | None = None
+    """Calibration read straight from the map packet's grid-frame header (ss07).
+    Supplies the world<->pixel origin without a fit, so :meth:`solve_calibration`
+    can calibrate from a short path instead of a dense clean. ``None`` if the
+    packet carried no header calibration or it was a keepalive frame."""
 
     def __repr__(self) -> str:
         img = self.image_content
@@ -181,6 +198,7 @@ class MapContentTrait(MapContent, TraitUpdateListener):
         self.map_data = parsed.map_data
         self.rooms = packet.rooms
         self.erase_zones = packet.erase_zones
+        self.header_calibration = packet.header_calibration
         self.layers = decompose_layers(packet)
         if self.calibration is not None:
             self._apply_erase(self.calibration)
@@ -190,22 +208,40 @@ class MapContentTrait(MapContent, TraitUpdateListener):
     def solve_calibration(self) -> GridCalibration | None:
         """Fit and cache the world<->pixel calibration from the current path.
 
-        Requires both a parsed map and a reasonably dense cleaning path (both
-        arrive as device pushes; the path is only populated during an active
-        clean). Returns the calibration (also stored on :attr:`calibration`), or
-        ``None`` if there is no map or the path is too short/featureless to fit.
+        When the map packet's grid-frame header carries a calibration origin
+        (ss07), only the resolution is fit -- around that fixed origin -- so a
+        short path suffices and the origin is exact rather than recovered by a
+        slide. Otherwise the full origin + resolution fit is used, which needs a
+        reasonably dense cleaning path. Both inputs arrive as device pushes (the
+        path is only populated during an active clean). Returns the calibration
+        (also stored on :attr:`calibration`), or ``None`` if there is no map or
+        the path is too short/featureless to fit.
         """
-        if self.layers is None or len(self.path) < _MIN_CALIBRATION_POINTS:
+        if self.layers is None:
             return None
-        calibration = solve_calibration(
-            self.layers, [(point.x, point.y) for point in self.path], resolutions=_Q10_RESOLUTIONS
-        )
+        points: list[tuple[float, float]] = [(point.x, point.y) for point in self.path]
+        calibration = self._calibration_from_header(points) or self._calibration_from_fit(points)
         if calibration is not None:
             self.calibration = calibration
             self._apply_erase(calibration)
             self._populate_map_data_overlays(calibration)
             self._place_zones_on_map_data(calibration)
         return calibration
+
+    def _calibration_from_header(self, points: list[tuple[float, float]]) -> GridCalibration | None:
+        """Calibrate around the header-supplied origin (resolution fit to a path)."""
+        if self.layers is None or self.header_calibration is None or len(points) < _MIN_HEADER_CALIBRATION_POINTS:
+            return None
+        origin = self.header_calibration.origin_pixels()
+        if origin is None:  # keepalive frame -- no usable origin
+            return None
+        return solve_calibration_with_origin(self.layers, points, origin, resolutions=_Q10_RESOLUTIONS)
+
+    def _calibration_from_fit(self, points: list[tuple[float, float]]) -> GridCalibration | None:
+        """Full origin + resolution fit; needs a reasonably dense path."""
+        if self.layers is None or len(points) < _MIN_CALIBRATION_POINTS:
+            return None
+        return solve_calibration(self.layers, points, resolutions=_Q10_RESOLUTIONS)
 
     def load_overlays(
         self,

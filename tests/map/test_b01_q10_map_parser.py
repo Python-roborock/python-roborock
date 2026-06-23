@@ -290,3 +290,54 @@ def test_parse_erase_zones_from_map_packet_tail() -> None:
 
 def test_parse_map_packet_without_erase_tail() -> None:
     assert parse_map_packet(FIXTURE.read_bytes()).erase_zones == []
+
+
+def _calibrated_map_payload(
+    width: int,
+    height: int,
+    decoded_layout: bytes,
+    *,
+    origin: tuple[int, int],
+    resolution: int = 5,
+    charger: tuple[int, int, int] = (0, 0, 0),
+) -> bytes:
+    """A map packet with the grid-frame header calibration fields populated."""
+    payload = bytearray(_full_header_map_payload(width, height, decoded_layout))
+    payload[11:13] = origin[0].to_bytes(2, "big", signed=True)
+    payload[13:15] = origin[1].to_bytes(2, "big", signed=True)
+    payload[15:17] = resolution.to_bytes(2, "big")
+    payload[17:19] = charger[0].to_bytes(2, "big", signed=True)
+    payload[19:21] = charger[1].to_bytes(2, "big", signed=True)
+    payload[21:23] = charger[2].to_bytes(2, "big", signed=True)
+    return bytes(payload)
+
+
+def test_parse_header_calibration_fields() -> None:
+    """The 01 01 header's calibration fields decode to a usable origin (ss07)."""
+    grid = bytes([8]) * 6 + bytes([12]) * 6  # 4x3 grid, two rooms
+    layout = grid + b"\x01\x02" + _room_record(2, "rr_kitchen") + _room_record(3, "den")
+    payload = _calibrated_map_payload(4, 3, layout, origin=(-3760, 1920), resolution=5, charger=(-50, 30, 180))
+    cal = parse_map_packet(payload).header_calibration
+    assert cal is not None
+    assert (cal.origin_x, cal.origin_y) == (-3760, 1920)
+    assert cal.resolution == 5
+    assert (cal.charger_x, cal.charger_y, cal.charger_phi) == (-50, 30, 180)
+    assert not cal.is_keepalive
+    # 5 mm units / (50 mm/px) -> divide by 10 for grid pixels.
+    assert cal.origin_pixels() == (-376.0, 192.0)
+
+
+def test_parse_header_calibration_keepalive_has_no_origin() -> None:
+    """A null/keepalive frame (x_min == y_min == 0) yields no usable origin."""
+    grid = bytes([8]) * 6 + bytes([12]) * 6
+    layout = grid + b"\x01\x02" + _room_record(2, "rr_kitchen") + _room_record(3, "den")
+    cal = parse_map_packet(_calibrated_map_payload(4, 3, layout, origin=(0, 0))).header_calibration
+    assert cal is not None
+    assert cal.is_keepalive
+    assert cal.origin_pixels() is None
+
+
+def test_real_fixture_header_calibration_is_keepalive() -> None:
+    """The synthetic fixture carries no header origin, so callers fall back to a fit."""
+    cal = parse_map_packet(FIXTURE.read_bytes()).header_calibration
+    assert cal is not None and cal.is_keepalive

@@ -18,7 +18,7 @@ from roborock.devices.traits.b01.q10 import Q10PropertiesApi, create
 from roborock.devices.traits.b01.q10.map import MapContentTrait
 from roborock.exceptions import RoborockException
 from roborock.map.b01_grid_layers import GridCalibration
-from roborock.map.b01_q10_map_parser import Q10EraseZone, Q10Point
+from roborock.map.b01_q10_map_parser import Q10EraseZone, Q10HeaderCalibration, Q10Point
 from roborock.map.b01_q10_overlays import ZONE_TYPE_NO_GO, ZONE_TYPE_NO_MOP
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 
@@ -168,6 +168,45 @@ def test_solve_calibration_needs_map_and_dense_path() -> None:
     trait = MapContentTrait()
     trait.path = [Q10Point(i, 0) for i in range(30)]
     assert trait.solve_calibration() is None  # no layers yet
+
+
+def _floor_world_points(trait: MapContentTrait, cal: GridCalibration, count: int) -> list[Q10Point]:
+    """``count`` world points lying on the map's floor under ``cal``."""
+    assert trait.layers is not None
+    layers = trait.layers
+    floor = [
+        (px, py)
+        for py in range(layers.height)
+        for px in range(layers.width)
+        if layers.cell_class(layers.grid[py * layers.width + px]) == "floor"
+    ]
+    return [Q10Point(*(int(v) for v in cal.pixel_to_world(px, py))) for px, py in floor[:count]]
+
+
+def test_solve_calibration_uses_header_origin_with_short_path() -> None:
+    """A grid-frame header origin lets a short path calibrate (origin is exact)."""
+    trait = _trait_with_map()
+    # Header origin in 5 mm units -> pixel origin (0, 5); not a keepalive frame.
+    trait.header_calibration = Q10HeaderCalibration(
+        origin_x=0, origin_y=50, resolution=5, charger_x=0, charger_y=0, charger_phi=0
+    )
+    true = GridCalibration(resolution=10.0, origin_x=0.0, origin_y=5.0, y_sign=1)
+    trait.path = _floor_world_points(trait, true, 6)
+    assert len(trait.path) < 20  # far too short for the full origin+resolution fit
+    cal = trait.solve_calibration()
+    assert cal is not None
+    # Origin comes straight from the header (exact), only resolution was fit.
+    assert (cal.origin_x, cal.origin_y, cal.resolution) == (0.0, 5.0, 10.0)
+    assert trait.calibration is cal
+
+
+def test_solve_calibration_short_path_without_header_returns_none() -> None:
+    """Without a header origin a short path is still too sparse for the full fit."""
+    trait = _trait_with_map()  # the fixture header is a keepalive frame
+    assert trait.header_calibration is not None and trait.header_calibration.is_keepalive
+    true = GridCalibration(resolution=10.0, origin_x=0.0, origin_y=5.0, y_sign=1)
+    trait.path = _floor_world_points(trait, true, 6)
+    assert trait.solve_calibration() is None
 
 
 def test_render_path_on_map_requires_map() -> None:

@@ -91,6 +91,26 @@ _MAX_ROOMS = 32
 # Sanity bound for the erase-zone vector section's vertices-per-polygon field.
 _MAX_ERASE_ZONE_VERTICES = 16
 
+# The 01 01 grid-frame header also carries the map's calibration, so a
+# GridCalibration can be derived without fitting a cleaning path (i.e. docked /
+# pre-clean). Absolute byte offsets in the frame, reported and verified by
+# @andrewlyeats across independent ss07 (fw 03.11.24) captures and cross-checked
+# with the ioBroker roborock adapter:
+# - 11-12 x_min, 13-14 y_min (s16be): map origin in 5 mm units. The grid is
+#   50 mm/px, so dividing by 10 yields the origin in grid pixels -- the (ox, oy)
+#   that solve_calibration otherwise recovers by sliding the path.
+# - 15-16 resolution (u16be): reads 5 (= 0.05 m/px = 50 mm/px) universally.
+# - 17-18 charger x, 19-20 charger y (s16be, 5 mm units), 21-22 charger phi.
+_ORIGIN_X_OFFSET = 11
+_ORIGIN_Y_OFFSET = 13
+_HEADER_RESOLUTION_OFFSET = 15
+_CHARGER_X_OFFSET = 17
+_CHARGER_Y_OFFSET = 19
+_CHARGER_PHI_OFFSET = 21
+# The header origin/charger are in 5 mm units and the grid is 50 mm/px, so a
+# header coordinate maps to grid pixels by dividing by this.
+_HEADER_UNITS_PER_PIXEL = 10
+
 # Grid cell values >= this are walls / borders rather than room segments.
 _WALL_THRESHOLD = 240
 
@@ -128,6 +148,43 @@ class Q10EraseZone:
 
 
 @dataclass
+class Q10HeaderCalibration:
+    """Calibration carried in the ``01 01`` grid-frame header (ss07).
+
+    Lets a :class:`~roborock.map.b01_grid_layers.GridCalibration` origin be read
+    straight from the map packet -- no cleaning path / fit required, so it works
+    docked or pre-clean. See :meth:`origin_pixels`.
+
+    ``origin_x`` / ``origin_y`` and the charger coordinates are in 5 mm units;
+    ``resolution`` is the raw header field (5 == 50 mm/px). ``charger_phi`` is the
+    raw dock heading field. Reported and verified by @andrewlyeats (ss07).
+    """
+
+    origin_x: int
+    origin_y: int
+    resolution: int
+    charger_x: int
+    charger_y: int
+    charger_phi: int
+
+    @property
+    def is_keepalive(self) -> bool:
+        """True for null/keepalive frames (``x_min == y_min == 0``), which carry
+        no usable origin -- callers should fall back to a path-fit calibration."""
+        return self.origin_x == 0 and self.origin_y == 0
+
+    def origin_pixels(self) -> tuple[float, float] | None:
+        """The grid-pixel origin ``(ox, oy)`` for a ``GridCalibration``.
+
+        The header origin is in 5 mm units and the grid is 50 mm/px, so the
+        pixel origin is the header value divided by 10. Returns ``None`` for a
+        keepalive frame (no origin to use)."""
+        if self.is_keepalive:
+            return None
+        return (self.origin_x / _HEADER_UNITS_PER_PIXEL, self.origin_y / _HEADER_UNITS_PER_PIXEL)
+
+
+@dataclass
 class Q10MapPacket:
     """Decoded contents of a Q10 ``01 01`` map packet."""
 
@@ -138,6 +195,8 @@ class Q10MapPacket:
     rooms: list[Q10Room] = field(default_factory=list)
     erase_zones: list[Q10EraseZone] = field(default_factory=list)
     """Erase areas decoded from the packet tail (world coordinates)."""
+    header_calibration: Q10HeaderCalibration | None = None
+    """Calibration read straight from the grid-frame header (ss07), or ``None``."""
 
 
 @dataclass
@@ -381,7 +440,37 @@ def parse_map_packet(payload: bytes) -> Q10MapPacket:
         height, grid, room_data = _infer_layout(decoded, width)
     rooms = _parse_rooms(room_data, grid)
     erase_zones = _parse_erase_zones(payload[layout_end:])
-    return Q10MapPacket(map_id=map_id, width=width, height=height, grid=grid, rooms=rooms, erase_zones=erase_zones)
+    header_calibration = _parse_header_calibration(payload)
+    return Q10MapPacket(
+        map_id=map_id,
+        width=width,
+        height=height,
+        grid=grid,
+        rooms=rooms,
+        erase_zones=erase_zones,
+        header_calibration=header_calibration,
+    )
+
+
+def _parse_header_calibration(payload: bytes) -> Q10HeaderCalibration | None:
+    """Read the calibration fields from the ``01 01`` grid-frame header.
+
+    All fields sit inside the fixed 29-byte header (already length-checked by
+    the caller). See the offset constants for the byte layout. Returns the
+    decoded :class:`Q10HeaderCalibration` (callers skip keepalive frames via
+    :attr:`Q10HeaderCalibration.is_keepalive`)."""
+
+    def s16(offset: int) -> int:
+        return int.from_bytes(payload[offset : offset + 2], "big", signed=True)
+
+    return Q10HeaderCalibration(
+        origin_x=s16(_ORIGIN_X_OFFSET),
+        origin_y=s16(_ORIGIN_Y_OFFSET),
+        resolution=int.from_bytes(payload[_HEADER_RESOLUTION_OFFSET : _HEADER_RESOLUTION_OFFSET + 2], "big"),
+        charger_x=s16(_CHARGER_X_OFFSET),
+        charger_y=s16(_CHARGER_Y_OFFSET),
+        charger_phi=s16(_CHARGER_PHI_OFFSET),
+    )
 
 
 def _parse_erase_zones(tail: bytes) -> list[Q10EraseZone]:

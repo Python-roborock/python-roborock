@@ -13,6 +13,7 @@ from roborock.map.b01_grid_layers import (
     GridCalibration,
     decompose_grid,
     solve_calibration,
+    solve_calibration_with_origin,
 )
 from roborock.map.b01_q10_map_parser import (
     classify_q10_cell,
@@ -160,3 +161,27 @@ def test_solve_calibration_returns_none_when_unfittable() -> None:
     # Points so far apart no resolution keeps them on the 6x6 floor block.
     points = [(0.0, 0.0), (1000.0, 0.0), (0.0, 1000.0)]
     assert solve_calibration(layers, points, resolutions=[2.0]) is None
+
+
+def test_solve_calibration_with_origin_fits_resolution_from_short_path() -> None:
+    """With a known origin only resolution is fit, so a tiny path suffices."""
+    layers = _floor_block_layers()
+    true = GridCalibration(2.0, 3.0, 8.0, 1)
+    points = [true.pixel_to_world(px, py) for px, py in [(4, 7), (6, 5)]]  # two points
+    cal = solve_calibration_with_origin(layers, points, (true.origin_x, true.origin_y), resolutions=[1.0, 2.0, 3.0])
+    assert cal is not None
+    assert (cal.resolution, cal.origin_x, cal.origin_y, cal.y_sign) == (2.0, 3.0, 8.0, 1)
+
+
+def test_solve_calibration_with_origin_returns_none_off_floor() -> None:
+    """A wrong origin that lands the path off floor is rejected, not forced."""
+    layers = _floor_block_layers()
+    true = GridCalibration(2.0, 3.0, 8.0, 1)
+    points = [true.pixel_to_world(px, py) for px, py in [(4, 7), (6, 5)]]
+    # Origin shoved into the background corner: every point lands off floor.
+    assert solve_calibration_with_origin(layers, points, (0.0, 0.0), resolutions=[2.0]) is None
+
+
+def test_solve_calibration_with_origin_returns_none_without_points() -> None:
+    layers = _floor_block_layers()
+    assert solve_calibration_with_origin(layers, [], (3.0, 8.0), resolutions=[2.0]) is None
