@@ -2,6 +2,151 @@
 
 <!-- version list -->
 
+## v5.20.1 (2026-06-22)
+
+### Bug Fixes
+
+- Make V1Channel re-subscribable after a failed subscribe
+  ([#845](https://github.com/Python-roborock/python-roborock/pull/845),
+  [`03193d7`](https://github.com/Python-roborock/python-roborock/commit/03193d79668331c6fb1baa86655dc27bcd5e574b))
+
+- Narrow subscribe/connect cleanup to Exception; use 16-byte test nonce
+  ([#845](https://github.com/Python-roborock/python-roborock/pull/845),
+  [`03193d7`](https://github.com/Python-roborock/python-roborock/commit/03193d79668331c6fb1baa86655dc27bcd5e574b))
+
+### Refactoring
+
+- Distinguish expected vs unexpected exceptions in subscribe/connect cleanup
+  ([#845](https://github.com/Python-roborock/python-roborock/pull/845),
+  [`03193d7`](https://github.com/Python-roborock/python-roborock/commit/03193d79668331c6fb1baa86655dc27bcd5e574b))
+
+
+## v5.20.0 (2026-06-22)
+
+### Bug Fixes
+
+- Allow Q10 maps without room records
+  ([#847](https://github.com/Python-roborock/python-roborock/pull/847),
+  [`10e51f5`](https://github.com/Python-roborock/python-roborock/commit/10e51f57c9036c680d1de4b985a77a130694ffa1))
+
+- Frame Q10 02 01 trace as full cleaning-session path
+  ([#847](https://github.com/Python-roborock/python-roborock/pull/847),
+  [`10e51f5`](https://github.com/Python-roborock/python-roborock/commit/10e51f57c9036c680d1de4b985a77a130694ffa1))
+
+- Q10 map header is u16be width+height; drop stray trace point
+  ([#847](https://github.com/Python-roborock/python-roborock/pull/847),
+  [`10e51f5`](https://github.com/Python-roborock/python-roborock/commit/10e51f57c9036c680d1de4b985a77a130694ffa1))
+
+- Tighten Q10 map CLI push handling
+  ([#847](https://github.com/Python-roborock/python-roborock/pull/847),
+  [`10e51f5`](https://github.com/Python-roborock/python-roborock/commit/10e51f57c9036c680d1de4b985a77a130694ffa1))
+
+- Unblock lint when tests import roborock.cli
+  ([#847](https://github.com/Python-roborock/python-roborock/pull/847),
+  [`10e51f5`](https://github.com/Python-roborock/python-roborock/commit/10e51f57c9036c680d1de4b985a77a130694ffa1))
+
+### Features
+
+- Add Q10 (B01/ss07) map support with rooms and rendered image
+  ([#847](https://github.com/Python-roborock/python-roborock/pull/847),
+  [`10e51f5`](https://github.com/Python-roborock/python-roborock/commit/10e51f57c9036c680d1de4b985a77a130694ffa1))
+
+- Add Q10 live position parsing from 02 01 packets
+  ([#847](https://github.com/Python-roborock/python-roborock/pull/847),
+  [`10e51f5`](https://github.com/Python-roborock/python-roborock/commit/10e51f57c9036c680d1de4b985a77a130694ffa1))
+
+- Q10 (B01/ss07) map support — rooms + rendered map image
+  ([#847](https://github.com/Python-roborock/python-roborock/pull/847),
+  [`10e51f5`](https://github.com/Python-roborock/python-roborock/commit/10e51f57c9036c680d1de4b985a77a130694ffa1))
+
+### Refactoring
+
+- Make Q10 map support fully push-driven
+  ([#847](https://github.com/Python-roborock/python-roborock/pull/847),
+  [`10e51f5`](https://github.com/Python-roborock/python-roborock/commit/10e51f57c9036c680d1de4b985a77a130694ffa1))
+
+- Parse Q10 map/trace packets in the protocol layer
+  ([#847](https://github.com/Python-roborock/python-roborock/pull/847),
+  [`10e51f5`](https://github.com/Python-roborock/python-roborock/commit/10e51f57c9036c680d1de4b985a77a130694ffa1))
+
+
+## v5.19.0 (2026-06-21)
+
+### Features
+
+- **q7**: Add set_do_not_disturb trait method
+  ([#844](https://github.com/Python-roborock/python-roborock/pull/844),
+  [`3bbf72e`](https://github.com/Python-roborock/python-roborock/commit/3bbf72ed9f8c4f835cccff0ae433e3a1a7525dd3))
+
+
+## v5.18.0 (2026-06-21)
+
+### Bug Fixes
+
+- Q10 restricted-zone type 3 is door-threshold, no-mop is type 2
+  ([#850](https://github.com/Python-roborock/python-roborock/pull/850),
+  [`0832b0a`](https://github.com/Python-roborock/python-roborock/commit/0832b0a1d824af945e798e28ca6827d456af452a))
+
+### Features
+
+- Add B01 grid-layer decomposition + Q10 vector overlay decoding
+  ([#850](https://github.com/Python-roborock/python-roborock/pull/850),
+  [`0832b0a`](https://github.com/Python-roborock/python-roborock/commit/0832b0a1d824af945e798e28ca6827d456af452a))
+
+- B01 grid-layer decomposition + Q10 vector overlay decoding
+  ([#850](https://github.com/Python-roborock/python-roborock/pull/850),
+  [`0832b0a`](https://github.com/Python-roborock/python-roborock/commit/0832b0a1d824af945e798e28ca6827d456af452a))
+
+
+## v5.17.0 (2026-06-21)
+
+### Features
+
+- **q7**: Add set_child_lock trait method
+  ([#842](https://github.com/Python-roborock/python-roborock/pull/842),
+  [`3142eef`](https://github.com/Python-roborock/python-roborock/commit/3142eef7d0c57f47e11661c334860021ce36284d))
+
+
+## v5.16.0 (2026-06-20)
+
+### Features
+
+- **q7**: Add set_volume trait method
+  ([#841](https://github.com/Python-roborock/python-roborock/pull/841),
+  [`f5c6ac5`](https://github.com/Python-roborock/python-roborock/commit/f5c6ac5d481141dcb42c77718da6e54c1119ebea))
+
+
+## v5.15.2 (2026-06-20)
+
+### Bug Fixes
+
+- **web_api**: Sign request body in Hawk auth for B01 /jobs writes
+  ([#852](https://github.com/Python-roborock/python-roborock/pull/852),
+  [`4dbe17e`](https://github.com/Python-roborock/python-roborock/commit/4dbe17e6af82ddc2450a2b261e17b5049913a77c))
+
+
+## v5.15.1 (2026-06-19)
+
+### Bug Fixes
+
+- Move CLI dependencies from `dev` to `cli`
+  ([#853](https://github.com/Python-roborock/python-roborock/pull/853),
+  [`518ab31`](https://github.com/Python-roborock/python-roborock/commit/518ab31f7aa5ab092a3e3c59270f9b7a12af23b1))
+
+
+## v5.15.0 (2026-06-16)
+
+### Chores
+
+- Address allens comments ([#826](https://github.com/Python-roborock/python-roborock/pull/826),
+  [`5948eed`](https://github.com/Python-roborock/python-roborock/commit/5948eed60b175f641014620ccccc3897fb67da63))
+
+### Features
+
+- Add shared rooms endpoint ([#826](https://github.com/Python-roborock/python-roborock/pull/826),
+  [`5948eed`](https://github.com/Python-roborock/python-roborock/commit/5948eed60b175f641014620ccccc3897fb67da63))
+
+
 ## v5.14.2 (2026-06-04)
 
 ### Bug Fixes

@@ -53,6 +53,36 @@ def _synthetic_map_payload(width: int, decoded_layout: bytes) -> bytes:
     return bytes(payload)
 
 
+def _room_record(room_id: int, name: str) -> bytes:
+    record = bytearray(47)  # _ROOM_RECORD_LENGTH
+    record[0:2] = room_id.to_bytes(2, "big")
+    encoded = name.encode("utf-8")
+    record[26] = len(encoded)
+    record[27 : 27 + len(encoded)] = encoded
+    return bytes(record)
+
+
+def _full_header_map_payload(width: int, height: int, decoded_layout: bytes) -> bytes:
+    """Build a map packet that populates the real u16be width and height fields."""
+    compressed = _literal_lz4_block(decoded_layout)
+    payload = bytearray(29)
+    payload[0:2] = b"\x01\x01"
+    payload[2:6] = (0x01020304).to_bytes(4, "big")
+    payload[7:9] = width.to_bytes(2, "big")
+    payload[9:11] = height.to_bytes(2, "big")
+    payload[27:29] = len(compressed).to_bytes(2, "big")
+    payload.extend(compressed)
+    return bytes(payload)
+
+
+def _trace_payload(points: list[tuple[int, int]], sequence: int = 1) -> bytes:
+    header = bytearray(10)
+    header[0:2] = b"\x02\x01"
+    header[3] = sequence
+    body = b"".join(x.to_bytes(2, "big", signed=True) + y.to_bytes(2, "big", signed=True) for x, y in points)
+    return bytes(header) + body
+
+
 def test_lz4_block_roundtrip_all_literals() -> None:
     """A simple all-literals block decodes back to the original bytes."""
     original = bytes(range(60)) * 3
@@ -94,6 +124,36 @@ def test_parse_map_packet_allows_zero_room_metadata() -> None:
     assert packet.height == 2
     assert packet.grid == grid
     assert packet.rooms == []
+
+
+def test_parse_map_packet_reads_header_height() -> None:
+    """Width and height come straight from the u16be header fields."""
+    grid = bytes([8]) * 6 + bytes([12]) * 6  # two rooms, 4x3 grid
+    layout = grid + b"\x01\x02" + _room_record(2, "rr_kitchen") + _room_record(3, "den")
+    packet = parse_map_packet(_full_header_map_payload(width=4, height=3, decoded_layout=layout))
+    assert (packet.width, packet.height) == (4, 3)
+    assert [(r.id, r.raw_name) for r in packet.rooms] == [(2, "rr_kitchen"), (3, "den")]
+
+
+def test_parse_map_packet_dimensions_straddling_256() -> None:
+    """Regression: a 222x261 map (dimensions in different 256-bands).
+
+    Width and height are consecutive u16be header fields. The earlier u16le read
+    at offset 8 picked up the height's high byte, decoding this map's width as
+    478 (0xDE | 0x01 << 8) and failing to split the layout. Reported, diagnosed
+    and verified by @andrewlyeats from a real 222x261 capture.
+    """
+    width, height = 222, 261
+    grid = bytearray(width * height)
+    grid[0:100] = bytes([8]) * 100  # room id 2 -> pixel value 8
+    grid[100:250] = bytes([12]) * 150  # room id 3 -> pixel value 12
+    layout = bytes(grid) + b"\x01\x02" + _room_record(2, "rr_kitchen") + _room_record(3, "den")
+    payload = _full_header_map_payload(width, height, layout)
+    # The old u16le @ offset 8 read would have produced 478, not 222.
+    assert int.from_bytes(payload[8:10], "little") == 478
+    packet = parse_map_packet(payload)
+    assert (packet.width, packet.height) == (222, 261)
+    assert [(r.id, r.raw_name) for r in packet.rooms] == [(2, "rr_kitchen"), (3, "den")]
 
 
 def test_room_name_normalization() -> None:
@@ -167,11 +227,51 @@ def test_parse_trace_packet_multi_point() -> None:
     assert (trace.robot_position.x, trace.robot_position.y) == (-50, 300)
 
 
+def test_parse_trace_drops_stray_leading_point() -> None:
+    """A stray first point far outside the path is dropped (calibration hygiene)."""
+    points = [(0, -1907), (-3760, -1920), (-3758, -1918), (-3756, -1919)]
+    trace = parse_trace_packet(_trace_payload(points))
+    assert [(p.x, p.y) for p in trace.points] == points[1:]
+    assert trace.robot_position is not None
+    assert (trace.robot_position.x, trace.robot_position.y) == points[-1]
+
+
+def test_parse_trace_keeps_genuine_first_point() -> None:
+    """A normal first step (same scale as the rest) is never dropped."""
+    points = [(0, 0), (10, 0), (22, 0), (35, 1)]
+    trace = parse_trace_packet(_trace_payload(points))
+    assert [(p.x, p.y) for p in trace.points] == points
+
+
+def test_parse_trace_session_keeps_initial_reposition() -> None:
+    """The real corridor capture has a 4.8x first step -- well under the 20x cut."""
+    trace = parse_trace_packet(TRACE_SESSION_FIXTURE.read_bytes())
+    assert len(trace.points) == 15
+    assert (trace.points[0].x, trace.points[0].y) == (-34, 0)
+
+
 def test_parse_trace_empty_path_has_no_position() -> None:
     header_only = b"\x02\x01" + b"\x00" * 8  # 10-byte header, no points
     trace = parse_trace_packet(header_only)
     assert trace.points == []
     assert trace.robot_position is None
+
+
+def test_parse_trace_rejects_non_trace_packet() -> None:
+    with pytest.raises(RoborockException, match="not a Q10 trace packet"):
+        parse_trace_packet(_payload())
+
+
+def test_parse_trace_rejects_misaligned_points() -> None:
+    with pytest.raises(RoborockException, match="not 4-byte"):
+        parse_trace_packet(b"\x02\x01" + b"\x00" * 8 + b"\x01\x02\x03")
+
+
+def test_parse_rejects_bad_layout_length() -> None:
+    payload = bytearray(_payload())
+    payload[27:29] = (0xFFFF).to_bytes(2, "big")  # compressed length past the buffer
+    with pytest.raises(RoborockException, match="invalid layout block length"):
+        parse_map_packet(bytes(payload))
 
 
 def test_parse_erase_zones_from_map_packet_tail() -> None:
@@ -190,20 +290,3 @@ def test_parse_erase_zones_from_map_packet_tail() -> None:
 
 def test_parse_map_packet_without_erase_tail() -> None:
     assert parse_map_packet(FIXTURE.read_bytes()).erase_zones == []
-
-
-def test_parse_trace_rejects_non_trace_packet() -> None:
-    with pytest.raises(RoborockException, match="not a Q10 trace packet"):
-        parse_trace_packet(_payload())
-
-
-def test_parse_trace_rejects_misaligned_points() -> None:
-    with pytest.raises(RoborockException, match="not 4-byte"):
-        parse_trace_packet(b"\x02\x01" + b"\x00" * 8 + b"\x01\x02\x03")
-
-
-def test_parse_rejects_bad_layout_length() -> None:
-    payload = bytearray(_payload())
-    payload[27:29] = (0xFFFF).to_bytes(2, "big")  # compressed length past the buffer
-    with pytest.raises(RoborockException, match="invalid layout block length"):
-        parse_map_packet(bytes(payload))

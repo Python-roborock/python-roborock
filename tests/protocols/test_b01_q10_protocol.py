@@ -11,7 +11,10 @@ from syrupy import SnapshotAssertion
 
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP, YXWaterLevel
 from roborock.exceptions import RoborockException
+from roborock.map.b01_q10_map_parser import Q10MapPacket, Q10TracePacket
 from roborock.protocols.b01_q10_protocol import (
+    Q10DpsUpdate,
+    decode_message,
     decode_rpc_response,
     encode_mqtt_payload,
 )
@@ -20,6 +23,42 @@ from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 TESTDATA_PATH = pathlib.Path("tests/protocols/testdata/b01_q10_protocol/")
 TESTDATA_FILES = list(TESTDATA_PATH.glob("*.json"))
 TESTDATA_IDS = [x.stem for x in TESTDATA_FILES]
+
+MAP_FIXTURE = pathlib.Path("tests/map/testdata/b01_q10_map.bin")
+TRACE_FIXTURE = pathlib.Path("tests/map/testdata/b01_q10_trace.bin")
+
+
+def _message(payload: bytes, protocol: RoborockMessageProtocol) -> RoborockMessage:
+    return RoborockMessage(protocol=protocol, payload=payload, version=b"B01")
+
+
+def test_decode_message_dps_update() -> None:
+    """A non-MAP_RESPONSE message decodes into a Q10DpsUpdate."""
+    message = _message(b'{"dps": {"122": 100}}', RoborockMessageProtocol.RPC_RESPONSE)
+    decoded = decode_message(message)
+    assert decoded == Q10DpsUpdate(dps={B01_Q10_DP.BATTERY: 100})
+
+
+def test_decode_message_map_packet() -> None:
+    """A MAP_RESPONSE 01 01 payload decodes into a Q10MapPacket."""
+    message = _message(MAP_FIXTURE.read_bytes(), RoborockMessageProtocol.MAP_RESPONSE)
+    decoded = decode_message(message)
+    assert isinstance(decoded, Q10MapPacket)
+    assert {room.id: room.name for room in decoded.rooms} == {2: "Living Room", 3: "Bedroom"}
+
+
+def test_decode_message_trace_packet() -> None:
+    """A MAP_RESPONSE 02 01 payload decodes into a Q10TracePacket."""
+    message = _message(TRACE_FIXTURE.read_bytes(), RoborockMessageProtocol.MAP_RESPONSE)
+    decoded = decode_message(message)
+    assert isinstance(decoded, Q10TracePacket)
+    assert [(p.x, p.y) for p in decoded.points] == [(169, 0)]
+
+
+def test_decode_message_unknown_map_marker_returns_none() -> None:
+    """A MAP_RESPONSE with an unrecognized marker is skipped (returns None)."""
+    assert decode_message(_message(b"\x09\x09junk", RoborockMessageProtocol.MAP_RESPONSE)) is None
+    assert decode_message(_message(b"", RoborockMessageProtocol.MAP_RESPONSE)) is None
 
 
 @pytest.fixture(autouse=True)

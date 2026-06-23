@@ -4,7 +4,8 @@ Q10 devices deliver map data as a protocol-301 ``MAP_RESPONSE`` message (pushed 
 few seconds after a ``dpRequestDps`` request). Unlike the Q7 ``SCMap`` protobuf
 format, the Q10 uses a custom, unencrypted binary packet:
 
-- ``01 01`` marker, then a ``u32be`` map id and a ``u16le`` grid width.
+- ``01 01`` marker, then a ``u32be`` map id (bytes 2-5) and two consecutive
+  ``u16be`` dimensions: grid width (bytes 7-8) and grid height (bytes 9-10).
 - A header field at offset 27 (``u16be``) giving the compressed layout length.
 - An LZ4-block-compressed occupancy grid starting at offset 29. Once inflated it
   is ``width * height`` cells of grid data followed by room metadata records.
@@ -20,6 +21,8 @@ https://github.com/v1b3c0d3x3r/roborock-qseries-map-bridge
 
 import colorsys
 import io
+import math
+import statistics
 from dataclasses import dataclass, field, replace
 
 from PIL import Image
@@ -72,7 +75,14 @@ MAP_PACKET_MARKER = b"\x01\x01"
 TRACE_PACKET_MARKER = b"\x02\x01"
 
 _MAP_ID_OFFSET = 2
-_WIDTH_OFFSET = 8
+# Width and height are two consecutive u16be fields. An earlier revision read the
+# width as u16le at offset 8; that high byte is actually the height's high byte,
+# so it only matched the true width when width and height fell in the same
+# 256-band -- e.g. a 222x261 map decoded its width as 478 and failed to split.
+# Reported and diagnosed by @andrewlyeats (independent B01/Q10 decoder), and
+# corroborated by the ioBroker roborock adapter (both read these as u16be).
+_WIDTH_OFFSET = 7
+_HEIGHT_OFFSET = 9
 _COMPRESSED_LAYOUT_LENGTH_OFFSET = 27
 _LAYOUT_COMPRESSED_OFFSET = 29
 _ROOM_RECORD_LENGTH = 47
@@ -176,6 +186,15 @@ class Q10TracePacket:
 _TRACE_HEADER_LENGTH = 10
 _TRACE_SEQUENCE_OFFSET = 3
 
+# Some cleans prepend a single stray point to the path, far outside the map
+# (e.g. ~(0, -1907) when the real path starts near (-3760, -1920)); it skews the
+# rendered start/bounding box and any path-based calibration. We drop points[0]
+# only when its step to points[1] is a gross outlier (this multiple of the
+# median step of the rest of the path), so a genuine first point is never lost.
+# The current position (last point) is unaffected. Trigger and threshold
+# reported and verified by @andrewlyeats across independent B01/Q10 captures.
+_STRAY_POINT_STEP_RATIO = 20
+
 
 def is_map_packet(payload: bytes) -> bool:
     """Return True if the payload is a Q10 full-map (``01 01``) packet."""
@@ -204,7 +223,25 @@ def parse_trace_packet(payload: bytes) -> Q10TracePacket:
         )
         for offset in range(0, len(body), 4)
     ]
+    points = _drop_stray_leading_point(points)
     return Q10TracePacket(points=points, sequence=payload[_TRACE_SEQUENCE_OFFSET])
+
+
+def _drop_stray_leading_point(points: list[Q10Point]) -> list[Q10Point]:
+    """Drop a spurious leading point that some cleans prepend to the trace.
+
+    Returns ``points`` unchanged unless the very first step is a gross outlier
+    versus the median of the remaining steps (see ``_STRAY_POINT_STEP_RATIO``),
+    in which case the first point is dropped. Needs at least three points to have
+    a stable median to compare against.
+    """
+    if len(points) < 3:
+        return points
+    steps = [math.hypot(b.x - a.x, b.y - a.y) for a, b in zip(points, points[1:])]
+    median_rest = statistics.median(steps[1:])
+    if median_rest > 0 and steps[0] > _STRAY_POINT_STEP_RATIO * median_rest:
+        return points[1:]
+    return points
 
 
 def lz4_block_decompress(data: bytes) -> bytes:
@@ -257,13 +294,32 @@ def lz4_block_decompress(data: bytes) -> bytes:
             output.append(output[-offset])
 
 
+def _split_with_dims(decoded: bytes, width: int, height: int) -> tuple[bytes, bytes] | None:
+    """Split the inflated layout into (grid, room_data) using header dimensions.
+
+    Returns ``None`` when ``width * height`` does not leave a well-formed
+    ``01 <room_count>`` room-record section, so the caller can fall back to
+    brute-force inference (e.g. for captures/fixtures without a height field).
+    """
+    area = width * height
+    if area <= 0 or area > len(decoded):
+        return None
+    room_data = decoded[area:]
+    if len(room_data) < 2 or room_data[0] != 1:
+        return None
+    if len(room_data) != 2 + room_data[1] * _ROOM_RECORD_LENGTH:
+        return None
+    return decoded[:area], room_data
+
+
 def _infer_layout(decoded: bytes, width: int) -> tuple[int, bytes, bytes]:
     """Split the inflated layout into (height, grid, room_data).
 
     The grid is ``width * height`` cells; the remaining bytes are room records
     introduced by an ``01 <room_count>`` marker. The room count is unknown up
     front, so we search for the split that makes the grid rectangular and lines
-    up with the marker.
+    up with the marker. Used as a fallback when the header carries no usable
+    height.
     """
     for room_count in range(0, _MAX_ROOMS + 1):
         room_data_length = 2 + room_count * _ROOM_RECORD_LENGTH
@@ -303,7 +359,8 @@ def parse_map_packet(payload: bytes) -> Q10MapPacket:
         raise RoborockException("Payload is not a Q10 map packet")
 
     map_id = int.from_bytes(payload[_MAP_ID_OFFSET : _MAP_ID_OFFSET + 4], "big")
-    width = int.from_bytes(payload[_WIDTH_OFFSET : _WIDTH_OFFSET + 2], "little")
+    width = int.from_bytes(payload[_WIDTH_OFFSET : _WIDTH_OFFSET + 2], "big")
+    height = int.from_bytes(payload[_HEIGHT_OFFSET : _HEIGHT_OFFSET + 2], "big")
     if width <= 0:
         raise RoborockException("Q10 map packet has invalid width")
 
@@ -315,7 +372,13 @@ def parse_map_packet(payload: bytes) -> Q10MapPacket:
         raise RoborockException("Q10 map packet has invalid layout block length")
 
     decoded = lz4_block_decompress(payload[_LAYOUT_COMPRESSED_OFFSET:layout_end])
-    height, grid, room_data = _infer_layout(decoded, width)
+    # Prefer the header height; fall back to inference if it doesn't line up
+    # (e.g. older captures/fixtures that don't populate the height field).
+    split = _split_with_dims(decoded, width, height) if height > 0 else None
+    if split is not None:
+        grid, room_data = split
+    else:
+        height, grid, room_data = _infer_layout(decoded, width)
     rooms = _parse_rooms(room_data, grid)
     erase_zones = _parse_erase_zones(payload[layout_end:])
     return Q10MapPacket(map_id=map_id, width=width, height=height, grid=grid, rooms=rooms, erase_zones=erase_zones)

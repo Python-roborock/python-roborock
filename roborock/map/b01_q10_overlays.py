@@ -13,9 +13,9 @@ real no-go zones):
 
 Coordinates are in the device's world units (the same space as the cleaning
 path), so a :class:`~roborock.map.b01_grid_layers.GridCalibration` maps them to
-map pixels. ``type`` distinguishes the restriction kind (0 = no-go, 3 = no-mop
-observed); it is preserved verbatim so callers can route polygons to the right
-``MapData`` layer.
+map pixels. ``type`` distinguishes the restriction kind (2 = no-mop, 3 = door
+threshold, anything else -- incl. 0 -- a no-go zone); it is preserved verbatim
+so callers can route polygons to the right ``MapData`` layer.
 """
 
 import base64
@@ -83,7 +83,17 @@ def parse_zone_blob(data: bytes | str | None) -> list[Q10Zone]:
     return zones
 
 
-# Observed ``type`` values. 0 = no-go (vacuum forbidden), 3 = no-mop. Others are
-# surfaced verbatim on Q10Zone.type for callers that recognise them.
+# Observed ``type`` values, confirmed against an ss07 Q10 (firmware 03.11.24) and
+# cross-checked with the ioBroker roborock adapter: 2 = no-mop, 3 = door
+# threshold, 1 = virtual wall. Any other value (including 0) is a no-go zone.
+# In practice virtual walls arrive on a separate DP (VIRTUAL_WALL_UP 57), so this
+# restricted-zone DP normally only carries 0 / 2 / 3. The raw value is also kept
+# on ``Q10Zone.type`` for callers that recognise it.
+#
+# Corrected from an earlier reading that treated type 3 as no-mop -- 3 is the
+# door-threshold rectangle; the no-mop area reads back as type 2. Reported and
+# verified by @andrewlyeats (ss07 read-backs + the ioBroker Q10 parser).
 ZONE_TYPE_NO_GO = 0
-ZONE_TYPE_NO_MOP = 3
+ZONE_TYPE_VIRTUAL_WALL = 1
+ZONE_TYPE_NO_MOP = 2
+ZONE_TYPE_THRESHOLD = 3

@@ -19,6 +19,7 @@ from roborock.devices.traits.b01.q10.map import MapContentTrait
 from roborock.exceptions import RoborockException
 from roborock.map.b01_grid_layers import GridCalibration
 from roborock.map.b01_q10_map_parser import Q10EraseZone, Q10Point
+from roborock.map.b01_q10_overlays import ZONE_TYPE_NO_GO, ZONE_TYPE_NO_MOP
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 
 FIXTURE = Path("tests/map/testdata/b01_q10_map.bin")
@@ -217,7 +218,11 @@ def test_load_overlays_places_zones_with_calibration() -> None:
             out += int.to_bytes(x & 0xFFFF, 2, "big") + int.to_bytes(y & 0xFFFF, 2, "big")
         return out.ljust(18, b"\x00")
 
-    blob = bytes([1, 2]) + rect(0, [(0, 0), (4, 0), (4, 4), (0, 4)]) + rect(3, [(1, 1), (2, 1), (2, 2), (1, 2)])
+    blob = (
+        bytes([1, 2])
+        + rect(ZONE_TYPE_NO_GO, [(0, 0), (4, 0), (4, 4), (0, 4)])
+        + rect(ZONE_TYPE_NO_MOP, [(1, 1), (2, 1), (2, 2), (1, 2)])
+    )
     trait.load_overlays(restricted_zone_up=blob)
 
     assert len(trait.zones) == 2

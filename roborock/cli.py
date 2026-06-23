@@ -34,12 +34,18 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, cast
 
-import click
-import click_shell
-import yaml
-from pyshark import FileCapture  # type: ignore
-from pyshark.capture.live_capture import LiveCapture, UnknownInterfaceException  # type: ignore
-from pyshark.packet.packet import Packet  # type: ignore
+try:
+    import click
+    import click_shell
+    import yaml
+    from pyshark import FileCapture  # type: ignore
+    from pyshark.capture.live_capture import LiveCapture, UnknownInterfaceException  # type: ignore
+    from pyshark.packet.packet import Packet  # type: ignore
+except ImportError as err:
+    raise SystemExit(
+        f"The 'roborock' command line tool requires extra dependencies that are not installed ({err.name}).\n"
+        "Install them with:\n\n    pip install python-roborock[cli]\n"
+    ) from err
 
 from roborock import RoborockCommand
 from roborock.data import RoborockBase, UserData
@@ -533,6 +539,7 @@ async def _await_q10_map_push(
     predicate: Callable[[], bool],
     *,
     timeout: float = _Q10_MAP_PUSH_TIMEOUT,
+    allow_cached_on_timeout: bool = False,
 ) -> bool:
     """Nudge a Q10 to push its map/trace and wait until ``predicate`` holds.
 
@@ -540,7 +547,10 @@ async def _await_q10_map_push(
     request. A ``dpRequestDps`` causes the device to publish a ``MAP_RESPONSE``,
     which the device's subscribe loop feeds into the map trait. Here we register
     an update listener, send the request, and wait for the pushed data to satisfy
-    ``predicate``. Returns whether it did within ``timeout``.
+    ``predicate``. Returns whether it did within ``timeout``. When the predicate
+    already holds against cached content we return immediately without nudging.
+    If ``allow_cached_on_timeout`` is set, a timeout still returns ``True`` when
+    the predicate holds against the previously cached content.
     """
     if predicate():
         return True
@@ -557,7 +567,7 @@ async def _await_q10_map_push(
         await asyncio.wait_for(updated, timeout=timeout)
         return True
     except TimeoutError:
-        return False
+        return allow_cached_on_timeout and predicate()
     finally:
         unsub()
 
@@ -574,7 +584,11 @@ async def map_image(ctx, device_id: str, output_file: str):
     device = await device_manager.get_device(device_id)
     if device.b01_q10_properties is not None:
         properties = device.b01_q10_properties
-        await _await_q10_map_push(properties, lambda: properties.map.image_content is not None)
+        await _await_q10_map_push(
+            properties,
+            lambda: properties.map.image_content is not None,
+            allow_cached_on_timeout=True,
+        )
         image_content = properties.map.image_content
     else:
         v1_trait: MapContentTrait = await _v1_trait(context, device_id, lambda v1: v1.map_content)
@@ -882,7 +896,11 @@ async def rooms(ctx, device_id: str):
         properties = device.b01_q10_properties
         # A valid map may have no room records, so wait on the map arriving
         # (image_content) rather than on rooms being non-empty.
-        await _await_q10_map_push(properties, lambda: properties.map.image_content is not None)
+        await _await_q10_map_push(
+            properties,
+            lambda: properties.map.image_content is not None,
+            allow_cached_on_timeout=True,
+        )
         click.echo(dump_json({room.id: room.name for room in properties.map.rooms}))
     else:
         await _display_v1_trait(context, device_id, lambda v1: v1.rooms)
@@ -1374,6 +1392,7 @@ cli.add_command(set_volume)
 cli.add_command(maps)
 cli.add_command(map_image)
 cli.add_command(map_data)
+cli.add_command(q10_position)
 cli.add_command(consumables)
 cli.add_command(reset_consumable)
 cli.add_command(rooms)
