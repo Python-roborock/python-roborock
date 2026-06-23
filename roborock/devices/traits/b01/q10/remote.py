@@ -20,7 +20,7 @@ class RemoteTrait:
         self._command = command
 
     async def _send_remote(self, action: RemoteCommand) -> None:
-        await self._command.send(B01_Q10_DP.COMMON, params={B01_Q10_DP.REMOTE: action.value})
+        await self._command.send(B01_Q10_DP.COMMON, params={str(B01_Q10_DP.REMOTE.code): action.value})
 
     async def forward(self) -> None:
         """Move forward."""
