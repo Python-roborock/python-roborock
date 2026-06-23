@@ -74,6 +74,21 @@ def test_parse_zone_blob_real_record_size_inferred() -> None:
     assert len(zones) == 1 and zones[0].vertices[0] == (100, 200)
 
 
+def test_parse_zone_blob_real_rdc_three_no_go() -> None:
+    """Real DP-55 read-back from our RDC ss07 with three No-Go Zones drawn.
+
+    Captured live; exercises the 38-byte slot walk at count=3 against actual
+    device bytes (all type 0 = no-go).
+    """
+    blob = (
+        "AQMABP9A9ToAEPU6ABDzzv9A884AAAAAAAAAAAAAAAAAAAAAAAAAAAAE/Rb/mv5z/5r+c/3L/Rb9ywAAAA"
+        "AAAAAAAAAAAAAAAAAAAAAAAAQDpADEB3UAxAd1/GMDpPxjAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+    )
+    zones = parse_zone_blob(blob)
+    assert [z.type for z in zones] == [ZONE_TYPE_NO_GO, ZONE_TYPE_NO_GO, ZONE_TYPE_NO_GO]
+    assert zones[2].vertices == [(932, 196), (1909, 196), (1909, -925), (932, -925)]
+
+
 def test_parse_virtual_wall_blob_real_capture() -> None:
     """Real DP-57 read-back from an ss07 (one wall drawn in the app).
 
