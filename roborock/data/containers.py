@@ -329,6 +329,23 @@ class HomeDataScene(RoborockBase):
 
 
 @dataclass
+class InboxMessage(RoborockBase):
+    """A single user/device inbox message (`/user/inbox`)."""
+
+    id: int | None = None
+    trigger: str | None = None
+    """Message category, e.g. NOTIFICATION, WARNING, SYSTEM, MARKETING, SHARE."""
+    duid: str | None = None
+    """Device this message relates to (None for account-level messages)."""
+    subject: str | None = None
+    content: str | None = None
+    extra: str | None = None
+    """Raw JSON string with action/templateId metadata."""
+    read: bool | None = None
+    create_time: str | None = None
+
+
+@dataclass
 class HomeDataSchedule(RoborockBase):
     id: int
     cron: str
