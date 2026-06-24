@@ -116,6 +116,22 @@ def test_parse_virtual_wall_blob_real_r1_horizontal() -> None:
     ]
 
 
+def test_parse_virtual_wall_blob_real_r1_mixed_orientation() -> None:
+    """Real DP-57 read-back from the R1 with one horizontal + one vertical wall.
+
+    Ground-truthed against the app: a wall drawn horizontally and another drawn
+    (near-)vertically. They decode as such -- the first with y constant, the
+    second with x near-constant (the 4-unit x drift matches the wall not being
+    drawn perfectly vertical). This pins DP 57's axis order for *both*
+    orientations at once, so a mixed pair can't come back transposed.
+    """
+    walls = parse_virtual_wall_blob("AgNyBGMFsARjAf8FAAH7CnE=")
+    assert [(w.type, w.vertices) for w in walls] == [
+        (ZONE_TYPE_VIRTUAL_WALL, [(882, 1123), (1456, 1123)]),  # horizontal: y constant
+        (ZONE_TYPE_VIRTUAL_WALL, [(511, 1280), (507, 2673)]),  # vertical: x near-constant
+    ]
+
+
 def test_parse_virtual_wall_blob_real_rdc_two_walls() -> None:
     """Real DP-57 read-back from our RDC ss07 with two Invisible Walls drawn.
 
