@@ -232,7 +232,12 @@ class Q10TracePacket:
     heading: int = 0
     """Robot heading from the 0201 SLAM field (bytes 10-11), in degrees:
     ``0`` = +x, ``+90`` = +y, ``±180`` = −x, ``−90`` = −y. This is the current
-    orientation; pair it with :attr:`robot_position` to draw a facing robot."""
+    orientation; pair it with :attr:`robot_position` to draw a facing robot.
+
+    Convention (incl. the y-sign) ground-truthed on a live R1 clean: across
+    straight segments the reported heading equalled the direction of travel
+    ``atan2(dy, dx)`` -- +x read 0, −x read ±180, a slight −y drift read
+    negative."""
 
     @property
     def robot_position(self) -> Q10Point | None:

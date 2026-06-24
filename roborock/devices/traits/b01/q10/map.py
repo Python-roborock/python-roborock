@@ -63,13 +63,14 @@ _MAP_PACKET_MARKER = b"\x01\x01"
 _TRACE_PACKET_MARKER = b"\x02\x01"
 
 # Path-units-per-pixel candidates for calibration. A dense ss07 path lands a
-# best fit of 20.0 around the header origin -- ground-truthed June 2026: an R1
-# corridor drive registered at 20 (matching the format author's independent
-# "20 path-units/px") and the dock->robot path span (3619 units) matched the
-# ruler-measured 8.81 m corridor at that scale (=> ~2.4 mm/path-unit, ~49 mm/px
-# grid, confirming the header resolution=5). An earlier [10.0..18.0] range
-# couldn't reach 20 (it railed at the bound), biasing the fit. A dense cleaning
-# path selects the best fit within this bracket.
+# best fit of 20.0 around the header origin -- ground-truthed June 2026 on the
+# R1: a corridor drive registered at 20 (matching the format author's
+# independent "20 path-units/px"), and the dock->corridor span lined up with the
+# ruler-measured 8.81 m corridor. With the header resolution=5 (50 mm/px grid)
+# that makes one path-unit exactly 50/20 = 2.5 mm -- so a path-unit is NOT a
+# millimetre (the open scale question). An earlier [10.0..18.0] range couldn't
+# reach 20 (it railed at the bound), biasing the fit. A dense cleaning path
+# selects the best fit within this bracket.
 _Q10_RESOLUTIONS = [step * 0.5 for step in range(24, 53)]  # 12.0 .. 26.0
 # A path needs enough shape to constrain a full (origin + resolution) fit; a few
 # points cannot.
