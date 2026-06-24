@@ -15,7 +15,7 @@ import pytest
 from PIL import Image
 
 from roborock.devices.traits.b01.q10 import Q10PropertiesApi, create
-from roborock.devices.traits.b01.q10.map import MapContentTrait
+from roborock.devices.traits.b01.q10.map import _Q10_RESOLUTIONS, MapContentTrait
 from roborock.exceptions import RoborockException
 from roborock.map.b01_grid_layers import GridCalibration
 from roborock.map.b01_q10_map_parser import Q10EraseZone, Q10HeaderCalibration, Q10Point
@@ -193,13 +193,15 @@ def test_solve_calibration_uses_header_origin_with_short_path() -> None:
     trait.header_calibration = Q10HeaderCalibration(
         origin_x=0, origin_y=50, resolution=5, charger_x=0, charger_y=0, charger_phi=0
     )
-    true = GridCalibration(resolution=10.0, origin_x=0.0, origin_y=5.0, y_sign=1)
+    true = GridCalibration(resolution=20.0, origin_x=0.0, origin_y=5.0, y_sign=1)
     trait.path = _floor_world_points(trait, true, 6)
     assert len(trait.path) < 20  # far too short for the full origin+resolution fit
     cal = trait.solve_calibration()
     assert cal is not None
-    # Origin comes straight from the header (exact), only resolution was fit.
-    assert (cal.origin_x, cal.origin_y, cal.resolution) == (0.0, 5.0, 10.0)
+    # Origin comes straight from the header (exact); only the resolution is fit,
+    # so it lands on one of the candidates (the exact pick is grid-quantized).
+    assert (cal.origin_x, cal.origin_y) == (0.0, 5.0)
+    assert cal.resolution in _Q10_RESOLUTIONS
     assert trait.calibration is cal
 
 
