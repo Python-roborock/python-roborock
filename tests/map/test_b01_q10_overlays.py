@@ -92,14 +92,28 @@ def test_parse_zone_blob_real_rdc_three_no_go() -> None:
 def test_parse_virtual_wall_blob_real_capture() -> None:
     """Real DP-57 read-back from an ss07 (one wall drawn in the app).
 
-    Frame is ``[count]`` + 8-byte ``(y, x)`` records -- no version byte. The
-    decoder swaps axes to ``(x, y)`` so walls share the restricted-zone order.
+    Frame is ``[count]`` + 8-byte ``(x, y)`` records -- no version byte, and the
+    same coordinate order as the restricted zones (first wire word = x).
     Provenance: PR #850 review thread.
     """
     walls = parse_virtual_wall_blob("Aflu+cX87PoO")
     assert len(walls) == 1
     assert walls[0].type == ZONE_TYPE_VIRTUAL_WALL
-    assert walls[0].vertices == [(-1595, -1682), (-1522, -788)]
+    assert walls[0].vertices == [(-1682, -1595), (-788, -1522)]
+
+
+def test_parse_virtual_wall_blob_real_r1_horizontal() -> None:
+    """Real DP-57 read-back from the R1, ground-truthed against the app.
+
+    The wall was drawn horizontally just below the Kids bedroom; it reads back
+    with x varying (377 -> 951) and y constant (-83), i.e. horizontal. This is
+    the capture that settled DP 57's axis order: an earlier revision swapped the
+    axes and would have placed this wall vertical (transposed 90 degrees).
+    """
+    walls = parse_virtual_wall_blob("AQF5/60Dt/+t")
+    assert [(w.type, w.vertices) for w in walls] == [
+        (ZONE_TYPE_VIRTUAL_WALL, [(377, -83), (951, -83)]),
+    ]
 
 
 def test_parse_virtual_wall_blob_real_rdc_two_walls() -> None:
@@ -111,8 +125,8 @@ def test_parse_virtual_wall_blob_real_rdc_two_walls() -> None:
     """
     walls = parse_virtual_wall_blob("AgAz/QMCDv0D/83+Dv/O/OY=")
     assert [(w.type, w.vertices) for w in walls] == [
-        (ZONE_TYPE_VIRTUAL_WALL, [(-765, 51), (-765, 526)]),
-        (ZONE_TYPE_VIRTUAL_WALL, [(-498, -51), (-794, -50)]),
+        (ZONE_TYPE_VIRTUAL_WALL, [(51, -765), (526, -765)]),
+        (ZONE_TYPE_VIRTUAL_WALL, [(-51, -498), (-50, -794)]),
     ]
 
 
@@ -123,18 +137,18 @@ def test_parse_virtual_wall_blob_empty_variants() -> None:
 
 
 def test_parse_virtual_wall_blob_multiple_walls() -> None:
-    """Two walls back-to-back; each is a separate 8-byte (y, x) record."""
-    wall_a = bytes.fromhex("000a0014001e0028")  # (y,x)=(10,20)->(30,40)
-    wall_b = bytes.fromhex("fffb0005fff6000a")  # (y,x)=(-5,5)->(-10,10)
+    """Two walls back-to-back; each is a separate 8-byte (x, y) record."""
+    wall_a = bytes.fromhex("000a0014001e0028")  # (x,y)=(10,20)->(30,40)
+    wall_b = bytes.fromhex("fffb0005fff6000a")  # (x,y)=(-5,5)->(-10,10)
     walls = parse_virtual_wall_blob(bytes([2]) + wall_a + wall_b)
-    assert [w.vertices for w in walls] == [[(20, 10), (40, 30)], [(5, -5), (10, -10)]]
+    assert [w.vertices for w in walls] == [[(10, 20), (30, 40)], [(-5, 5), (-10, 10)]]
 
 
 def test_parse_virtual_wall_blob_truncated_record_dropped() -> None:
     """A trailing record shorter than 8 bytes is dropped, not misread."""
     blob = bytes([2]) + bytes([0x00, 0x0A, 0x00, 0x14, 0x00, 0x1E, 0x00, 0x28]) + b"\x00\x00"
     walls = parse_virtual_wall_blob(blob)
-    assert [w.vertices for w in walls] == [[(20, 10), (40, 30)]]
+    assert [w.vertices for w in walls] == [[(10, 20), (30, 40)]]
 
 
 def test_zone_parser_misframes_virtual_wall_blob() -> None:

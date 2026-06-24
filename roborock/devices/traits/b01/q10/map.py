@@ -406,6 +406,16 @@ class MapContentTrait(MapContent, TraitUpdateListener):
             outline = (0, 80, 200, 255) if zone.type == ZONE_TYPE_NO_GO else (200, 0, 160, 255)
             draw.polygon(polygon, fill=fill, outline=outline)
 
+        # Virtual walls (line segments, not polygons) drawn over the zones.
+        for wall in self.virtual_walls:
+            if len(wall.vertices) < 2:
+                continue
+            draw.line(
+                [world_to_image(x, y) for x, y in wall.vertices[:2]],
+                fill=(255, 64, 64, 255),
+                width=max(2, scale),
+            )
+
         if len(self.path) >= 2:
             draw.line([to_image(point) for point in self.path], fill=line_color, width=max(1, scale // 2))
         if self.path:  # path origin == dock / charger
