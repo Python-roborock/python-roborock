@@ -17,6 +17,7 @@ Unlike the Q7, the Q10 map payload is unencrypted, so no map key is required.
 
 import io
 import logging
+import math
 from dataclasses import dataclass, field
 
 from PIL import Image, ImageDraw
@@ -100,6 +101,10 @@ class MapContent(RoborockBase):
     robot_position: Q10Point | None = None
     """Current robot position (the most recent path point), if known."""
 
+    robot_heading: int | None = None
+    """Current robot heading in degrees from the trace packet (``0`` = +x,
+    ``+90`` = +y, ``±180`` = −x, ``−90`` = −y), if a trace has been pushed."""
+
     calibration: GridCalibration | None = None
     """World<->pixel transform, solved from a cleaning path (see
     :meth:`MapContentTrait.solve_calibration`). Required to place the path,
@@ -180,6 +185,7 @@ class MapContentTrait(MapContent, TraitUpdateListener):
                 return True
             self.path = trace.points
             self.robot_position = trace.robot_position
+            self.robot_heading = trace.heading
             self._notify_update()
             return True
         return False
@@ -409,6 +415,24 @@ class MapContentTrait(MapContent, TraitUpdateListener):
             cx, cy = to_image(self.robot_position)
             radius = scale
             draw.ellipse([cx - radius, cy - radius, cx + radius, cy + radius], fill=position_color)
+            if self.robot_heading is not None:
+                # Heading is world-space degrees (0 = +x, +90 = +y). Map a unit
+                # world-space facing vector through the same transform (so the
+                # Y-flip/scale match the marker), then normalize to a fixed
+                # pixel-length tick so it reads at any calibration resolution.
+                angle = math.radians(self.robot_heading)
+                hx, hy = world_to_image(
+                    self.robot_position.x + math.cos(angle),
+                    self.robot_position.y + math.sin(angle),
+                )
+                norm = math.hypot(hx - cx, hy - cy)
+                if norm > 0:
+                    tick = 4 * radius
+                    draw.line(
+                        [cx, cy, cx + (hx - cx) / norm * tick, cy + (hy - cy) / norm * tick],
+                        fill=position_color,
+                        width=max(1, scale // 2),
+                    )
         buffer = io.BytesIO()
         base.save(buffer, format="PNG")
         return buffer.getvalue()

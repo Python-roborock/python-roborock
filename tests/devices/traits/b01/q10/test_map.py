@@ -24,6 +24,7 @@ from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 
 FIXTURE = Path("tests/map/testdata/b01_q10_map.bin")
 TRACE_FIXTURE = Path("tests/map/testdata/b01_q10_trace.bin")
+TRACE_SESSION_FIXTURE = Path("tests/map/testdata/b01_q10_trace_session.bin")
 
 
 def _map_message(
@@ -50,16 +51,18 @@ def test_update_from_map_response_populates_image_and_rooms() -> None:
 
 
 def test_update_from_map_response_populates_path_and_position() -> None:
-    """A pushed 02 01 trace packet populates the path and robot position."""
+    """A pushed 02 01 trace packet populates the path, position and heading."""
     trait = MapContentTrait()
     updates: list[None] = []
     trait.add_update_listener(lambda: updates.append(None))
 
-    assert trait.update_from_map_response(_map_message(TRACE_FIXTURE.read_bytes())) is True
+    assert trait.update_from_map_response(_map_message(TRACE_SESSION_FIXTURE.read_bytes())) is True
 
-    assert [(p.x, p.y) for p in trait.path] == [(169, 0)]
+    assert len(trait.path) == 14
+    assert (trait.path[0].x, trait.path[0].y) == (41, 64)
     assert trait.robot_position is not None
-    assert (trait.robot_position.x, trait.robot_position.y) == (169, 0)
+    assert (trait.robot_position.x, trait.robot_position.y) == (276, -1)
+    assert trait.robot_heading == -34
     assert len(updates) == 1
 
 
@@ -139,7 +142,7 @@ async def test_subscribe_loop_routes_trace_push(
     """A trace pushed onto the stream is routed to the map trait by the loop."""
     assert not q10_api.map.path
 
-    message_queue.put_nowait(_map_message(TRACE_FIXTURE.read_bytes()))
+    message_queue.put_nowait(_map_message(TRACE_SESSION_FIXTURE.read_bytes()))
 
     await _wait_for(lambda: bool(q10_api.map.path))
     assert q10_api.map.robot_position is not None
@@ -228,6 +231,26 @@ def test_render_path_on_map_draws_position() -> None:
     img = Image.open(io.BytesIO(png)).convert("RGBA")
     assert img.size == (8 * 4, 6 * 4)
     assert img.getpixel((12, 12)) == (255, 211, 0, 255)
+
+
+def test_render_path_on_map_draws_heading_indicator() -> None:
+    """A known heading draws a facing tick from the robot marker.
+
+    With heading 0 (= +x world) and the identity-ish calibration, the tick
+    extends to the right of the robot pixel; with the marker at image (12, 12)
+    the tick covers pixels at x > 12 along y == 12.
+    """
+    trait = _trait_with_map()
+    trait.calibration = GridCalibration(resolution=1.0, origin_x=0.0, origin_y=5.0, y_sign=1)
+    trait.path = [Q10Point(1, 2), Q10Point(3, 2)]
+    trait.robot_position = Q10Point(3, 2)
+    trait.robot_heading = 0  # facing +x
+    png = trait.render_path_on_map(position_color=(255, 211, 0, 255))
+    img = Image.open(io.BytesIO(png)).convert("RGBA")
+    # tick runs +x from the marker (4 * radius = 16 px at scale 4)
+    assert img.getpixel((20, 12)) == (255, 211, 0, 255)
+    # ...and not behind it (the marker is a small disc; sample well to the left)
+    assert img.getpixel((4, 12)) != (255, 211, 0, 255)
 
 
 def test_parse_map_content_preserves_path_overlays_after_calibration() -> None:

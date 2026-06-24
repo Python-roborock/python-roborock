@@ -214,13 +214,14 @@ class Q10TracePacket:
     The robot accumulates the **full path of the current cleaning session** and
     serves it in a single packet: ``points`` holds the whole trajectory so far
     (oldest first), growing as the robot cleans. This was confirmed live -- a
-    corridor run produced packets of 1, then 3, then 15 points, each a strict
-    superset describing the path travelled. Because the robot keeps the path
-    server-side, a client that connects mid-session still receives the complete
-    path (this is how the app shows the trail even after a cold launch).
+    corridor run produced packets of 0 (just a heading, docked), then 3, then 14
+    points, each a strict superset describing the path travelled. Because the
+    robot keeps the path server-side, a client that connects mid-session still
+    receives the complete path (this is how the app shows the trail even after a
+    cold launch).
 
-    The robot only emits these while a session is active, so an idle/docked robot
-    will not produce them. The most recent point is the current robot position.
+    A docked/idle robot can still emit a packet carrying only the ``heading``
+    (zero points). The most recent point is the current robot position.
     """
 
     points: list[Q10Point] = field(default_factory=list)
@@ -228,30 +229,47 @@ class Q10TracePacket:
     """Session counter (byte 3); increments per cleaning session, tracking the
     device clean count. Not a per-packet sequence."""
 
+    heading: int = 0
+    """Robot heading from the 0201 SLAM field (bytes 10-11), in degrees:
+    ``0`` = +x, ``+90`` = +y, ``±180`` = −x, ``−90`` = −y. This is the current
+    orientation; pair it with :attr:`robot_position` to draw a facing robot."""
+
     @property
     def robot_position(self) -> Q10Point | None:
         """The current robot position (the most recent point)."""
         return self.points[-1] if self.points else None
 
 
-# Trace packet (``02 01``): a 10-byte header followed by big-endian int16 (x, y)
+# Trace packet (``02 01``): a 14-byte header followed by big-endian int16 (x, y)
 # point pairs forming the accumulated session path. Header layout confirmed
-# against live ss07 captures: byte 3 is a session counter (tracks the device
-# clean count); bytes 8-9 are a u16be point count minus one (verified: a 15-point
-# packet carried 0x000e == 14). The parser reads all 4-byte pairs in the body
-# rather than trusting the count field, so a truncated tail can't desync it.
+# against live ss07 captures and cross-checked by @andrewlyeats:
+# - byte 3: a session counter (tracks the device clean count).
+# - bytes 8-9: a u16be point count -- the exact number of (x, y) pairs from
+#   byte 14 (verified: captures of 1417 / 2462 points carried 0x0589 / 0x099e).
+# - bytes 10-11: the 0201 SLAM heading (s16be degrees; 0 = +x, +90 = +y,
+#   +-180 = -x, -90 = -y) -- the robot's current orientation.
+# - bytes 12-13: a constant (0x0000).
+# - byte 14 onward: the path points.
+# An earlier revision used a 10-byte header, which folded the heading word into
+# a phantom leading point ``(heading, 0)`` -- that is the "stray point" the
+# heuristic below was papering over, and why the count read "one high". The
+# parser reads all 4-byte pairs in the body rather than trusting the count
+# field, so a truncated tail can't desync it.
 # NOTE: the format documented by roborock-qseries-map-bridge (18-byte header)
-# did not match this firmware -- this 10-byte layout is what the device sent.
-_TRACE_HEADER_LENGTH = 10
+# did not match this firmware -- this 14-byte layout is what the device sent.
+_TRACE_HEADER_LENGTH = 14
 _TRACE_SEQUENCE_OFFSET = 3
+_TRACE_HEADING_OFFSET = 10
 
-# Some cleans prepend a single stray point to the path, far outside the map
-# (e.g. ~(0, -1907) when the real path starts near (-3760, -1920)); it skews the
-# rendered start/bounding box and any path-based calibration. We drop points[0]
-# only when its step to points[1] is a gross outlier (this multiple of the
-# median step of the rest of the path), so a genuine first point is never lost.
-# The current position (last point) is unaffected. Trigger and threshold
-# reported and verified by @andrewlyeats across independent B01/Q10 captures.
+# Some cleans still prepend a single near-origin sentinel as the first real
+# point (e.g. ~(5, 76) / (-3, 0) when the path proper starts near (-1700, -800));
+# it skews the rendered start/bounding box and any path-based calibration. (This
+# is distinct from the heading word the old 10-byte header used to surface as a
+# phantom point -- that is now consumed by the header.) We drop points[0] only
+# when its step to points[1] is a gross outlier (this multiple of the median step
+# of the rest of the path), so a genuine first point is never lost. The current
+# position (last point) is unaffected. Trigger and threshold reported and
+# verified by @andrewlyeats across independent B01/Q10 captures.
 _STRAY_POINT_STEP_RATIO = 20
 
 
@@ -275,6 +293,7 @@ def parse_trace_packet(payload: bytes) -> Q10TracePacket:
     if len(body) % 4:
         raise RoborockException("Q10 trace points are not 4-byte (x, y) pairs")
 
+    heading = int.from_bytes(payload[_TRACE_HEADING_OFFSET : _TRACE_HEADING_OFFSET + 2], "big", signed=True)
     points = [
         Q10Point(
             x=int.from_bytes(body[offset : offset + 2], "big", signed=True),
@@ -283,7 +302,7 @@ def parse_trace_packet(payload: bytes) -> Q10TracePacket:
         for offset in range(0, len(body), 4)
     ]
     points = _drop_stray_leading_point(points)
-    return Q10TracePacket(points=points, sequence=payload[_TRACE_SEQUENCE_OFFSET])
+    return Q10TracePacket(points=points, sequence=payload[_TRACE_SEQUENCE_OFFSET], heading=heading)
 
 
 def _drop_stray_leading_point(points: list[Q10Point]) -> list[Q10Point]:
