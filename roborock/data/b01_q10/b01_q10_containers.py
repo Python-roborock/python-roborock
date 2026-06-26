@@ -2,7 +2,7 @@
 
 Many of these classes use the `field(metadata={"dps": ...})` convention to map
 dataclass fields to device Data Points (DPS). This metadata is utilized by the
-`update_from_dps` helper in `roborock.devices.traits.b01.q10.common` to
+`UpdatableTrait` helper in `roborock.devices.traits.b01.q10.common` to
 automatically update objects from raw device responses.
 """
 
@@ -11,9 +11,13 @@ from dataclasses import dataclass, field
 from ..containers import RoborockBase
 from .b01_q10_code_mappings import (
     B01_Q10_DP,
+    YXAreaUnit,
     YXBackType,
+    YXCarpetCleanType,
+    YXCleanLine,
     YXCleanType,
     YXDeviceCleanTask,
+    YXDeviceDustCollectionFrequency,
     YXDeviceState,
     YXFanLevel,
     YXWaterLevel,
@@ -51,18 +55,24 @@ class dpSelfIdentifyingCarpet(RoborockBase):
 
 @dataclass
 class dpNetInfo(RoborockBase):
-    wifiName: str
-    ipAdress: str
-    mac: str
-    signal: int
+    wifi_name: str | None = None
+    # "ip_adress" intentionally mirrors the device's "ipAdress" key (sic).
+    ip_adress: str | None = None
+    mac: str | None = None
+    signal: int | None = None
+
+    @property
+    def ip_address(self) -> str | None:
+        """Correctly-spelled alias for :attr:`ip_adress`."""
+        return self.ip_adress
 
 
 @dataclass
 class dpNotDisturbExpand(RoborockBase):
-    disturb_dust_enable: int
-    disturb_light: int
-    disturb_resume_clean: int
-    disturb_voice: int
+    disturb_dust_enable: int | None = None
+    disturb_light: int | None = None
+    disturb_resume_clean: int | None = None
+    disturb_voice: int | None = None
 
 
 @dataclass
@@ -77,16 +87,18 @@ class dpVoiceVersion(RoborockBase):
 
 @dataclass
 class dpTimeZone(RoborockBase):
-    timeZoneCity: str
-    timeZoneSec: int
+    time_zone_city: str | None = None
+    time_zone_sec: int | None = None
 
 
 @dataclass
 class Q10Status(RoborockBase):
-    """Status for Q10 devices.
+    """Core vacuum status for Q10 devices.
 
     Fields are mapped to DPS values using metadata. Objects of this class can be
-    automatically updated using the `update_from_dps` helper.
+    automatically updated using the `UpdatableTrait` helper. Settings that have
+    their own trait (volume, child lock, do-not-disturb, dust collection,
+    network info, consumables) live on those traits instead of here.
     """
 
     clean_time: int | None = field(default=None, metadata={"dps": B01_Q10_DP.CLEAN_TIME})
@@ -99,16 +111,106 @@ class Q10Status(RoborockBase):
     total_clean_area: int | None = field(default=None, metadata={"dps": B01_Q10_DP.TOTAL_CLEAN_AREA})
     total_clean_count: int | None = field(default=None, metadata={"dps": B01_Q10_DP.TOTAL_CLEAN_COUNT})
     total_clean_time: int | None = field(default=None, metadata={"dps": B01_Q10_DP.TOTAL_CLEAN_TIME})
-    main_brush_life: int | None = field(default=None, metadata={"dps": B01_Q10_DP.MAIN_BRUSH_LIFE})
-    side_brush_life: int | None = field(default=None, metadata={"dps": B01_Q10_DP.SIDE_BRUSH_LIFE})
-    filter_life: int | None = field(default=None, metadata={"dps": B01_Q10_DP.FILTER_LIFE})
-    sensor_life: int | None = field(default=None, metadata={"dps": B01_Q10_DP.SENSOR_LIFE})
     clean_mode: YXCleanType | None = field(default=None, metadata={"dps": B01_Q10_DP.CLEAN_MODE})
     clean_task_type: YXDeviceCleanTask | None = field(default=None, metadata={"dps": B01_Q10_DP.CLEAN_TASK_TYPE})
     back_type: YXBackType | None = field(default=None, metadata={"dps": B01_Q10_DP.BACK_TYPE})
     cleaning_progress: int | None = field(default=None, metadata={"dps": B01_Q10_DP.CLEAN_PROGRESS})
     fault: int | None = field(default=None, metadata={"dps": B01_Q10_DP.FAULT})
+
     # Raw base64 map-overlay blobs (decoded by roborock.map.b01_q10_overlays).
     restricted_zone_up: str | None = field(default=None, metadata={"dps": B01_Q10_DP.RESTRICTED_ZONE_UP})
     virtual_wall_up: str | None = field(default=None, metadata={"dps": B01_Q10_DP.VIRTUAL_WALL_UP})
     zoned_up: str | None = field(default=None, metadata={"dps": B01_Q10_DP.ZONED_UP})
+
+    # Additional state reported in the device's full status dump.
+    clean_line: YXCleanLine | None = field(default=None, metadata={"dps": B01_Q10_DP.CLEAN_LINE})
+    carpet_clean_type: YXCarpetCleanType | None = field(default=None, metadata={"dps": B01_Q10_DP.CARPET_CLEAN_TYPE})
+    area_unit: YXAreaUnit | None = field(default=None, metadata={"dps": B01_Q10_DP.AREA_UNIT})
+    auto_boost: bool | None = field(default=None, metadata={"dps": B01_Q10_DP.AUTO_BOOST})
+    multi_map_switch: bool | None = field(default=None, metadata={"dps": B01_Q10_DP.MULTI_MAP_SWITCH})
+    map_save_switch: bool | None = field(default=None, metadata={"dps": B01_Q10_DP.MAP_SAVE_SWITCH})
+    recent_clean_record: bool | None = field(default=None, metadata={"dps": B01_Q10_DP.RECENT_CLEAN_RECORD})
+    valley_point_charging: bool | None = field(default=None, metadata={"dps": B01_Q10_DP.VALLEY_POINT_CHARGING})
+    line_laser_obstacle_avoidance: bool | None = field(
+        default=None, metadata={"dps": B01_Q10_DP.LINE_LASER_OBSTACLE_AVOIDANCE}
+    )
+    # Whether a mop module is attached, and whether "clean along floor direction" is on.
+    mop_state: bool | None = field(default=None, metadata={"dps": B01_Q10_DP.MOP_STATE})
+    ground_clean: bool | None = field(default=None, metadata={"dps": B01_Q10_DP.GROUND_CLEAN})
+    # True while an "add area" / re-clean (the app's draw-a-rectangle "re cleaning")
+    # request is in progress; pulses back to False once the robot has the area.
+    add_clean_state: bool | None = field(default=None, metadata={"dps": B01_Q10_DP.ADD_CLEAN_STATE})
+    robot_country_code: str | None = field(default=None, metadata={"dps": B01_Q10_DP.ROBOT_COUNTRY_CODE})
+    time_zone: dpTimeZone | None = field(default=None, metadata={"dps": B01_Q10_DP.TIME_ZONE})
+
+    # TODO(#846): value mappings for these ints are not yet decoded (no app
+    # control found / internal / constant); keep as int until reverse-engineered.
+    breakpoint_clean: int | None = field(default=None, metadata={"dps": B01_Q10_DP.BREAKPOINT_CLEAN})
+    timer_type: int | None = field(default=None, metadata={"dps": B01_Q10_DP.TIMER_TYPE})
+    user_plan: int | None = field(default=None, metadata={"dps": B01_Q10_DP.USER_PLAN})
+    robot_type: int | None = field(default=None, metadata={"dps": B01_Q10_DP.ROBOT_TYPE})
+
+    # DEPRECATED: consumable/accessory remaining-life now lives on the
+    # ``Q10Consumable`` trait. These aliases are kept here for backwards
+    # compatibility and will be removed in a follow-up release. See PR #846.
+    main_brush_life: int | None = field(default=None, metadata={"dps": B01_Q10_DP.MAIN_BRUSH_LIFE})
+    side_brush_life: int | None = field(default=None, metadata={"dps": B01_Q10_DP.SIDE_BRUSH_LIFE})
+    filter_life: int | None = field(default=None, metadata={"dps": B01_Q10_DP.FILTER_LIFE})
+    sensor_life: int | None = field(default=None, metadata={"dps": B01_Q10_DP.SENSOR_LIFE})
+
+
+@dataclass
+class SoundVolume(RoborockBase):
+    """Speaker volume read-model (0-100)."""
+
+    volume: int | None = field(default=None, metadata={"dps": B01_Q10_DP.VOLUME})
+
+
+@dataclass
+class ChildLock(RoborockBase):
+    """Child-lock read-model."""
+
+    child_lock: bool | None = field(default=None, metadata={"dps": B01_Q10_DP.CHILD_LOCK})
+
+
+@dataclass
+class DoNotDisturb(RoborockBase):
+    """Do Not Disturb read-model."""
+
+    not_disturb: bool | None = field(default=None, metadata={"dps": B01_Q10_DP.NOT_DISTURB})
+    not_disturb_expand: dpNotDisturbExpand | None = field(default=None, metadata={"dps": B01_Q10_DP.NOT_DISTURB_EXPAND})
+
+
+@dataclass
+class DustCollection(RoborockBase):
+    """Dock auto-empty (dust collection) read-model."""
+
+    dust_switch: bool | None = field(default=None, metadata={"dps": B01_Q10_DP.DUST_SWITCH})
+    dust_setting: YXDeviceDustCollectionFrequency | None = field(
+        default=None, metadata={"dps": B01_Q10_DP.DUST_SETTING}
+    )
+
+
+@dataclass
+class Q10Consumable(RoborockBase):
+    """Consumable / accessory remaining-life read-model.
+
+    Named with a ``Q10`` prefix to avoid shadowing the v1 ``Consumable`` when both
+    are star-imported into the ``roborock.data`` namespace.
+    """
+
+    main_brush_life: int | None = field(default=None, metadata={"dps": B01_Q10_DP.MAIN_BRUSH_LIFE})
+    side_brush_life: int | None = field(default=None, metadata={"dps": B01_Q10_DP.SIDE_BRUSH_LIFE})
+    filter_life: int | None = field(default=None, metadata={"dps": B01_Q10_DP.FILTER_LIFE})
+    sensor_life: int | None = field(default=None, metadata={"dps": B01_Q10_DP.SENSOR_LIFE})
+
+
+@dataclass
+class Q10NetworkInfo(RoborockBase):
+    """Network information read-model.
+
+    Named with a ``Q10`` prefix to avoid shadowing the v1 ``NetworkInfo`` when both
+    are star-imported into the ``roborock.data`` namespace.
+    """
+
+    net_info: dpNetInfo | None = field(default=None, metadata={"dps": B01_Q10_DP.NET_INFO})

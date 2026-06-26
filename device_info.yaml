@@ -1348,3 +1348,164 @@ roborock.vacuum.a288:
       code: map_diff
       mode: ro
       type: RAW
+
+roborock.vacuum.ss07:
+  protocol_version: B01
+  product_nickname: PEARLPLUS
+  product:
+    id: 3gKDz7BnDrjXOVBAEXj4uw
+    name: Roborock Q10 Series
+    model: roborock.vacuum.ss07
+    category: robot.vacuum.cleaner
+    capability: 0
+    schema:
+    - id: 101
+      name: RPC Request
+      code: rpc_request
+      mode: rw
+      type: RAW
+      property: 'null'
+    - id: 102
+      name: RPC Response
+      code: rpc_response
+      mode: rw
+      type: RAW
+      property: 'null'
+    - id: 120
+      name: "\u9519\u8BEF\u4EE3\u7801"
+      code: error_code
+      mode: ro
+      type: ENUM
+      property: '{"range": []}'
+    - id: 121
+      name: "\u8BBE\u5907\u72B6\u6001"
+      code: state
+      mode: ro
+      type: VALUE
+      property: 'null'
+    - id: 122
+      name: "\u8BBE\u5907\u7535\u91CF"
+      code: battery
+      mode: ro
+      type: ENUM
+      property: '{"range": []}'
+    - id: 123
+      name: "\u5438\u529B\u6863\u4F4D"
+      code: fan_power
+      mode: rw
+      type: ENUM
+      property: '{"range": []}'
+    - id: 124
+      name: "\u62D6\u5730\u6863\u4F4D"
+      code: water_box_mode
+      mode: rw
+      type: RAW
+      property: 'null'
+    - id: 125
+      name: "\u4E3B\u5237\u5BFF\u547D"
+      code: main_brush_life
+      mode: ro
+      type: ENUM
+      property: '{"range": []}'
+    - id: 126
+      name: "\u8FB9\u5237\u5BFF\u547D"
+      code: side_brush_life
+      mode: ro
+      type: ENUM
+      property: '{"range": []}'
+    - id: 127
+      name: "\u6EE4\u7F51\u5BFF\u547D"
+      code: filter_life
+      mode: ro
+      type: ENUM
+      property: '{"range": []}'
+    - id: 135
+      name: "\u79BB\u7EBF\u539F\u56E0"
+      code: offline_status
+      mode: ro
+      type: ENUM
+      property: '{"range": []}'
+    - id: 136
+      name: "\u6E05\u6D01\u6B21\u6570"
+      code: clean_times
+      mode: rw
+      type: ENUM
+      property: '{"range": []}'
+    - id: 137
+      name: "\u626B\u62D6\u6A21\u5F0F"
+      code: cleaning_preference
+      mode: rw
+      type: ENUM
+      property: '{"range": []}'
+    - id: 138
+      name: "\u6E05\u6D01\u4EFB\u52A1\u7C7B\u578B"
+      code: clean_task_type
+      mode: ro
+      type: ENUM
+      property: '{"range": []}'
+    - id: 139
+      name: "\u8FD4\u56DE\u57FA\u7AD9\u7C7B\u578B"
+      code: back_type
+      mode: ro
+      type: ENUM
+      property: '{"range": []}'
+    - id: 140
+      name: "\u57FA\u7AD9\u4EFB\u52A1\u7C7B\u578B"
+      code: dock_task_type
+      mode: ro
+      type: ENUM
+      property: '{"range": []}'
+    - id: 141
+      name: "\u6E05\u6D01\u8FDB\u5EA6"
+      code: cleaning_progress
+      mode: ro
+      type: ENUM
+      property: '{"range": []}'
+    - id: 142
+      name: "\u7A9C\u8D27\u4FE1\u606F"
+      code: fc_state
+      mode: ro
+      type: RAW
+      property: 'null'
+    - id: 201
+      name: "\u542F\u52A8\u6E05\u6D01\u4EFB\u52A1"
+      code: start_clean_task
+      mode: wo
+      type: ENUM
+      property: '{"range": []}'
+    - id: 202
+      name: "\u8FD4\u56DE\u57FA\u7AD9\u4EFB\u52A1"
+      code: start_back_dock_task
+      mode: wo
+      type: ENUM
+      property: '{"range": []}'
+    - id: 203
+      name: "\u542F\u52A8\u57FA\u7AD9\u4EFB\u52A1"
+      code: start_dock_task
+      mode: wo
+      type: ENUM
+      property: '{"range": []}'
+    - id: 204
+      name: "\u6682\u505C\u4EFB\u52A1"
+      code: pause
+      mode: wo
+      type: RAW
+      property: 'null'
+    - id: 205
+      name: "\u7EE7\u7EED\u4EFB\u52A1"
+      code: resume
+      mode: wo
+      type: RAW
+      property: 'null'
+    - id: 206
+      name: "\u7ED3\u675F\u4EFB\u52A1"
+      code: stop
+      mode: wo
+      type: RAW
+      property: 'null'
+    - id: 207
+      name: "\u7528\u6237\u6539\u5584\u8BA1\u5212"
+      code: ceip
+      mode: rw
+      type: ENUM
+      property: '{"range": ["0,1"]}'

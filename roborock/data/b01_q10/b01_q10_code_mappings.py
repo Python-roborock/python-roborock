@@ -85,9 +85,14 @@ class B01_Q10_DP(RoborockModeEnum):
     SUSPECTED_THRESHOLD = ("dpSuspectedThreshold", 99)
     SUSPECTED_THRESHOLD_UP = ("dpSuspectedThresholdUp", 100)
     COMMON = ("dpCommon", 101)
-    JUMP_SCAN = ("dpJumpScan", 101)
     REQUEST_DPS = ("dpRequestDps", 102)  # NOTE: typo "dpRequetdps" in source code
-    CLIFF_RESTRICTED_AREA = ("dpCliffRestrictedArea", 102)
+    # NOTE: the legacy B01 source also listed dpJumpScan (101) and
+    # dpCliffRestrictedArea (102), which collided with the confirmed dpCommon /
+    # dpRequestDps codes above (verified against ss07 hardware and the official app
+    # plugin) and shadowed them in ``from_code``. Both are unused and their real
+    # codes could not be verified, so they were removed rather than left as wrong
+    # duplicates. dpCliffRestrictedAreaUp (103) is kept: ss07 hardware does push
+    # data point 103 (an empty list when no cliff-restricted areas are set).
     CLIFF_RESTRICTED_AREA_UP = ("dpCliffRestrictedAreaUp", 103)
     BREAKPOINT_CLEAN = ("dpBreakpointClean", 104)
     VALLEY_POINT_CHARGING = ("dpValleyPointCharging", 105)
@@ -96,6 +101,13 @@ class B01_Q10_DP(RoborockModeEnum):
     VOICE_VERSION = ("dpVoiceVersion", 108)
     ROBOT_COUNTRY_CODE = ("dpRobotCountryCode", 109)
     HEARTBEAT = ("dpHeartbeat", 110)
+    # NOTE: ss07 hardware also pushes data points 112 and 113 in its full status
+    # dump. They are absent from the official app's vacuum plugin and stayed 0
+    # across every observed state (docked/charging, segment cleaning, lifted-off-
+    # ground fault, returning to dock, dustbin removed), so their meaning is not
+    # yet known. They are intentionally left unmapped; ``decode_rpc_response``
+    # silently ignores unknown codes via ``from_code_optional``, so they do not
+    # produce "not a valid code" warnings. Map them here once identified.
     STATUS = ("dpStatus", 121)
     BATTERY = ("dpBattery", 122)
     FAN_LEVEL = ("dpFanLevel", 123)  # NOTE: typo "dpfunLevel" in source code
@@ -215,11 +227,29 @@ class YXDeviceCleanTask(RoborockModeEnum):
 
 
 class YXDeviceDustCollectionFrequency(RoborockModeEnum):
-    DAILY = "daily", 0
+    # The app exposes "regular" (code 0) vs "frequent", where "frequent" selects
+    # one of the every-N-cleans intervals below.
+    REGULAR = "regular", 0
     INTERVAL_15 = "interval_15", 15
     INTERVAL_30 = "interval_30", 30
     INTERVAL_45 = "interval_45", 45
     INTERVAL_60 = "interval_60", 60
+
+
+class YXAreaUnit(RoborockModeEnum):
+    """Unit used to report cleaned area (dpAreaUnit)."""
+
+    SQUARE_METER = "square_meter", 0
+    SQUARE_FEET = "square_feet", 1
+
+
+class YXCarpetCleanType(RoborockModeEnum):
+    """Carpet handling behavior (dpCarpetCleanType)."""
+
+    RISE = "rise", 0  # lift the mop and boost over carpet
+    AVOID = "avoid", 1
+    IGNORE = "ignore", 2
+    CROSS = "cross", 3
 
 
 class RemoteCommand(IntEnum):

@@ -2,6 +2,67 @@
 
 <!-- version list -->
 
+## v5.21.0 (2026-06-25)
+
+### Bug Fixes
+
+- Avoid Q10 Consumable/NetworkInfo shadowing v1 in roborock.data
+  ([#846](https://github.com/Python-roborock/python-roborock/pull/846),
+  [`b656ca6`](https://github.com/Python-roborock/python-roborock/commit/b656ca60ea5ac2310c9ac33dfd9b821aad324c2d))
+
+- Correct Q10 vacuum command payloads, verified against ss07 hardware
+  ([#846](https://github.com/Python-roborock/python-roborock/pull/846),
+  [`b656ca6`](https://github.com/Python-roborock/python-roborock/commit/b656ca60ea5ac2310c9ac33dfd9b821aad324c2d))
+
+- Keep Q10 CLIFF_RESTRICTED_AREA_UP (103); ss07 pushes it
+  ([#846](https://github.com/Python-roborock/python-roborock/pull/846),
+  [`b656ca6`](https://github.com/Python-roborock/python-roborock/commit/b656ca60ea5ac2310c9ac33dfd9b821aad324c2d))
+
+- Key B01/Q10 RemoteTrait COMMON params by the DP code, not the enum member
+  ([#854](https://github.com/Python-roborock/python-roborock/pull/854),
+  [`56c540f`](https://github.com/Python-roborock/python-roborock/commit/56c540fc0cc07655cd322c5c335214ebb8d9099a))
+
+- Show all Q10 read-model traits in status, wait for fresh push
+  ([#846](https://github.com/Python-roborock/python-roborock/pull/846),
+  [`b656ca6`](https://github.com/Python-roborock/python-roborock/commit/b656ca60ea5ac2310c9ac33dfd9b821aad324c2d))
+
+- Stop unmapped Q10 data points from logging "not a valid code" warnings
+  ([#846](https://github.com/Python-roborock/python-roborock/pull/846),
+  [`b656ca6`](https://github.com/Python-roborock/python-roborock/commit/b656ca60ea5ac2310c9ac33dfd9b821aad324c2d))
+
+### Features
+
+- Add Q10 (B01/ss07) settings writers
+  ([#846](https://github.com/Python-roborock/python-roborock/pull/846),
+  [`b656ca6`](https://github.com/Python-roborock/python-roborock/commit/b656ca60ea5ac2310c9ac33dfd9b821aad324c2d))
+
+- Add Q10 dust-collection frequency writer
+  ([#846](https://github.com/Python-roborock/python-roborock/pull/846),
+  [`b656ca6`](https://github.com/Python-roborock/python-roborock/commit/b656ca60ea5ac2310c9ac33dfd9b821aad324c2d))
+
+- Decode Q10 add_clean_state as a bool
+  ([#846](https://github.com/Python-roborock/python-roborock/pull/846),
+  [`b656ca6`](https://github.com/Python-roborock/python-roborock/commit/b656ca60ea5ac2310c9ac33dfd9b821aad324c2d))
+
+- Decode Q10 carpet/area/mop/floor-direction status into enums+bools
+  ([#846](https://github.com/Python-roborock/python-roborock/pull/846),
+  [`b656ca6`](https://github.com/Python-roborock/python-roborock/commit/b656ca60ea5ac2310c9ac33dfd9b821aad324c2d))
+
+- Expand Q10 (B01/ss07) status support and add device info
+  ([#846](https://github.com/Python-roborock/python-roborock/pull/846),
+  [`b656ca6`](https://github.com/Python-roborock/python-roborock/commit/b656ca60ea5ac2310c9ac33dfd9b821aad324c2d))
+
+### Refactoring
+
+- Keep Q10 consumable fields as deprecated aliases; add ip_address alias
+  ([#846](https://github.com/Python-roborock/python-roborock/pull/846),
+  [`b656ca6`](https://github.com/Python-roborock/python-roborock/commit/b656ca60ea5ac2310c9ac33dfd9b821aad324c2d))
+
+- Split Q10 status/settings into per-concern traits
+  ([#846](https://github.com/Python-roborock/python-roborock/pull/846),
+  [`b656ca6`](https://github.com/Python-roborock/python-roborock/commit/b656ca60ea5ac2310c9ac33dfd9b821aad324c2d))
+
+
 ## v5.20.1 (2026-06-22)
 
 ### Bug Fixes

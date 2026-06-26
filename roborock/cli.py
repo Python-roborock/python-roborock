@@ -49,7 +49,12 @@ except ImportError as err:
 
 from roborock import RoborockCommand
 from roborock.data import RoborockBase, UserData
-from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP, YXCleanType, YXFanLevel
+from roborock.data.b01_q10.b01_q10_code_mappings import (
+    B01_Q10_DP,
+    YXCleanType,
+    YXDeviceDustCollectionFrequency,
+    YXFanLevel,
+)
 from roborock.data.code_mappings import SHORT_MODEL_TO_ENUM
 from roborock.device_features import DeviceFeatures
 from roborock.devices.cache import Cache, CacheData
@@ -446,13 +451,67 @@ async def _display_v1_trait(context: RoborockContext, device_id: str, display_fu
     click.echo(dump_json(trait.as_dict()))
 
 
-async def _q10_vacuum_trait(context: RoborockContext, device_id: str) -> VacuumTrait:
-    """Get VacuumTrait from Q10 device."""
+async def _q10_properties(context: RoborockContext, device_id: str) -> Q10PropertiesApi:
+    """Get the B01 Q10 properties API for a device."""
     device_manager = await context.get_device_manager()
     device = await device_manager.get_device(device_id)
     if device.b01_q10_properties is None:
         raise RoborockUnsupportedFeature("Device does not support B01 Q10 protocol. Is it a Q10?")
-    return device.b01_q10_properties.vacuum
+    return device.b01_q10_properties
+
+
+async def _q10_vacuum_trait(context: RoborockContext, device_id: str) -> VacuumTrait:
+    """Get VacuumTrait from Q10 device."""
+    return (await _q10_properties(context, device_id)).vacuum
+
+
+async def _display_q10_status(context: RoborockContext, device_id: str) -> None:
+    """Refresh and display the full status of a B01 Q10 device.
+
+    Unlike V1 devices, the Q10 reports its state asynchronously: ``refresh()``
+    sends a request and the device streams the values back over the persistent
+    subscribe loop. That loop also delivers unsolicited pushes, so the read-model
+    traits may already hold (possibly stale) values from before this command ran
+    -- checking that a field is merely populated isn't enough. To display data
+    the device sent *in response to this refresh*, we register update listeners,
+    fire the refresh, and wait for a fresh update before reading the traits.
+
+    All read-model traits refreshed by :meth:`Q10PropertiesApi.refresh` are shown,
+    not just ``status`` (volume, child lock, do-not-disturb, dust collection,
+    network info and consumables are part of the device's reported state too).
+    """
+    properties = await _q10_properties(context, device_id)
+
+    # Read-model traits populated from the device's DPS push stream.
+    traits = {
+        "status": properties.status,
+        "volume": properties.volume,
+        "child_lock": properties.child_lock,
+        "do_not_disturb": properties.do_not_disturb,
+        "dust_collection": properties.dust_collection,
+        "network_info": properties.network_info,
+        "consumable": properties.consumable,
+    }
+
+    updated = asyncio.Event()
+    unsubscribes = [trait.add_update_listener(updated.set) for trait in traits.values()]
+    try:
+        await properties.refresh()
+        try:
+            await asyncio.wait_for(updated.wait(), timeout=5)
+        except TimeoutError:
+            click.echo("Timed out waiting for status from device")
+            return
+        # The device streams its DPS across several pushes; give the remaining
+        # ones a brief window to arrive after the first fresh update.
+        await asyncio.sleep(0.5)
+    finally:
+        for unsubscribe in unsubscribes:
+            unsubscribe()
+
+    # Each concrete trait also subclasses a RoborockBase read-model, so it has
+    # ``as_dict``; the cast satisfies the typed UpdatableTrait view above.
+    click.echo(dump_json({name: cast(RoborockBase, trait).as_dict() for name, trait in traits.items()}))
 
 
 @session.command()
@@ -462,7 +521,14 @@ async def _q10_vacuum_trait(context: RoborockContext, device_id: str) -> VacuumT
 async def status(ctx, device_id: str):
     """Get device status."""
     context: RoborockContext = ctx.obj
-    await _display_v1_trait(context, device_id, lambda v1: v1.status)
+    device_manager = await context.get_device_manager()
+    device = await device_manager.get_device(device_id)
+    if device.v1_properties is not None:
+        await _display_v1_trait(context, device_id, lambda v1: v1.status)
+    elif device.b01_q10_properties is not None:
+        await _display_q10_status(context, device_id)
+    else:
+        click.echo("Feature not supported by device")
 
 
 @session.command()
@@ -1491,6 +1557,123 @@ async def q10_vacuum_dock(ctx: click.Context, device_id: str) -> None:
         click.echo("Device does not support B01 Q10 protocol. Is it a Q10?")
     except RoborockException as e:
         click.echo(f"Error: {e}")
+
+
+@session.command()
+@click.option("--device_id", required=True, help="Device ID")
+@click.pass_context
+@async_command
+async def q10_vacuum_spot(ctx: click.Context, device_id: str) -> None:
+    """Start a spot / part clean on a Q10 device."""
+    context: RoborockContext = ctx.obj
+    try:
+        trait = await _q10_vacuum_trait(context, device_id)
+        await trait.spot_clean()
+        click.echo("Starting spot clean...")
+    except RoborockUnsupportedFeature:
+        click.echo("Device does not support B01 Q10 protocol. Is it a Q10?")
+    except RoborockException as e:
+        click.echo(f"Error: {e}")
+
+
+async def _q10_set(ctx: click.Context, device_id: str, apply: Callable[[Any], Any], message: str) -> None:
+    """Run a Q10 settings write and report the result."""
+    context: RoborockContext = ctx.obj
+    try:
+        properties = await _q10_properties(context, device_id)
+        await apply(properties)
+        click.echo(message)
+    except RoborockUnsupportedFeature:
+        click.echo("Device does not support B01 Q10 protocol. Is it a Q10?")
+    except (RoborockException, ValueError) as e:
+        click.echo(f"Error: {e}")
+
+
+@session.command()
+@click.option("--device_id", required=True, help="Device ID")
+@click.option("--volume", required=True, type=int, help="Volume 0-100")
+@click.pass_context
+@async_command
+async def q10_set_volume(ctx: click.Context, device_id: str, volume: int) -> None:
+    """Set the speaker volume on a Q10 device."""
+    await _q10_set(ctx, device_id, lambda p: p.volume.set_volume(volume), f"Volume set to {volume}")
+
+
+@session.command()
+@click.option("--device_id", required=True, help="Device ID")
+@click.option("--enabled", required=True, type=bool, help="Enable (True) or disable (False)")
+@click.pass_context
+@async_command
+async def q10_set_child_lock(ctx: click.Context, device_id: str, enabled: bool) -> None:
+    """Enable or disable the child lock on a Q10 device."""
+    await _q10_set(
+        ctx,
+        device_id,
+        lambda p: p.child_lock.enable() if enabled else p.child_lock.disable(),
+        f"Child lock set to {enabled}",
+    )
+
+
+@session.command()
+@click.option("--device_id", required=True, help="Device ID")
+@click.option("--enabled", required=True, type=bool, help="Enable (True) or disable (False)")
+@click.pass_context
+@async_command
+async def q10_set_dnd(ctx: click.Context, device_id: str, enabled: bool) -> None:
+    """Enable or disable Do Not Disturb on a Q10 device."""
+    await _q10_set(
+        ctx,
+        device_id,
+        lambda p: p.do_not_disturb.enable() if enabled else p.do_not_disturb.disable(),
+        f"Do Not Disturb set to {enabled}",
+    )
+
+
+@session.command()
+@click.option("--device_id", required=True, help="Device ID")
+@click.option("--enabled", required=True, type=bool, help="Enable (True) or disable (False)")
+@click.pass_context
+@async_command
+async def q10_set_led(ctx: click.Context, device_id: str, enabled: bool) -> None:
+    """Enable or disable the indicator light (LED) on a Q10 device."""
+    await _q10_set(
+        ctx,
+        device_id,
+        lambda p: p.button_light.enable() if enabled else p.button_light.disable(),
+        f"LED set to {enabled}",
+    )
+
+
+@session.command()
+@click.option("--device_id", required=True, help="Device ID")
+@click.option("--enabled", required=True, type=bool, help="Enable (True) or disable (False)")
+@click.pass_context
+@async_command
+async def q10_set_dust_collection(ctx: click.Context, device_id: str, enabled: bool) -> None:
+    """Enable or disable automatic dust collection on a Q10 device."""
+    await _q10_set(
+        ctx,
+        device_id,
+        lambda p: p.dust_collection.enable() if enabled else p.dust_collection.disable(),
+        f"Dust collection set to {enabled}",
+    )
+
+
+@session.command()
+@click.option("--device_id", required=True, help="Device ID")
+@click.option(
+    "--frequency",
+    required=True,
+    type=click.Choice([str(m.code) for m in YXDeviceDustCollectionFrequency]),
+    help="Empty after every N cleans (0 = daily).",
+)
+@click.pass_context
+@async_command
+async def q10_set_dust_frequency(ctx: click.Context, device_id: str, frequency: str) -> None:
+    """Set how often the dock empties the bin (0 = daily, else every N cleans)."""
+    freq = YXDeviceDustCollectionFrequency.from_code(int(frequency))
+    label = "daily" if freq.code == 0 else f"every {freq.code} cleans"
+    await _q10_set(ctx, device_id, lambda p: p.dust_collection.set_frequency(freq), f"Dust frequency set to {label}")
 
 
 @session.command()
