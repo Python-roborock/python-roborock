@@ -19,6 +19,7 @@ from .dust_collection import DustCollectionTrait
 from .map import MapContentTrait
 from .network_info import NetworkInfoTrait
 from .remote import RemoteTrait
+from .rooms import RoomsTrait
 from .status import StatusTrait
 from .vacuum import VacuumTrait
 from .volume import SoundVolumeTrait
@@ -32,6 +33,7 @@ __all__ = [
     "DustCollectionTrait",
     "MapContentTrait",
     "NetworkInfoTrait",
+    "RoomsTrait",
     "SoundVolumeTrait",
     "StatusTrait",
 ]
@@ -78,12 +80,16 @@ class Q10PropertiesApi(Trait):
     map: MapContentTrait
     """Trait for fetching the current parsed map (image + rooms)."""
 
+    rooms: RoomsTrait
+    """Trait for reading room configuration from Q10 devices."""
+
     def __init__(self, channel: MqttChannel) -> None:
         """Initialize the B01Props API."""
         self._channel = channel
         self.command = CommandTrait(channel)
         self.vacuum = VacuumTrait(self.command)
         self.remote = RemoteTrait(self.command)
+        self.rooms = RoomsTrait(self.command)
         self.status = StatusTrait()
         self.volume = SoundVolumeTrait(self.command)
         self.child_lock = ChildLockTrait(self.command)
@@ -148,6 +154,7 @@ class Q10PropertiesApi(Trait):
             # only updates the fields that it is responsible for.
             for trait in self._updatable_traits:
                 trait.update_from_dps(message.dps)
+            self.rooms.update_from_dps(message.dps)
 
 
 def create(channel: MqttChannel) -> Q10PropertiesApi:
