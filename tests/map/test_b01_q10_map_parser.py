@@ -309,6 +309,48 @@ def test_parse_map_packet_without_erase_tail() -> None:
     assert parse_map_packet(FIXTURE.read_bytes()).erase_zones == []
 
 
+def _carpet_tail(width: int, height: int, carpet: bytes, erase: bytes = bytes([0, 0])) -> bytes:
+    """Build a packet tail: an erase section followed by a carpet-mask section."""
+    block = _literal_lz4_block(carpet)
+    return erase + (width * height).to_bytes(4, "big") + len(block).to_bytes(2, "big") + block
+
+
+def test_parse_carpet_mask_from_map_packet_tail() -> None:
+    """A carpet mask after the erase section decodes to a same-dims grid.
+
+    Framing confirmed byte-exact on live ss07 captures (R1 / RDC): the carpet
+    mask is a second LZ4 grid (``[u32 uncompressed][u16 compressed][block]``)
+    the same size as the main grid, with non-zero cells marking carpet.
+    """
+    width, height = 8, 6  # the fixture's dimensions
+    carpet = bytearray(width * height)
+    carpet[10] = 4  # one carpet cell (kind 4)
+    carpet[20] = 3  # another carpet kind
+    # A non-empty erase section in front, so the carpet offset must skip it.
+    erase = bytes([1, 4]) + b"".join(
+        int.to_bytes(v & 0xFFFF, 2, "big") for x, y in [(0, 0), (4, 0), (4, 4), (0, 4)] for v in (x, y)
+    )
+    packet = parse_map_packet(FIXTURE.read_bytes() + _carpet_tail(width, height, bytes(carpet), erase))
+
+    assert len(packet.erase_zones) == 1  # erase still parses
+    assert packet.carpet_mask == bytes(carpet)
+    map_data = B01Q10MapParser().parsed_from_packet(packet).map_data
+    assert map_data is not None
+    assert map_data.carpet_map == {10, 20}  # flat grid indices of the carpet cells
+
+
+def test_parse_map_packet_without_carpet() -> None:
+    assert parse_map_packet(FIXTURE.read_bytes()).carpet_mask is None
+
+
+def test_carpet_mask_ignored_when_uncompressed_len_mismatches() -> None:
+    """If the section doesn't line up (uncompressed_len != w*h) carpet is dropped."""
+    carpet = bytes([4] * 48)
+    block = _literal_lz4_block(carpet)
+    tail = bytes([0, 0]) + (999).to_bytes(4, "big") + len(block).to_bytes(2, "big") + block
+    assert parse_map_packet(FIXTURE.read_bytes() + tail).carpet_mask is None
+
+
 def _calibrated_map_payload(
     width: int,
     height: int,

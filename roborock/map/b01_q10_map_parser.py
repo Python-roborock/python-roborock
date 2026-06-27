@@ -197,6 +197,10 @@ class Q10MapPacket:
     """Erase areas decoded from the packet tail (world coordinates)."""
     header_calibration: Q10HeaderCalibration | None = None
     """Calibration read straight from the grid-frame header (ss07), or ``None``."""
+    carpet_mask: bytes | None = None
+    """Carpet mask decoded from the packet tail: a full ``width*height`` grid in
+    the same (top-down) pixel space as :attr:`grid`, where a non-zero cell is
+    carpet (the value is the carpet kind). ``None`` if the packet carried none."""
 
 
 @dataclass
@@ -463,7 +467,9 @@ def parse_map_packet(payload: bytes) -> Q10MapPacket:
     else:
         height, grid, room_data = _infer_layout(decoded, width)
     rooms = _parse_rooms(room_data, grid)
-    erase_zones = _parse_erase_zones(payload[layout_end:])
+    tail = payload[layout_end:]
+    erase_zones = _parse_erase_zones(tail)
+    carpet_mask = _parse_carpet_mask(tail, width, height)
     header_calibration = _parse_header_calibration(payload)
     return Q10MapPacket(
         map_id=map_id,
@@ -473,6 +479,7 @@ def parse_map_packet(payload: bytes) -> Q10MapPacket:
         rooms=rooms,
         erase_zones=erase_zones,
         header_calibration=header_calibration,
+        carpet_mask=carpet_mask,
     )
 
 
@@ -532,6 +539,47 @@ def _parse_erase_zones(tail: bytes) -> list[Q10EraseZone]:
     return erase_zones
 
 
+def _carpet_offset(tail: bytes) -> int:
+    """Byte offset within the post-grid tail where the carpet mask begins.
+
+    The erase section is ``[u8 count][u8 vertices_per]`` then ``count`` polygons
+    of ``vertices_per`` int16 (x, y) pairs, so it always occupies
+    ``2 + count*vertices_per*4`` bytes -- just the 2-byte header when count is 0.
+    """
+    if len(tail) < 2:
+        return len(tail)
+    count, vertices_per = tail[0], tail[1]
+    return 2 + count * vertices_per * 4
+
+
+def _parse_carpet_mask(tail: bytes, width: int, height: int) -> bytes | None:
+    """Decode the carpet mask that follows the erase section in the packet tail.
+
+    Framing matches the main grid block: ``[u32 uncompressed_len]``
+    ``[u16 compressed_len][LZ4 block]``. The decompressed mask is a full
+    ``width*height`` grid in the same (top-down) pixel space as the main grid; a
+    non-zero cell is carpet (the value is the carpet kind). Confirmed byte-exact
+    on live ss07 captures (R1 / RDC), where ``uncompressed_len == width*height``.
+
+    Returns the decompressed mask, or ``None`` if the section is absent or does
+    not line up (the ``uncompressed_len == width*height`` invariant is used as the
+    guard so a mis-located section yields no carpet rather than garbage).
+    """
+    offset = _carpet_offset(tail)
+    if offset + 6 > len(tail):
+        return None
+    uncompressed_len = int.from_bytes(tail[offset : offset + 4], "big")
+    compressed_len = int.from_bytes(tail[offset + 4 : offset + 6], "big")
+    block_end = offset + 6 + compressed_len
+    if uncompressed_len != width * height or compressed_len <= 0 or block_end > len(tail):
+        return None
+    try:
+        mask = lz4_block_decompress(tail[offset + 6 : block_end])
+    except RoborockException:
+        return None
+    return mask if len(mask) == width * height else None
+
+
 def erased_packet(packet: "Q10MapPacket", cells: set[int]) -> "Q10MapPacket":
     """Return a copy of ``packet`` with ``cells`` (grid indices) set to background.
 
@@ -588,6 +636,11 @@ class B01Q10MapParser:
         room_names = {room.id: room.name for room in packet.rooms}
         if room_names:
             map_data.additional_parameters["room_names"] = room_names
+
+        # Carpet cells are flat grid indices (y*width + x) in the same top-down
+        # pixel space as the rendered raster, so they line up with the image.
+        if packet.carpet_mask is not None:
+            map_data.carpet_map = {i for i, value in enumerate(packet.carpet_mask) if value}
 
         image_bytes = io.BytesIO()
         image.save(image_bytes, format=_MAP_FILE_FORMAT)
