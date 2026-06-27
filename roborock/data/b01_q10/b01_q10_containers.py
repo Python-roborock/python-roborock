@@ -61,6 +61,11 @@ class dpNetInfo(RoborockBase):
     mac: str | None = None
     signal: int | None = None
 
+    @property
+    def ip_address(self) -> str | None:
+        """Correctly-spelled alias for :attr:`ip_adress`."""
+        return self.ip_adress
+
 
 @dataclass
 class dpNotDisturbExpand(RoborockBase):
@@ -139,6 +144,14 @@ class Q10Status(RoborockBase):
     timer_type: int | None = field(default=None, metadata={"dps": B01_Q10_DP.TIMER_TYPE})
     user_plan: int | None = field(default=None, metadata={"dps": B01_Q10_DP.USER_PLAN})
     robot_type: int | None = field(default=None, metadata={"dps": B01_Q10_DP.ROBOT_TYPE})
+
+    # DEPRECATED: consumable/accessory remaining-life now lives on the
+    # ``Q10Consumable`` trait. These aliases are kept here for backwards
+    # compatibility and will be removed in a follow-up release. See PR #846.
+    main_brush_life: int | None = field(default=None, metadata={"dps": B01_Q10_DP.MAIN_BRUSH_LIFE})
+    side_brush_life: int | None = field(default=None, metadata={"dps": B01_Q10_DP.SIDE_BRUSH_LIFE})
+    filter_life: int | None = field(default=None, metadata={"dps": B01_Q10_DP.FILTER_LIFE})
+    sensor_life: int | None = field(default=None, metadata={"dps": B01_Q10_DP.SENSOR_LIFE})
 
 
 @dataclass

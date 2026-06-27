@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import hmac
+import json
 import logging
 import math
 import secrets
@@ -558,6 +559,33 @@ class RoborockApiClient:
         else:
             raise RoborockException("home_response result was an unexpected type")
 
+    async def get_shared_device_rooms(self, user_data: UserData, device_id: str) -> list[HomeDataRoom]:
+        """Fetch room names for a shared (received) device."""
+        rriot = user_data.rriot
+        if rriot is None:
+            raise RoborockException("rriot is none")
+        if rriot.r.a is None:
+            raise RoborockException("Missing field 'a' in rriot reference")
+        path = f"/user/deviceshare/query/{device_id}/rooms"
+        room_request = PreparedRequest(
+            rriot.r.a,
+            self.session,
+            {"Authorization": _get_hawk_authentication(rriot, path)},
+        )
+        room_response = await room_request.request("get", path)
+        if not room_response.get("success"):
+            raise RoborockException(room_response)
+        rooms = room_response.get("result")
+        if isinstance(rooms, list):
+            output_list = []
+            for room in rooms:
+                normalized_room = room
+                if isinstance(room, dict) and "id" not in room and "roomId" in room:
+                    normalized_room = {**room, "id": room["roomId"]}
+                output_list.append(HomeDataRoom.from_dict(normalized_room))
+            return output_list
+        raise RoborockException("get_shared_device_rooms result was an unexpected type")
+
     async def get_scenes(self, user_data: UserData, device_id: str) -> list[HomeDataScene]:
         rriot = user_data.rriot
         if rriot is None:
@@ -618,6 +646,31 @@ class RoborockApiClient:
             return [HomeDataSchedule.from_dict(schedule) for schedule in schedules]
         else:
             raise RoborockException(f"schedule_response result was an unexpected type: {schedules}")
+
+    async def create_job(self, user_data: UserData, device_id: str, job: dict) -> dict:
+        """Create a /jobs entry (schedule or one-time room clean) on a B01 device.
+
+        Body-bearing writes must sign the request body in the Hawk payload slot and send those same
+        compact bytes via ``data=``; ``json=`` would re-serialize with spaces and break the MAC.
+        """
+        rriot = user_data.rriot
+        if rriot is None:
+            raise RoborockException("rriot is none")
+        if rriot.r.a is None:
+            raise RoborockException("Missing field 'a' in rriot reference")
+        path = f"/user/devices/{device_id}/jobs"
+        job_request = PreparedRequest(
+            rriot.r.a,
+            self.session,
+            {
+                "Authorization": _get_hawk_authentication(rriot, path, body=job),
+                "Content-Type": "application/json",
+            },
+        )
+        response = await job_request.request("post", path, data=_compact_json(job).encode())
+        if not response.get("success"):
+            raise RoborockException(response)
+        return response
 
     async def get_products(self, user_data: UserData) -> ProductResponse:
         """Gets all products and their schemas, good for determining status codes and model numbers."""
@@ -711,11 +764,25 @@ def _process_extra_hawk_values(values: dict | None) -> str:
         return hashlib.md5("&".join(result).encode()).hexdigest()
 
 
-def _get_hawk_authentication(rriot: RRiot, url: str, formdata: dict | None = None, params: dict | None = None) -> str:
+def _compact_json(body: dict) -> str:
+    """Serialize a JSON body to the exact compact bytes that are both signed and sent."""
+    return json.dumps(body, separators=(",", ":"))
+
+
+def _get_hawk_authentication(
+    rriot: RRiot,
+    url: str,
+    formdata: dict | None = None,
+    params: dict | None = None,
+    body: dict | None = None,
+) -> str:
     timestamp = math.floor(time.time())
     nonce = secrets.token_urlsafe(6)
-    formdata_str = _process_extra_hawk_values(formdata)
     params_str = _process_extra_hawk_values(params)
+    if body is not None:
+        payload_str = hashlib.md5(_compact_json(body).encode()).hexdigest()
+    else:
+        payload_str = _process_extra_hawk_values(formdata)
 
     prestr = ":".join(
         [
@@ -725,7 +792,7 @@ def _get_hawk_authentication(rriot: RRiot, url: str, formdata: dict | None = Non
             str(timestamp),
             hashlib.md5(url.encode()).hexdigest(),
             params_str,
-            formdata_str,
+            payload_str,
         ]
     )
     mac = base64.b64encode(hmac.new(rriot.h.encode(), prestr.encode(), hashlib.sha256).digest()).decode()
@@ -774,6 +841,10 @@ class UserWebApiClient:
             if self._unauthorized_hook:
                 self._unauthorized_hook()
             raise
+
+    async def get_shared_device_rooms(self, device_id: str) -> list[HomeDataRoom]:
+        """Fetch shared-device rooms using the API client."""
+        return await self._web_api.get_shared_device_rooms(self._user_data, device_id)
 
     async def execute_routine(self, scene_id: int) -> None:
         """Execute a specific routine (scene) by its ID."""

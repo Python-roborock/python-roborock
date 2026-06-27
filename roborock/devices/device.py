@@ -203,6 +203,16 @@ class RoborockDevice(ABC, TraitsMixin):
             elif self.b01_q10_properties is not None:
                 await self.b01_q10_properties.start()
         except RoborockException:
+            # Expected: start() can fail transiently. Unsubscribe before propagating
+            # so the retry by connect_loop() gets a clean channel.
+            unsub()
+            raise
+        except Exception:
+            # Not expected here. We normally avoid a bare ``except Exception`` in
+            # this codebase, but a leaked subscription would stop connect_loop() from
+            # ever reconnecting, so we deliberately catch broadly, log the unexpected
+            # error, and release the channel before propagating.
+            self._logger.exception("Unexpected error during connect; releasing channel to avoid a leak")
             unsub()
             raise
         self._logger.info("Connected to device")
