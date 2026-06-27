@@ -4,13 +4,18 @@ Unlike the v1 / Q7 maps, the Q10 has no synchronous "get map" command, so this
 trait is purely push-driven and mirrors the Q10 ``StatusTrait`` contract:
 
 - The device pushes its current map/path as protocol-301 ``MAP_RESPONSE``
-  messages (a ``dpRequestDps`` nudges it to do so). The ``Q10PropertiesApi``
-  subscribe loop routes those messages to :meth:`MapContentTrait.update_from_map_response`.
-- ``update_from_map_response`` parses the payload, updates the cached fields and
-  notifies update listeners (register via :meth:`add_update_listener`).
-- ``parse_map_content()`` reparses the cached raw bytes without I/O.
-- ``image_content``, ``map_data``, ``rooms``, ``path``, ``robot_position`` and
-  ``raw_api_response`` are readable and reflect the most recently pushed map.
+  messages (a ``dpRequestDps`` nudges it to do so). The protocol layer decodes
+  each push into a typed :class:`~roborock.map.b01_q10_map_parser.Q10MapPacket`
+  or :class:`~roborock.map.b01_q10_map_parser.Q10TracePacket`, and the
+  ``Q10PropertiesApi`` subscribe loop routes those to
+  :meth:`MapContentTrait.update_from_map_packet` /
+  :meth:`MapContentTrait.update_from_trace_packet`.
+- Those methods render/cache the packet, update the cached fields and notify
+  update listeners (register via :meth:`add_update_listener`).
+- ``parse_map_content()`` re-renders the cached map packet without I/O (e.g.
+  after the calibration changed).
+- ``image_content``, ``map_data``, ``rooms``, ``path`` and ``robot_position``
+  are readable and reflect the most recently pushed map.
 
 Unlike the Q7, the Q10 map payload is unencrypted, so no map key is required.
 """
@@ -37,12 +42,12 @@ from roborock.map.b01_q10_map_parser import (
     B01Q10MapParserConfig,
     Q10EraseZone,
     Q10HeaderCalibration,
+    Q10MapPacket,
     Q10Point,
     Q10Room,
+    Q10TracePacket,
     decompose_layers,
     erased_packet,
-    parse_map_packet,
-    parse_trace_packet,
 )
 from roborock.map.b01_q10_overlays import (
     ZONE_TYPE_NO_GO,
@@ -51,16 +56,10 @@ from roborock.map.b01_q10_overlays import (
     parse_virtual_wall_blob,
     parse_zone_blob,
 )
-from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 
 _LOGGER = logging.getLogger(__name__)
 
 _TRUNCATE_LENGTH = 20
-
-# MAP_RESPONSE (protocol 301) payloads start with a 2-byte marker identifying the
-# packet kind: a full map (``01 01``) or a live trace/path (``02 01``).
-_MAP_PACKET_MARKER = b"\x01\x01"
-_TRACE_PACKET_MARKER = b"\x02\x01"
 
 # Path-units-per-pixel candidates for calibration. A dense ss07 path lands a
 # best fit of 20.0 around the header origin -- ground-truthed June 2026 on the
@@ -129,9 +128,6 @@ class MapContent(RoborockBase):
     map packet tail. Once a calibration is available the cells inside them are
     blanked from the rendered map and every layer (see :meth:`MapContentTrait`)."""
 
-    raw_api_response: bytes | None = None
-    """Raw bytes of the map payload from the device (opaque blob for re-parsing)."""
-
     header_calibration: Q10HeaderCalibration | None = None
     """Calibration read straight from the map packet's grid-frame header (ss07).
     Supplies the world<->pixel origin without a fit, so :meth:`solve_calibration`
@@ -149,8 +145,9 @@ class MapContentTrait(MapContent, TraitUpdateListener):
     """Trait holding the most recently pushed parsed map content for Q10 devices.
 
     The Q10 has no synchronous get-map request; the device pushes map and trace
-    packets, which the ``Q10PropertiesApi`` subscribe loop feeds into
-    :meth:`update_from_map_response`. Consumers read the cached fields and/or
+    packets, which the protocol layer decodes into typed packets and the
+    ``Q10PropertiesApi`` subscribe loop feeds into :meth:`update_from_map_packet`
+    / :meth:`update_from_trace_packet`. Consumers read the cached fields and/or
     register a callback with :meth:`add_update_listener` to be notified when new
     map content arrives.
     """
@@ -163,48 +160,44 @@ class MapContentTrait(MapContent, TraitUpdateListener):
         super().__init__()
         TraitUpdateListener.__init__(self, logger=_LOGGER)
         self._map_parser = B01Q10MapParser(map_parser_config)
+        # The most recently pushed (parsed) map packet, cached so the map can be
+        # re-rendered (e.g. to apply erase zones / overlays once a calibration is
+        # known) without re-parsing wire bytes.
+        self._packet: Q10MapPacket | None = None
 
-    def update_from_map_response(self, message: RoborockMessage) -> bool:
-        """Update cached map/trace state from a pushed ``MAP_RESPONSE`` message.
+    def update_from_map_packet(self, packet: Q10MapPacket) -> None:
+        """Render a pushed full-map packet into the cached image/rooms/layers.
 
-        Returns ``True`` if the message was a recognized Q10 map (``01 01``) or
-        trace (``02 01``) packet (so the caller can stop processing it), and
-        ``False`` otherwise. Update listeners are notified only when a packet is
-        parsed successfully.
+        Rendering failures are logged and skipped (listeners are not notified) so
+        a single bad push cannot tear down the subscribe loop.
         """
-        if message.protocol != RoborockMessageProtocol.MAP_RESPONSE or not message.payload:
-            return False
-        marker = message.payload[:2]
-        if marker == _MAP_PACKET_MARKER:
-            self.raw_api_response = message.payload
-            try:
-                self.parse_map_content()
-            except RoborockException as ex:
-                _LOGGER.debug("Failed to parse Q10 map packet: %s", ex)
-                return True
-            self._notify_update()
-            return True
-        if marker == _TRACE_PACKET_MARKER:
-            try:
-                trace = parse_trace_packet(message.payload)
-            except RoborockException as ex:
-                _LOGGER.debug("Failed to parse Q10 trace packet: %s", ex)
-                return True
-            self.path = trace.points
-            self.robot_position = trace.robot_position
-            self.robot_heading = trace.heading
-            self._notify_update()
-            return True
-        return False
+        try:
+            self._render_packet(packet)
+        except RoborockException as ex:
+            _LOGGER.debug("Failed to render Q10 map packet: %s", ex)
+            return
+        self._notify_update()
+
+    def update_from_trace_packet(self, packet: Q10TracePacket) -> None:
+        """Cache the path / robot position / heading from a pushed trace packet."""
+        self.path = packet.points
+        self.robot_position = packet.robot_position
+        self.robot_heading = packet.heading
+        self._notify_update()
 
     def parse_map_content(self) -> None:
-        """Reparse the cached raw map payload without performing any I/O."""
-        if self.raw_api_response is None:
-            raise RoborockException("No map payload available; no map has been pushed yet")
+        """Re-render the cached map packet without performing any I/O.
 
+        Used to refresh the rendered image / ``map_data`` after the calibration
+        changed (so the path, overlays and erase zones are reapplied)."""
+        if self._packet is None:
+            raise RoborockException("No map payload available; no map has been pushed yet")
+        self._render_packet(self._packet)
+
+    def _render_packet(self, packet: Q10MapPacket) -> None:
+        """Render a parsed map packet into the cached image / map_data / layers."""
         try:
-            parsed = self._map_parser.parse(self.raw_api_response)
-            packet = parse_map_packet(self.raw_api_response)
+            parsed = self._map_parser.parsed_from_packet(packet)
         except RoborockException:
             raise
         except Exception as ex:
@@ -213,6 +206,7 @@ class MapContentTrait(MapContent, TraitUpdateListener):
         if parsed.image_content is None:
             raise RoborockException("Failed to render Q10 map image")
 
+        self._packet = packet
         self.image_content = parsed.image_content
         self.map_data = parsed.map_data
         self.rooms = packet.rooms
@@ -342,12 +336,12 @@ class MapContentTrait(MapContent, TraitUpdateListener):
         them in pixel space, blank those cells to background, and re-render so the
         phantom areas disappear -- matching what the app shows.
         """
-        if self.layers is None or self.raw_api_response is None:
+        if self.layers is None or self._packet is None:
             return
         cells = self._erased_cells(calibration)
         if not cells:
             return
-        packet = erased_packet(parse_map_packet(self.raw_api_response), cells)
+        packet = erased_packet(self._packet, cells)
         parsed = self._map_parser.parsed_from_packet(packet)
         self.image_content = parsed.image_content
         self.map_data = parsed.map_data
