@@ -1,3 +1,5 @@
+import datetime
+
 from roborock.data import DnDTimer
 from roborock.devices.traits.v1 import common
 from roborock.roborock_typing import RoborockCommand
@@ -19,6 +21,30 @@ class DoNotDisturbTrait(DnDTimer, common.V1TraitMixin, common.RoborockSwitchBase
     async def set_dnd_timer(self, dnd_timer: DnDTimer) -> None:
         """Set the Do Not Disturb (DND) timer settings of the device."""
         await self.rpc_channel.send_command(RoborockCommand.SET_DND_TIMER, params=dnd_timer.as_list())
+        await self.refresh()
+
+    async def set_start_time(self, start_time: datetime.time) -> None:
+        """Set the start time of the Do Not Disturb (DND) timer."""
+        timer = DnDTimer(
+            start_hour=start_time.hour,
+            start_minute=start_time.minute,
+            end_hour=self.end_hour,
+            end_minute=self.end_minute,
+            enabled=self.enabled,
+        )
+        await self.rpc_channel.send_command(RoborockCommand.SET_DND_TIMER, params=timer.as_list())
+        await self.refresh()
+
+    async def set_end_time(self, end_time: datetime.time) -> None:
+        """Set the end time of the Do Not Disturb (DND) timer."""
+        timer = DnDTimer(
+            start_hour=self.start_hour,
+            start_minute=self.start_minute,
+            end_hour=end_time.hour,
+            end_minute=end_time.minute,
+            enabled=self.enabled,
+        )
+        await self.rpc_channel.send_command(RoborockCommand.SET_DND_TIMER, params=timer.as_list())
         await self.refresh()
 
     async def clear_dnd_timer(self) -> None:
