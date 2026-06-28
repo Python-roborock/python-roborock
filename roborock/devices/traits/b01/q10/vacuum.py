@@ -3,6 +3,7 @@
 from roborock.data.b01_q10.b01_q10_code_mappings import (
     B01_Q10_DP,
     YXCleanType,
+    YXDeviceCleanTask,
     YXFanLevel,
 )
 
@@ -41,18 +42,18 @@ class VacuumTrait:
         ``MapContentTrait`` -- ``map.rooms``, each with an ``id``).
 
         Unlike whole-home and spot, ``dpStartClean`` (201) carries the room
-        selection as an object: ``{"cmd": 2, "clean_paramters": [<id>, ...]}``,
-        where ``cmd`` ``2`` is the segment-clean task code. ``clean_paramters``
-        intentionally mirrors the device's misspelling of "parameters" -- the
-        firmware only accepts that exact key.
+        selection as an object: ``{"cmd": <task>, "clean_paramters": [<id>, ...]}``,
+        where ``cmd`` is the segment-clean task code.
 
         Verified live against ss07 hardware: sending
         ``{"dps": {"201": {"cmd": 2, "clean_paramters": [9]}}}`` starts cleaning
-        room 9 (clean_task_type -> 2 / electoral). Captured from the official app.
+        room 9 (clean_task_type -> 2 / electoral).
         """
         await self._command.send(
             command=B01_Q10_DP.START_CLEAN,
-            params={"cmd": 2, "clean_paramters": segment_ids},
+            # "clean_paramters" intentionally mirrors the device's misspelling of
+            # "parameters" -- the firmware only accepts that exact key.
+            params={"cmd": YXDeviceCleanTask.ELECTORAL.code, "clean_paramters": segment_ids},
         )
 
     async def spot_clean(self) -> None:
