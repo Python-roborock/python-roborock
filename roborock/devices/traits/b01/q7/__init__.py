@@ -139,6 +139,10 @@ class Q7PropertiesApi(Trait):
             },
         )
 
+    async def set_button_light(self, enabled: bool) -> None:
+        """Enable or disable the button/panel lights."""
+        await self.set_prop(RoborockB01Props.LIGHT_MODE, int(enabled))
+
     async def start_clean(self) -> None:
         """Start cleaning."""
         await self.send(
