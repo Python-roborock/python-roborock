@@ -17,7 +17,8 @@ from roborock.data import RoborockBase
 from roborock.devices.rpc.b01_q7_channel import MapRpcChannel
 from roborock.devices.traits import Trait
 from roborock.exceptions import RoborockException
-from roborock.map.b01_map_parser import B01MapParser, B01MapParserConfig
+from roborock.map.b01_grid_layers import GridCalibration, GridLayers
+from roborock.map.b01_map_parser import B01MapParser, B01MapParserConfig, decompose_q7_layers, q7_calibration
 from roborock.protocols.b01_q7_protocol import B01_Q7_DPS, Q7RequestMessage
 from roborock.roborock_typing import RoborockB01Q7Methods
 
@@ -35,6 +36,16 @@ class MapContent(RoborockBase):
 
     map_data: MapData | None = None
     """Parsed map data (metadata for points on the map)."""
+
+    layers: GridLayers | None = None
+    """Separable map layers (background / wall / floor) in grid-pixel space.
+
+    Q7's raster has no per-room segmentation, so ``layers.rooms`` is empty (room
+    ids/names are in the map metadata)."""
+
+    calibration: GridCalibration | None = None
+    """World<->pixel transform, read directly from the SCMap ``mapHead``
+    (``minX``/``minY``/``resolution``); world coordinates are in metres."""
 
     raw_api_response: bytes | None = None
     """Raw bytes of the map payload from the device.
@@ -98,3 +109,9 @@ class MapContentTrait(MapContent, Trait):
         self.image_content = parsed_data.image_content
         self.map_data = parsed_data.map_data
         self.raw_api_response = raw_payload
+        try:
+            self.layers = decompose_q7_layers(raw_payload)
+            self.calibration = q7_calibration(raw_payload)
+        except RoborockException:
+            self.layers = None
+            self.calibration = None

@@ -117,6 +117,11 @@ class Q10Status(RoborockBase):
     cleaning_progress: int | None = field(default=None, metadata={"dps": B01_Q10_DP.CLEAN_PROGRESS})
     fault: int | None = field(default=None, metadata={"dps": B01_Q10_DP.FAULT})
 
+    # Raw base64 map-overlay blobs (decoded by roborock.map.b01_q10_overlays).
+    restricted_zone_up: str | None = field(default=None, metadata={"dps": B01_Q10_DP.RESTRICTED_ZONE_UP})
+    virtual_wall_up: str | None = field(default=None, metadata={"dps": B01_Q10_DP.VIRTUAL_WALL_UP})
+    zoned_up: str | None = field(default=None, metadata={"dps": B01_Q10_DP.ZONED_UP})
+
     # Additional state reported in the device's full status dump.
     clean_line: YXCleanLine | None = field(default=None, metadata={"dps": B01_Q10_DP.CLEAN_LINE})
     carpet_clean_type: YXCarpetCleanType | None = field(default=None, metadata={"dps": B01_Q10_DP.CARPET_CLEAN_TYPE})

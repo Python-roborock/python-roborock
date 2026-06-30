@@ -1,7 +1,9 @@
-"""Tests for the device-agnostic grid->layers decomposition + calibration."""
+"""Tests for the device-agnostic grid->layers decomposition + Q10 classifier."""
 
 import io
+from pathlib import Path
 
+import pytest
 from PIL import Image
 
 from roborock.map.b01_grid_layers import (
@@ -11,7 +13,30 @@ from roborock.map.b01_grid_layers import (
     GridCalibration,
     decompose_grid,
     solve_calibration,
+    solve_calibration_with_origin,
 )
+from roborock.map.b01_q10_map_parser import (
+    classify_q10_cell,
+    decompose_layers,
+    parse_map_packet,
+)
+
+FIXTURE = Path(__file__).resolve().parent / "testdata" / "b01_q10_map.bin"
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (0, "unknown"),
+        (8, LAYER_FLOOR),
+        (12, LAYER_FLOOR),
+        (240, LAYER_FLOOR),
+        (243, LAYER_BACKGROUND),
+        (249, LAYER_WALL),
+    ],
+)
+def test_classify_q10_cell(value: int, expected: str) -> None:
+    assert classify_q10_cell(value) == expected
 
 
 def test_decompose_grid_generic_classifier_and_bbox() -> None:
@@ -72,6 +97,25 @@ def test_render_scale_upsamples() -> None:
     assert Image.open(io.BytesIO(png)).size == (6, 3)
 
 
+def test_decompose_layers_on_q10_fixture() -> None:
+    """The Q10 synthetic fixture splits into floor + per-room layers."""
+    layers = decompose_layers(parse_map_packet(FIXTURE.read_bytes()))
+    assert layers.class_counts.get(LAYER_FLOOR) == 26
+    names = {room.id: room.name for room in layers.rooms}
+    assert names == {2: "Living Room", 3: "Bedroom"}
+    # Each room renders to a valid PNG and only its own pixels are opaque.
+    living = layers.render_room(2, (255, 0, 0, 255))
+    img = Image.open(io.BytesIO(living))
+    opaque = sum(1 for *_rgb, a in img.getdata() if a > 0)
+    assert opaque == next(r.pixel_count for r in layers.rooms if r.id == 2)
+
+
+def test_render_room_unknown_id_raises() -> None:
+    layers = decompose_layers(parse_map_packet(FIXTURE.read_bytes()))
+    with pytest.raises(KeyError):
+        layers.render_room(999, (0, 0, 0, 255))
+
+
 def test_calibration_roundtrip() -> None:
     cal = GridCalibration(resolution=2.0, origin_x=3.0, origin_y=8.0, y_sign=1)
     assert cal.world_to_pixel(0, 0) == (3.0, 8.0)
@@ -117,3 +161,27 @@ def test_solve_calibration_returns_none_when_unfittable() -> None:
     # Points so far apart no resolution keeps them on the 6x6 floor block.
     points = [(0.0, 0.0), (1000.0, 0.0), (0.0, 1000.0)]
     assert solve_calibration(layers, points, resolutions=[2.0]) is None
+
+
+def test_solve_calibration_with_origin_fits_resolution_from_short_path() -> None:
+    """With a known origin only resolution is fit, so a tiny path suffices."""
+    layers = _floor_block_layers()
+    true = GridCalibration(2.0, 3.0, 8.0, 1)
+    points = [true.pixel_to_world(px, py) for px, py in [(4, 7), (6, 5)]]  # two points
+    cal = solve_calibration_with_origin(layers, points, (true.origin_x, true.origin_y), resolutions=[1.0, 2.0, 3.0])
+    assert cal is not None
+    assert (cal.resolution, cal.origin_x, cal.origin_y, cal.y_sign) == (2.0, 3.0, 8.0, 1)
+
+
+def test_solve_calibration_with_origin_returns_none_off_floor() -> None:
+    """A wrong origin that lands the path off floor is rejected, not forced."""
+    layers = _floor_block_layers()
+    true = GridCalibration(2.0, 3.0, 8.0, 1)
+    points = [true.pixel_to_world(px, py) for px, py in [(4, 7), (6, 5)]]
+    # Origin shoved into the background corner: every point lands off floor.
+    assert solve_calibration_with_origin(layers, points, (0.0, 0.0), resolutions=[2.0]) is None
+
+
+def test_solve_calibration_with_origin_returns_none_without_points() -> None:
+    layers = _floor_block_layers()
+    assert solve_calibration_with_origin(layers, [], (3.0, 8.0), resolutions=[2.0]) is None

@@ -607,14 +607,19 @@ async def _await_q10_map_push(
     timeout: float = _Q10_MAP_PUSH_TIMEOUT,
     allow_cached_on_timeout: bool = False,
 ) -> bool:
-    """Nudge a Q10 to push its map/trace and wait for a fresh update.
+    """Nudge a Q10 to push its map/trace and wait until ``predicate`` holds.
 
     The Q10 map API is entirely push-driven: there is no synchronous get-map
     request. A ``dpRequestDps`` causes the device to publish a ``MAP_RESPONSE``,
     which the device's subscribe loop feeds into the map trait. Here we register
-    an update listener, send the request, and wait for a newly pushed update to
-    satisfy ``predicate``. Returns whether it did within ``timeout``.
+    an update listener, send the request, and wait for the pushed data to satisfy
+    ``predicate``. Returns whether it did within ``timeout``. When the predicate
+    already holds against cached content we return immediately without nudging.
+    If ``allow_cached_on_timeout`` is set, a timeout still returns ``True`` when
+    the predicate holds against the previously cached content.
     """
+    if predicate():
+        return True
     loop = asyncio.get_running_loop()
     updated: asyncio.Future[None] = loop.create_future()
 
@@ -660,6 +665,59 @@ async def map_image(ctx, device_id: str, output_file: str):
         click.echo(f"Map image saved to {output_file}")
     else:
         click.echo("No map image content available.")
+
+
+@session.command()
+@click.option("--device_id", required=True)
+@click.option("--output-dir", default=None, help="If set, write one transparent PNG per layer here.")
+@click.pass_context
+@async_command
+async def q10_map_layers(ctx, device_id: str, output_dir: str | None):
+    """List the Q10 map's separable layers (background/wall/floor/per-room).
+
+    With --output-dir, also exports each layer as a transparent PNG that can be
+    stacked in a frontend (background, then floor, then walls, then each room).
+    """
+    import os
+
+    context: RoborockContext = ctx.obj
+    device_manager = await context.get_device_manager()
+    device = await device_manager.get_device(device_id)
+    if device.b01_q10_properties is None:
+        click.echo("Feature not supported by device")
+        return
+    properties = device.b01_q10_properties
+    await _await_q10_map_push(properties, lambda: properties.map.layers is not None)
+    layers = properties.map.layers
+    if layers is None:
+        click.echo("No map layers available.")
+        return
+
+    summary = {
+        "size": {"width": layers.width, "height": layers.height},
+        "class_counts": layers.class_counts,
+        "rooms": [
+            {"id": r.id, "name": r.name, "pixel_count": r.pixel_count, "bbox": list(r.bbox)} for r in layers.rooms
+        ],
+    }
+    click.echo(dump_json(summary))
+
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+        exports = {
+            "background": layers.render_class("background", (210, 210, 215, 255), scale=2),
+            "floor": layers.render_class("floor", (70, 170, 95, 200), scale=2),
+            "wall": layers.render_class("wall", (20, 20, 25, 255), scale=2),
+        }
+        for name, png in exports.items():
+            with open(os.path.join(output_dir, f"layer_{name}.png"), "wb") as f:
+                f.write(png)
+        for room in layers.rooms:
+            png = layers.render_room(room.id, (90, 140, 220, 200), scale=2)
+            safe = "".join(c if c.isalnum() else "_" for c in room.name) or f"room{room.id}"
+            with open(os.path.join(output_dir, f"room_{room.id}_{safe}.png"), "wb") as f:
+                f.write(png)
+        click.echo(f"Wrote {3 + len(layers.rooms)} layer PNGs to {output_dir}")
 
 
 @session.command()
@@ -719,6 +777,42 @@ async def q10_position(ctx, device_id: str, include_path: bool):
     if include_path:
         summary["path"] = [[p.x, p.y] for p in map_trait.path]
     click.echo(dump_json(summary))
+
+
+@session.command()
+@click.option("--device_id", required=True)
+@click.option("--output-file", required=True, help="Path to save the map image with the path drawn.")
+@click.pass_context
+@async_command
+async def q10_map_with_path(ctx, device_id: str, output_file: str):
+    """Render the Q10 map with the current cleaning path + robot position drawn.
+
+    Needs the robot to be actively cleaning (the path/calibration come from the
+    live trace). Fetches the map and the path, solves the world<->pixel
+    calibration, and writes the annotated PNG.
+    """
+    context: RoborockContext = ctx.obj
+    device_manager = await context.get_device_manager()
+    device = await device_manager.get_device(device_id)
+    if device.b01_q10_properties is None:
+        click.echo("Feature not supported by device")
+        return
+    properties = device.b01_q10_properties
+    map_trait = properties.map
+    await _await_q10_map_push(properties, lambda: map_trait.image_content is not None)
+    got_path = await _await_q10_map_push(properties, lambda: bool(map_trait.path))
+    if not got_path:
+        click.echo("No live path available (the robot only reports its path while cleaning).")
+        return
+    try:
+        image = map_trait.render_path_on_map()
+    except RoborockException as err:
+        click.echo(f"Could not render path on map: {err}")
+        return
+    with open(output_file, "wb") as f:
+        f.write(image)
+    cal = map_trait.calibration
+    click.echo(f"Saved map with {len(map_trait.path)}-point path to {output_file} (calibration: {cal})")
 
 
 @session.command()

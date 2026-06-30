@@ -200,6 +200,62 @@ def solve_calibration(
     return best[1]
 
 
+def solve_calibration_with_origin(
+    layers: GridLayers,
+    points: list[tuple[float, float]],
+    origin: tuple[float, float],
+    *,
+    resolutions: Iterable[float],
+    y_signs: Iterable[int] = (1, -1),
+    min_on_floor: float = 0.5,
+) -> GridCalibration | None:
+    """Fit resolution + Y orientation around a *known* grid-pixel origin.
+
+    Unlike :func:`solve_calibration`, the pixel origin ``(ox, oy)`` is fixed --
+    e.g. read straight from the Q10 grid-frame header -- so this only sweeps the
+    candidate ``resolutions`` and ``y_signs`` and keeps the placement landing the
+    most ``points`` on floor. With the expensive 2-D offset slide gone, far fewer
+    points are needed to confirm the fit, so it works from a short path rather
+    than a dense clean. Returns ``None`` if no candidate lands a ``min_on_floor``
+    fraction of points on floor (e.g. the origin or points are bogus).
+    """
+    if not points:
+        return None
+    w, h = layers.width, layers.height
+    ox, oy = origin
+    classify = layers.classifier
+    # 1 = floor, 2 = wall/background (blocked), 0 = other. Index by cell.
+    klass = bytes(
+        1 if (c := classify(v)) == LAYER_FLOOR else 2 if c in (LAYER_WALL, LAYER_BACKGROUND) else 0 for v in layers.grid
+    )
+
+    best: tuple[float, GridCalibration] | None = None
+    for resolution in resolutions:
+        if resolution <= 0:
+            continue
+        for y_sign in y_signs:
+            on_floor = 0
+            blocked = 0
+            for x, y in points:
+                px = int(x / resolution + ox)
+                py = int(oy - y_sign * y / resolution)
+                if not (0 <= px < w and 0 <= py < h):
+                    blocked += 1
+                    continue
+                k = klass[py * w + px]
+                if k == 1:
+                    on_floor += 1
+                elif k == 2:
+                    blocked += 1
+            score = on_floor - 1.5 * blocked
+            if best is None or score > best[0]:
+                best = (score, GridCalibration(float(resolution), float(ox), float(oy), y_sign))
+
+    if best is None or best[0] < len(points) * min_on_floor:
+        return None
+    return best[1]
+
+
 def decompose_grid(
     width: int,
     height: int,

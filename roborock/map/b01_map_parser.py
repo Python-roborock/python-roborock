@@ -15,9 +15,65 @@ from vacuum_map_parser_base.map_data import ImageData, MapData
 from roborock.exceptions import RoborockException
 from roborock.map.proto.b01_scmap_pb2 import RobotMap  # type: ignore[attr-defined]
 
+from .b01_grid_layers import (
+    LAYER_BACKGROUND,
+    LAYER_FLOOR,
+    LAYER_WALL,
+    GridCalibration,
+    GridLayers,
+    decompose_grid,
+)
 from .map_parser import ParsedMapData
 
 _MAP_FILE_FORMAT = "PNG"
+
+
+# The Q7 occupancy grid encodes only these classes (no per-room segmentation in
+# the raster -- room ids/names live in the protobuf metadata, not the pixels).
+_Q7_WALL_VALUE = 127
+_Q7_FLOOR_VALUE = 128
+
+
+def classify_q7_cell(value: int) -> str:
+    """Map a Q7 SCMap grid cell value to a canonical layer class."""
+    if value == _Q7_WALL_VALUE:
+        return LAYER_WALL
+    if value == _Q7_FLOOR_VALUE:
+        return LAYER_FLOOR
+    return LAYER_BACKGROUND  # 0 = outside / unknown
+
+
+def decompose_q7_layers(payload: bytes) -> GridLayers:
+    """Split an inflated Q7 SCMap into background / wall / floor layers.
+
+    Q7 has no per-room raster, so ``GridLayers.rooms`` is empty; room ids/names
+    are available separately via the map metadata. Reuses the same device-agnostic
+    decomposition as the Q10.
+    """
+    parsed = _parse_scmap_payload(payload)
+    size_x, size_y, grid = _extract_grid(parsed)
+    return decompose_grid(size_x, size_y, grid, [], classify_q7_cell)
+
+
+def q7_calibration(payload: bytes) -> GridCalibration | None:
+    """Build a world<->pixel calibration straight from the Q7 ``mapHead``.
+
+    Unlike the Q10 (whose packet carries no calibration), the Q7 SCMap header
+    provides ``minX``/``minY``/``resolution`` directly, so no path fitting is
+    needed. World coordinates are in metres; resolution is metres-per-pixel.
+    """
+    head = _parse_scmap_payload(payload).mapHead
+    if not head.HasField("resolution") or head.resolution <= 0 or not head.HasField("sizeY"):
+        return None
+    resolution = head.resolution
+    min_x = head.minX if head.HasField("minX") else 0.0
+    min_y = head.minY if head.HasField("minY") else 0.0
+    return GridCalibration(
+        resolution=resolution,
+        origin_x=-min_x / resolution,
+        origin_y=(head.sizeY - 1) + min_y / resolution,
+        y_sign=1,
+    )
 
 
 @dataclass
