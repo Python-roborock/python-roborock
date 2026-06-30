@@ -11,13 +11,25 @@ Q10 setting writes.
 """
 
 import logging
-from typing import Any, ClassVar, cast
+from typing import Any, ClassVar, Protocol, cast
 
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
 from roborock.data.containers import RoborockBase
 from roborock.devices.traits.common import DpsDataConverter, TraitUpdateListener
 
 from .command import CommandTrait
+
+
+class DpsUpdatable(Protocol):
+    """A trait that updates itself from the Q10 DPS push stream.
+
+    Implemented by :class:`UpdatableTrait` (read-model traits) and by the map
+    trait, which owns the vector-overlay data points. The ``Q10PropertiesApi``
+    subscribe loop fans each push out to every such trait; each picks out the
+    data points it is responsible for and ignores the rest.
+    """
+
+    def update_from_dps(self, decoded_dps: dict[B01_Q10_DP, Any]) -> None: ...
 
 
 class UpdatableTrait(TraitUpdateListener):

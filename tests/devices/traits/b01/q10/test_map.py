@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from PIL import Image
 
+from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
 from roborock.devices.traits.b01.q10 import Q10PropertiesApi, create
 from roborock.devices.traits.b01.q10.map import _Q10_RESOLUTIONS, MapContentTrait
 from roborock.exceptions import RoborockException
@@ -335,3 +336,33 @@ def test_load_overlays_partial_update_keeps_existing_zones() -> None:
     trait.load_overlays(restricted_zone_up=None, virtual_wall_up=b"\x00")
     assert len(trait.zones) == 1  # zones preserved
     assert trait.virtual_walls == []
+
+
+def test_update_from_dps_decodes_overlay_data_points() -> None:
+    """The map trait picks the overlay DPs out of a DPS push and decodes them."""
+    trait = MapContentTrait()
+    blob = (
+        bytes([1, 1])
+        + bytes([0, 4])
+        + b"".join(int.to_bytes(v & 0xFFFF, 2, "big") for xy in [(0, 0), (4, 0), (4, 4), (0, 4)] for v in xy)
+    )
+    notified = []
+    trait.add_update_listener(lambda: notified.append(True))
+
+    trait.update_from_dps({B01_Q10_DP.RESTRICTED_ZONE_UP: blob})
+
+    assert len(trait.zones) == 1
+    assert notified  # listeners learn the overlays changed
+
+
+def test_update_from_dps_without_overlay_data_points_is_noop() -> None:
+    """A DPS push carrying neither overlay DP leaves the trait untouched."""
+    trait = MapContentTrait()
+    notified = []
+    trait.add_update_listener(lambda: notified.append(True))
+
+    trait.update_from_dps({B01_Q10_DP.BATTERY: 50})
+
+    assert trait.zones == []
+    assert trait.virtual_walls == []
+    assert not notified

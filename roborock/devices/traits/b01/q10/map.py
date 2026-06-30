@@ -24,11 +24,13 @@ import io
 import logging
 import math
 from dataclasses import dataclass, field
+from typing import Any
 
 from PIL import Image, ImageDraw
 from vacuum_map_parser_base.map_data import Area, MapData, Path, Point, Wall
 
 from roborock.data import RoborockBase
+from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
 from roborock.devices.traits.common import TraitUpdateListener
 from roborock.exceptions import RoborockException
 from roborock.map.b01_grid_layers import (
@@ -255,6 +257,25 @@ class MapContentTrait(MapContent, TraitUpdateListener):
         if self.layers is None or len(points) < _MIN_CALIBRATION_POINTS:
             return None
         return solve_calibration(self.layers, points, resolutions=_Q10_RESOLUTIONS)
+
+    def update_from_dps(self, decoded_dps: dict[B01_Q10_DP, Any]) -> None:
+        """Decode any vector-overlay data points present in a DPS push.
+
+        The Q10 pushes no-go / no-mop zones (``dpRestrictedZoneUp``) and virtual
+        walls (``dpVirtualWallUp``) as status data points rather than inside the
+        map packet, so the map trait joins the ``Q10PropertiesApi`` DPS fan-out
+        like the other read-model traits instead of being special-cased by the
+        orchestrator. Data points absent from this push leave the existing
+        overlays untouched (a partial status push must not wipe them); a push
+        carrying neither is a no-op.
+        """
+        if B01_Q10_DP.RESTRICTED_ZONE_UP not in decoded_dps and B01_Q10_DP.VIRTUAL_WALL_UP not in decoded_dps:
+            return
+        self.load_overlays(
+            restricted_zone_up=decoded_dps.get(B01_Q10_DP.RESTRICTED_ZONE_UP),
+            virtual_wall_up=decoded_dps.get(B01_Q10_DP.VIRTUAL_WALL_UP),
+        )
+        self._notify_update()
 
     def load_overlays(
         self,
