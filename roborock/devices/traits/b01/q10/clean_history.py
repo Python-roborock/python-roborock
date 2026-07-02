@@ -64,12 +64,12 @@ class CleanRecordConverter:
         ignore it without changing state). Malformed individual records are skipped.
         """
         if envelope.get("op") == "notify":
-            record = self.parse_record(envelope.get("id"))
+            record = CleanRecordConverter.parse_record(envelope.get("id"))
             return CleanRecordPush([record], replace=False) if record is not None else None
         data = envelope.get("data")
         if not isinstance(data, list):
             return None
-        records = [record for item in data if (record := self.parse_record(item)) is not None]
+        records = [record for item in data if (record := CleanRecordConverter.parse_record(item)) is not None]
         return CleanRecordPush(records, replace=True)
 
     @staticmethod
