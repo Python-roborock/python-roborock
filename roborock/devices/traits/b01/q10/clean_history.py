@@ -73,7 +73,7 @@ class CleanRecordConverter:
         return CleanRecordPush(records, replace=True)
 
     @staticmethod
-    def parse_record(raw: object) -> Q10CleanRecord | None:
+    def parse_record(raw: Any | None) -> Q10CleanRecord | None:
         """Decode one underscore-delimited clean-record string into a :class:`Q10CleanRecord`.
 
         The device joins 12 values with ``_``: recordId, startTime (Unix s), cleanTime
