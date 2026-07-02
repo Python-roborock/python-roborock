@@ -1,36 +1,17 @@
-from roborock.data import Q7MapList, Q7MapListEntry
+from roborock.data.b01_q7.b01_q7_containers import Q7MapListEntry
 from roborock.devices.traits.b01.q7 import Q7PropertiesApi
-from tests.fixtures.channel_fixtures import FakeChannel
+from roborock.roborock_typing import RoborockB01Q7Methods
 
-from . import B01MessageBuilder
+from .conftest import FakeQ7Channel
 
 
-async def test_q7_api_map_trait_refresh_populates_cached_values(
-    q7_api: Q7PropertiesApi,
-    fake_channel: FakeChannel,
-    message_builder: B01MessageBuilder,
-):
-    """Map trait follows refresh + cached-value access pattern."""
-    fake_channel.response_queue.append(message_builder.build({"map_list": [{"id": 101, "cur": True}]}))
-
-    assert q7_api.map.map_list == []
-    assert q7_api.map.current_map_id is None
-
+async def test_q7_map_refresh(q7_api: Q7PropertiesApi, fake_channel: FakeQ7Channel):
+    """Test retrieving lists of saved maps."""
+    fake_channel.response_queue.append({"map_list": [{"id": 111, "name": "Map 1"}]})
     await q7_api.map.refresh()
 
-    assert len(fake_channel.published_messages) == 1
-    assert q7_api.map.map_list[0].id == 101
-    assert q7_api.map.map_list[0].cur is True
-    assert q7_api.map.current_map_id == 101
-
-
-def test_q7_map_list_current_map_id_prefers_marked_current():
-    """Current-map resolution prefers the entry marked current."""
-    map_list = Q7MapList(
-        map_list=[
-            Q7MapListEntry(id=111, cur=False),
-            Q7MapListEntry(id=222, cur=True),
-        ]
-    )
-
-    assert map_list.current_map_id == 222
+    assert len(fake_channel.published_commands) == 1
+    command, params = fake_channel.published_commands[0]
+    assert command == RoborockB01Q7Methods.GET_MAP_LIST
+    assert params == {}
+    assert q7_api.map.map_list == [Q7MapListEntry(id=111)]

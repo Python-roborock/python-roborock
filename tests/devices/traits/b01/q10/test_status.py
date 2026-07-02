@@ -1,11 +1,10 @@
 """Tests for the Q10 B01 status trait."""
 
 import asyncio
-import json
 import pathlib
 from collections.abc import AsyncGenerator
 from typing import Any
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import Mock
 
 import pytest
 
@@ -23,7 +22,10 @@ from roborock.data.b01_q10.b01_q10_code_mappings import (
 )
 from roborock.data.b01_q10.b01_q10_containers import dpNetInfo, dpNotDisturbExpand, dpTimeZone
 from roborock.devices.traits.b01.q10 import Q10PropertiesApi, create
+from roborock.protocols.b01_q10_protocol import Q10Message, decode_message
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
+
+from .conftest import FakeB01Q10Channel
 
 TEST_DATA_DIR = pathlib.Path("tests/protocols/testdata/b01_q10_protocol")
 
@@ -31,34 +33,27 @@ TESTDATA_DP_STATUS_DP_CLEAN_TASK_TYPE = (TEST_DATA_DIR / "dpStatus-dpCleanTaskTy
 TESTDATA_DP_REQUEST_DPS = (TEST_DATA_DIR / "dpRequetdps.json").read_bytes()
 
 
-@pytest.fixture
-def mock_channel():
-    """Fixture for a mocked MQTT channel."""
-    mock = AsyncMock()
-    return mock
-
-
-@pytest.fixture
-def message_queue() -> asyncio.Queue[RoborockMessage]:
+@pytest.fixture(name="message_queue")
+def message_queue_fixture() -> asyncio.Queue[Q10Message]:
     """Fixture for a message queue used by the mock stream."""
     return asyncio.Queue()
 
 
-@pytest.fixture
-def mock_subscribe_stream(mock_channel: AsyncMock, message_queue: asyncio.Queue[RoborockMessage]) -> Mock:
+@pytest.fixture(name="mock_channel")
+def mock_channel_fixture(message_queue: asyncio.Queue[Q10Message]) -> FakeB01Q10Channel:
     """Fixture to mock the subscribe_stream method to yield from a queue."""
+    channel = FakeB01Q10Channel()
 
-    async def mock_stream() -> AsyncGenerator[RoborockMessage, None]:
+    async def mock_stream() -> AsyncGenerator[Q10Message, None]:
         while True:
             yield await message_queue.get()
 
-    mock = Mock(return_value=mock_stream())
-    mock_channel.subscribe_stream = mock
-    return mock
+    setattr(channel, "subscribe_stream", Mock(side_effect=mock_stream))
+    return channel
 
 
-@pytest.fixture
-async def q10_api(mock_channel: AsyncMock, mock_subscribe_stream: Mock) -> AsyncGenerator[Q10PropertiesApi, None]:
+@pytest.fixture(name="q10_api")
+async def q10_api_fixture(mock_channel: FakeB01Q10Channel) -> AsyncGenerator[Q10PropertiesApi, None]:
     """Fixture to create and manage the Q10PropertiesApi."""
     api = create(mock_channel)
     await api.start()
@@ -66,20 +61,20 @@ async def q10_api(mock_channel: AsyncMock, mock_subscribe_stream: Mock) -> Async
     await api.close()
 
 
-def build_message(payload: bytes) -> RoborockMessage:
-    """Helper to build a RoborockMessage for testing."""
-    return RoborockMessage(
+def build_q10_message(payload: bytes) -> Q10Message:
+    """Helper to build a Q10Message for testing."""
+    msg = RoborockMessage(
         protocol=RoborockMessageProtocol.RPC_RESPONSE,
         payload=payload,
         version=b"B01",
     )
+    result = decode_message(msg)
+    assert result is not None
+    return result
 
 
 async def wait_for_attribute_value(obj: Any, attribute: str, value: Any, timeout: float = 2.0) -> None:
-    """Wait for an attribute on an object to reach a specific value.
-
-    This is a temporary polling solution until listeners are implemented.
-    """
+    """Wait for an attribute on an object to reach a specific value."""
     for _ in range(int(timeout / 0.1)):
         if getattr(obj, attribute) == value:
             return
@@ -89,12 +84,12 @@ async def wait_for_attribute_value(obj: Any, attribute: str, value: Any, timeout
 
 async def test_status_trait_streaming(
     q10_api: Q10PropertiesApi,
-    message_queue: asyncio.Queue[RoborockMessage],
+    message_queue: asyncio.Queue[Q10Message],
 ) -> None:
     """Test that the StatusTrait updates its state from streaming messages."""
     # status (121) = 8 (CHARGING_STATE)
     # clean_task_type (138) = 0 (IDLE)
-    message = build_message(TESTDATA_DP_STATUS_DP_CLEAN_TASK_TYPE)
+    message = build_q10_message(TESTDATA_DP_STATUS_DP_CLEAN_TASK_TYPE)
 
     assert q10_api.status.status is None
     assert q10_api.status.clean_task_type is None
@@ -112,8 +107,8 @@ async def test_status_trait_streaming(
 
 async def test_status_trait_refresh(
     q10_api: Q10PropertiesApi,
-    mock_channel: AsyncMock,
-    message_queue: asyncio.Queue[RoborockMessage],
+    mock_channel: FakeB01Q10Channel,
+    message_queue: asyncio.Queue[Q10Message],
 ) -> None:
     """Test that the StatusTrait sends a refresh command and updates state."""
     assert q10_api.status.battery is None
@@ -128,18 +123,14 @@ async def test_status_trait_refresh(
     # battery (122) = 100
     # status (121) = 8 (CHARGING_STATE)
     # fan_level (123) = 2 (BALANCED)
-    message = build_message(TESTDATA_DP_REQUEST_DPS)
+    message = build_q10_message(TESTDATA_DP_REQUEST_DPS)
 
     # Send a refresh command
     await q10_api.refresh()
-    mock_channel.publish.assert_called_once()
-    sent_message = mock_channel.publish.call_args[0][0]
-    assert sent_message.protocol == RoborockMessageProtocol.RPC_REQUEST
-    # Verify refresh payload
-    data = json.loads(sent_message.payload)
-    assert data
-    assert data.get("dps")
-    assert data.get("dps").get("102") == {}  # REQUEST_DPS code is 102
+    assert len(mock_channel.published_commands) == 1
+    command, params = mock_channel.published_commands[0]
+    assert command == B01_Q10_DP.REQUEST_DPS
+    assert params == {}
 
     # Push the response message into the queue
     message_queue.put_nowait(message)
@@ -199,11 +190,11 @@ async def test_status_trait_refresh(
 
 async def test_status_trait_vacuum_only_refresh(
     q10_api: Q10PropertiesApi,
-    message_queue: asyncio.Queue[RoborockMessage],
+    message_queue: asyncio.Queue[Q10Message],
 ) -> None:
     """Test decoding a full status dump from a vacuum-only (no mop) Q10."""
     payload = (TEST_DATA_DIR / "dpRequestDps_vacuum_only.json").read_bytes()
-    message_queue.put_nowait(build_message(payload))
+    message_queue.put_nowait(build_q10_message(payload))
 
     await wait_for_attribute_value(q10_api.status, "battery", 75)
 

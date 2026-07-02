@@ -7,11 +7,9 @@ and a `record_list` whose items contain a JSON string in `detail`.
 import logging
 
 from roborock import CleanRecordDetail, CleanRecordList, CleanRecordSummary
-from roborock.devices.rpc.b01_q7_channel import send_decoded_command
+from roborock.devices.rpc.b01_q7_channel import Q7RpcChannel
 from roborock.devices.traits import Trait
-from roborock.devices.transport.mqtt_channel import MqttChannel
 from roborock.exceptions import RoborockException
-from roborock.protocols.b01_q7_protocol import B01_Q7_DPS, Q7RequestMessage
 from roborock.roborock_typing import RoborockB01Q7Methods
 
 __all__ = [
@@ -24,11 +22,11 @@ _LOGGER = logging.getLogger(__name__)
 class CleanSummaryTrait(CleanRecordSummary, Trait):
     """B01/Q7 clean summary + clean record access (via record list service)."""
 
-    def __init__(self, channel: MqttChannel) -> None:
+    def __init__(self, channel: Q7RpcChannel) -> None:
         """Initialize the clean summary trait.
 
         Args:
-            channel: MQTT channel used to communicate with the device.
+            channel: RPC channel used to communicate with the device.
         """
         super().__init__()
         self._channel = channel
@@ -46,9 +44,9 @@ class CleanSummaryTrait(CleanRecordSummary, Trait):
 
     async def _get_record_list(self) -> CleanRecordList:
         """Fetch the raw device clean record list (`service.get_record_list`)."""
-        result = await send_decoded_command(
-            self._channel,
-            Q7RequestMessage(dps=B01_Q7_DPS, command=RoborockB01Q7Methods.GET_RECORD_LIST, params={}),
+        result = await self._channel.send_command(
+            command=RoborockB01Q7Methods.GET_RECORD_LIST,
+            params={},
         )
 
         if not isinstance(result, dict):

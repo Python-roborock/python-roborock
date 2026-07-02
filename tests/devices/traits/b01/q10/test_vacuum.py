@@ -1,4 +1,3 @@
-import json
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -7,21 +6,12 @@ import pytest
 from roborock.data.b01_q10.b01_q10_code_mappings import YXCleanType, YXFanLevel
 from roborock.devices.traits.b01.q10 import Q10PropertiesApi
 from roborock.devices.traits.b01.q10.vacuum import VacuumTrait
-from tests.fixtures.channel_fixtures import FakeChannel
+
+from .conftest import FakeB01Q10Channel
 
 
-@pytest.fixture(name="fake_channel")
-def fake_channel_fixture() -> FakeChannel:
-    return FakeChannel()
-
-
-@pytest.fixture(name="q10_api")
-def q10_api_fixture(fake_channel: FakeChannel) -> Q10PropertiesApi:
-    return Q10PropertiesApi(fake_channel)  # type: ignore[arg-type]
-
-
-@pytest.fixture(name="vacuumm")
-def vacuumm_fixture(q10_api: Q10PropertiesApi) -> VacuumTrait:
+@pytest.fixture(name="vacuum")
+def vacuum_fixture(q10_api: Q10PropertiesApi) -> VacuumTrait:
     return q10_api.vacuum
 
 
@@ -41,16 +31,19 @@ def vacuumm_fixture(q10_api: Q10PropertiesApi) -> VacuumTrait:
     ],
 )
 async def test_vacuum_commands(
-    vacuumm: VacuumTrait,
-    fake_channel: FakeChannel,
+    vacuum: VacuumTrait,
+    fake_channel: FakeB01Q10Channel,
     command_fn: Callable[[VacuumTrait], Awaitable[None]],
     expected_payload: dict[str, Any],
 ) -> None:
     """Test sending a vacuum start command."""
-    await command_fn(vacuumm)
+    await command_fn(vacuum)
 
-    assert len(fake_channel.published_messages) == 1
-    message = fake_channel.published_messages[0]
-    assert message.payload
-    payload_data = json.loads(message.payload.decode())
-    assert payload_data == {"dps": expected_payload}
+    assert len(fake_channel.published_commands) == 1
+    command, params = fake_channel.published_commands[0]
+
+    dp_code = int(list(expected_payload.keys())[0])
+    expected_params = list(expected_payload.values())[0]
+
+    assert command.code == dp_code
+    assert params == expected_params

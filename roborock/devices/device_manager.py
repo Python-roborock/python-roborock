@@ -26,6 +26,8 @@ from roborock.protocol import create_mqtt_params
 from roborock.web_api import RoborockApiClient, UserWebApiClient
 
 from .cache import Cache, DeviceCache, NoCache
+from .rpc.b01_q7_channel import create_b01_q7_channel
+from .rpc.b01_q10_channel import create_b01_q10_channel
 from .rpc.v1_channel import create_v1_channel
 from .traits import Trait, a01, b01, v1
 from .transport.channel import Channel
@@ -254,13 +256,22 @@ async def create_device_manager(
                 channel = create_mqtt_channel(user_data, mqtt_params, mqtt_session, device)
                 trait = a01.create(product, channel)
             case DeviceVersion.B01:
-                channel = create_mqtt_channel(user_data, mqtt_params, mqtt_session, device)
+                mqtt_channel = create_mqtt_channel(user_data, mqtt_params, mqtt_session, device)
                 model_part = product.model.split(".")[-1]
                 if "ss" in model_part:
+                    b01_q10_channel = create_b01_q10_channel(mqtt_channel)
+                    channel = b01_q10_channel
                     trait = b01.q10.create(channel)
                 elif "sc" in model_part:
                     # Q7 devices start with 'sc' in their model naming.
-                    trait = b01.q7.create(product, device, channel)
+                    b01_q7_channel = create_b01_q7_channel(device, product, mqtt_channel)
+                    channel = b01_q7_channel
+                    trait = b01.q7.create(
+                        product,
+                        device,
+                        rpc_channel=b01_q7_channel,
+                        map_rpc_channel=b01_q7_channel,
+                    )
                 else:
                     raise UnsupportedDeviceError(f"Device {device.name} has unsupported B01 model: {product.model}")
             case _:

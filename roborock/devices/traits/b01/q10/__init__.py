@@ -4,9 +4,8 @@ import asyncio
 import logging
 
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
-from roborock.devices.rpc.b01_q10_channel import stream_decoded_messages
+from roborock.devices.rpc.b01_q10_channel import B01Q10Channel
 from roborock.devices.traits import Trait
-from roborock.devices.transport.mqtt_channel import MqttChannel
 from roborock.map.b01_q10_map_parser import Q10MapPacket, Q10TracePacket
 from roborock.protocols.b01_q10_protocol import Q10DpsUpdate, Q10Message
 
@@ -78,7 +77,7 @@ class Q10PropertiesApi(Trait):
     map: MapContentTrait
     """Trait for fetching the current parsed map (image + rooms)."""
 
-    def __init__(self, channel: MqttChannel) -> None:
+    def __init__(self, channel: B01Q10Channel) -> None:
         """Initialize the B01Props API."""
         self._channel = channel
         self.command = CommandTrait(channel)
@@ -127,7 +126,7 @@ class Q10PropertiesApi(Trait):
 
     async def _subscribe_loop(self) -> None:
         """Persistent loop dispatching decoded messages to the read-model traits."""
-        async for message in stream_decoded_messages(self._channel):
+        async for message in self._channel.subscribe_stream():
             self._handle_message(message)
 
     def _handle_message(self, message: Q10Message) -> None:
@@ -150,6 +149,6 @@ class Q10PropertiesApi(Trait):
                 trait.update_from_dps(message.dps)
 
 
-def create(channel: MqttChannel) -> Q10PropertiesApi:
+def create(channel: B01Q10Channel) -> Q10PropertiesApi:
     """Create traits for B01 devices."""
     return Q10PropertiesApi(channel)

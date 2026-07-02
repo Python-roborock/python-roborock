@@ -1,19 +1,23 @@
 """Thin wrapper around the MQTT channel for Roborock B01 Q7 devices."""
 
-from __future__ import annotations
-
 import asyncio
 import json
 import logging
 from collections.abc import Callable
-from typing import TypeAlias, TypeVar
+from typing import Protocol, TypeAlias, TypeVar
 
+from roborock.data import HomeDataDevice, HomeDataProduct
+from roborock.devices.transport.channel import Channel
 from roborock.devices.transport.mqtt_channel import MqttChannel
 from roborock.exceptions import RoborockException
 from roborock.protocols.b01_q7_protocol import (
+    B01_Q7_DPS,
     B01_VERSION,
+    CommandType,
     MapKey,
+    ParamsType,
     Q7RequestMessage,
+    create_map_key,
     decode_map_payload,
     decode_rpc_response,
     encode_mqtt_payload,
@@ -24,6 +28,30 @@ _LOGGER = logging.getLogger(__name__)
 _TIMEOUT = 10.0
 _T = TypeVar("_T")
 DecodedB01Response: TypeAlias = dict[str, object] | str
+
+
+class Q7RpcChannel(Protocol):
+    """Protocol for Q7 RPC channels."""
+
+    async def send_command(
+        self,
+        command: CommandType,
+        params: ParamsType = None,
+    ) -> DecodedB01Response:
+        """Send a command and get a decoded response."""
+        ...
+
+
+class Q7MapRpcChannel(Protocol):
+    """Protocol for Q7 map RPC channels."""
+
+    async def send_map_command(
+        self,
+        command: CommandType,
+        params: ParamsType = None,
+    ) -> bytes:
+        """Send a map command and get decoded bytes."""
+        ...
 
 
 def _matches_map_response(response_message: RoborockMessage, *, version: bytes | None) -> bytes | None:
@@ -120,39 +148,55 @@ async def send_decoded_command(
         raise RoborockException(f"B01 command timed out after {_TIMEOUT}s ({request_message})") from ex
     except RoborockException as ex:
         _LOGGER.warning(
-            "Error sending B01 decoded command (%ss): %s",
+            "Error sending B01 decoded command (%s): %s",
             request_message,
             ex,
         )
         raise
     except Exception as ex:
         _LOGGER.exception(
-            "Error sending B01 decoded command (%ss): %s",
+            "Error sending B01 decoded command (%s): %s",
             request_message,
             ex,
         )
         raise
 
 
-class MapRpcChannel:
-    """RPC channel for map-related commands on B01/Q7 devices."""
+class B01Q7Channel(Channel, Q7RpcChannel, Q7MapRpcChannel):
+    """Unified B01 Q7 channel wrapping MQTT transport."""
 
     def __init__(self, mqtt_channel: MqttChannel, map_key: MapKey) -> None:
         self._mqtt_channel = mqtt_channel
         self._map_key = map_key
 
-    async def send_map_command(self, request_message: Q7RequestMessage) -> bytes:
-        """Send a map upload command and return decoded SCMap bytes.
+    @property
+    def is_connected(self) -> bool:
+        return self._mqtt_channel.is_connected
 
-        This publishes the request and waits for a matching ``MAP_RESPONSE`` message
-        with the correct protocol version. The raw ``MAP_RESPONSE`` payload bytes are
-        then decoded/inflated via :func:`decode_map_payload` using this channel's
-        ``map_key``, and the resulting SCMap bytes are returned.
+    @property
+    def is_local_connected(self) -> bool:
+        return False
 
-        The returned value is the decoded map data bytes suitable for passing to the
-        map parser library, not the raw MQTT ``MAP_RESPONSE`` payload bytes.
-        """
+    async def subscribe(self, callback: Callable[[RoborockMessage], None]) -> Callable[[], None]:
+        return await self._mqtt_channel.subscribe(callback)
 
+    async def send_command(
+        self,
+        command: CommandType,
+        params: ParamsType = None,
+    ) -> DecodedB01Response:
+        return await send_decoded_command(
+            self._mqtt_channel,
+            Q7RequestMessage(dps=B01_Q7_DPS, command=command, params=params),
+        )
+
+    async def send_map_command(
+        self,
+        command: CommandType,
+        params: ParamsType = None,
+    ) -> bytes:
+        """Send a map upload command and return decoded SCMap bytes."""
+        request_message = Q7RequestMessage(dps=B01_Q7_DPS, command=command, params=params)
         try:
             raw_payload = await _send_command(
                 self._mqtt_channel,
@@ -163,3 +207,17 @@ class MapRpcChannel:
             raise RoborockException(f"B01 map command timed out after {_TIMEOUT}s ({request_message})") from ex
 
         return decode_map_payload(raw_payload, map_key=self._map_key)
+
+
+def create_b01_q7_channel(
+    device: HomeDataDevice,
+    product: HomeDataProduct,
+    mqtt_channel: MqttChannel,
+) -> B01Q7Channel:
+    """Create a B01Q7Channel for the given device."""
+    if device.sn is None or product.model is None:
+        raise RoborockException(
+            f"Device serial number and product model are required (sn: {device.sn}, model: {product.model})"
+        )
+    map_key = create_map_key(serial=device.sn, model=product.model)
+    return B01Q7Channel(mqtt_channel, map_key)

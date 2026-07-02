@@ -1,9 +1,6 @@
-import json
-from typing import Any, cast
+from typing import Any
 
 import pytest
-from Crypto.Cipher import AES
-from Crypto.Util.Padding import unpad
 
 from roborock.data.b01_q7 import (
     CleanTaskTypeMapping,
@@ -13,19 +10,14 @@ from roborock.data.b01_q7 import (
     WaterLevelMapping,
     WorkStatusMapping,
 )
-from roborock.devices.rpc.b01_q7_channel import send_decoded_command
 from roborock.devices.traits.b01.q7 import Q7PropertiesApi
-from roborock.exceptions import RoborockException
-from roborock.protocols.b01_q7_protocol import B01_VERSION, Q7RequestMessage
-from roborock.roborock_message import RoborockB01Props, RoborockMessageProtocol
-from tests.fixtures.channel_fixtures import FakeChannel
+from roborock.roborock_message import RoborockB01Props
+from roborock.roborock_typing import RoborockB01Q7Methods
 
-from . import B01MessageBuilder
+from .conftest import FakeQ7Channel
 
 
-async def test_q7_api_query_values(
-    q7_api: Q7PropertiesApi, fake_channel: FakeChannel, message_builder: B01MessageBuilder
-):
+async def test_q7_api_query_values(q7_api: Q7PropertiesApi, fake_channel: FakeQ7Channel):
     """Test that Q7PropertiesApi correctly converts raw values."""
     response_data = {
         "status": 1,
@@ -33,7 +25,7 @@ async def test_q7_api_query_values(
         "battery": 100,
     }
 
-    fake_channel.response_queue.append(message_builder.build(response_data))
+    fake_channel.response_queue.append(response_data)
 
     result = await q7_api.query_values(
         [
@@ -46,19 +38,10 @@ async def test_q7_api_query_values(
     assert result.status == WorkStatusMapping.WAITING_FOR_ORDERS
     assert result.wind == SCWindMapping.STANDARD
 
-    assert len(fake_channel.published_messages) == 1
-    message = fake_channel.published_messages[0]
-    assert message.protocol == RoborockMessageProtocol.RPC_REQUEST
-    assert message.version == B01_VERSION
-
-    assert message.payload is not None
-    payload_data = json.loads(unpad(message.payload, AES.block_size))
-    assert "dps" in payload_data
-    assert "10000" in payload_data["dps"]
-    inner = payload_data["dps"]["10000"]
-    assert inner["method"] == "prop.get"
-    assert inner["msgId"] == str(message_builder.msg_id)
-    assert inner["params"] == {"property": [RoborockB01Props.STATUS, RoborockB01Props.WIND]}
+    assert len(fake_channel.published_commands) == 1
+    command, params = fake_channel.published_commands[0]
+    assert command == RoborockB01Q7Methods.GET_PROP
+    assert params == {"property": [RoborockB01Props.STATUS, RoborockB01Props.WIND]}
 
 
 @pytest.mark.parametrize(
@@ -81,11 +64,10 @@ async def test_q7_response_value_mapping(
     response_data: dict[str, Any],
     expected_status: WorkStatusMapping,
     q7_api: Q7PropertiesApi,
-    fake_channel: FakeChannel,
-    message_builder: B01MessageBuilder,
+    fake_channel: FakeQ7Channel,
 ):
     """Test Q7PropertiesApi value mapping for different statuses."""
-    fake_channel.response_queue.append(message_builder.build(response_data))
+    fake_channel.response_queue.append(response_data)
 
     result = await q7_api.query_values(query)
 
@@ -93,81 +75,42 @@ async def test_q7_response_value_mapping(
     assert result.status == expected_status
 
 
-async def test_send_decoded_command_non_dict_response(fake_channel: FakeChannel, message_builder: B01MessageBuilder):
-    """Test validity of handling non-dict responses (should not timeout)."""
-    message = message_builder.build("some_string_error")
-    fake_channel.response_queue.append(message)
-
-    with pytest.raises(RoborockException, match="Unexpected data type for response"):
-        await send_decoded_command(fake_channel, Q7RequestMessage(dps=10000, command="prop.get", params=[]))  # type: ignore[arg-type]
-
-
-async def test_send_decoded_command_error_code(fake_channel: FakeChannel, message_builder: B01MessageBuilder):
-    """Test that non-zero error codes from device are properly handled."""
-    message = message_builder.build({}, code=5001)
-    fake_channel.response_queue.append(message)
-
-    with pytest.raises(RoborockException, match="B01 command failed with code 5001"):
-        await send_decoded_command(fake_channel, Q7RequestMessage(dps=10000, command="prop.get", params=[]))  # type: ignore[arg-type]
-
-
-async def test_send_decoded_command_allows_ok_string_ack(fake_channel: FakeChannel, message_builder: B01MessageBuilder):
-    """Command ACKs may return plain string payloads like ``ok``."""
-    message = message_builder.build("ok")
-    fake_channel.response_queue.append(message)
-
-    result = await send_decoded_command(
-        cast(Any, fake_channel),
-        Q7RequestMessage(dps=10000, command="service.set_room_clean", params=[]),  # type: ignore[arg-type]
-    )
-
-    assert result == "ok"
-
-
-async def test_q7_api_set_fan_speed(
-    q7_api: Q7PropertiesApi, fake_channel: FakeChannel, message_builder: B01MessageBuilder
-):
+async def test_q7_api_set_fan_speed(q7_api: Q7PropertiesApi, fake_channel: FakeQ7Channel):
     """Test setting fan speed."""
-    fake_channel.response_queue.append(message_builder.build({"result": "ok"}))
+    fake_channel.response_queue.append({"result": "ok"})
     await q7_api.set_fan_speed(SCWindMapping.STRONG)
 
-    assert len(fake_channel.published_messages) == 1
-    message = fake_channel.published_messages[0]
-    payload_data = json.loads(unpad(message.payload, AES.block_size))
-    assert payload_data["dps"]["10000"]["method"] == "prop.set"
-    assert payload_data["dps"]["10000"]["params"] == {RoborockB01Props.WIND: SCWindMapping.STRONG.code}
+    assert len(fake_channel.published_commands) == 1
+    command, params = fake_channel.published_commands[0]
+    assert command == RoborockB01Q7Methods.SET_PROP
+    assert params == {RoborockB01Props.WIND: SCWindMapping.STRONG.code}
 
 
-async def test_q7_api_set_water_level(
-    q7_api: Q7PropertiesApi, fake_channel: FakeChannel, message_builder: B01MessageBuilder
-):
+async def test_q7_api_set_water_level(q7_api: Q7PropertiesApi, fake_channel: FakeQ7Channel):
     """Test setting water level."""
-    fake_channel.response_queue.append(message_builder.build({"result": "ok"}))
+    fake_channel.response_queue.append({"result": "ok"})
     await q7_api.set_water_level(WaterLevelMapping.HIGH)
 
-    assert len(fake_channel.published_messages) == 1
-    message = fake_channel.published_messages[0]
-    payload_data = json.loads(unpad(message.payload, AES.block_size))
-    assert payload_data["dps"]["10000"]["method"] == "prop.set"
-    assert payload_data["dps"]["10000"]["params"] == {RoborockB01Props.WATER: WaterLevelMapping.HIGH.code}
+    assert len(fake_channel.published_commands) == 1
+    command, params = fake_channel.published_commands[0]
+    assert command == RoborockB01Q7Methods.SET_PROP
+    assert params == {RoborockB01Props.WATER: WaterLevelMapping.HIGH.code}
 
 
 @pytest.mark.parametrize("volume", [0, 50, 100])
 async def test_q7_api_set_volume(
     volume: int,
     q7_api: Q7PropertiesApi,
-    fake_channel: FakeChannel,
-    message_builder: B01MessageBuilder,
+    fake_channel: FakeQ7Channel,
 ):
     """Test setting the robot voice volume."""
-    fake_channel.response_queue.append(message_builder.build({"result": "ok"}))
+    fake_channel.response_queue.append({"result": "ok"})
     await q7_api.set_volume(volume)
 
-    assert len(fake_channel.published_messages) == 1
-    message = fake_channel.published_messages[0]
-    payload_data = json.loads(unpad(message.payload, AES.block_size))
-    assert payload_data["dps"]["10000"]["method"] == "prop.set"
-    assert payload_data["dps"]["10000"]["params"] == {RoborockB01Props.VOLUME: volume}
+    assert len(fake_channel.published_commands) == 1
+    command, params = fake_channel.published_commands[0]
+    assert command == RoborockB01Q7Methods.SET_PROP
+    assert params == {RoborockB01Props.VOLUME: volume}
 
 
 @pytest.mark.parametrize(
@@ -178,18 +121,16 @@ async def test_q7_api_set_child_lock(
     enabled: bool,
     expected_code: int,
     q7_api: Q7PropertiesApi,
-    fake_channel: FakeChannel,
-    message_builder: B01MessageBuilder,
+    fake_channel: FakeQ7Channel,
 ):
     """Test toggling the child lock."""
-    fake_channel.response_queue.append(message_builder.build({"result": "ok"}))
+    fake_channel.response_queue.append({"result": "ok"})
     await q7_api.set_child_lock(enabled)
 
-    assert len(fake_channel.published_messages) == 1
-    message = fake_channel.published_messages[0]
-    payload_data = json.loads(unpad(message.payload, AES.block_size))
-    assert payload_data["dps"]["10000"]["method"] == "prop.set"
-    assert payload_data["dps"]["10000"]["params"] == {RoborockB01Props.CHILD_LOCK: expected_code}
+    assert len(fake_channel.published_commands) == 1
+    command, params = fake_channel.published_commands[0]
+    assert command == RoborockB01Q7Methods.SET_PROP
+    assert params == {RoborockB01Props.CHILD_LOCK: expected_code}
 
 
 @pytest.mark.parametrize("enabled, expected_is_open", [(True, 1), (False, 0)])
@@ -197,17 +138,16 @@ async def test_q7_api_set_do_not_disturb(
     enabled: bool,
     expected_is_open: int,
     q7_api: Q7PropertiesApi,
-    fake_channel: FakeChannel,
-    message_builder: B01MessageBuilder,
+    fake_channel: FakeQ7Channel,
 ):
     """Test do-not-disturb is set as a whole via service.set_quiet_time."""
-    fake_channel.response_queue.append(message_builder.build({"result": "ok"}))
+    fake_channel.response_queue.append({"result": "ok"})
     await q7_api.set_do_not_disturb(enabled, 1200, 420)
 
-    message = fake_channel.published_messages[0]
-    payload_data = json.loads(unpad(message.payload, AES.block_size))
-    assert payload_data["dps"]["10000"]["method"] == "service.set_quiet_time"
-    assert payload_data["dps"]["10000"]["params"] == {
+    assert len(fake_channel.published_commands) == 1
+    command, params = fake_channel.published_commands[0]
+    assert command == RoborockB01Q7Methods.SET_QUIET_TIME
+    assert params == {
         "is_open": expected_is_open,
         "quiet_begin_time": 1200,
         "quiet_end_time": 420,
@@ -222,13 +162,13 @@ async def test_q7_api_set_do_not_disturb_invalid_time(
     begin_time: int,
     end_time: int,
     q7_api: Q7PropertiesApi,
-    fake_channel: FakeChannel,
+    fake_channel: FakeQ7Channel,
 ):
     """Test out-of-range times raise ValueError and nothing is sent."""
     with pytest.raises(ValueError, match="minutes since midnight"):
         await q7_api.set_do_not_disturb(True, begin_time, end_time)
 
-    assert len(fake_channel.published_messages) == 0
+    assert len(fake_channel.published_commands) == 0
 
 
 @pytest.mark.parametrize(
@@ -243,112 +183,94 @@ async def test_q7_api_set_mode(
     mode: CleanTypeMapping,
     expected_code: int,
     q7_api: Q7PropertiesApi,
-    fake_channel: FakeChannel,
-    message_builder: B01MessageBuilder,
+    fake_channel: FakeQ7Channel,
 ):
     """Test setting cleaning mode (vacuum, mop, or both)."""
-    fake_channel.response_queue.append(message_builder.build({"result": "ok"}))
+    fake_channel.response_queue.append({"result": "ok"})
     await q7_api.set_mode(mode)
 
-    assert len(fake_channel.published_messages) == 1
-    message = fake_channel.published_messages[0]
-    payload_data = json.loads(unpad(message.payload, AES.block_size))
-    assert payload_data["dps"]["10000"]["method"] == "prop.set"
-    assert payload_data["dps"]["10000"]["params"] == {RoborockB01Props.MODE: expected_code}
+    assert len(fake_channel.published_commands) == 1
+    command, params = fake_channel.published_commands[0]
+    assert command == RoborockB01Q7Methods.SET_PROP
+    assert params == {RoborockB01Props.MODE: expected_code}
 
 
-async def test_q7_api_start_clean(
-    q7_api: Q7PropertiesApi, fake_channel: FakeChannel, message_builder: B01MessageBuilder
-):
+async def test_q7_api_start_clean(q7_api: Q7PropertiesApi, fake_channel: FakeQ7Channel):
     """Test starting cleaning."""
-    fake_channel.response_queue.append(message_builder.build({"result": "ok"}))
+    fake_channel.response_queue.append({"result": "ok"})
     await q7_api.start_clean()
 
-    assert len(fake_channel.published_messages) == 1
-    message = fake_channel.published_messages[0]
-    payload_data = json.loads(unpad(message.payload, AES.block_size))
-    assert payload_data["dps"]["10000"]["method"] == "service.set_room_clean"
-    assert payload_data["dps"]["10000"]["params"] == {
+    assert len(fake_channel.published_commands) == 1
+    command, params = fake_channel.published_commands[0]
+    assert command == RoborockB01Q7Methods.SET_ROOM_CLEAN
+    assert params == {
         "clean_type": CleanTaskTypeMapping.ALL.code,
         "ctrl_value": SCDeviceCleanParam.START.code,
         "room_ids": [],
     }
 
 
-async def test_q7_api_pause_clean(
-    q7_api: Q7PropertiesApi, fake_channel: FakeChannel, message_builder: B01MessageBuilder
-):
+async def test_q7_api_pause_clean(q7_api: Q7PropertiesApi, fake_channel: FakeQ7Channel):
     """Test pausing cleaning."""
-    fake_channel.response_queue.append(message_builder.build({"result": "ok"}))
+    fake_channel.response_queue.append({"result": "ok"})
     await q7_api.pause_clean()
 
-    assert len(fake_channel.published_messages) == 1
-    message = fake_channel.published_messages[0]
-    payload_data = json.loads(unpad(message.payload, AES.block_size))
-    assert payload_data["dps"]["10000"]["method"] == "service.set_room_clean"
-    assert payload_data["dps"]["10000"]["params"] == {
+    assert len(fake_channel.published_commands) == 1
+    command, params = fake_channel.published_commands[0]
+    assert command == RoborockB01Q7Methods.SET_ROOM_CLEAN
+    assert params == {
         "clean_type": CleanTaskTypeMapping.ALL.code,
         "ctrl_value": SCDeviceCleanParam.PAUSE.code,
         "room_ids": [],
     }
 
 
-async def test_q7_api_stop_clean(
-    q7_api: Q7PropertiesApi, fake_channel: FakeChannel, message_builder: B01MessageBuilder
-):
+async def test_q7_api_stop_clean(q7_api: Q7PropertiesApi, fake_channel: FakeQ7Channel):
     """Test stopping cleaning."""
-    fake_channel.response_queue.append(message_builder.build({"result": "ok"}))
+    fake_channel.response_queue.append({"result": "ok"})
     await q7_api.stop_clean()
 
-    assert len(fake_channel.published_messages) == 1
-    message = fake_channel.published_messages[0]
-    payload_data = json.loads(unpad(message.payload, AES.block_size))
-    assert payload_data["dps"]["10000"]["method"] == "service.set_room_clean"
-    assert payload_data["dps"]["10000"]["params"] == {
+    assert len(fake_channel.published_commands) == 1
+    command, params = fake_channel.published_commands[0]
+    assert command == RoborockB01Q7Methods.SET_ROOM_CLEAN
+    assert params == {
         "clean_type": CleanTaskTypeMapping.ALL.code,
         "ctrl_value": SCDeviceCleanParam.STOP.code,
         "room_ids": [],
     }
 
 
-async def test_q7_api_return_to_dock(
-    q7_api: Q7PropertiesApi, fake_channel: FakeChannel, message_builder: B01MessageBuilder
-):
+async def test_q7_api_return_to_dock(q7_api: Q7PropertiesApi, fake_channel: FakeQ7Channel):
     """Test returning to dock."""
-    fake_channel.response_queue.append(message_builder.build({"result": "ok"}))
+    fake_channel.response_queue.append({"result": "ok"})
     await q7_api.return_to_dock()
 
-    assert len(fake_channel.published_messages) == 1
-    message = fake_channel.published_messages[0]
-    payload_data = json.loads(unpad(message.payload, AES.block_size))
-    assert payload_data["dps"]["10000"]["method"] == "service.start_recharge"
-    assert payload_data["dps"]["10000"]["params"] == {}
+    assert len(fake_channel.published_commands) == 1
+    command, params = fake_channel.published_commands[0]
+    assert command == RoborockB01Q7Methods.START_RECHARGE
+    assert params == {}
 
 
-async def test_q7_api_find_me(q7_api: Q7PropertiesApi, fake_channel: FakeChannel, message_builder: B01MessageBuilder):
+async def test_q7_api_find_me(q7_api: Q7PropertiesApi, fake_channel: FakeQ7Channel):
     """Test locating the device."""
-    fake_channel.response_queue.append(message_builder.build({"result": "ok"}))
+    fake_channel.response_queue.append({"result": "ok"})
     await q7_api.find_me()
 
-    assert len(fake_channel.published_messages) == 1
-    message = fake_channel.published_messages[0]
-    payload_data = json.loads(unpad(message.payload, AES.block_size))
-    assert payload_data["dps"]["10000"]["method"] == "service.find_device"
-    assert payload_data["dps"]["10000"]["params"] == {}
+    assert len(fake_channel.published_commands) == 1
+    command, params = fake_channel.published_commands[0]
+    assert command == RoborockB01Q7Methods.FIND_DEVICE
+    assert params == {}
 
 
-async def test_q7_api_clean_segments(
-    q7_api: Q7PropertiesApi, fake_channel: FakeChannel, message_builder: B01MessageBuilder
-):
+async def test_q7_api_clean_segments(q7_api: Q7PropertiesApi, fake_channel: FakeQ7Channel):
     """Test room/segment cleaning helper for Q7."""
-    fake_channel.response_queue.append(message_builder.build({"result": "ok"}))
+    fake_channel.response_queue.append({"result": "ok"})
     await q7_api.clean_segments([10, 11])
 
-    assert len(fake_channel.published_messages) == 1
-    message = fake_channel.published_messages[0]
-    payload_data = json.loads(unpad(message.payload, AES.block_size))
-    assert payload_data["dps"]["10000"]["method"] == "service.set_room_clean"
-    assert payload_data["dps"]["10000"]["params"] == {
+    assert len(fake_channel.published_commands) == 1
+    command, params = fake_channel.published_commands[0]
+    assert command == RoborockB01Q7Methods.SET_ROOM_CLEAN
+    assert params == {
         "clean_type": CleanTaskTypeMapping.ROOM.code,
         "ctrl_value": SCDeviceCleanParam.START.code,
         "room_ids": [10, 11],

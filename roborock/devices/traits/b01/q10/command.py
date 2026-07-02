@@ -1,8 +1,7 @@
 from typing import Any
 
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
-from roborock.devices.rpc.b01_q10_channel import send_command
-from roborock.devices.transport.mqtt_channel import MqttChannel
+from roborock.devices.rpc.b01_q10_channel import Q10RpcChannel
 from roborock.protocols.b01_q10_protocol import ParamsType
 
 
@@ -15,9 +14,9 @@ class CommandTrait:
     available.
     """
 
-    def __init__(self, channel: MqttChannel) -> None:
+    def __init__(self, rpc_channel: Q10RpcChannel) -> None:
         """Initialize the CommandTrait."""
-        self._channel = channel
+        self._rpc_channel = rpc_channel
 
     async def send(self, command: B01_Q10_DP, params: ParamsType = None) -> Any:
         """Send a command to the device.
@@ -27,6 +26,6 @@ class CommandTrait:
         caller to ensure that any traits affected by the command are refreshed
         as needed.
         """
-        if not self._channel:
+        if not self._rpc_channel:
             raise ValueError("Device trait in invalid state")
-        return await send_command(self._channel, command, params=params)
+        return await self._rpc_channel.send_command(command, params=params)

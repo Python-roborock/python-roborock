@@ -8,9 +8,8 @@ import pytest
 from roborock.data.b01_q7 import CleanRecordList
 from roborock.devices.traits.b01.q7.clean_summary import CleanSummaryTrait
 from roborock.exceptions import RoborockException
-from tests.fixtures.channel_fixtures import FakeChannel
 
-from . import B01MessageBuilder
+from .conftest import FakeQ7Channel
 
 CLEAN_RECORD_LIST_DATA = {
     "total_time": 34980,
@@ -60,17 +59,16 @@ CLEAN_RECORD_LIST_DATA = {
 
 
 @pytest.fixture(name="clean_summary_trait")
-def clean_summary_trait_fixture(fake_channel: FakeChannel) -> CleanSummaryTrait:
-    return CleanSummaryTrait(fake_channel)  # type: ignore[arg-type]
+def clean_summary_trait_fixture(fake_channel: FakeQ7Channel) -> CleanSummaryTrait:
+    return CleanSummaryTrait(fake_channel)
 
 
 async def test_refresh_success(
     clean_summary_trait: CleanSummaryTrait,
-    fake_channel: FakeChannel,
-    message_builder: B01MessageBuilder,
+    fake_channel: FakeQ7Channel,
 ) -> None:
     """Test successfully refreshing clean summary."""
-    fake_channel.response_queue.append(message_builder.build(CLEAN_RECORD_LIST_DATA))
+    fake_channel.response_queue.append(CLEAN_RECORD_LIST_DATA)
     await clean_summary_trait.refresh()
 
     assert clean_summary_trait.total_time == 34980
@@ -82,8 +80,7 @@ async def test_refresh_success(
 
 async def test_refresh_with_no_records(
     clean_summary_trait: CleanSummaryTrait,
-    fake_channel: FakeChannel,
-    message_builder: B01MessageBuilder,
+    fake_channel: FakeQ7Channel,
 ) -> None:
     """Test refreshing with no records."""
     empty_response = {
@@ -92,7 +89,7 @@ async def test_refresh_with_no_records(
         "total_count": 0,
         "record_list": [],
     }
-    fake_channel.response_queue.append(message_builder.build(empty_response))
+    fake_channel.response_queue.append(empty_response)
     await clean_summary_trait.refresh()
 
     assert clean_summary_trait.total_time == 0
@@ -103,10 +100,10 @@ async def test_refresh_with_no_records(
 
 async def test_refresh_propagates_exceptions(
     clean_summary_trait: CleanSummaryTrait,
-    fake_channel: FakeChannel,
+    fake_channel: FakeQ7Channel,
 ) -> None:
     """Test that exceptions from channel are propagated during refresh."""
-    fake_channel.publish_side_effect = RoborockException("Communication error")
+    fake_channel.side_effect = RoborockException("Communication error")
 
     with pytest.raises(RoborockException, match="Communication error"):
         await clean_summary_trait.refresh()
