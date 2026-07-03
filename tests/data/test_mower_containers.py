@@ -49,7 +49,7 @@ def test_mower_status_dps_metadata() -> None:
         "mow_eff_mode": RoborockMowerDataProtocol.MOW_EFF_MODE,
         "mow_height": RoborockMowerDataProtocol.MOW_HEIGHT,
         "mow_direction_angle": RoborockMowerDataProtocol.MOW_DIRECTION_ANGLE,
-        "mow_patten": RoborockMowerDataProtocol.MOW_PATTEN,
+        "mow_pattern": RoborockMowerDataProtocol.MOW_PATTERN,
         "mow_conf_mode": RoborockMowerDataProtocol.MOW_CONF_MODE,
         "offline_status": RoborockMowerDataProtocol.OFFLINE_STATUS,
         "mow_progress": RoborockMowerDataProtocol.MOW_PROGRESS,

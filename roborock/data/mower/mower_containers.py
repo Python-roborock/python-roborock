@@ -29,7 +29,7 @@ class MowerStatus(RoborockBase):
     mow_direction_angle: int | None = field(
         default=None, metadata={"dps": RoborockMowerDataProtocol.MOW_DIRECTION_ANGLE}
     )
-    mow_patten: int | None = field(default=None, metadata={"dps": RoborockMowerDataProtocol.MOW_PATTEN})
+    mow_pattern: int | None = field(default=None, metadata={"dps": RoborockMowerDataProtocol.MOW_PATTERN})
     mow_conf_mode: int | None = field(default=None, metadata={"dps": RoborockMowerDataProtocol.MOW_CONF_MODE})
     offline_status: Any | None = field(default=None, metadata={"dps": RoborockMowerDataProtocol.OFFLINE_STATUS})
     mow_progress: int | None = field(default=None, metadata={"dps": RoborockMowerDataProtocol.MOW_PROGRESS})

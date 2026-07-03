@@ -58,7 +58,7 @@ class RoborockMowerDataProtocol(RoborockEnum):
     MOW_EFF_MODE = 133
     MOW_HEIGHT = 134
     MOW_DIRECTION_ANGLE = 135
-    MOW_PATTEN = 136
+    MOW_PATTERN = 136
     MOW_CONF_MODE = 137
     OFFLINE_STATUS = 138
     MOW_PROGRESS = 139
