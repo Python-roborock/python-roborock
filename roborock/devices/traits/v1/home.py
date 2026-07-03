@@ -18,10 +18,12 @@ the current map's information and room names as needed.
 import asyncio
 import base64
 import logging
+from collections.abc import Callable
 
 from roborock.data import CombinedMapInfo, MultiMapsListMapInfo, NamedRoomMapping, RoborockBase
 from roborock.data.v1.v1_code_mappings import RoborockStateCode
 from roborock.devices.cache import DeviceCache
+from roborock.devices.traits.common import TraitUpdateListener
 from roborock.devices.traits.v1 import common
 from roborock.exceptions import RoborockDeviceBusy, RoborockException, RoborockInvalidStatus
 from roborock.roborock_typing import RoborockCommand
@@ -36,7 +38,7 @@ _LOGGER = logging.getLogger(__name__)
 MAP_SLEEP = 3
 
 
-class HomeTrait(RoborockBase, common.V1TraitMixin):
+class HomeTrait(RoborockBase, common.V1TraitMixin, TraitUpdateListener):
     """Trait that represents a full view of the home layout."""
 
     command = RoborockCommand.GET_MAP_V1  # This is not used
@@ -66,6 +68,7 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
         accuracy.
         """
         super().__init__()
+        TraitUpdateListener.__init__(self, logger=_LOGGER)
         self._status_trait = status_trait
         self._maps_trait = maps_trait
         self._map_content = map_content
@@ -100,6 +103,7 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
                 _LOGGER.warning("Failed to parse cached home map content, will re-discover: %s", ex)
                 self._home_map_content = {}
             else:
+                self._notify_update()
                 return
 
         if self._status_trait.state == RoborockStateCode.cleaning:
@@ -202,6 +206,7 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
             map_flag := self._maps_trait.current_map
         ) is None:
             _LOGGER.debug("Cannot refresh home data without current map info")
+            self._notify_update()
             return
 
         # Refresh the map content to ensure we have the latest image and object positions
@@ -212,10 +217,26 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
             map_flag, combined_map_info, new_map_content, update_cache=self._discovery_completed
         )
 
+    def add_update_listener(self, callback: Callable[[], None]) -> Callable[[], None]:
+        """Register a callback when the trait has been updated.
+
+        Overridden to immediately execute the callback with the current state if populated.
+        """
+        unsub = super().add_update_listener(callback)
+        if self._home_map_info is not None:
+            callback()
+        return unsub
+
     @property
     def home_map_info(self) -> dict[int, CombinedMapInfo] | None:
         """Returns the map information for all cached maps."""
-        return self._home_map_info
+        if self._home_map_info is None or self._maps_trait.map_info is None:
+            return self._home_map_info
+        return {
+            mi.map_flag: value
+            for mi in self._maps_trait.map_info
+            if (value := self._home_map_info.get(mi.map_flag)) is not None
+        }
 
     @property
     def current_map_data(self) -> CombinedMapInfo | None:
@@ -235,7 +256,13 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
     @property
     def home_map_content(self) -> dict[int, MapContent] | None:
         """Returns the map content for all cached maps."""
-        return self._home_map_content
+        if self._home_map_content is None or self._maps_trait.map_info is None:
+            return self._home_map_content
+        return {
+            mi.map_flag: value
+            for mi in self._maps_trait.map_info
+            if (value := self._home_map_content.get(mi.map_flag)) is not None
+        }
 
     async def _update_home_cache(
         self, home_map_info: dict[int, CombinedMapInfo], home_map_content: dict[int, MapContent]
@@ -251,6 +278,7 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
         await self._device_cache.set(device_cache_data)
         self._home_map_info = home_map_info
         self._home_map_content = home_map_content
+        self._notify_update()
 
     async def _update_current_map(
         self,
@@ -283,3 +311,4 @@ class HomeTrait(RoborockBase, common.V1TraitMixin):
         if self._home_map_content is None:
             self._home_map_content = {}
         self._home_map_content[map_flag] = map_content
+        self._notify_update()

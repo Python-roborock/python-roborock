@@ -748,3 +748,142 @@ async def test_refresh_map_info_prefers_map_info_names_and_adds_missing_rooms(
     assert sorted_rooms[4].segment_id == 20
     assert sorted_rooms[4].name == "Office from rooms_trait"
     assert sorted_rooms[4].iot_id == "9999001"
+
+
+async def test_home_trait_listener_notifications(
+    home_trait: HomeTrait,
+    mock_rpc_channel: AsyncMock,
+    mock_mqtt_rpc_channel: AsyncMock,
+    mock_map_rpc_channel: AsyncMock,
+    device_cache: DeviceCache,
+    web_api_client: AsyncMock,
+) -> None:
+    """Test that listener callbacks are called when home discovery/updates occur."""
+    mock_callback = MagicMock()
+    unsub = home_trait.add_update_listener(mock_callback)
+    # Callback should NOT be executed immediately on subscription since home_map_info is None
+    assert mock_callback.call_count == 0
+
+    # 1. Test notification on empty cache discovery
+    mock_rpc_channel.send_command.side_effect = [
+        UPDATED_STATUS_MAP_123,
+        ROOM_MAPPING_DATA_MAP_123,
+        UPDATED_STATUS_MAP_0,
+        ROOM_MAPPING_DATA_MAP_0,
+    ]
+    mock_mqtt_rpc_channel.send_command.side_effect = [
+        MULTI_MAP_LIST_DATA,
+        {},
+        {},
+    ]
+    mock_map_rpc_channel.send_command.side_effect = [
+        MAP_BYTES_RESPONSE_2,
+        MAP_BYTES_RESPONSE_1,
+    ]
+    web_api_client.get_rooms.return_value = [
+        HomeDataRoom(id=2362048, name="Example room 1"),
+        HomeDataRoom(id=2362044, name="Example room 2"),
+    ]
+
+    await home_trait.discover_home()
+    # Mock callback should have been called during discovery
+    assert mock_callback.call_count > 0
+    mock_callback.reset_mock()
+
+    # 2. Test that registering a new listener now (when cache is populated) executes immediately
+    mock_callback_immediate = MagicMock()
+    unsub_immediate = home_trait.add_update_listener(mock_callback_immediate)
+    assert mock_callback_immediate.call_count == 1
+    unsub_immediate()
+
+    # 3. Test notification on cached discovery
+    # Re-run discover_home (which skips API calls and loads from cache)
+    await home_trait.discover_home()
+    assert mock_callback.call_count == 1
+    mock_callback.reset_mock()
+
+    # 4. Test notification on refresh
+    mock_rpc_channel.send_command.side_effect = [
+        ROOM_MAPPING_DATA_MAP_0,
+    ]
+    mock_mqtt_rpc_channel.send_command.side_effect = [
+        MULTI_MAP_LIST_DATA,
+    ]
+    mock_map_rpc_channel.send_command.side_effect = [
+        MAP_BYTES_RESPONSE_1,
+    ]
+    await home_trait.refresh()
+    assert mock_callback.call_count > 0
+
+    # Unsubscribe and verify it is no longer called
+    mock_callback.reset_mock()
+    unsub()
+    mock_rpc_channel.send_command.side_effect = [
+        ROOM_MAPPING_DATA_MAP_0,
+    ]
+    mock_mqtt_rpc_channel.send_command.side_effect = [
+        MULTI_MAP_LIST_DATA,
+    ]
+    mock_map_rpc_channel.send_command.side_effect = [
+        MAP_BYTES_RESPONSE_1,
+    ]
+    await home_trait.refresh()
+    assert mock_callback.call_count == 0
+
+
+async def test_home_trait_map_eviction(
+    home_trait: HomeTrait,
+    mock_rpc_channel: AsyncMock,
+    mock_mqtt_rpc_channel: AsyncMock,
+    mock_map_rpc_channel: AsyncMock,
+    device_cache: DeviceCache,
+    web_api_client: AsyncMock,
+) -> None:
+    """Test that maps deleted from the device are evicted from cache during refresh."""
+    # Pre-populate cache with maps 0 and 123
+    device_cache_data = DeviceCacheData(
+        home_map_info={
+            0: CombinedMapInfo(map_flag=0, name="Ground Floor", rooms=[]),
+            123: CombinedMapInfo(map_flag=123, name="Second Floor", rooms=[]),
+        },
+        home_map_content_base64={
+            0: base64.b64encode(MAP_BYTES_RESPONSE_1).decode("utf-8"),
+            123: base64.b64encode(MAP_BYTES_RESPONSE_2).decode("utf-8"),
+        },
+    )
+    await device_cache.set(device_cache_data)
+    await home_trait.discover_home()
+
+    assert home_trait.home_map_info is not None
+    assert home_trait.home_map_content is not None
+    assert len(home_trait.home_map_info) == 2
+    assert len(home_trait.home_map_content) == 2
+
+    # Set up listener callback
+    mock_callback = MagicMock()
+    home_trait.add_update_listener(mock_callback)
+    assert mock_callback.call_count == 1
+    mock_callback.reset_mock()
+
+    # Mock maps_trait.refresh so that only map 0 is returned (map 123 deleted)
+    mock_mqtt_rpc_channel.send_command.side_effect = [
+        MULTI_MAP_LIST_SINGLE_MAP_DATA,  # Only has map 0
+    ]
+    mock_rpc_channel.send_command.side_effect = [
+        ROOM_MAPPING_DATA_MAP_0,
+    ]
+    mock_map_rpc_channel.send_command.side_effect = [
+        MAP_BYTES_RESPONSE_1,
+    ]
+
+    await home_trait.refresh()
+
+    # Verify map 123 is excluded from memory cache
+    assert home_trait.home_map_info is not None
+    assert home_trait.home_map_content is not None
+    assert 123 not in home_trait.home_map_info
+    assert 123 not in home_trait.home_map_content
+    assert 0 in home_trait.home_map_info
+
+    # Verify listener notified
+    assert mock_callback.call_count > 0
