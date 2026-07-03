@@ -23,6 +23,7 @@ from .b01_q10_code_mappings import (
     YXDeviceDustCollectionFrequency,
     YXDeviceState,
     YXFanLevel,
+    YXFault,
     YXStartMethod,
     YXWaterLevel,
 )
@@ -202,6 +203,19 @@ class Q10Status(RoborockBase):
     side_brush_life: int | None = field(default=None, metadata={"dps": B01_Q10_DP.SIDE_BRUSH_LIFE})
     filter_life: int | None = field(default=None, metadata={"dps": B01_Q10_DP.FILTER_LIFE})
     sensor_life: int | None = field(default=None, metadata={"dps": B01_Q10_DP.SENSOR_LIFE})
+
+    @property
+    def fault_name(self) -> YXFault | None:
+        """Decoded ``dpFault`` label, or ``None`` for an unmapped code.
+
+        Additive: ``fault`` keeps the raw integer so unknown/new codes are never
+        lost; this is the decoded companion. ``dpFault`` is overloaded (see
+        :class:`~roborock.data.b01_q10.YXFault`), so a non-``NONE`` value is not
+        necessarily an error.
+        """
+        if self.fault is None:
+            return None
+        return YXFault.from_code_optional(self.fault)
 
 
 @dataclass
