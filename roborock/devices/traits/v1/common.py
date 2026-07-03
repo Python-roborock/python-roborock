@@ -9,6 +9,7 @@ from dataclasses import fields
 from typing import ClassVar
 
 from roborock.data import RoborockBase
+from roborock.exceptions import RoborockParsingException
 from roborock.protocols.v1_protocol import V1RpcChannel
 from roborock.roborock_typing import RoborockCommand
 
@@ -63,7 +64,7 @@ class V1TraitMixin(ABC):
 
     def __init__(self) -> None:
         """Initialize the V1TraitMixin."""
-        self._rpc_channel = None
+        self._rpc_channel: V1RpcChannel | None = None
 
     @property
     def rpc_channel(self) -> V1RpcChannel:
@@ -75,7 +76,15 @@ class V1TraitMixin(ABC):
     async def refresh(self) -> None:
         """Refresh the contents of this trait."""
         response = await self.rpc_channel.send_command(self.command)
-        new_data = self.converter.convert(response)
+        try:
+            new_data = self.converter.convert(response)
+        except (TypeError, ValueError) as err:
+            raise RoborockParsingException(
+                trait_name=type(self).__name__,
+                command=self.command,
+                payload=response,
+                inner_error=err,
+            ) from err
         merge_trait_values(self, new_data)  # type: ignore[arg-type]
 
 

@@ -2,6 +2,7 @@ from ..code_mappings import RoborockEnum
 
 
 class ZeoMode(RoborockEnum):
+    null = 0
     wash = 1
     wash_and_dry = 2
     dry = 3
@@ -23,6 +24,7 @@ class ZeoState(RoborockEnum):
 
 
 class ZeoProgram(RoborockEnum):
+    null = 0
     standard = 1
     quick = 2
     sanitize = 3
@@ -75,6 +77,7 @@ class ZeoTemperature(RoborockEnum):
     high = 4
     max = 5
     twenty_c = 6
+    ninety_c = 7
 
 
 class ZeoRinse(RoborockEnum):
@@ -87,6 +90,7 @@ class ZeoRinse(RoborockEnum):
 
 
 class ZeoSpin(RoborockEnum):
+    null = 0
     none = 1
     very_low = 2
     low = 3

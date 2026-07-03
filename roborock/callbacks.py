@@ -26,7 +26,7 @@ def safe_callback(
         try:
             callback(value)
         except Exception as ex:  # noqa: BLE001
-            logger.error("Uncaught error in callback '%s': %s", callback.__name__, ex)
+            logger.error("Uncaught error in callback '%s': %s", getattr(callback, "__name__", "Unknown"), ex)
 
     return wrapper
 

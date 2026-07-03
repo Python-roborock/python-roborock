@@ -108,6 +108,37 @@ class Q7PropertiesApi(Trait):
         """Set the cleaning repeat state (cycles)."""
         await self.set_prop(RoborockB01Props.REPEAT_STATE, repeat.code)
 
+    async def set_volume(self, volume: int) -> None:
+        """Set the robot voice volume (0-100)."""
+        await self.set_prop(RoborockB01Props.VOLUME, volume)
+
+    async def set_child_lock(self, enabled: bool) -> None:
+        """Enable or disable the child lock."""
+        await self.set_prop(RoborockB01Props.CHILD_LOCK, int(enabled))
+
+    async def set_do_not_disturb(self, enabled: bool, begin_time: int, end_time: int) -> None:
+        """Configure do-not-disturb.
+
+        The device expects all three values together via ``service.set_quiet_time``
+        (individual ``prop.set`` calls are ignored). ``begin_time``/``end_time`` are
+        minutes since midnight and must be in the range 0-1439 (inclusive).
+
+        Ranges that cross midnight are supported by passing a ``begin_time`` that is
+        greater than ``end_time`` (e.g. 22:00-07:00 is ``begin_time=1320``,
+        ``end_time=420``).
+        """
+        for name, value in (("begin_time", begin_time), ("end_time", end_time)):
+            if not 0 <= value <= 1439:
+                raise ValueError(f"{name} must be between 0 and 1439 minutes since midnight, got {value}")
+        await self.send(
+            RoborockB01Q7Methods.SET_QUIET_TIME,
+            {
+                "is_open": int(enabled),
+                "quiet_begin_time": begin_time,
+                "quiet_end_time": end_time,
+            },
+        )
+
     async def start_clean(self) -> None:
         """Start cleaning."""
         await self.send(

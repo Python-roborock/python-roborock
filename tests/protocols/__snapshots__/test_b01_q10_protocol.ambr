@@ -6,6 +6,97 @@
   }
   '''
 # ---
+# name: test_decode_rpc_payload[dpCleanRecord_list]
+  '''
+  {
+    "dpCleanRecord": {
+      "data": [
+        "yr5t99qi6a36dd76_1781980078_6_4_946_1829_4_00_01_01_1_0",
+        "7760q1736a38b564_1782100895_6_4_7869_1877_42_00_01_01_1_0",
+        "cps6q8e76a381b38_1782061387_5_3_8192_2253_42_01_03_01_1_1",
+        "worv8b5b6a385e8c_1782078579_6_4_7976_2737_42_01_03_01_1_0",
+        "0548ba9h6a3499cc_1781831446_2_1_7766_3117_42_03_03_01_1_0",
+        "2rhuh07c6a37c77f_1782040432_0_0_932_21_4_04_01_02_1_0"
+      ],
+      "op": "list",
+      "result": 1
+    }
+  }
+  '''
+# ---
+# name: test_decode_rpc_payload[dpCleanRecord_notify]
+  '''
+  {
+    "dpCleanRecord": {
+      "id": "517vu2726a3dfb69_1782446641_3_3_8345_1029_4_01_01_01_2_0",
+      "op": "notify"
+    }
+  }
+  '''
+# ---
+# name: test_decode_rpc_payload[dpRequestDps_vacuum_only]
+  '''
+  {
+    "dpStatus": 8,
+    "dpBattery": 75,
+    "dpFanLevel": 8,
+    "dpWaterLevel": 2,
+    "dpMainBrushLife": 2,
+    "dpSideBrushLife": 2,
+    "dpFilterLife": 2,
+    "dpCleanCount": 1,
+    "dpCleanMode": 2,
+    "dpCleanTaskType": 0,
+    "dpBackType": 5,
+    "dpBreakpointClean": 0,
+    "dpValleyPointCharging": false,
+    "dpRobotCountryCode": "us",
+    "dpUserPlan": 0,
+    "dpNotDisturb": 1,
+    "dpVolume": 70,
+    "dpTotalCleanArea": 72,
+    "dpTotalCleanCount": 7,
+    "dpTotalCleanTime": 111,
+    "dpDustSwitch": 1,
+    "dpMopState": 1,
+    "dpAutoBoost": 1,
+    "dpChildLock": 0,
+    "dpDustSetting": 0,
+    "dpMapSaveSwitch": true,
+    "dpRecentCleanRecord": true,
+    "dpCleanTime": 0,
+    "dpMultiMapSwitch": 1,
+    "dpSensorLife": 2,
+    "dpCleanArea": 0,
+    "dpCarpetCleanType": 0,
+    "dpCleanLine": 0,
+    "dpTimeZone": {
+      "timeZoneCity": "America/Los_Angeles",
+      "timeZoneSec": -28800
+    },
+    "dpAreaUnit": 0,
+    "dpNetInfo": {
+      "ipAdress": "1.1.1.2",
+      "mac": "99:AA:88:BB:77:CC",
+      "signal": -50,
+      "wifiName": "wifi-network-name"
+    },
+    "dpRobotType": 1,
+    "dpLineLaserObstacleAvoidance": 1,
+    "dpCleanProgress": 100,
+    "dpGroundClean": 0,
+    "dpFault": 0,
+    "dpNotDisturbExpand": {
+      "disturb_dust_enable": 1,
+      "disturb_light": 1,
+      "disturb_resume_clean": 1,
+      "disturb_voice": 1
+    },
+    "dpTimerType": 0,
+    "dpAddCleanState": 0
+  }
+  '''
+# ---
 # name: test_decode_rpc_payload[dpRequetdps]
   '''
   {

@@ -51,3 +51,11 @@ class FakeChannel:
         """Simulate subscribing to messages."""
         self.subscribers.append(callback)
         return lambda: self.subscribers.remove(callback)
+
+    def notify_subscribers(self, message: RoborockMessage) -> None:
+        """Notify subscribers of a message.
+
+        This can be used by tests to simulate the channel receiving a message.
+        """
+        for subscriber in list(self.subscribers):
+            subscriber(message)

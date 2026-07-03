@@ -7,7 +7,9 @@ from syrupy.assertion import SnapshotAssertion
 
 from roborock.data.v1 import (
     MultiMapsList,
+    RoborockChargeStatus,
     RoborockDockErrorCode,
+    RoborockDockState,
     RoborockDockTypeCode,
     RoborockErrorCode,
     RoborockFanSpeedS7MaxV,
@@ -89,7 +91,7 @@ def test_status():
     assert s.collision_avoid_status == 1
     assert s.switch_map_mode == 0
     assert s.dock_error_status == RoborockDockErrorCode.ok
-    assert s.charge_status == 1
+    assert s.charge_status == RoborockChargeStatus.charging
     assert s.unsave_map_reason == 0
     assert s.unsave_map_flag == 0
     assert s.fan_power == RoborockFanSpeedS7MaxV.balanced
@@ -139,6 +141,39 @@ def test_current_map() -> None:
 
     s.map_status = None
     assert not s.current_map
+
+
+@pytest.mark.parametrize(
+    "state, charge_status, battery, expected_dock_state",
+    [
+        (RoborockStateCode.emptying_the_bin, None, 50, RoborockDockState.dusting),
+        (RoborockStateCode.charging_complete, None, 100, RoborockDockState.full),
+        (RoborockStateCode.charging, None, 100, RoborockDockState.full),
+        (RoborockStateCode.charging, RoborockChargeStatus.charging.value, 90, RoborockDockState.charging),
+        (RoborockStateCode.charging, RoborockChargeStatus.charge_waiting.value, 50, RoborockDockState.off_peak_waiting),
+        (RoborockStateCode.charging, None, 50, RoborockDockState.charging),
+        (RoborockStateCode.returning_home, None, 20, RoborockDockState.returning),
+        (RoborockStateCode.docking, None, 15, RoborockDockState.returning),
+        (RoborockStateCode.cleaning, None, 80, RoborockDockState.idle),
+        (RoborockStateCode.paused, None, 80, RoborockDockState.idle),
+        (RoborockStateCode.unknown, None, 100, RoborockDockState.unknown),
+        (None, None, 100, RoborockDockState.unknown),
+    ],
+)
+def test_dock_state(
+    state: RoborockStateCode | None,
+    charge_status: int | None,
+    battery: int,
+    expected_dock_state: RoborockDockState,
+) -> None:
+    """Test that dock_state correctly synthesizes UI state."""
+    status = copy.deepcopy(STATUS)
+    status["state"] = state
+    status["charge_status"] = charge_status
+    status["battery"] = battery
+
+    s = StatusV2.from_dict(status)
+    assert s.dock_state == expected_dock_state
 
 
 def test_status_v2() -> None:
@@ -226,6 +261,15 @@ def test_no_value():
     assert s.dock_type == RoborockDockTypeCode.unknown
     assert -9999 not in RoborockDockTypeCode.keys()
     assert "missing" not in RoborockDockTypeCode.values()
+
+
+def test_qrevo_s5v_dock_type():
+    """Test that dock type code 22 (Qrevo S5V dock) is properly recognized."""
+    modified_status = STATUS.copy()
+    modified_status["dock_type"] = 22
+    s = S7MaxVStatus.from_dict(modified_status)
+    assert s.dock_type == RoborockDockTypeCode.qrevo_s5v_dock
+    assert s.dock_type.value == 22
 
 
 def test_multi_maps_list_info(snapshot: SnapshotAssertion) -> None:
@@ -337,4 +381,25 @@ def test_partial_app_init_status() -> None:
     )
     assert app_init_status.local_info.name == "custom_A.03.0096_FCC"
     assert app_init_status.feature_info == [111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125]
+    assert app_init_status.new_feature_info_str == ""
+
+
+def test_missing_new_feature_info() -> None:
+    """Test that an AppInitStatus response missing new_feature_info is handled correctly."""
+    app_init_status = AppInitStatus.from_dict(
+        {
+            "local_info": {
+                "name": "custom_A.03.0096_FCC",
+                "bom": "A.03.0096",
+                "location": "us",
+                "language": "en",
+                "wifiplan": "US",
+                "timezone": "US/Pacific",
+                "logserver": "awsusor0.fds.api.xiaomi.com",
+                "featureset": 1,
+            },
+            "feature_info": [111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125],
+        }
+    )
+    assert app_init_status.new_feature_info == 0
     assert app_init_status.new_feature_info_str == ""

@@ -1,4 +1,6 @@
+import logging
 from functools import cached_property
+from typing import Any
 
 from roborock import (
     CleaningMode,
@@ -15,13 +17,19 @@ from roborock import (
     get_water_modes,
     resolve_cleaning_mode,
 )
+from roborock.devices.traits.common import DpsDataConverter, TraitUpdateListener
+from roborock.roborock_message import RoborockDataProtocol
 from roborock.roborock_typing import RoborockCommand
 
 from . import common
 from .device_features import DeviceFeaturesTrait
 
+_LOGGER = logging.getLogger(__name__)
 
-class StatusTrait(StatusV2, common.V1TraitMixin):
+_DPS_CONVERTER = DpsDataConverter.from_dataclass(StatusV2)
+
+
+class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
     """Trait for managing the status of Roborock devices.
 
     The StatusTrait gives you the access to the state of a Roborock vacuum.
@@ -53,6 +61,7 @@ class StatusTrait(StatusV2, common.V1TraitMixin):
     def __init__(self, device_feature_trait: DeviceFeaturesTrait, region: str | None = None) -> None:
         """Initialize the StatusTrait."""
         super().__init__()
+        TraitUpdateListener.__init__(self, logger=_LOGGER)
         self._device_features_trait = device_feature_trait
         self._region = region
 
@@ -123,3 +132,12 @@ class StatusTrait(StatusV2, common.V1TraitMixin):
             RoborockCommand.SET_CLEAN_MOTOR_MODE,
             params=get_cleaning_mode_parameters(resolve_cleaning_mode(cleaning_mode), self._device_features_trait),
         )
+
+    def update_from_dps(self, decoded_dps: dict[RoborockDataProtocol, Any]) -> None:
+        """Update the trait from data protocol push message data.
+
+        This handles unsolicited status updates pushed by the device
+        via RoborockDataProtocol codes (e.g. STATE=121, BATTERY=122).
+        """
+        if _DPS_CONVERTER.update_from_dps(self, decoded_dps):
+            self._notify_update()

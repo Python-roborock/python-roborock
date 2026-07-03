@@ -23,7 +23,7 @@ from roborock.protocol import (
     create_mqtt_encoder,
 )
 from roborock.protocols.v1_protocol import MapResponse, SecurityData, V1RpcChannel
-from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
+from roborock.roborock_message import RoborockDataProtocol, RoborockMessage, RoborockMessageProtocol
 from roborock.roborock_typing import RoborockCommand
 from tests import mock_data
 from tests.fixtures.channel_fixtures import FakeChannel
@@ -31,7 +31,7 @@ from tests.fixtures.channel_fixtures import FakeChannel
 USER_DATA = UserData.from_dict(mock_data.USER_DATA)
 TEST_DEVICE_UID = "abc123"
 TEST_LOCAL_KEY = "local_key"
-TEST_SECURITY_DATA = SecurityData(endpoint="test_endpoint", nonce=b"test_nonce_16byte")
+TEST_SECURITY_DATA = SecurityData(endpoint="test_endpoint", nonce=b"test_nonce_16byt")
 TEST_HOST = mock_data.TEST_LOCAL_API_HOST
 
 
@@ -233,6 +233,56 @@ async def test_v1_channel_mqtt_disconnected(
     assert not mock_mqtt_channel.subscribers
 
 
+async def test_v1_channel_mqtt_subscription_fails_local_succeeds(
+    v1_channel: V1Channel,
+    mock_mqtt_channel: FakeChannel,
+    device_cache: DeviceCache,
+) -> None:
+    """Test MQTT subscription failure while local connection succeeds."""
+    # Pre-populate cache so we don't query network info via MQTT
+    device_cache_data = await device_cache.get()
+    device_cache_data.network_info = TEST_NETWORKING_INFO
+    await device_cache.set(device_cache_data)
+
+    # Simulate MQTT subscription failing
+    mock_mqtt_channel.subscribe.side_effect = RoborockException("MQTT subscription failed")
+
+    # Subscribe should succeed via local fallback
+    callback = Mock()
+    unsub = await v1_channel.subscribe(callback)
+
+    # Verify MQTT is not reported as connected, but local is
+    assert not v1_channel.is_mqtt_connected
+    assert v1_channel.is_local_connected
+    assert v1_channel.is_connected
+
+    unsub()
+
+
+async def test_v1_channel_all_connection_attempts_fail(
+    v1_channel: V1Channel,
+    mock_mqtt_channel: FakeChannel,
+    mock_local_channel: FakeChannel,
+    device_cache: DeviceCache,
+) -> None:
+    """Test when both local connect and MQTT subscribe fail."""
+    # Pre-populate cache so we don't query network info via MQTT
+    device_cache_data = await device_cache.get()
+    device_cache_data.network_info = TEST_NETWORKING_INFO
+    await device_cache.set(device_cache_data)
+
+    mock_local_channel.connect.side_effect = RoborockException("local down")
+    mock_mqtt_channel.subscribe.side_effect = RoborockException("MQTT subscription failed")
+
+    with pytest.raises(RoborockException):
+        await v1_channel.subscribe(Mock())
+
+    # After a failed subscription, properties should reflect no active connection
+    assert not v1_channel.is_mqtt_connected
+    assert not v1_channel.is_local_connected
+    assert not v1_channel.is_connected
+
+
 async def test_v1_channel_subscribe_local_success(
     v1_channel: V1Channel,
     mock_mqtt_channel: Mock,
@@ -250,8 +300,8 @@ async def test_v1_channel_subscribe_local_success(
     mock_local_session.assert_called_once_with(TEST_HOST)
     mock_local_channel.connect.assert_called_once()
 
-    # Verify local connection established and not mqtt
-    assert not mock_mqtt_channel.subscribers
+    # Verify mqtt is also established
+    assert mock_mqtt_channel.subscribers
     assert mock_local_channel.subscribers
 
     # Verify properties
@@ -580,3 +630,131 @@ async def test_v1_channel_send_map_command(
 
     # Verify the result is the data from our mocked decoder
     assert result == decompressed_map_data
+
+
+async def test_v1_channel_add_dps_listener(
+    v1_channel: V1Channel,
+    mock_mqtt_channel: FakeChannel,
+) -> None:
+    """Test that DPS listeners receive decoded protocol updates from MQTT."""
+    mock_mqtt_channel.response_queue.append(TEST_NETWORK_INFO_RESPONSE)
+    await v1_channel.subscribe(Mock())
+
+    # Create a mock listener for DPS updates
+    dps_listener = Mock()
+    unsub_dps = v1_channel.add_dps_listener(dps_listener)
+
+    # Simulate an incoming MQTT message with data protocol payload.
+    dps_payload = json.dumps({"dps": {"121": 5}}).encode()
+    push_message = RoborockMessage(
+        protocol=RoborockMessageProtocol.GENERAL_REQUEST,
+        payload=dps_payload,
+    )
+    mock_mqtt_channel.notify_subscribers(push_message)
+
+    dps_listener.assert_called_once()
+    called_args = dps_listener.call_args[0][0]
+    assert called_args[RoborockDataProtocol.STATE] == 5
+
+    unsub_dps()
+
+    # Verify unsubscribe works
+    dps_listener.reset_mock()
+    v1_channel._on_mqtt_message(push_message)
+    dps_listener.assert_not_called()
+
+
+async def test_v1_channel_dps_listener_raises_exception(
+    v1_channel: V1Channel,
+    mock_mqtt_channel: FakeChannel,
+) -> None:
+    """Test that DPS listener that raises exceptions is ignored."""
+    mock_mqtt_channel.response_queue.append(TEST_NETWORK_INFO_RESPONSE)
+    await v1_channel.subscribe(Mock())
+
+    # Create a mock listener for DPS updates
+    dps_listener1 = Mock()
+    dps_listener1.side_effect = Exception("DPS listener failed")
+    dps_listener2 = Mock()
+    unsub_dps1 = v1_channel.add_dps_listener(dps_listener1)
+    unsub_dps2 = v1_channel.add_dps_listener(dps_listener2)
+
+    # Simulate an incoming MQTT message with data protocol payload.
+    dps_payload = json.dumps({"dps": {"121": 5}}).encode()
+    push_message = RoborockMessage(
+        protocol=RoborockMessageProtocol.GENERAL_REQUEST,
+        payload=dps_payload,
+    )
+    mock_mqtt_channel.notify_subscribers(push_message)
+
+    dps_listener1.assert_called_once()
+    dps_listener2.assert_called_once()
+
+    unsub_dps1()
+    unsub_dps2()
+
+
+async def test_v1_channel_resubscribe_after_unsub(
+    v1_channel: V1Channel,
+    mock_mqtt_channel: FakeChannel,
+) -> None:
+    """A subscribe -> unsub -> subscribe cycle must not raise, and the new callback works.
+
+    Regression: unsub() previously failed to reset the subscription, so the second
+    subscribe() tripped the "Only one subscription allowed at a time" guard.
+    This is the exact failure that bricked a second vacuum sharing an account.
+    """
+    mock_mqtt_channel.response_queue.append(TEST_NETWORK_INFO_RESPONSE)
+    callback = Mock()
+    unsub = await v1_channel.subscribe(callback)
+
+    # The subscribed callback receives messages arriving on the channel.
+    mock_mqtt_channel.notify_subscribers(TEST_RESPONSE)
+    callback.assert_called_once_with(TEST_RESPONSE)
+
+    # After unsub, the old callback no longer receives messages.
+    unsub()
+    callback.reset_mock()
+    mock_mqtt_channel.notify_subscribers(TEST_RESPONSE)
+    callback.assert_not_called()
+
+    # Re-subscribing must succeed (network info is now cached, no MQTT needed) and
+    # the new callback then receives messages.
+    new_callback = Mock()
+    unsub2 = await v1_channel.subscribe(new_callback)
+    mock_mqtt_channel.notify_subscribers(TEST_RESPONSE)
+    new_callback.assert_called_once_with(TEST_RESPONSE)
+    unsub2()
+
+
+async def test_v1_channel_subscribe_failure_is_atomic(
+    v1_channel: V1Channel,
+    mock_mqtt_channel: FakeChannel,
+    mock_local_channel: FakeChannel,
+) -> None:
+    """A failure partway through subscribe() leaves the channel re-subscribable.
+
+    Regression: a failed subscribe() previously leaked the background reconnect
+    task and a partial subscription, so the next attempt could neither reuse nor
+    cleanly recreate the channel.
+    """
+    # Both transports down: local connect fails and the MQTT subscribe fails.
+    mock_local_channel.connect.side_effect = RoborockException("local down")
+    mock_mqtt_channel.subscribe.side_effect = RoborockException("mqtt down")
+
+    with pytest.raises(RoborockException):
+        await v1_channel.subscribe(Mock())
+
+    # The failed subscribe left no dangling subscription on the channel.
+    assert not mock_mqtt_channel.subscribers
+
+    # And the channel is re-subscribable once the transports recover: the new
+    # subscription succeeds and its callback receives messages.
+    mock_local_channel.connect.side_effect = None
+    mock_mqtt_channel.subscribe.side_effect = mock_mqtt_channel._subscribe
+    mock_mqtt_channel.response_queue.append(TEST_NETWORK_INFO_RESPONSE)
+    callback = Mock()
+    unsub = await v1_channel.subscribe(callback)
+    mock_mqtt_channel.notify_subscribers(TEST_RESPONSE)
+    callback.assert_called_once_with(TEST_RESPONSE)
+    unsub()

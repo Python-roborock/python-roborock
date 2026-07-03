@@ -11,11 +11,17 @@ import pytest
 
 from roborock.data.b01_q10.b01_q10_code_mappings import (
     B01_Q10_DP,
+    YXAreaUnit,
+    YXCarpetCleanType,
+    YXCleanLine,
     YXCleanType,
     YXDeviceCleanTask,
+    YXDeviceDustCollectionFrequency,
     YXDeviceState,
     YXFanLevel,
+    YXWaterLevel,
 )
+from roborock.data.b01_q10.b01_q10_containers import dpNetInfo, dpNotDisturbExpand, dpTimeZone
 from roborock.devices.traits.b01.q10 import Q10PropertiesApi, create
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 
@@ -114,7 +120,7 @@ async def test_status_trait_refresh(
     assert q10_api.status.status is None
     assert q10_api.status.fan_level is None
     assert q10_api.status.total_clean_count is None
-    assert q10_api.status.main_brush_life is None
+    assert q10_api.consumable.main_brush_life is None
     assert q10_api.status.cleaning_progress is None
     assert q10_api.status.fault is None
 
@@ -148,13 +154,64 @@ async def test_status_trait_refresh(
     assert q10_api.status.total_clean_area == 0
     assert q10_api.status.total_clean_count == 0
     assert q10_api.status.total_clean_time == 0
-    assert q10_api.status.main_brush_life == 0
-    assert q10_api.status.side_brush_life == 0
-    assert q10_api.status.filter_life == 0
-    assert q10_api.status.sensor_life == 0
+    assert q10_api.consumable.main_brush_life == 0
+    assert q10_api.consumable.side_brush_life == 0
+    assert q10_api.consumable.filter_life == 0
+    assert q10_api.consumable.sensor_life == 0
     assert q10_api.status.cleaning_progress == 100
     assert q10_api.status.fault == 0
     assert q10_api.status.clean_mode == YXCleanType.VAC_AND_MOP
+    assert q10_api.status.water_level == YXWaterLevel.LOW
+
+    # Settings with dedicated traits are read from those traits.
+    assert q10_api.volume.volume == 74
+    assert q10_api.do_not_disturb.not_disturb is True
+    assert q10_api.do_not_disturb.is_on is True
+    assert q10_api.child_lock.child_lock is False
+    assert q10_api.child_lock.is_on is False
+    assert q10_api.dust_collection.dust_switch is True
+    assert q10_api.dust_collection.is_on is True
+    assert q10_api.dust_collection.dust_setting == YXDeviceDustCollectionFrequency.REGULAR
+
+    # Additional state captured on the Status trait.
+    assert q10_api.status.mop_state is True
+    assert q10_api.status.ground_clean is False
+    assert q10_api.status.carpet_clean_type == YXCarpetCleanType.RISE
+    assert q10_api.status.area_unit == YXAreaUnit.SQUARE_METER
+    assert q10_api.status.auto_boost is False
+    assert q10_api.status.map_save_switch is True
+    assert q10_api.status.recent_clean_record is False
+    assert q10_api.status.valley_point_charging is False
+    assert q10_api.status.clean_line == YXCleanLine.FAST
+    assert q10_api.status.line_laser_obstacle_avoidance is True
+    assert q10_api.status.robot_country_code == "us"
+    assert q10_api.status.robot_type == 1
+    assert q10_api.status.time_zone == dpTimeZone(time_zone_city="America/Los_Angeles", time_zone_sec=-28800)
+
+    # Nested containers are parsed into their dataclasses on their own traits.
+    assert q10_api.do_not_disturb.not_disturb_expand == dpNotDisturbExpand(
+        disturb_dust_enable=1, disturb_light=1, disturb_resume_clean=1, disturb_voice=1
+    )
+    assert q10_api.network_info.net_info == dpNetInfo(
+        wifi_name="wifi-network-name", ip_adress="1.1.1.2", mac="99:AA:88:BB:77:CC", signal=-50
+    )
+
+
+async def test_status_trait_vacuum_only_refresh(
+    q10_api: Q10PropertiesApi,
+    message_queue: asyncio.Queue[RoborockMessage],
+) -> None:
+    """Test decoding a full status dump from a vacuum-only (no mop) Q10."""
+    payload = (TEST_DATA_DIR / "dpRequestDps_vacuum_only.json").read_bytes()
+    message_queue.put_nowait(build_message(payload))
+
+    await wait_for_attribute_value(q10_api.status, "battery", 75)
+
+    assert q10_api.status.fan_level == YXFanLevel.MAX_PLUS
+    assert q10_api.status.water_level == YXWaterLevel.MEDIUM
+    assert q10_api.status.clean_mode == YXCleanType.VACUUM
+    assert q10_api.status.recent_clean_record is True
+    assert q10_api.status.total_clean_count == 7
 
 
 def test_status_trait_update_listener(q10_api: Q10PropertiesApi) -> None:

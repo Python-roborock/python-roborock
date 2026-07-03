@@ -1,5 +1,8 @@
 """Roborock exceptions."""
 
+from enum import Enum
+from typing import Any
+
 
 class RoborockException(Exception):
     """Class for Roborock exceptions."""
@@ -91,3 +94,14 @@ class RoborockInvalidStatus(RoborockException):
 
 class RoborockUnsupportedFeature(RoborockException):
     """Class for Roborock unsupported feature exceptions."""
+
+
+class RoborockParsingException(RoborockException):
+    """Class for Roborock exceptions when parsing device responses."""
+
+    def __init__(self, trait_name: str, command: Enum | str, payload: Any, inner_error: Exception | str) -> None:
+        cmd_name = command.name if isinstance(command, Enum) else str(command)
+        self.message = (
+            f"Failed to parse {cmd_name} response for {trait_name}. Payload: {payload!r} Error: {inner_error!r}"
+        )
+        super().__init__(self.message)

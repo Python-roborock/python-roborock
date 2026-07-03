@@ -11,6 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, TypeVar
 
+from roborock.callbacks import CallbackList
 from roborock.data import HomeDataDevice, NetworkInfo, RoborockBase, UserData
 from roborock.devices.cache import DeviceCache
 from roborock.devices.transport.channel import Channel
@@ -30,9 +31,10 @@ from roborock.protocols.v1_protocol import (
     V1RpcChannel,
     create_map_response_decoder,
     create_security_data,
+    decode_data_protocol_message,
     decode_rpc_response,
 )
-from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
+from roborock.roborock_message import RoborockDataProtocol, RoborockMessage, RoborockMessageProtocol
 from roborock.roborock_typing import RoborockCommand
 from roborock.util import RoborockLoggerAdapter
 
@@ -188,6 +190,7 @@ class V1Channel(Channel):
         self._device_cache = device_cache
         self._reconnect_task: asyncio.Task[None] | None = None
         self._last_network_info_refresh: datetime.datetime | None = None
+        self._dps_listeners = CallbackList[dict[RoborockDataProtocol, Any]](self._logger)
 
     @property
     def is_connected(self) -> bool:
@@ -201,8 +204,14 @@ class V1Channel(Channel):
 
     @property
     def is_mqtt_connected(self) -> bool:
-        """Return whether MQTT connection is available."""
-        return self._mqtt_channel.is_connected
+        """Return whether MQTT connection is available for the device.
+
+        This requires the MQTT session to be connected to the broker and
+        the subscription to the device's topic to have successfully
+        been established (to handle cases where the device is offline
+        or deleted).
+        """
+        return self._mqtt_channel.is_connected and self._mqtt_unsub is not None
 
     @property
     def rpc_channel(self) -> V1RpcChannel:
@@ -292,41 +301,85 @@ class V1Channel(Channel):
         if self._callback is not None:
             raise ValueError("Only one subscription allowed at a time")
 
-        # Make an initial, optimistic attempt to connect to local with the
-        # cache. The cache information will be refreshed by the background task.
-        try:
-            await self._local_connect(prefer_cache=True)
-        except RoborockException as err:
-            self._logger.debug("First local connection attempt failed, will retry: %s", err)
-
-        # Start a background task to manage the local connection health. This
-        # happens independent of whether we were able to connect locally now.
-        if self._reconnect_task is None:
-            loop = asyncio.get_running_loop()
-            self._reconnect_task = loop.create_task(self._background_reconnect())
-
-        if not self.is_local_connected:
-            # We were not able to connect locally, so fallback to MQTT and at least
-            # establish that connection explicitly. If this fails then raise an
-            # error and let the caller know we failed to subscribe.
-            self._mqtt_unsub = await self._mqtt_channel.subscribe(self._on_mqtt_message)
-            self._logger.debug("V1Channel connected to device via MQTT")
-
-        def unsub() -> None:
-            """Unsubscribe from all messages."""
-            if self._reconnect_task:
-                self._reconnect_task.cancel()
-                self._reconnect_task = None
-            if self._mqtt_unsub:
-                self._mqtt_unsub()
-                self._mqtt_unsub = None
-            if self._local_unsub:
-                self._local_unsub()
-                self._local_unsub = None
-            self._logger.debug("Unsubscribed from device")
-
+        # Claim the subscription up front. Any failure in the setup below routes
+        # through _teardown(), which clears this again so the channel is left in
+        # a clean, re-subscribable state. Without this, a partially-completed
+        # subscribe (e.g. a transient failure later in connect()) would leave a
+        # stale callback and the next subscribe() would raise the guard above.
         self._callback = callback
-        return unsub
+        try:
+            # Make an initial, optimistic attempt to connect to local with the
+            # cache. The cache information will be refreshed by the background task.
+            try:
+                await self._local_connect(prefer_cache=True)
+            except RoborockException as err:
+                self._logger.debug("First local connection attempt failed, will retry: %s", err)
+
+            # Start a background task to manage the local connection health. This
+            # happens independent of whether we were able to connect locally now.
+            if self._reconnect_task is None:
+                loop = asyncio.get_running_loop()
+                self._reconnect_task = loop.create_task(self._background_reconnect())
+
+            # We maintain an active MQTT subscription even when connected locally to receive
+            # unsolicited status updates (DPS push messages) directly from the cloud.
+            try:
+                self._mqtt_unsub = await self._mqtt_channel.subscribe(self._on_mqtt_message)
+            except RoborockException as err:
+                if not self.is_local_connected:
+                    # Propagate error if both local and MQTT failed
+                    self._logger.debug("MQTT connection also failed: %s", err)
+                    raise
+                self._logger.debug("MQTT subscription failed, continuing with local-only connection: %s", err)
+        except RoborockException:
+            # Expected failure path (e.g. both local and MQTT transports down).
+            # Release the channel so the next subscribe() starts clean.
+            self._teardown()
+            raise
+        except Exception:
+            # Not expected here. We normally avoid a bare ``except Exception`` in
+            # this codebase, but leaving a partial subscription behind (reconnect
+            # task, MQTT subscription, stale callback) would brick the device, so we
+            # deliberately catch broadly, log the unexpected error, and tear down
+            # before propagating.
+            self._logger.exception("Unexpected error during subscribe; tearing down to avoid a leak")
+            self._teardown()
+            raise
+
+        self._logger.debug("Subscribed to device")
+        return self._teardown
+
+    def _teardown(self) -> None:
+        """Tear down all subscriptions and reset the channel to a re-subscribable state.
+
+        Returned from subscribe() as the unsubscribe function and also invoked on
+        any failure partway through subscribe(). Idempotent: each resource is
+        guarded so repeat calls are no-ops.
+        """
+        if self._reconnect_task:
+            self._reconnect_task.cancel()
+            self._reconnect_task = None
+        if self._mqtt_unsub:
+            self._mqtt_unsub()
+            self._mqtt_unsub = None
+        if self._local_unsub:
+            self._local_unsub()
+            self._local_unsub = None
+        if self._local_channel:
+            self._local_channel.close()
+            self._local_channel = None
+        self._callback = None
+        self._logger.debug("Unsubscribed from device")
+
+    def add_dps_listener(self, listener: Callable[[dict[RoborockDataProtocol, Any]], None]) -> Callable[[], None]:
+        """Add a listener for DPS updates.
+
+        This will attach a listener to the existing subscription, invoking
+        the listener whenever new DPS values arrive from the subscription.
+        This will only work if a subscription has already been setup, which is
+        handled by the device start.
+        """
+        return self._dps_listeners.add_callback(listener)
 
     async def _get_networking_info(self, *, prefer_cache: bool = True) -> NetworkInfo:
         """Retrieve networking information for the device.
@@ -428,6 +481,14 @@ class V1Channel(Channel):
         self._logger.debug("V1Channel received MQTT message: %s", message)
         if self._callback:
             self._callback(message)
+        try:
+            datapoints = decode_data_protocol_message(message)
+        except RoborockException as e:
+            self._logger.debug("Error decoding data protocol message: %s", e)
+            return
+
+        if datapoints:
+            self._dps_listeners(datapoints)
 
     def _on_local_message(self, message: RoborockMessage) -> None:
         """Handle incoming local messages."""
