@@ -218,6 +218,13 @@ def get_cleaning_mode_options(features: DeviceFeatures) -> list[CleaningMode]:
 
 
 def get_mop_only_vacuum_mode(features: DeviceFeatures) -> VacuumModes:
+    """Determine the vacuum mode to use when you just want to mop.
+
+    There are three cases that must be handled:
+    1. The device does not support only mopping.
+    2. The device supports raising the vacuum brush while mopping
+    3. All other cases.
+    """
     if not features.is_pure_clean_mop_supported:
         raise RoborockUnsupportedFeature("Mop-only cleaning is not supported")
     if features.is_support_main_brush_up_down_supported:
