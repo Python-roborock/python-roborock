@@ -77,8 +77,7 @@ class CleaningMode(StrEnum):
     Prefer this abstraction when you want to present or switch between the
     user-facing cleaning behaviors exposed by the app. The lower-level
     `VacuumModes`, `WaterModes`, and `CleanRoutes` enums are still useful for
-    advanced tuning, but most integrations should treat them as implementation
-    details of a single high-level cleaning mode.
+    fine-grained selection.
     """
 
     VACUUM = "vacuum"
@@ -330,9 +329,9 @@ def get_current_cleaning_mode(
 
 
 def is_mode_customized(
-    clean_mode: int | VacuumModes | None,
-    water_mode: int | WaterModes | None,
-    mop_mode: int | CleanRoutes | None,
+    clean_mode: VacuumModes | None,
+    water_mode: WaterModes | None,
+    mop_mode: CleanRoutes | None,
 ) -> bool:
     """Check if any of the cleaning modes are set to a custom value."""
     return (
@@ -343,9 +342,9 @@ def is_mode_customized(
 
 
 def is_smart_mode_set(
-    water_mode: int | WaterModes | None,
-    clean_mode: int | VacuumModes | None,
-    mop_mode: int | CleanRoutes | None,
+    water_mode: WaterModes | None,
+    clean_mode: VacuumModes | None,
+    mop_mode: CleanRoutes | None,
 ) -> bool:
     """Check if the smart mode is set for the given water mode and clean mode"""
     return (
