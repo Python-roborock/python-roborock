@@ -332,7 +332,8 @@ class YXFault(RoborockModeEnum):
     STARTING_SCHEDULED_CLEAN = "starting_scheduled_clean", 400  # hw-confirmed x3; lifecycle, not an error
     CLEANING_IN_PROGRESS = "cleaning_in_progress", 407
     EMPTY_DUSTBIN = "empty_dustbin", 500  # ss07 != Q7 B01Fault (lidar_blocked); app-sourced
-    CLEANING_COMPLETED_RETURNING = "cleaning_completed_returning", 501  # hw-confirmed; ss07 != Q7 (robot_suspended)
+    # hw-confirmed, fires per completed task; ss07 != Q7 (robot_suspended)
+    CLEANING_COMPLETED_RETURNING = "cleaning_completed_returning", 501
     LOW_BATTERY_RESUME = "low_battery_resume", 502  # hw-confirmed; lifecycle
     DOCKING_ERROR = "docking_error", 503  # hw-confirmed; ss07 != Q7 (dustbin_not_installed)
     POSITIONING_FAILED = "positioning_failed", 556  # hw-confirmed; relocalization
