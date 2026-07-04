@@ -12,34 +12,38 @@ from unittest.mock import AsyncMock, patch
 
 from aioresponses import CallbackResult, aioresponses
 
-from roborock.data import HomeData
+from roborock.data import HomeData, Reference, RRiot, UserData
 from roborock.devices.rpc.v1_channel import create_v1_channel as original_create_v1_channel
 from roborock.devices.transport.mqtt_channel import create_mqtt_channel as original_create_mqtt_channel
-from roborock.testing.simulator import DEFAULT_KEY_T, RoborockDeviceSimulator
+from roborock.testing.simulator import RoborockDeviceSimulator
 from roborock.testing.v1_simulator import V1VacuumSimulator
 
 # EAPI Base URL pattern constants
 IOT_API_BASE_URL = r"https://.*iot\.roborock\.com/api/v1"
 REST_API_BASE_URL = r"https://api-.*\.roborock\.com"
 
-
-class FakeUserState:
-    """Holds the fake user account details in the cloud environment."""
-
-    def __init__(self):
-        self.username = "test_user@gmail.com"
-        self.nickname = "user_nickname"
-        self.country = "US"
-        self.country_code = "1"
-        self.region = "us"
-        self.home_id = 123456
-        self.home_name = "Fake Home"
-        self.uid = 123456
-        self.rruid = "abc123"
-        self.token = "abc123"
-        self.rriot_u = "user123"
-        self.rriot_s = "pass123"
-        self.rriot_h = "unknown123"
+DEFAULT_USER_DATA = UserData(
+    uid=123456,
+    tokentype="token_type",
+    token="abc123",
+    rruid="abc123",
+    region="us",
+    countrycode="1",
+    country="US",
+    nickname="user_nickname",
+    rriot=RRiot(
+        u="user123",
+        s="pass123",
+        h="unknown123",
+        k="qiCNieZa",
+        r=Reference(
+            r="US",
+            a="https://api-us.roborock.com",
+            l="https://wood-us.roborock.com",
+            m="tcp://mqtt-us.roborock.com:8883",
+        ),
+    ),
+)
 
 
 class FakeWebApiClient:
@@ -67,9 +71,9 @@ class FakeWebApiClient:
         return {
             "code": 200,
             "data": {
-                "country": self.cloud.user.country,
-                "countrycode": self.cloud.user.country_code,
-                "url": f"https://{self.cloud.user.region}iot.roborock.com",
+                "country": self.cloud.user_data.country,
+                "countrycode": self.cloud.user_data.countrycode,
+                "url": f"https://{self.cloud.user_data.region}iot.roborock.com",
             },
             "msg": "success",
         }
@@ -80,30 +84,7 @@ class FakeWebApiClient:
             return self.login_payload
         return {
             "code": 200,
-            "data": {
-                "uid": self.cloud.user.uid,
-                "tokentype": "token_type",
-                "token": self.cloud.user.token,
-                "rruid": self.cloud.user.rruid,
-                "region": self.cloud.user.region,
-                "countrycode": self.cloud.user.country_code,
-                "country": self.cloud.user.country,
-                "nickname": self.cloud.user.nickname,
-                "rriot": {
-                    "u": self.cloud.user.rriot_u,
-                    "s": self.cloud.user.rriot_s,
-                    "h": self.cloud.user.rriot_h,
-                    "k": DEFAULT_KEY_T,
-                    "r": {
-                        "r": self.cloud.user.country,
-                        "a": f"https://api-{self.cloud.user.region}.roborock.com",
-                        "l": f"https://wood-{self.cloud.user.region}.roborock.com",
-                        "m": f"tcp://mqtt-{self.cloud.user.region}.roborock.com:8883",
-                    },
-                },
-                "tuyaDeviceState": 2,
-                "avatarurl": "https://files.roborock.com/iottest/default_avatar.png",
-            },
+            "data": self.cloud.user_data.as_dict(),
             "msg": "success",
         }
 
@@ -115,9 +96,9 @@ class FakeWebApiClient:
             "code": 200,
             "data": {
                 "deviceListOrder": None,
-                "id": self.cloud.user.home_id,
-                "name": self.cloud.user.home_name,
-                "rrHomeId": self.cloud.user.home_id,
+                "id": self.cloud.home_id,
+                "name": self.cloud.home_name,
+                "rrHomeId": self.cloud.home_id,
                 "tuyaHomeId": 0,
             },
             "msg": "success",
@@ -166,8 +147,8 @@ class FakeWebApiClient:
                 products.append(server.product)
 
             home_data = HomeData(
-                id=self.cloud.user.home_id,
-                name=self.cloud.user.home_name,
+                id=self.cloud.home_id,
+                name=self.cloud.home_name,
                 devices=devices,
                 products=products,
             )
@@ -184,11 +165,11 @@ class FakeWebApiClient:
 
         # getHomeDetail v2 & v3 callbacks routing
         mocked.get(
-            re.compile(rf"{REST_API_BASE_URL}/v2/user/homes/{self.cloud.user.home_id}"),
+            re.compile(rf"{REST_API_BASE_URL}/v2/user/homes/{self.cloud.home_id}"),
             callback=get_homes_callback,
         )
         mocked.get(
-            re.compile(rf"{REST_API_BASE_URL}/v3/user/homes/{self.cloud.user.home_id}"),
+            re.compile(rf"{REST_API_BASE_URL}/v3/user/homes/{self.cloud.home_id}"),
             callback=get_homes_callback,
         )
 
@@ -196,9 +177,16 @@ class FakeWebApiClient:
 class FakeRoborockCloud:
     """A central state object representing the Roborock Cloud environment under test."""
 
-    def __init__(self):
+    def __init__(
+        self,
+        user_data: UserData | None = None,
+        home_id: int = 123456,
+        home_name: str = "Fake Home",
+    ):
         self.servers: dict[str, RoborockDeviceSimulator] = {}
-        self.user = FakeUserState()
+        self.user_data = user_data or DEFAULT_USER_DATA
+        self.home_id = home_id
+        self.home_name = home_name
         self.web_api = FakeWebApiClient(self)
 
     def add_device(self, server: RoborockDeviceSimulator) -> None:
