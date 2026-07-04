@@ -16,6 +16,7 @@ _LOGGER = logging.getLogger(__name__)
 # Shared authentication key constants
 DEFAULT_LOCAL_KEY = "fake_localkey_16bytes"
 DEFAULT_KEY_T = "qiCNieZa"
+DEFAULT_PRODUCT_ID = "product-id-123"
 
 
 class RoborockDeviceSimulator:
@@ -56,7 +57,7 @@ class RoborockDeviceSimulator:
     ):
         self.duid = duid
         self.product = product or HomeDataProduct(
-            id=f"product_{self.duid}",
+            id=DEFAULT_PRODUCT_ID,
             name="Roborock Vacuum",
             model="roborock.vacuum.s7",
             category=RoborockCategory.VACUUM,
