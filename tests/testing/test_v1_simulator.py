@@ -2,6 +2,7 @@ import pytest
 
 from roborock.data import UserData
 from roborock.data.v1 import RoborockStateCode
+from roborock.data.v1.v1_code_mappings import RoborockChargeStatus, RoborockDockTypeCode, RoborockInCleaning
 from roborock.devices.cache import InMemoryCache
 from roborock.devices.device_manager import UserParams, create_device_manager
 from roborock.devices.traits.v1.consumeable import ConsumableAttribute
@@ -78,7 +79,7 @@ async def test_trait_fan_speed_change():
 
     # Change fan speed through the command trait
     await device.v1_properties.command.send("set_custom_mode", [105])
-    assert fake_device.fan_power == 105
+    assert fake_device.status.fan_power == 105
 
     # Refresh status to pick up the changed value
     await device.v1_properties.status.refresh()
@@ -104,15 +105,15 @@ async def test_trait_multiple_state_transitions():
 
     # Start cleaning
     await device.v1_properties.command.send("app_start")
-    assert fake_device.state == RoborockStateCode.cleaning
+    assert fake_device.status.state == RoborockStateCode.cleaning
 
     # Stop (pauses the vacuum)
     await device.v1_properties.command.send("app_stop")
-    assert fake_device.state == RoborockStateCode.paused
+    assert fake_device.status.state == RoborockStateCode.paused
 
     # Send it back to the dock
     await device.v1_properties.command.send("app_charge")
-    assert fake_device.state == RoborockStateCode.returning_home
+    assert fake_device.status.state == RoborockStateCode.returning_home
 
     # Verify the client sees the final state after refresh
     await device.v1_properties.status.refresh()
@@ -129,8 +130,8 @@ async def test_trait_push_update_propagation():
     assert device.v1_properties.status.battery == 99
 
     # Mutate the simulator state and push an update
-    fake_device.battery = 45
-    fake_device.state = RoborockStateCode.returning_home
+    fake_device.status.battery = 45
+    fake_device.status.state = RoborockStateCode.returning_home
     fake_device.trigger_push_update()
 
     # The client status properties should be updated immediately without a manual refresh
@@ -160,21 +161,21 @@ async def test_trait_custom_handler_override():
 async def test_trait_properties_and_dss_config():
     """Verify that properties, dss config, and dock_type config are correctly exposed on the simulator."""
     fake_device = V1VacuumSimulator(duid="s7_properties", state=RoborockStateCode.cleaning, dss=42, dock_type=5)
-    assert fake_device.in_cleaning == 1
+    assert fake_device.in_cleaning == RoborockInCleaning.global_clean_not_complete
     assert fake_device.in_returning == 0
-    assert fake_device.charge_status == 0
-    assert fake_device.dss == 42
-    assert fake_device.dock_type == 5
+    assert fake_device.charge_status == RoborockChargeStatus.charge_waiting
+    assert fake_device.status.dss == 42
+    assert fake_device.status.dock_type == RoborockDockTypeCode(5)
 
-    fake_device.state = RoborockStateCode.returning_home
-    assert fake_device.in_cleaning == 0
+    fake_device.status.state = RoborockStateCode.returning_home
+    assert fake_device.in_cleaning == RoborockInCleaning.complete
     assert fake_device.in_returning == 1
-    assert fake_device.charge_status == 0
+    assert fake_device.charge_status == RoborockChargeStatus.charge_waiting
 
-    fake_device.state = RoborockStateCode.charging
-    assert fake_device.in_cleaning == 0
+    fake_device.status.state = RoborockStateCode.charging
+    assert fake_device.in_cleaning == RoborockInCleaning.complete
     assert fake_device.in_returning == 0
-    assert fake_device.charge_status == 1
+    assert fake_device.charge_status == RoborockChargeStatus.charging
 
 
 async def test_trait_publish_failure_injection():

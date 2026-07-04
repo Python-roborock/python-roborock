@@ -8,7 +8,7 @@ import json
 import logging
 import time
 from collections.abc import Callable
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from enum import Enum
 from typing import Any
 from unittest.mock import Mock
@@ -50,6 +50,70 @@ def _serialize_dataclass(obj: Any) -> dict[str, Any]:
     return {k: (v.value if isinstance(v, Enum) else v) for k, v in asdict(obj).items() if v is not None}
 
 
+DEFAULT_STATUS = StatusV2(
+    msg_ver=2,
+    msg_seq=458,
+    state=RoborockStateCode.charging,
+    battery=100,
+    clean_time=1176,
+    clean_area=20965000,
+    error_code=RoborockErrorCode(0),
+    map_present=1,
+    in_cleaning=RoborockInCleaning.complete,
+    in_returning=0,
+    in_fresh_state=1,
+    lab_status=1,
+    water_box_status=1,
+    back_type=-1,
+    wash_phase=0,
+    wash_ready=0,
+    fan_power=102,
+    dnd_enabled=0,
+    map_status=3,
+    is_locating=0,
+    lock_status=0,
+    water_box_mode=200,
+    water_box_carriage_status=1,
+    mop_forbidden_enable=1,
+    camera_status=3457,
+    is_exploring=0,
+    home_sec_status=0,
+    home_sec_enable_password=0,
+    adbumper_status=[0, 0, 0],
+    water_shortage_status=0,
+    dock_type=RoborockDockTypeCode.s8_dock,
+    dust_collection_status=0,
+    auto_dust_collection=1,
+    avoid_count=19,
+    mop_mode=300,
+    debug_mode=0,
+    collision_avoid_status=1,
+    switch_map_mode=0,
+    dock_error_status=RoborockDockErrorCode(0),
+    charge_status=RoborockChargeStatus.charge_waiting,
+    unsave_map_reason=0,
+    unsave_map_flag=0,
+    dss=169,
+)
+
+DEFAULT_APP_INIT = AppInitStatus(
+    local_info=AppInitStatusLocalInfo(
+        location="us",
+        bom="A.03.0069",
+        featureset=1,
+        language="en",
+        logserver="awsusor0.fds.api.xiaomi.com",
+        wifiplan="0x39",
+        timezone="US/Pacific",
+        name="custom_A.03.0069_FCC",
+    ),
+    feature_info=[111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 122, 123, 124, 125],
+    new_feature_info=633887780925447,
+    new_feature_info_str="0000000000002000",
+    new_feature_info_2=8192,
+)
+
+
 class V1VacuumSimulator(RoborockDeviceSimulator):
     """Firmware simulator for a V1/L01 vacuum device.
 
@@ -66,7 +130,7 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
         self,
         duid: str = "fake_duid",
         battery: int = 100,
-        state: int = RoborockStateCode.charging,
+        state: RoborockStateCode | int = RoborockStateCode.charging,
         fan_power: int = 102,  # balanced
         dnd_enabled: int = 0,
         mop_mode: int = 300,
@@ -75,18 +139,22 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
         device_info: HomeDataDevice | None = None,
         product: HomeDataProduct | None = None,
         dss: int = 169,
-        dock_type: int = 3,
+        dock_type: RoborockDockTypeCode | int = 3,
     ):
         super().__init__(duid=duid, device_info=device_info, product=product)
-        self.battery = battery
-        self.state = state
-        self.fan_power = fan_power
-        self.dnd_enabled = dnd_enabled
-        self.mop_mode = mop_mode
-        self.water_box_mode = water_box_mode
+        self.status = replace(DEFAULT_STATUS)
+        self.app_init = replace(DEFAULT_APP_INIT)
+        self.app_init.local_info = replace(DEFAULT_APP_INIT.local_info)
+
+        self.status.battery = battery
+        self.status.state = RoborockStateCode(state)
+        self.status.fan_power = fan_power
+        self.status.dnd_enabled = dnd_enabled
+        self.status.mop_mode = mop_mode
+        self.status.water_box_mode = water_box_mode
+        self.status.dss = dss
+        self.status.dock_type = RoborockDockTypeCode(dock_type)
         self.custom_handlers = custom_handlers or {}
-        self.dss = dss
-        self.dock_type = dock_type
 
         self.network_info = NetworkInfo(
             ip="1.1.1.1",
@@ -175,104 +243,142 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
         return self._v1_channel
 
     @property
+    def battery(self) -> int:
+        """Get battery level."""
+        return self.status.battery or 0
+
+    @battery.setter
+    def battery(self, value: int) -> None:
+        """Set battery level."""
+        self.status.battery = value
+
+    @property
+    def state(self) -> RoborockStateCode:
+        """Get device state code."""
+        return self.status.state or RoborockStateCode.charging
+
+    @state.setter
+    def state(self, value: RoborockStateCode | int) -> None:
+        """Set device state code."""
+        self.status.state = RoborockStateCode(value)
+
+    @property
+    def fan_power(self) -> int:
+        """Get fan power speed."""
+        return self.status.fan_power or 0
+
+    @fan_power.setter
+    def fan_power(self, value: int) -> None:
+        """Set fan power speed."""
+        self.status.fan_power = value
+
+    @property
+    def dnd_enabled(self) -> int:
+        """Get DND enabled state."""
+        return self.status.dnd_enabled or 0
+
+    @dnd_enabled.setter
+    def dnd_enabled(self, value: int) -> None:
+        """Set DND enabled state."""
+        self.status.dnd_enabled = value
+
+    @property
+    def mop_mode(self) -> int:
+        """Get mop route mode."""
+        return self.status.mop_mode or 0
+
+    @mop_mode.setter
+    def mop_mode(self, value: int) -> None:
+        """Set mop route mode."""
+        self.status.mop_mode = value
+
+    @property
+    def water_box_mode(self) -> int:
+        """Get water box mode."""
+        return self.status.water_box_mode or 0
+
+    @water_box_mode.setter
+    def water_box_mode(self, value: int) -> None:
+        """Set water box mode."""
+        self.status.water_box_mode = value
+
+    @property
+    def dss(self) -> int:
+        """Get dock sensor status."""
+        return self.status.dss or 0
+
+    @dss.setter
+    def dss(self, value: int) -> None:
+        """Set dock sensor status."""
+        self.status.dss = value
+
+    @property
+    def dock_type(self) -> RoborockDockTypeCode:
+        """Get dock type."""
+        return self.status.dock_type or RoborockDockTypeCode.no_dock
+
+    @dock_type.setter
+    def dock_type(self, value: RoborockDockTypeCode | int) -> None:
+        """Set dock type."""
+        self.status.dock_type = RoborockDockTypeCode(value)
+
+    @property
     def in_cleaning(self) -> RoborockInCleaning:
         """Return global_clean_not_complete if cleaning, else complete."""
         return (
             RoborockInCleaning.global_clean_not_complete
-            if self.state == RoborockStateCode.cleaning
+            if self.status.state == RoborockStateCode.cleaning
             else RoborockInCleaning.complete
         )
 
     @property
     def in_returning(self) -> int:
         """Return 1 if returning, else 0."""
-        return 1 if self.state == RoborockStateCode.returning_home else 0
+        return 1 if self.status.state == RoborockStateCode.returning_home else 0
 
     @property
     def charge_status(self) -> RoborockChargeStatus:
         """Return charging if charging, else charge_waiting."""
         return (
             RoborockChargeStatus.charging
-            if self.state == RoborockStateCode.charging
+            if self.status.state == RoborockStateCode.charging
             else RoborockChargeStatus.charge_waiting
         )
 
     def get_status_dict(self) -> dict[str, Any]:
         """Generate status dict using the current simulated state."""
-        status = StatusV2(
-            msg_ver=2,
-            msg_seq=458,
-            state=RoborockStateCode(self.state),
-            battery=self.battery,
-            clean_time=1176,
-            clean_area=20965000,
-            error_code=RoborockErrorCode(0),
-            map_present=1,
-            in_cleaning=self.in_cleaning,
-            in_returning=self.in_returning,
-            in_fresh_state=1,
-            lab_status=1,
-            water_box_status=1,
-            back_type=-1,
-            wash_phase=0,
-            wash_ready=0,
-            fan_power=self.fan_power,
-            dnd_enabled=self.dnd_enabled,
-            map_status=3,
-            is_locating=0,
-            lock_status=0,
-            water_box_mode=self.water_box_mode,
-            water_box_carriage_status=1,
-            mop_forbidden_enable=1,
-            camera_status=3457,
-            is_exploring=0,
-            home_sec_status=0,
-            home_sec_enable_password=0,
-            adbumper_status=[0, 0, 0],
-            water_shortage_status=0,
-            dock_type=RoborockDockTypeCode(self.dock_type),
-            dust_collection_status=0,
-            auto_dust_collection=1,
-            avoid_count=19,
-            mop_mode=self.mop_mode,
-            debug_mode=0,
-            collision_avoid_status=1,
-            switch_map_mode=0,
-            dock_error_status=RoborockDockErrorCode(0),
-            charge_status=self.charge_status,
-            unsave_map_reason=0,
-            unsave_map_flag=0,
-            dss=self.dss,
-        )
-        return _serialize_dataclass(status)
+        self.status.in_cleaning = self.in_cleaning
+        self.status.in_returning = self.in_returning
+        self.status.charge_status = self.charge_status
+        return _serialize_dataclass(self.status)
 
     def _handle_app_start(self, params: Any) -> str:
-        self.state = RoborockStateCode.cleaning
+        self.status.state = RoborockStateCode.cleaning
         return "ok"
 
     def _handle_app_stop(self, params: Any) -> str:
-        self.state = RoborockStateCode.paused
+        self.status.state = RoborockStateCode.paused
         return "ok"
 
     def _handle_app_charge(self, params: Any) -> str:
-        self.state = RoborockStateCode.returning_home
+        self.status.state = RoborockStateCode.returning_home
         return "ok"
 
     def _handle_set_custom_mode(self, params: Any) -> str:
         if isinstance(params, list) and len(params) > 0:
-            self.fan_power = params[0]
+            self.status.fan_power = params[0]
         elif isinstance(params, dict):
-            self.fan_power = params.get("fan_power", self.fan_power)
+            self.status.fan_power = params.get("fan_power", self.status.fan_power)
         return "ok"
 
     def _handle_set_mop_mode(self, params: Any) -> str:
         if isinstance(params, list) and len(params) > 0:
-            self.mop_mode = params[0]
+            self.status.mop_mode = params[0]
         return "ok"
 
     def _handle_set_water_box_custom_mode(self, params: Any) -> str:
         if isinstance(params, list) and len(params) > 0:
-            self.water_box_mode = params[0]
+            self.status.water_box_mode = params[0]
         return "ok"
 
     def _handle_reset_consumable(self, params: Any) -> str:
@@ -305,8 +411,8 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
             payload["new_feature_info2"] = payload.pop("new_feature_info_2")
 
         payload["status_info"] = {
-            "state": self.state,
-            "battery": self.battery,
+            "state": self.status.state.value if self.status.state else 0,
+            "battery": self.status.battery,
             "clean_time": 5610,
             "clean_area": 96490000,
             "error_code": 0,
@@ -318,7 +424,7 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
             "map_status": 3,
             "is_locating": 0,
             "lock_status": 0,
-            "water_box_mode": self.water_box_mode,
+            "water_box_mode": self.status.water_box_mode,
             "distance_off": 0,
             "water_box_carriage_status": 0,
             "mop_forbidden_enable": 0,
