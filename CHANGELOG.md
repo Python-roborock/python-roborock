@@ -2,6 +2,158 @@
 
 <!-- version list -->
 
+## v5.25.0 (2026-07-03)
+
+### Chores
+
+- Add dataclasses for Roborock mower
+  ([#862](https://github.com/Python-roborock/python-roborock/pull/862),
+  [`413d6e5`](https://github.com/Python-roborock/python-roborock/commit/413d6e57ae74d3d54f9f1d4c8918ffbe9d215b7b))
+
+- Add some comments that better explain 'get_mop_only_vacuum_mode'
+  ([#817](https://github.com/Python-roborock/python-roborock/pull/817),
+  [`9474bfa`](https://github.com/Python-roborock/python-roborock/commit/9474bfaa607f15c7b66f520af17d81c849651f68))
+
+- Address comments ([#817](https://github.com/Python-roborock/python-roborock/pull/817),
+  [`9474bfa`](https://github.com/Python-roborock/python-roborock/commit/9474bfaa607f15c7b66f520af17d81c849651f68))
+
+- Address comments from copilot
+  ([#817](https://github.com/Python-roborock/python-roborock/pull/817),
+  [`9474bfa`](https://github.com/Python-roborock/python-roborock/commit/9474bfaa607f15c7b66f520af17d81c849651f68))
+
+- Apply suggestions from code review
+  ([#862](https://github.com/Python-roborock/python-roborock/pull/862),
+  [`413d6e5`](https://github.com/Python-roborock/python-roborock/commit/413d6e57ae74d3d54f9f1d4c8918ffbe9d215b7b))
+
+- Drop int typing and improve comment
+  ([#817](https://github.com/Python-roborock/python-roborock/pull/817),
+  [`9474bfa`](https://github.com/Python-roborock/python-roborock/commit/9474bfaa607f15c7b66f520af17d81c849651f68))
+
+### Features
+
+- Add better cleaning mode support
+  ([#817](https://github.com/Python-roborock/python-roborock/pull/817),
+  [`9474bfa`](https://github.com/Python-roborock/python-roborock/commit/9474bfaa607f15c7b66f520af17d81c849651f68))
+
+
+## v5.24.0 (2026-07-03)
+
+### Features
+
+- Implement dynamic map update listeners and filtering on HomeTrait
+  ([#861](https://github.com/Python-roborock/python-roborock/pull/861),
+  [`a793c8e`](https://github.com/Python-roborock/python-roborock/commit/a793c8e0a3e0359027d491d406dd36f2d62d41f6))
+
+
+## v5.23.1 (2026-07-03)
+
+### Bug Fixes
+
+- Verify MQTT connection requires successful subscription
+  ([#858](https://github.com/Python-roborock/python-roborock/pull/858),
+  [`e3c97c6`](https://github.com/Python-roborock/python-roborock/commit/e3c97c68ce5cf38022241bf85d68977c223b8922))
+
+### Documentation
+
+- Clarify is_mqtt_connected docstring with motivation
+  ([#858](https://github.com/Python-roborock/python-roborock/pull/858),
+  [`e3c97c6`](https://github.com/Python-roborock/python-roborock/commit/e3c97c68ce5cf38022241bf85d68977c223b8922))
+
+### Refactoring
+
+- Remove unused fixtures in tests
+  ([#858](https://github.com/Python-roborock/python-roborock/pull/858),
+  [`e3c97c6`](https://github.com/Python-roborock/python-roborock/commit/e3c97c68ce5cf38022241bf85d68977c223b8922))
+
+
+## v5.23.0 (2026-07-03)
+
+### Features
+
+- Add Q10 (B01/ss07) clean-record history trait
+  ([#857](https://github.com/Python-roborock/python-roborock/pull/857),
+  [`79a996d`](https://github.com/Python-roborock/python-roborock/commit/79a996de463a59ff4de875579a417d157e8cc2e8))
+
+- Q10 (B01/ss07) clean-record history trait
+  ([#857](https://github.com/Python-roborock/python-roborock/pull/857),
+  [`79a996d`](https://github.com/Python-roborock/python-roborock/commit/79a996de463a59ff4de875579a417d157e8cc2e8))
+
+### Refactoring
+
+- Call the static parse_record via the class, not self
+  ([#857](https://github.com/Python-roborock/python-roborock/pull/857),
+  [`79a996d`](https://github.com/Python-roborock/python-roborock/commit/79a996de463a59ff4de875579a417d157e8cc2e8))
+
+- Widen parse_record's parameter type to Any | None
+  ([#857](https://github.com/Python-roborock/python-roborock/pull/857),
+  [`79a996d`](https://github.com/Python-roborock/python-roborock/commit/79a996de463a59ff4de875579a417d157e8cc2e8))
+
+
+## v5.22.0 (2026-06-28)
+
+### Bug Fixes
+
+- Avoid Q10 Consumable/NetworkInfo shadowing v1 in roborock.data
+  ([#851](https://github.com/Python-roborock/python-roborock/pull/851),
+  [`e71611b`](https://github.com/Python-roborock/python-roborock/commit/e71611b2b57f2ca1dc1d2c42d6fce0d3f1b6169b))
+
+- Correct Q10 vacuum command payloads, verified against ss07 hardware
+  ([#851](https://github.com/Python-roborock/python-roborock/pull/851),
+  [`e71611b`](https://github.com/Python-roborock/python-roborock/commit/e71611b2b57f2ca1dc1d2c42d6fce0d3f1b6169b))
+
+- Keep Q10 CLIFF_RESTRICTED_AREA_UP (103); ss07 pushes it
+  ([#851](https://github.com/Python-roborock/python-roborock/pull/851),
+  [`e71611b`](https://github.com/Python-roborock/python-roborock/commit/e71611b2b57f2ca1dc1d2c42d6fce0d3f1b6169b))
+
+- Show all Q10 read-model traits in status, wait for fresh push
+  ([#851](https://github.com/Python-roborock/python-roborock/pull/851),
+  [`e71611b`](https://github.com/Python-roborock/python-roborock/commit/e71611b2b57f2ca1dc1d2c42d6fce0d3f1b6169b))
+
+- Stop unmapped Q10 data points from logging "not a valid code" warnings
+  ([#851](https://github.com/Python-roborock/python-roborock/pull/851),
+  [`e71611b`](https://github.com/Python-roborock/python-roborock/commit/e71611b2b57f2ca1dc1d2c42d6fce0d3f1b6169b))
+
+### Features
+
+- Add Q10 (B01/ss07) settings writers
+  ([#851](https://github.com/Python-roborock/python-roborock/pull/851),
+  [`e71611b`](https://github.com/Python-roborock/python-roborock/commit/e71611b2b57f2ca1dc1d2c42d6fce0d3f1b6169b))
+
+- Add Q10 dust-collection frequency writer
+  ([#851](https://github.com/Python-roborock/python-roborock/pull/851),
+  [`e71611b`](https://github.com/Python-roborock/python-roborock/commit/e71611b2b57f2ca1dc1d2c42d6fce0d3f1b6169b))
+
+- Decode Q10 add_clean_state as a bool
+  ([#851](https://github.com/Python-roborock/python-roborock/pull/851),
+  [`e71611b`](https://github.com/Python-roborock/python-roborock/commit/e71611b2b57f2ca1dc1d2c42d6fce0d3f1b6169b))
+
+- Decode Q10 carpet/area/mop/floor-direction status into enums+bools
+  ([#851](https://github.com/Python-roborock/python-roborock/pull/851),
+  [`e71611b`](https://github.com/Python-roborock/python-roborock/commit/e71611b2b57f2ca1dc1d2c42d6fce0d3f1b6169b))
+
+- Expand Q10 (B01/ss07) status support and add device info
+  ([#851](https://github.com/Python-roborock/python-roborock/pull/851),
+  [`e71611b`](https://github.com/Python-roborock/python-roborock/commit/e71611b2b57f2ca1dc1d2c42d6fce0d3f1b6169b))
+
+- Q10 (B01/ss07) room/segment cleaning
+  ([#851](https://github.com/Python-roborock/python-roborock/pull/851),
+  [`e71611b`](https://github.com/Python-roborock/python-roborock/commit/e71611b2b57f2ca1dc1d2c42d6fce0d3f1b6169b))
+
+- Q10 (B01/ss07) room/segment cleaning (clean_segments)
+  ([#851](https://github.com/Python-roborock/python-roborock/pull/851),
+  [`e71611b`](https://github.com/Python-roborock/python-roborock/commit/e71611b2b57f2ca1dc1d2c42d6fce0d3f1b6169b))
+
+### Refactoring
+
+- Split Q10 status/settings into per-concern traits
+  ([#851](https://github.com/Python-roborock/python-roborock/pull/851),
+  [`e71611b`](https://github.com/Python-roborock/python-roborock/commit/e71611b2b57f2ca1dc1d2c42d6fce0d3f1b6169b))
+
+- Use YXDeviceCleanTask.ELECTORAL and inline misspelling note
+  ([#851](https://github.com/Python-roborock/python-roborock/pull/851),
+  [`e71611b`](https://github.com/Python-roborock/python-roborock/commit/e71611b2b57f2ca1dc1d2c42d6fce0d3f1b6169b))
+
+
 ## v5.21.0 (2026-06-25)
 
 ### Bug Fixes

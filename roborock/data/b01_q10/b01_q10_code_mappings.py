@@ -226,6 +226,43 @@ class YXDeviceCleanTask(RoborockModeEnum):
     PART = "part", 5
 
 
+class YXCleanScope(RoborockModeEnum):
+    """Clean scope/type as stored in a *clean record* (``dpCleanRecord``, field 7).
+
+    This is the same conceptual axis as the live :class:`YXDeviceCleanTask`, but the
+    persisted record uses a different integer encoding -- e.g. a full clean records
+    ``0`` here vs ``1`` (``smart``) live, and a select-rooms clean records ``1`` here
+    vs ``2`` (``electoral``) live. Ground-truthed against the app's History labels;
+    code ``2`` was never observed on ss07 and is intentionally unmapped (so it
+    resolves to ``None`` rather than a guessed label).
+    """
+
+    UNKNOWN = "unknown", -1
+    FULL = "full", 0
+    SELECTIVE_ROOM = "selective_room", 1
+    ZONE = "zone", 3
+    SPOT = "spot", 4
+
+
+class YXCleaningResult(RoborockModeEnum):
+    """How a clean ended, as stored in a clean record (``dpCleanRecord``, field 9)."""
+
+    UNKNOWN = "unknown", -1
+    INTERRUPTED = "interrupted", 0  # ended on a fault
+    COMPLETED = "completed", 1
+    STOPPED = "stopped", 2  # ended early without a fault
+
+
+class YXStartMethod(RoborockModeEnum):
+    """What initiated a clean, as stored in a clean record (``dpCleanRecord``, field 10)."""
+
+    UNKNOWN = "unknown", -1
+    REMOTE = "remote", 0
+    APP = "app", 1
+    TIMER = "timer", 2  # schedule / timer
+    BUTTON = "button", 3  # device button
+
+
 class YXDeviceDustCollectionFrequency(RoborockModeEnum):
     # The app exposes "regular" (code 0) vs "frequent", where "frequent" selects
     # one of the every-N-cleans intervals below.

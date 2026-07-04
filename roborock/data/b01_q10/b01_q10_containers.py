@@ -6,6 +6,7 @@ dataclass fields to device Data Points (DPS). This metadata is utilized by the
 automatically update objects from raw device responses.
 """
 
+import datetime
 from dataclasses import dataclass, field
 
 from ..containers import RoborockBase
@@ -14,12 +15,15 @@ from .b01_q10_code_mappings import (
     YXAreaUnit,
     YXBackType,
     YXCarpetCleanType,
+    YXCleaningResult,
     YXCleanLine,
+    YXCleanScope,
     YXCleanType,
     YXDeviceCleanTask,
     YXDeviceDustCollectionFrequency,
     YXDeviceState,
     YXFanLevel,
+    YXStartMethod,
     YXWaterLevel,
 )
 
@@ -30,6 +34,52 @@ class dpCleanRecord(RoborockBase):
     result: int
     id: str
     data: list
+
+
+@dataclass
+class Q10CleanRecord(RoborockBase):
+    """A single Q10 (ss07) clean record decoded from a ``dpCleanRecord`` (DP 52) entry.
+
+    The device returns each record as a 12-field underscore-delimited string in the
+    ``data`` list of a ``{"op": "list"}`` query (or the ``id`` of an ``{"op": "notify"}``
+    push). The ``*_len`` values are internal blob-length metrics whose units aren't
+    confirmed; the original ``raw`` string is always retained. The enum fields resolve
+    an unmapped/unset code to ``None`` rather than guessing.
+    """
+
+    raw: str
+    record_id: str | None = None
+    start_time: int | None = None
+    """Clean start time, Unix seconds."""
+    clean_time: int | None = None
+    """Cleaning time, minutes."""
+    clean_area: int | None = None
+    """Cleaned area in square meters."""
+    map_len: int | None = None
+    """Length of the saved map blob for this record (0 = none stored)."""
+    path_len: int | None = None
+    """Length of the saved path blob for this record (0 = none stored)."""
+    virtual_len: int | None = None
+    """Length of the saved virtual-restriction blob for this record (0 = none stored)."""
+    clean_mode: YXCleanScope | None = None
+    """Clean scope/type (full / selective-room / zone / spot). Same axis as the live
+    :class:`YXDeviceCleanTask` but a different record encoding -- see :class:`YXCleanScope`."""
+    work_mode: YXCleanType | None = None
+    """Actual work performed (vac+mop / vacuum / mop) -- the same enum :class:`Q10Status`
+    uses for the live clean-mode DP. Records only ever carry 1/2/3 here."""
+    cleaning_result: YXCleaningResult | None = None
+    """How the clean ended: 0 interrupted (fault), 1 completed, 2 stopped (no fault)."""
+    start_method: YXStartMethod | None = None
+    """What initiated the clean: 0 remote, 1 app, 2 timer, 3 button."""
+    collect_dust_count: int | None = None
+    """Number of dock auto-empties during the clean."""
+
+    @property
+    def start_datetime(self) -> datetime.datetime | None:
+        """The start time as a timezone-aware (UTC) datetime."""
+        if self.start_time is not None:
+            return datetime.datetime.fromtimestamp(self.start_time).astimezone(datetime.UTC)
+        return None
 
 
 @dataclass

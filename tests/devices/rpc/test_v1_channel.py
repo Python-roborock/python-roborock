@@ -233,6 +233,56 @@ async def test_v1_channel_mqtt_disconnected(
     assert not mock_mqtt_channel.subscribers
 
 
+async def test_v1_channel_mqtt_subscription_fails_local_succeeds(
+    v1_channel: V1Channel,
+    mock_mqtt_channel: FakeChannel,
+    device_cache: DeviceCache,
+) -> None:
+    """Test MQTT subscription failure while local connection succeeds."""
+    # Pre-populate cache so we don't query network info via MQTT
+    device_cache_data = await device_cache.get()
+    device_cache_data.network_info = TEST_NETWORKING_INFO
+    await device_cache.set(device_cache_data)
+
+    # Simulate MQTT subscription failing
+    mock_mqtt_channel.subscribe.side_effect = RoborockException("MQTT subscription failed")
+
+    # Subscribe should succeed via local fallback
+    callback = Mock()
+    unsub = await v1_channel.subscribe(callback)
+
+    # Verify MQTT is not reported as connected, but local is
+    assert not v1_channel.is_mqtt_connected
+    assert v1_channel.is_local_connected
+    assert v1_channel.is_connected
+
+    unsub()
+
+
+async def test_v1_channel_all_connection_attempts_fail(
+    v1_channel: V1Channel,
+    mock_mqtt_channel: FakeChannel,
+    mock_local_channel: FakeChannel,
+    device_cache: DeviceCache,
+) -> None:
+    """Test when both local connect and MQTT subscribe fail."""
+    # Pre-populate cache so we don't query network info via MQTT
+    device_cache_data = await device_cache.get()
+    device_cache_data.network_info = TEST_NETWORKING_INFO
+    await device_cache.set(device_cache_data)
+
+    mock_local_channel.connect.side_effect = RoborockException("local down")
+    mock_mqtt_channel.subscribe.side_effect = RoborockException("MQTT subscription failed")
+
+    with pytest.raises(RoborockException):
+        await v1_channel.subscribe(Mock())
+
+    # After a failed subscription, properties should reflect no active connection
+    assert not v1_channel.is_mqtt_connected
+    assert not v1_channel.is_local_connected
+    assert not v1_channel.is_connected
+
+
 async def test_v1_channel_subscribe_local_success(
     v1_channel: V1Channel,
     mock_mqtt_channel: Mock,

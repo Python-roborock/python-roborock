@@ -1482,6 +1482,39 @@ async def q10_vacuum_spot(ctx: click.Context, device_id: str) -> None:
         click.echo(f"Error: {e}")
 
 
+@session.command()
+@click.option("--device_id", required=True, help="Device ID")
+@click.option(
+    "--segments",
+    required=True,
+    help="Comma-separated room/segment ids to clean (see the `rooms` command), e.g. 9,2",
+)
+@click.pass_context
+@async_command
+async def q10_clean_segments(ctx: click.Context, device_id: str, segments: str) -> None:
+    """Start a room / segment clean on a Q10 device.
+
+    Room ids come from the `rooms` command (the device's map rooms).
+    """
+    context: RoborockContext = ctx.obj
+    try:
+        segment_ids = [int(s) for s in segments.split(",") if s.strip()]
+    except ValueError:
+        click.echo("--segments must be comma-separated integers, e.g. 9,2")
+        return
+    if not segment_ids:
+        click.echo("No segment ids provided")
+        return
+    try:
+        trait = await _q10_vacuum_trait(context, device_id)
+        await trait.clean_segments(segment_ids)
+        click.echo(f"Starting room clean of segments {segment_ids}...")
+    except RoborockUnsupportedFeature:
+        click.echo("Device does not support B01 Q10 protocol. Is it a Q10?")
+    except RoborockException as e:
+        click.echo(f"Error: {e}")
+
+
 async def _q10_set(ctx: click.Context, device_id: str, apply: Callable[[Any], Any], message: str) -> None:
     """Run a Q10 settings write and report the result."""
     context: RoborockContext = ctx.obj

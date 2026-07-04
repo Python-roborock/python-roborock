@@ -204,8 +204,14 @@ class V1Channel(Channel):
 
     @property
     def is_mqtt_connected(self) -> bool:
-        """Return whether MQTT connection is available."""
-        return self._mqtt_channel.is_connected
+        """Return whether MQTT connection is available for the device.
+
+        This requires the MQTT session to be connected to the broker and
+        the subscription to the device's topic to have successfully
+        been established (to handle cases where the device is offline
+        or deleted).
+        """
+        return self._mqtt_channel.is_connected and self._mqtt_unsub is not None
 
     @property
     def rpc_channel(self) -> V1RpcChannel:

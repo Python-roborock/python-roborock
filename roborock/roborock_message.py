@@ -40,6 +40,45 @@ class RoborockDataProtocol(RoborockEnum):
         raise ValueError(f"{key} not a valid key for Data Protocol")
 
 
+class RoborockMowerDataProtocol(RoborockEnum):
+    UNKNOWN = 0
+    ERROR_CODE = 120
+    BATTERY = 121
+    MOW_TYPE = 122
+    MOW_STATE = 123
+    MAPPING_TYPE = 124
+    MAPPING_STATE = 125
+    OTA_STATE = 126
+    CHARGE_STATE = 127
+    DOCK_STATE = 128
+    CHARGE_TYPE = 129
+    PEND_TYPE = 130
+    REMOTE_STATE = 131
+    MOW_START_TYPE = 132
+    MOW_EFF_MODE = 133
+    MOW_HEIGHT = 134
+    MOW_DIRECTION_ANGLE = 135
+    MOW_PATTERN = 136
+    MOW_CONF_MODE = 137
+    OFFLINE_STATUS = 138
+    MOW_PROGRESS = 139
+    BLADE_LIFESPAN = 140
+    FC_STATE = 141
+    GPS_COORDINATE = 142
+    OFF_DOCK_NO_TASK_STATUS = 143
+    AFS_STATUS = 144
+    NETWORK_CHANNEL = 145
+    START = 201
+    DOCK = 202
+    PAUSE = 203
+    RESUME = 204
+    STOP = 205
+
+    @classmethod
+    def _missing_(cls: type[Self], key) -> Self:
+        raise ValueError(f"{key} not a valid key for Mower Data Protocol")
+
+
 class RoborockDyadDataProtocol(RoborockEnum):
     DRYING_STATUS = 134
     START = 200

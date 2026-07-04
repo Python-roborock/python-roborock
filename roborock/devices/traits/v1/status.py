@@ -3,14 +3,19 @@ from functools import cached_property
 from typing import Any
 
 from roborock import (
+    CleaningMode,
     CleanRoutes,
     StatusV2,
     VacuumModes,
     WaterModes,
     get_clean_modes,
     get_clean_routes,
+    get_cleaning_mode_options,
+    get_cleaning_mode_parameters,
+    get_current_cleaning_mode,
     get_water_mode_mapping,
     get_water_modes,
+    resolve_cleaning_mode,
 )
 from roborock.devices.traits.common import DpsDataConverter, TraitUpdateListener
 from roborock.roborock_message import RoborockDataProtocol
@@ -42,10 +47,11 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
     - Water Mode
     - Mop Route
 
-    You should call the _options() version of the attribute to know which are supported for your device
-    (i.e. fan_speed_options())
-    Then you can call the _mapping to convert an int value to the actual Enum. (i.e. fan_speed_mapping())
-    You can call the _name property to get the str value of the enum. (i.e. fan_speed_name)
+    You should use the _options version of the attribute to know which are
+    supported for your device (i.e. fan_speed_options)
+    Then you can use the _mapping to convert an int value to the actual Enum.
+    (i.e. fan_speed_mapping)
+    You can use the _name property to get the str value of the enum. (i.e. fan_speed_name)
 
     """
 
@@ -83,6 +89,10 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
     def mop_route_mapping(self) -> dict[int, str]:
         return {route.code: route.value for route in self.mop_route_options}
 
+    @cached_property
+    def cleaning_mode_options(self) -> list[CleaningMode]:
+        return get_cleaning_mode_options(self._device_features_trait)
+
     @property
     def fan_speed_name(self) -> str | None:
         if self.fan_power is None:
@@ -100,6 +110,28 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
         if self.mop_mode is None:
             return None
         return self.mop_route_mapping.get(self.mop_mode)
+
+    @property
+    def current_cleaning_mode(self) -> CleaningMode | None:
+        return get_current_cleaning_mode(
+            clean_mode=self.fan_power,
+            water_mode=self.water_box_mode,
+            mop_mode=self.mop_mode,
+            features=self._device_features_trait,
+        )
+
+    @property
+    def current_cleaning_mode_name(self) -> str | None:
+        if (cleaning_mode := self.current_cleaning_mode) is None:
+            return None
+        return cleaning_mode.value
+
+    async def set_cleaning_mode(self, cleaning_mode: str | CleaningMode) -> None:
+        """Set the preferred high-level cleaning mode for the device."""
+        await self.rpc_channel.send_command(
+            RoborockCommand.SET_CLEAN_MOTOR_MODE,
+            params=get_cleaning_mode_parameters(resolve_cleaning_mode(cleaning_mode), self._device_features_trait),
+        )
 
     def update_from_dps(self, decoded_dps: dict[RoborockDataProtocol, Any]) -> None:
         """Update the trait from data protocol push message data.
