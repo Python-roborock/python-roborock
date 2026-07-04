@@ -385,45 +385,28 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
         return "ok"
 
     def _handle_app_get_init_status(self, params: Any) -> list[dict[str, Any]]:
-        local_info = AppInitStatusLocalInfo(
-            location="us",
-            bom="A.03.0069",
-            featureset=1,
-            language="en",
-            logserver="awsusor0.fds.api.xiaomi.com",
-            wifiplan="0x39",
-            timezone="US/Pacific",
-            name="custom_A.03.0069_FCC",
-        )
-        app_init = AppInitStatus(
-            local_info=local_info,
-            feature_info=[111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 122, 123, 124, 125],
-            new_feature_info=633887780925447,
-            new_feature_info_str="0000000000002000",
-            new_feature_info_2=8192,
-        )
-        payload = _serialize_dataclass(app_init)
+        payload = _serialize_dataclass(self.app_init)
         if "new_feature_info_2" in payload:
             payload["new_feature_info2"] = payload.pop("new_feature_info_2")
 
         payload["status_info"] = {
             "state": self.status.state.value if self.status.state else 0,
             "battery": self.status.battery,
-            "clean_time": 5610,
-            "clean_area": 96490000,
-            "error_code": 0,
+            "clean_time": self.status.clean_time or 5610,
+            "clean_area": self.status.clean_area or 96490000,
+            "error_code": self.status.error_code.value if self.status.error_code else 0,
             "in_cleaning": self.in_cleaning.value,
             "in_returning": self.in_returning,
-            "in_fresh_state": 1,
-            "lab_status": 1,
-            "water_box_status": 0,
-            "map_status": 3,
-            "is_locating": 0,
-            "lock_status": 0,
+            "in_fresh_state": self.status.in_fresh_state or 1,
+            "lab_status": self.status.lab_status or 1,
+            "water_box_status": self.status.water_box_status or 0,
+            "map_status": self.status.map_status or 3,
+            "is_locating": self.status.is_locating or 0,
+            "lock_status": self.status.lock_status or 0,
             "water_box_mode": self.status.water_box_mode,
-            "distance_off": 0,
-            "water_box_carriage_status": 0,
-            "mop_forbidden_enable": 0,
+            "distance_off": self.status.distance_off or 0,
+            "water_box_carriage_status": self.status.water_box_carriage_status or 0,
+            "mop_forbidden_enable": self.status.mop_forbidden_enable or 0,
         }
         return [payload]
 
