@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import pytest
 
 from roborock.data import HomeDataDevice, HomeDataProduct, RoborockCategory, UserData
@@ -5,7 +7,7 @@ from roborock.data.v1 import RoborockStateCode
 from roborock.devices.cache import InMemoryCache
 from roborock.devices.device_manager import UserParams, create_device_manager
 from roborock.exceptions import RoborockException
-from roborock.testing import FakeRoborockCloud, V1VacuumSimulator
+from roborock.testing import DEFAULT_STATUS, FakeRoborockCloud, V1VacuumSimulator
 from roborock.web_api import RoborockApiClient
 from tests import mock_data
 
@@ -15,7 +17,10 @@ USER_DATA = UserData.from_dict(mock_data.USER_DATA)
 async def test_fake_roborock_cloud():
     """Verify that FakeRoborockCloud can discover devices via fake HTTP requests and connect them."""
     cloud = FakeRoborockCloud()
-    fake_device = V1VacuumSimulator(duid="living_room_s7", battery=99, state=RoborockStateCode.charging)
+    fake_device = V1VacuumSimulator(
+        duid="living_room_s7",
+        status=replace(DEFAULT_STATUS, battery=99, state=RoborockStateCode.charging),
+    )
     cloud.add_device(fake_device)
 
     with cloud.patch_device_manager():
@@ -81,7 +86,10 @@ async def test_cloud_dynamic_device_addition():
     cloud = FakeRoborockCloud()
 
     with cloud.patch_device_manager():
-        fake_device = V1VacuumSimulator(duid="dynamic_s7", battery=42)
+        fake_device = V1VacuumSimulator(
+            duid="dynamic_s7",
+            status=replace(DEFAULT_STATUS, battery=42),
+        )
         cloud.add_device(fake_device)
 
         manager = await create_device_manager(

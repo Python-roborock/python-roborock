@@ -66,9 +66,25 @@ async def test_start_vacuum_service():
 from roborock.testing.channel import FakeChannel
 from roborock.testing.cloud import FakeRoborockCloud, FakeUserState, FakeWebApiClient
 from roborock.testing.simulator import RoborockDeviceSimulator
-from roborock.testing.v1_simulator import V1VacuumSimulator
+from roborock.testing.v1_simulator import (
+    DEFAULT_APP_INIT,
+    DEFAULT_CLEAN_SUMMARY,
+    DEFAULT_CONSUMABLE,
+    DEFAULT_DND_TIMER,
+    DEFAULT_LAST_CLEAN_RECORD,
+    DEFAULT_NETWORK_INFO,
+    DEFAULT_STATUS,
+    V1VacuumSimulator,
+)
 
 __all__ = [
+    "DEFAULT_APP_INIT",
+    "DEFAULT_CLEAN_SUMMARY",
+    "DEFAULT_CONSUMABLE",
+    "DEFAULT_DND_TIMER",
+    "DEFAULT_LAST_CLEAN_RECORD",
+    "DEFAULT_NETWORK_INFO",
+    "DEFAULT_STATUS",
     "FakeChannel",
     "FakeRoborockCloud",
     "FakeUserState",

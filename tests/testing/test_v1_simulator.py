@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import pytest
 
 from roborock.data import UserData
@@ -7,7 +9,7 @@ from roborock.devices.cache import InMemoryCache
 from roborock.devices.device_manager import UserParams, create_device_manager
 from roborock.devices.traits.v1.consumeable import ConsumableAttribute
 from roborock.exceptions import RoborockException
-from roborock.testing import FakeRoborockCloud, V1VacuumSimulator
+from roborock.testing import DEFAULT_STATUS, FakeRoborockCloud, V1VacuumSimulator
 from tests import mock_data
 
 USER_DATA = UserData.from_dict(mock_data.USER_DATA)
@@ -71,7 +73,7 @@ async def test_trait_dnd_refresh():
 async def test_trait_fan_speed_change():
     """Verify that sending set_custom_mode updates the simulator fan speed and the trait reflects it."""
     cloud = FakeRoborockCloud()
-    fake_device = V1VacuumSimulator(duid="s7_fan", fan_power=102)
+    fake_device = V1VacuumSimulator(duid="s7_fan", status=replace(DEFAULT_STATUS, fan_power=102))
     device = await _create_connected_device(cloud, fake_device)
 
     await device.v1_properties.status.refresh()
@@ -100,7 +102,7 @@ async def test_trait_clean_summary_refresh():
 async def test_trait_multiple_state_transitions():
     """Verify a sequence of state transitions through trait commands."""
     cloud = FakeRoborockCloud()
-    fake_device = V1VacuumSimulator(duid="s7_transitions", state=RoborockStateCode.charging)
+    fake_device = V1VacuumSimulator(duid="s7_transitions")
     device = await _create_connected_device(cloud, fake_device)
 
     # Start cleaning
@@ -123,7 +125,10 @@ async def test_trait_multiple_state_transitions():
 async def test_trait_push_update_propagation():
     """Verify that unsolicited push updates propagate to client traits without refresh."""
     cloud = FakeRoborockCloud()
-    fake_device = V1VacuumSimulator(duid="s7_push", battery=99, state=RoborockStateCode.charging)
+    fake_device = V1VacuumSimulator(
+        duid="s7_push",
+        status=replace(DEFAULT_STATUS, battery=99, state=RoborockStateCode.charging),
+    )
     device = await _create_connected_device(cloud, fake_device)
 
     await device.v1_properties.status.refresh()
@@ -160,7 +165,15 @@ async def test_trait_custom_handler_override():
 
 async def test_trait_properties_and_dss_config():
     """Verify that properties, dss config, and dock_type config are correctly exposed on the simulator."""
-    fake_device = V1VacuumSimulator(duid="s7_properties", state=RoborockStateCode.cleaning, dss=42, dock_type=5)
+    fake_device = V1VacuumSimulator(
+        duid="s7_properties",
+        status=replace(
+            DEFAULT_STATUS,
+            state=RoborockStateCode.cleaning,
+            dss=42,
+            dock_type=RoborockDockTypeCode(5),
+        ),
+    )
     assert fake_device.in_cleaning == RoborockInCleaning.global_clean_not_complete
     assert fake_device.in_returning == 0
     assert fake_device.charge_status == RoborockChargeStatus.charge_waiting

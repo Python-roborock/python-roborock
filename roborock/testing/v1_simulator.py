@@ -113,6 +113,57 @@ DEFAULT_APP_INIT = AppInitStatus(
     new_feature_info_2=8192,
 )
 
+DEFAULT_NETWORK_INFO = NetworkInfo(
+    ip="1.1.1.1",
+    ssid="test_wifi",
+    mac="aa:bb:cc:dd:ee:ff",
+    bssid="aa:bb:cc:dd:ee:ff",
+    rssi=-50,
+)
+
+DEFAULT_CONSUMABLE = Consumable(
+    main_brush_work_time=74382,
+    side_brush_work_time=74383,
+    filter_work_time=74384,
+    filter_element_work_time=0,
+    sensor_dirty_time=74385,
+    strainer_work_times=65,
+    dust_collection_work_times=25,
+    cleaning_brush_work_times=66,
+)
+
+DEFAULT_DND_TIMER = DnDTimer(
+    start_hour=22,
+    start_minute=0,
+    end_hour=7,
+    end_minute=0,
+    enabled=1,
+)
+
+DEFAULT_CLEAN_SUMMARY = CleanSummary(
+    clean_time=74382,
+    clean_area=1159182500,
+    clean_count=31,
+    dust_collection_count=25,
+    records=[1672543330, 1672458041],
+)
+
+DEFAULT_LAST_CLEAN_RECORD = CleanRecord(
+    begin=1672543330,
+    end=1672544638,
+    duration=1176,
+    area=20965000,
+    error=0,
+    complete=1,
+    start_type=RoborockStartType.app,
+    clean_type=RoborockCleanType.select_zone,
+    finish_reason=RoborockFinishReason.finished_cleaning_4,
+    dust_collection_status=1,
+    avoid_count=19,
+    wash_count=2,
+    map_flag=0,
+)
+
 
 class V1VacuumSimulator(RoborockDeviceSimulator):
     """Firmware simulator for a V1/L01 vacuum device.
@@ -129,83 +180,28 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
     def __init__(
         self,
         duid: str = "fake_duid",
-        battery: int = 100,
-        state: RoborockStateCode | int = RoborockStateCode.charging,
-        fan_power: int = 102,  # balanced
-        dnd_enabled: int = 0,
-        mop_mode: int = 300,
-        water_box_mode: int = 200,
+        status: StatusV2 | None = None,
+        app_init: AppInitStatus | None = None,
+        network_info: NetworkInfo | None = None,
+        consumables: Consumable | None = None,
+        dnd_timer: DnDTimer | None = None,
+        clean_summary: CleanSummary | None = None,
+        last_clean_record: CleanRecord | None = None,
         custom_handlers: dict[str, Callable[[list[Any]], Any]] | None = None,
         device_info: HomeDataDevice | None = None,
         product: HomeDataProduct | None = None,
-        dss: int = 169,
-        dock_type: RoborockDockTypeCode | int = 3,
     ):
         super().__init__(duid=duid, device_info=device_info, product=product)
-        self.status = replace(DEFAULT_STATUS)
-        self.app_init = replace(DEFAULT_APP_INIT)
-        self.app_init.local_info = replace(DEFAULT_APP_INIT.local_info)
-
-        self.status.battery = battery
-        self.status.state = RoborockStateCode(state)
-        self.status.fan_power = fan_power
-        self.status.dnd_enabled = dnd_enabled
-        self.status.mop_mode = mop_mode
-        self.status.water_box_mode = water_box_mode
-        self.status.dss = dss
-        self.status.dock_type = RoborockDockTypeCode(dock_type)
+        self.status = status or replace(DEFAULT_STATUS)
+        self.app_init = app_init or replace(DEFAULT_APP_INIT)
+        if app_init is None:
+            self.app_init.local_info = replace(DEFAULT_APP_INIT.local_info)
+        self.network_info = network_info or replace(DEFAULT_NETWORK_INFO)
+        self.consumables = consumables or replace(DEFAULT_CONSUMABLE)
+        self.dnd_timer = dnd_timer or replace(DEFAULT_DND_TIMER)
+        self.clean_summary = clean_summary or replace(DEFAULT_CLEAN_SUMMARY)
+        self.last_clean_record = last_clean_record or replace(DEFAULT_LAST_CLEAN_RECORD)
         self.custom_handlers = custom_handlers or {}
-
-        self.network_info = NetworkInfo(
-            ip="1.1.1.1",
-            ssid="test_wifi",
-            mac="aa:bb:cc:dd:ee:ff",
-            bssid="aa:bb:cc:dd:ee:ff",
-            rssi=-50,
-        )
-
-        self.consumables = Consumable(
-            main_brush_work_time=74382,
-            side_brush_work_time=74383,
-            filter_work_time=74384,
-            filter_element_work_time=0,
-            sensor_dirty_time=74385,
-            strainer_work_times=65,
-            dust_collection_work_times=25,
-            cleaning_brush_work_times=66,
-        )
-
-        self.dnd_timer = DnDTimer(
-            start_hour=22,
-            start_minute=0,
-            end_hour=7,
-            end_minute=0,
-            enabled=1,
-        )
-
-        self.clean_summary = CleanSummary(
-            clean_time=74382,
-            clean_area=1159182500,
-            clean_count=31,
-            dust_collection_count=25,
-            records=[1672543330, 1672458041],
-        )
-
-        self.last_clean_record = CleanRecord(
-            begin=1672543330,
-            end=1672544638,
-            duration=1176,
-            area=20965000,
-            error=0,
-            complete=1,
-            start_type=RoborockStartType.app,
-            clean_type=RoborockCleanType.select_zone,
-            finish_reason=RoborockFinishReason.finished_cleaning_4,
-            dust_collection_status=1,
-            avoid_count=19,
-            wash_count=2,
-            map_flag=0,
-        )
 
         # Set up default handlers dictionary
         self.default_handlers: dict[str, Callable[[Any], Any]] = {
