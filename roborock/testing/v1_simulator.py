@@ -15,8 +15,26 @@ from unittest.mock import Mock
 
 from roborock.data import HomeDataDevice, HomeDataProduct
 from roborock.data.v1 import RoborockStateCode
-from roborock.data.v1.v1_code_mappings import RoborockCleanType, RoborockFinishReason, RoborockStartType
-from roborock.data.v1.v1_containers import CleanRecord, CleanSummary, Consumable, DnDTimer
+from roborock.data.v1.v1_code_mappings import (
+    RoborockChargeStatus,
+    RoborockCleanType,
+    RoborockDockErrorCode,
+    RoborockDockTypeCode,
+    RoborockErrorCode,
+    RoborockFinishReason,
+    RoborockInCleaning,
+    RoborockStartType,
+)
+from roborock.data.v1.v1_containers import (
+    AppInitStatus,
+    AppInitStatusLocalInfo,
+    CleanRecord,
+    CleanSummary,
+    Consumable,
+    DnDTimer,
+    NetworkInfo,
+    StatusV2,
+)
 from roborock.devices.cache import DeviceCache, InMemoryCache
 from roborock.devices.rpc.v1_channel import V1Channel
 from roborock.protocols.v1_protocol import SecurityData
@@ -30,53 +48,6 @@ _LOGGER = logging.getLogger(__name__)
 def _serialize_dataclass(obj: Any) -> dict[str, Any]:
     """Helper to convert dataclass instances to dictionaries with serialized enums and filtered Nones."""
     return {k: (v.value if isinstance(v, Enum) else v) for k, v in asdict(obj).items() if v is not None}
-
-
-# Simulated network details
-DEFAULT_NETWORK_INFO = {
-    "ip": "1.1.1.1",
-    "ssid": "test_wifi",
-    "mac": "aa:bb:cc:dd:ee:ff",
-    "bssid": "aa:bb:cc:dd:ee:ff",
-    "rssi": -50,
-}
-
-# Simulated application init parameters
-DEFAULT_APP_GET_INIT_STATUS = {
-    "local_info": {
-        "name": "custom_A.03.0069_FCC",
-        "bom": "A.03.0069",
-        "location": "us",
-        "language": "en",
-        "wifiplan": "0x39",
-        "timezone": "US/Pacific",
-        "logserver": "awsusor0.fds.api.xiaomi.com",
-        "featureset": 1,
-    },
-    "feature_info": [111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 122, 123, 124, 125],
-    "new_feature_info": 633887780925447,
-    "new_feature_info2": 8192,
-    "new_feature_info_str": "0000000000002000",
-    "status_info": {
-        "state": RoborockStateCode.charging,
-        "battery": 100,
-        "clean_time": 5610,
-        "clean_area": 96490000,
-        "error_code": 0,
-        "in_cleaning": 0,
-        "in_returning": 0,
-        "in_fresh_state": 1,
-        "lab_status": 1,
-        "water_box_status": 0,
-        "map_status": 3,
-        "is_locating": 0,
-        "lock_status": 0,
-        "water_box_mode": 204,
-        "distance_off": 0,
-        "water_box_carriage_status": 0,
-        "mop_forbidden_enable": 0,
-    },
-}
 
 
 class V1VacuumSimulator(RoborockDeviceSimulator):
@@ -116,6 +87,14 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
         self.custom_handlers = custom_handlers or {}
         self.dss = dss
         self.dock_type = dock_type
+
+        self.network_info = NetworkInfo(
+            ip="1.1.1.1",
+            ssid="test_wifi",
+            mac="aa:bb:cc:dd:ee:ff",
+            bssid="aa:bb:cc:dd:ee:ff",
+            rssi=-50,
+        )
 
         self.consumables = Consumable(
             main_brush_work_time=74382,
@@ -196,9 +175,13 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
         return self._v1_channel
 
     @property
-    def in_cleaning(self) -> int:
-        """Return 1 if cleaning, else 0."""
-        return 1 if self.state == RoborockStateCode.cleaning else 0
+    def in_cleaning(self) -> RoborockInCleaning:
+        """Return global_clean_not_complete if cleaning, else complete."""
+        return (
+            RoborockInCleaning.global_clean_not_complete
+            if self.state == RoborockStateCode.cleaning
+            else RoborockInCleaning.complete
+        )
 
     @property
     def in_returning(self) -> int:
@@ -206,59 +189,62 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
         return 1 if self.state == RoborockStateCode.returning_home else 0
 
     @property
-    def charge_status(self) -> int:
-        """Return 1 if charging, else 0."""
-        return 1 if self.state == RoborockStateCode.charging else 0
+    def charge_status(self) -> RoborockChargeStatus:
+        """Return charging if charging, else charge_waiting."""
+        return (
+            RoborockChargeStatus.charging
+            if self.state == RoborockStateCode.charging
+            else RoborockChargeStatus.charge_waiting
+        )
 
     def get_status_dict(self) -> dict[str, Any]:
         """Generate status dict using the current simulated state."""
-        return {
-            "msg_ver": 2,
-            "msg_seq": 458,
-            "state": self.state,
-            "battery": self.battery,
-            "clean_time": 1176,
-            "clean_area": 20965000,
-            "error_code": 0,
-            "map_present": 1,
-            "in_cleaning": self.in_cleaning,
-            "in_returning": self.in_returning,
-            "in_fresh_state": 1,
-            "lab_status": 1,
-            "water_box_status": 1,
-            "back_type": -1,
-            "wash_phase": 0,
-            "wash_ready": 0,
-            "fan_power": self.fan_power,
-            "dnd_enabled": self.dnd_enabled,
-            "map_status": 3,
-            "is_locating": 0,
-            "lock_status": 0,
-            "water_box_mode": self.water_box_mode,
-            "water_box_carriage_status": 1,
-            "mop_forbidden_enable": 1,
-            "camera_status": 3457,
-            "is_exploring": 0,
-            "home_sec_status": 0,
-            "home_sec_enable_password": 0,
-            "adbumper_status": [0, 0, 0],
-            "water_shortage_status": 0,
-            "grey_water_box_status": 0,
-            "dirty_water_box_status": 0,
-            "dock_type": self.dock_type,
-            "dust_collection_status": 0,
-            "auto_dust_collection": 1,
-            "avoid_count": 19,
-            "mop_mode": self.mop_mode,
-            "debug_mode": 0,
-            "collision_avoid_status": 1,
-            "switch_map_mode": 0,
-            "dock_error_status": 0,
-            "charge_status": self.charge_status,
-            "unsave_map_reason": 0,
-            "unsave_map_flag": 0,
-            "dss": self.dss,
-        }
+        status = StatusV2(
+            msg_ver=2,
+            msg_seq=458,
+            state=RoborockStateCode(self.state),
+            battery=self.battery,
+            clean_time=1176,
+            clean_area=20965000,
+            error_code=RoborockErrorCode(0),
+            map_present=1,
+            in_cleaning=self.in_cleaning,
+            in_returning=self.in_returning,
+            in_fresh_state=1,
+            lab_status=1,
+            water_box_status=1,
+            back_type=-1,
+            wash_phase=0,
+            wash_ready=0,
+            fan_power=self.fan_power,
+            dnd_enabled=self.dnd_enabled,
+            map_status=3,
+            is_locating=0,
+            lock_status=0,
+            water_box_mode=self.water_box_mode,
+            water_box_carriage_status=1,
+            mop_forbidden_enable=1,
+            camera_status=3457,
+            is_exploring=0,
+            home_sec_status=0,
+            home_sec_enable_password=0,
+            adbumper_status=[0, 0, 0],
+            water_shortage_status=0,
+            dock_type=RoborockDockTypeCode(self.dock_type),
+            dust_collection_status=0,
+            auto_dust_collection=1,
+            avoid_count=19,
+            mop_mode=self.mop_mode,
+            debug_mode=0,
+            collision_avoid_status=1,
+            switch_map_mode=0,
+            dock_error_status=RoborockDockErrorCode(0),
+            charge_status=self.charge_status,
+            unsave_map_reason=0,
+            unsave_map_flag=0,
+            dss=self.dss,
+        )
+        return _serialize_dataclass(status)
 
     def _handle_app_start(self, params: Any) -> str:
         self.state = RoborockStateCode.cleaning
@@ -297,10 +283,50 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
         return "ok"
 
     def _handle_app_get_init_status(self, params: Any) -> list[dict[str, Any]]:
-        return [DEFAULT_APP_GET_INIT_STATUS]
+        local_info = AppInitStatusLocalInfo(
+            location="us",
+            bom="A.03.0069",
+            featureset=1,
+            language="en",
+            logserver="awsusor0.fds.api.xiaomi.com",
+            wifiplan="0x39",
+            timezone="US/Pacific",
+            name="custom_A.03.0069_FCC",
+        )
+        app_init = AppInitStatus(
+            local_info=local_info,
+            feature_info=[111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 122, 123, 124, 125],
+            new_feature_info=633887780925447,
+            new_feature_info_str="0000000000002000",
+            new_feature_info_2=8192,
+        )
+        payload = _serialize_dataclass(app_init)
+        if "new_feature_info_2" in payload:
+            payload["new_feature_info2"] = payload.pop("new_feature_info_2")
+
+        payload["status_info"] = {
+            "state": self.state,
+            "battery": self.battery,
+            "clean_time": 5610,
+            "clean_area": 96490000,
+            "error_code": 0,
+            "in_cleaning": self.in_cleaning.value,
+            "in_returning": self.in_returning,
+            "in_fresh_state": 1,
+            "lab_status": 1,
+            "water_box_status": 0,
+            "map_status": 3,
+            "is_locating": 0,
+            "lock_status": 0,
+            "water_box_mode": self.water_box_mode,
+            "distance_off": 0,
+            "water_box_carriage_status": 0,
+            "mop_forbidden_enable": 0,
+        }
+        return [payload]
 
     def _handle_get_network_info(self, params: Any) -> dict[str, Any]:
-        return DEFAULT_NETWORK_INFO
+        return _serialize_dataclass(self.network_info)
 
     async def _handle_publish(self, message: RoborockMessage, channel: FakeChannel) -> None:
         if not message.payload:
