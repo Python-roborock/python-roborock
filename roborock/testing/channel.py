@@ -6,15 +6,17 @@ in-memory replacement for `MqttChannel` and `LocalChannel` during testing.
 """
 
 from collections.abc import Callable
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
+from roborock.devices.transport.channel import Channel
 from roborock.mqtt.health_manager import HealthManager
 from roborock.protocols.v1_protocol import LocalProtocolVersion
 from roborock.roborock_message import RoborockMessage
 
 
-class FakeChannel:
-    """A stateful, in-memory transport simulator.
+class FakeChannel(Channel):
+    """A stateful, in-memory transport simulator implementing the Channel protocol.
 
     It captures all published messages in `published_messages`, maintains a registry
     of active callbacks in `subscribers`, and enables tests or stateful simulators to
@@ -36,6 +38,8 @@ class FakeChannel:
     - **Push unsolicited messages**: Call ``channel.notify_subscribers(msg)``
       to simulate the device broadcasting a state change.
     """
+
+    subscribe: Any
 
     def __init__(self, is_local: bool = False):
         """Initialize the fake channel."""
