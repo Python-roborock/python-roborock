@@ -239,86 +239,6 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
         return self._v1_channel
 
     @property
-    def battery(self) -> int:
-        """Get battery level."""
-        return self.status.battery or 0
-
-    @battery.setter
-    def battery(self, value: int) -> None:
-        """Set battery level."""
-        self.status.battery = value
-
-    @property
-    def state(self) -> RoborockStateCode:
-        """Get device state code."""
-        return self.status.state or RoborockStateCode.charging
-
-    @state.setter
-    def state(self, value: RoborockStateCode | int) -> None:
-        """Set device state code."""
-        self.status.state = RoborockStateCode(value)
-
-    @property
-    def fan_power(self) -> int:
-        """Get fan power speed."""
-        return self.status.fan_power or 0
-
-    @fan_power.setter
-    def fan_power(self, value: int) -> None:
-        """Set fan power speed."""
-        self.status.fan_power = value
-
-    @property
-    def dnd_enabled(self) -> int:
-        """Get DND enabled state."""
-        return self.status.dnd_enabled or 0
-
-    @dnd_enabled.setter
-    def dnd_enabled(self, value: int) -> None:
-        """Set DND enabled state."""
-        self.status.dnd_enabled = value
-
-    @property
-    def mop_mode(self) -> int:
-        """Get mop route mode."""
-        return self.status.mop_mode or 0
-
-    @mop_mode.setter
-    def mop_mode(self, value: int) -> None:
-        """Set mop route mode."""
-        self.status.mop_mode = value
-
-    @property
-    def water_box_mode(self) -> int:
-        """Get water box mode."""
-        return self.status.water_box_mode or 0
-
-    @water_box_mode.setter
-    def water_box_mode(self, value: int) -> None:
-        """Set water box mode."""
-        self.status.water_box_mode = value
-
-    @property
-    def dss(self) -> int:
-        """Get dock sensor status."""
-        return self.status.dss or 0
-
-    @dss.setter
-    def dss(self, value: int) -> None:
-        """Set dock sensor status."""
-        self.status.dss = value
-
-    @property
-    def dock_type(self) -> RoborockDockTypeCode:
-        """Get dock type."""
-        return self.status.dock_type or RoborockDockTypeCode.no_dock
-
-    @dock_type.setter
-    def dock_type(self, value: RoborockDockTypeCode | int) -> None:
-        """Set dock type."""
-        self.status.dock_type = RoborockDockTypeCode(value)
-
-    @property
     def in_cleaning(self) -> RoborockInCleaning:
         """Return global_clean_not_complete if cleaning, else complete."""
         return (
@@ -458,10 +378,10 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
     def trigger_push_update(self) -> None:
         """Trigger an unsolicited push state update to all subscribers."""
         dps_payload = {
-            str(int(RoborockDataProtocol.STATE)): self.state,
-            str(int(RoborockDataProtocol.BATTERY)): self.battery,
-            str(int(RoborockDataProtocol.FAN_POWER)): self.fan_power,
-            str(int(RoborockDataProtocol.WATER_BOX_MODE)): self.water_box_mode,
+            str(int(RoborockDataProtocol.STATE)): self.status.state.value if self.status.state else 0,
+            str(int(RoborockDataProtocol.BATTERY)): self.status.battery,
+            str(int(RoborockDataProtocol.FAN_POWER)): self.status.fan_power,
+            str(int(RoborockDataProtocol.WATER_BOX_MODE)): self.status.water_box_mode,
         }
 
         payload = {"dps": dps_payload, "t": int(time.time())}
