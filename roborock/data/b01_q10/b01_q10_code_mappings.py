@@ -313,7 +313,7 @@ class YXFault(RoborockModeEnum):
     MAIN_WHEELS_STUCK = "main_wheels_stuck", 7
     ROBOT_TRAPPED = "robot_trapped", 8  # hw-confirmed
     CHECK_DUSTBIN_FILTER = "check_dustbin_filter", 9
-    LOW_BATTERY = "low_battery", 12
+    LOW_BATTERY = "low_battery", 12  # hw-confirmed (fired at 14% mid clean)
     TEMPERATURE_THRESHOLD = "temperature_threshold", 14
     ROBOT_TILTED = "robot_tilted", 16
     LIDAR_COVER_OBSTRUCTED = "lidar_cover_obstructed", 21
