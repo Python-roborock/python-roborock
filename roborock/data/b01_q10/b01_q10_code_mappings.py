@@ -309,7 +309,7 @@ class YXFault(RoborockModeEnum):
     BUMPER_STUCK = "bumper_stuck", 2
     ROBOT_SUSPENDED = "robot_suspended", 3  # hw-confirmed (wheels lifted off the floor mid-task)
     CLIFF_SENSOR_ERROR = "cliff_sensor_error", 4  # hw-confirmed (one side lifted mid-task)
-    MAIN_BRUSH_STUCK = "main_brush_stuck", 5
+    MAIN_BRUSH_STUCK = "main_brush_stuck", 5  # hw-confirmed (two physical brush jams)
     MAIN_WHEELS_STUCK = "main_wheels_stuck", 7
     ROBOT_TRAPPED = "robot_trapped", 8  # hw-confirmed
     CHECK_DUSTBIN_FILTER = "check_dustbin_filter", 9
