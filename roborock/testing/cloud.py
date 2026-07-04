@@ -142,7 +142,7 @@ class FakeWebApiClient:
 
             devices = []
             products = []
-            for server in self.cloud.servers.values():
+            for server in self.cloud.simulated_devices.values():
                 devices.append(server.device_info)
                 products.append(server.product)
 
@@ -182,8 +182,8 @@ class FakeRoborockCloud:
         user_data: UserData | None = None,
         home_id: int = 123456,
         home_name: str = "Fake Home",
-    ):
-        self.servers: dict[str, RoborockDeviceSimulator] = {}
+    ) -> None:
+        self.simulated_devices: dict[str, RoborockDeviceSimulator] = {}
         self.user_data = user_data or DEFAULT_USER_DATA
         self.home_id = home_id
         self.home_name = home_name
@@ -191,7 +191,7 @@ class FakeRoborockCloud:
 
     def add_device(self, server: RoborockDeviceSimulator) -> None:
         """Register a stateful device simulator in the cloud registry."""
-        self.servers[server.duid] = server
+        self.simulated_devices[server.duid] = server
 
     @contextlib.contextmanager
     def patch_device_manager(self):
@@ -208,7 +208,7 @@ class FakeRoborockCloud:
                     f"Simulating protocol {device.pv} is not yet supported. "
                     "TODO: Implement stateful simulators for B01 (Q7/Q10) and A01 (Zeo/Dyad) devices."
                 )
-            server = self.servers.get(device.duid)
+            server = self.simulated_devices.get(device.duid)
             if server is not None:
                 if not isinstance(server, V1VacuumSimulator):
                     raise TypeError(
@@ -225,7 +225,7 @@ class FakeRoborockCloud:
                     f"Simulating protocol {device.pv} is not yet supported. "
                     "TODO: Implement stateful simulators for B01 (Q7/Q10) and A01 (Zeo/Dyad) devices."
                 )
-            server = self.servers.get(device.duid)
+            server = self.simulated_devices.get(device.duid)
             if server:
                 return server.mqtt_channel
             return original_create_mqtt_channel(user_data, mqtt_params, mqtt_session, device)
