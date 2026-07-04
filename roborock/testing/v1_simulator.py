@@ -9,12 +9,14 @@ import logging
 import time
 from collections.abc import Callable
 from dataclasses import asdict
+from enum import Enum
 from typing import Any
 from unittest.mock import Mock
 
 from roborock.data import HomeDataDevice, HomeDataProduct
 from roborock.data.v1 import RoborockStateCode
-from roborock.data.v1.v1_containers import Consumable
+from roborock.data.v1.v1_code_mappings import RoborockCleanType, RoborockFinishReason, RoborockStartType
+from roborock.data.v1.v1_containers import CleanRecord, CleanSummary, Consumable, DnDTimer
 from roborock.devices.cache import DeviceCache, InMemoryCache
 from roborock.devices.rpc.v1_channel import V1Channel
 from roborock.protocols.v1_protocol import SecurityData
@@ -23,6 +25,12 @@ from roborock.testing.channel import FakeChannel
 from roborock.testing.simulator import RoborockDeviceSimulator
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _serialize_dataclass(obj: Any) -> dict[str, Any]:
+    """Helper to convert dataclass instances to dictionaries with serialized enums and filtered Nones."""
+    return {k: (v.value if isinstance(v, Enum) else v) for k, v in asdict(obj).items() if v is not None}
+
 
 # Simulated network details
 DEFAULT_NETWORK_INFO = {
@@ -120,45 +128,45 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
             cleaning_brush_work_times=66,
         )
 
-        self.dnd_timer = {
-            "start_hour": 22,
-            "start_minute": 0,
-            "end_hour": 7,
-            "end_minute": 0,
-            "enabled": 1,
-        }
+        self.dnd_timer = DnDTimer(
+            start_hour=22,
+            start_minute=0,
+            end_hour=7,
+            end_minute=0,
+            enabled=1,
+        )
 
-        self.clean_summary = {
-            "clean_time": 74382,
-            "clean_area": 1159182500,
-            "clean_count": 31,
-            "dust_collection_count": 25,
-            "records": [1672543330, 1672458041],
-        }
+        self.clean_summary = CleanSummary(
+            clean_time=74382,
+            clean_area=1159182500,
+            clean_count=31,
+            dust_collection_count=25,
+            records=[1672543330, 1672458041],
+        )
 
-        self.last_clean_record = {
-            "begin": 1672543330,
-            "end": 1672544638,
-            "duration": 1176,
-            "area": 20965000,
-            "error": 0,
-            "complete": 1,
-            "start_type": 2,
-            "clean_type": 3,
-            "finish_reason": 56,
-            "dust_collection_status": 1,
-            "avoid_count": 19,
-            "wash_count": 2,
-            "map_flag": 0,
-        }
+        self.last_clean_record = CleanRecord(
+            begin=1672543330,
+            end=1672544638,
+            duration=1176,
+            area=20965000,
+            error=0,
+            complete=1,
+            start_type=RoborockStartType.app,
+            clean_type=RoborockCleanType.select_zone,
+            finish_reason=RoborockFinishReason.finished_cleaning_4,
+            dust_collection_status=1,
+            avoid_count=19,
+            wash_count=2,
+            map_flag=0,
+        )
 
         # Set up default handlers dictionary
         self.default_handlers: dict[str, Callable[[Any], Any]] = {
             "get_status": lambda params: [self.get_status_dict()],
-            "get_consumable": lambda params: [{k: v for k, v in asdict(self.consumables).items() if v is not None}],
-            "get_dnd_timer": lambda params: self.dnd_timer,
-            "get_clean_summary": lambda params: self.clean_summary,
-            "get_clean_record": lambda params: self.last_clean_record,
+            "get_consumable": lambda params: [_serialize_dataclass(self.consumables)],
+            "get_dnd_timer": lambda params: _serialize_dataclass(self.dnd_timer),
+            "get_clean_summary": lambda params: _serialize_dataclass(self.clean_summary),
+            "get_clean_record": lambda params: _serialize_dataclass(self.last_clean_record),
             "app_start": self._handle_app_start,
             "app_stop": self._handle_app_stop,
             "app_charge": self._handle_app_charge,
