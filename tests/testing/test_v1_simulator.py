@@ -9,7 +9,12 @@ from roborock.devices.cache import InMemoryCache
 from roborock.devices.device_manager import UserParams, create_device_manager
 from roborock.devices.traits.v1.consumeable import ConsumableAttribute
 from roborock.exceptions import RoborockException
-from roborock.testing import DEFAULT_STATUS, FakeRoborockCloud, V1VacuumSimulator
+from roborock.testing import (
+    DEFAULT_NETWORK_INFO,
+    DEFAULT_STATUS,
+    FakeRoborockCloud,
+    V1VacuumSimulator,
+)
 from tests import mock_data
 
 USER_DATA = UserData.from_dict(mock_data.USER_DATA)
@@ -208,3 +213,52 @@ async def test_trait_publish_failure_injection():
     fake_device.mqtt_channel.publish_side_effect = RoborockException("MQTT network error")
     with pytest.raises(RoborockException, match="MQTT network error"):
         await device.v1_properties.status.refresh()
+
+
+async def test_multiple_devices_network_info_override():
+    """Verify that multiple devices can coexist and their individual custom network
+
+    info properties are correctly fetched.
+    """
+    cloud = FakeRoborockCloud()
+
+    fake_device1 = V1VacuumSimulator(duid="device_1")
+    fake_device2 = V1VacuumSimulator(
+        duid="device_2",
+        network_info=replace(DEFAULT_NETWORK_INFO, ip="192.168.1.50", ssid="custom_wifi"),
+    )
+
+    cloud.add_device(fake_device1)
+    cloud.add_device(fake_device2)
+
+    with cloud.patch_device_manager():
+        manager = await create_device_manager(
+            user_params=UserParams(username="test_user", user_data=USER_DATA),
+            cache=InMemoryCache(),
+        )
+        devices = await manager.get_devices()
+
+    assert len(devices) == 2
+
+    # Sort them by duid to ensure order
+    devices.sort(key=lambda d: d.duid)
+
+    device1 = devices[0]
+    device2 = devices[1]
+
+    assert device1.duid == "device_1"
+    assert device2.duid == "device_2"
+
+    # Refresh and verify network info on device1 (should have defaults)
+    assert device1.v1_properties is not None
+    assert device1.v1_properties.network_info is not None
+    await device1.v1_properties.network_info.refresh()
+    assert device1.v1_properties.network_info.ip == "1.1.1.1"
+    assert device1.v1_properties.network_info.ssid == "test_wifi"
+
+    # Refresh and verify network info on device2 (should have overridden values)
+    assert device2.v1_properties is not None
+    assert device2.v1_properties.network_info is not None
+    await device2.v1_properties.network_info.refresh()
+    assert device2.v1_properties.network_info.ip == "192.168.1.50"
+    assert device2.v1_properties.network_info.ssid == "custom_wifi"
