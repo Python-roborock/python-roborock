@@ -18,6 +18,7 @@ from roborock.data.b01_q10.b01_q10_code_mappings import (
     YXDeviceDustCollectionFrequency,
     YXDeviceState,
     YXFanLevel,
+    YXFault,
     YXWaterLevel,
 )
 from roborock.data.b01_q10.b01_q10_containers import dpNetInfo, dpNotDisturbExpand, dpTimeZone
@@ -150,7 +151,7 @@ async def test_status_trait_refresh(
     assert q10_api.consumable.filter_life == 0
     assert q10_api.consumable.sensor_life == 0
     assert q10_api.status.cleaning_progress == 100
-    assert q10_api.status.fault == 0
+    assert q10_api.status.fault is YXFault.NONE
     assert q10_api.status.clean_mode == YXCleanType.VAC_AND_MOP
     assert q10_api.status.water_level == YXWaterLevel.LOW
 

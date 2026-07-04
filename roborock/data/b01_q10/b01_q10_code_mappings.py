@@ -294,25 +294,24 @@ class YXFault(RoborockModeEnum):
 
     ``dpFault`` is *overloaded*: several values are lifecycle/status rather than
     errors (e.g. 400 = scheduled clean starting, 501 = returning to dock,
-    502 = recharge). A non-zero fault is only a *blocking* error when the app
-    routes the code into its ``D_ErrorCode`` bucket; alert/offline codes are softer.
+    502 = recharge). A non-zero fault is not necessarily a blocking error.
 
     These labels follow the ss07 app text, which differs from the Q7 ``B01Fault``
-    for several shared numbers (500, 501, 503, 569, 570) -- so this is a
-    Q10-specific map, not a reuse of ``B01Fault``. Codes marked "seen live" were
-    observed as raw ``dpFault`` values on a physical ss07; the rest are
-    app-sourced only (n=1, not hardware-confirmed).
+    for several shared numbers (500, 501, 503, 570) -- so this is a Q10-specific
+    map, not a reuse of ``B01Fault``. Codes marked "hw-confirmed" were observed
+    firing live on a physical ss07 in a context matching the label; the rest are
+    app-sourced only (single device, single app version).
     """
 
     UNKNOWN = "unknown", -1
     NONE = "none", 0
     LIDAR_BLOCKED = "lidar_blocked", 1
     BUMPER_STUCK = "bumper_stuck", 2
-    ROBOT_SUSPENDED = "robot_suspended", 3
-    CLIFF_SENSOR_ERROR = "cliff_sensor_error", 4
+    ROBOT_SUSPENDED = "robot_suspended", 3  # hw-confirmed (wheels lifted off the floor mid-task)
+    CLIFF_SENSOR_ERROR = "cliff_sensor_error", 4  # hw-confirmed (one side lifted mid-task)
     MAIN_BRUSH_STUCK = "main_brush_stuck", 5
     MAIN_WHEELS_STUCK = "main_wheels_stuck", 7
-    ROBOT_TRAPPED = "robot_trapped", 8  # seen live
+    ROBOT_TRAPPED = "robot_trapped", 8  # hw-confirmed
     CHECK_DUSTBIN_FILTER = "check_dustbin_filter", 9
     LOW_BATTERY = "low_battery", 12
     TEMPERATURE_THRESHOLD = "temperature_threshold", 14
@@ -328,17 +327,16 @@ class YXFault(RoborockModeEnum):
     FILTER_SERVICE_LIFE = "filter_service_life", 301
     MAIN_BRUSH_SERVICE_LIFE = "main_brush_service_life", 302
     SIDE_BRUSH_SERVICE_LIFE = "side_brush_service_life", 303
-    SENSOR_NEEDS_CLEANING = "sensor_needs_cleaning", 304
-    DUST_BAG_FULL = "dust_bag_full", 310
-    STARTING_SCHEDULED_CLEAN = "starting_scheduled_clean", 400  # seen live; lifecycle, not an error
+    SENSOR_NEEDS_CLEANING = "sensor_needs_cleaning", 304  # hw-confirmed (fired during auto-empty)
+    DUST_BAG_FULL = "dust_bag_full", 310  # inferred from auto-empty context; not hw-confirmed
+    STARTING_SCHEDULED_CLEAN = "starting_scheduled_clean", 400  # hw-confirmed x3; lifecycle, not an error
     CLEANING_IN_PROGRESS = "cleaning_in_progress", 407
-    EMPTY_DUSTBIN = "empty_dustbin", 500  # ss07 != Q7 B01Fault (lidar_blocked)
-    CLEANING_COMPLETED_RETURNING = "cleaning_completed_returning", 501  # ss07 != Q7 (robot_suspended)
-    LOW_BATTERY_RESUME = "low_battery_resume", 502
-    DOCKING_ERROR = "docking_error", 503  # seen live; ss07 != Q7 (dustbin_not_installed)
-    POSITIONING_FAILED = "positioning_failed", 556  # seen live; relocalization
-    TOO_FREQUENT_EMPTYING = "too_frequent_emptying", 569  # ss07 != Q7 (main_wheels_entangled)
-    CANNOT_REACH_TARGET = "cannot_reach_target", 570  # seen live; ss07 != Q7 (main_brush_entangled)
+    EMPTY_DUSTBIN = "empty_dustbin", 500  # ss07 != Q7 B01Fault (lidar_blocked); app-sourced
+    CLEANING_COMPLETED_RETURNING = "cleaning_completed_returning", 501  # hw-confirmed; ss07 != Q7 (robot_suspended)
+    LOW_BATTERY_RESUME = "low_battery_resume", 502  # hw-confirmed; lifecycle
+    DOCKING_ERROR = "docking_error", 503  # hw-confirmed; ss07 != Q7 (dustbin_not_installed)
+    POSITIONING_FAILED = "positioning_failed", 556  # hw-confirmed; relocalization
+    CANNOT_REACH_TARGET = "cannot_reach_target", 570  # hw-confirmed; ss07 != Q7 (main_brush_entangled)
     OFFLINE_WARNING_ASLEEP = "offline_warning_asleep", 588
     OFFLINE_WARNING_LOW_BATTERY = "offline_warning_low_battery", 589
     DND_AUTO_TOPUP_DISABLED = "dnd_auto_topup_disabled", 591

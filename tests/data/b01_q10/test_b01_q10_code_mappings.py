@@ -49,14 +49,24 @@ def test_q10_fault_codes_map_to_ss07_labels(code: int, expected: YXFault) -> Non
     assert YXFault.from_code(code) is expected
 
 
-def test_q10_fault_name_is_additive_and_preserves_raw_int() -> None:
-    """``fault_name`` decodes the label without ever losing the raw ``fault`` int."""
-    status = Q10Status(fault=570)
-    assert status.fault_name is YXFault.CANNOT_REACH_TARGET
-    assert status.fault == 570
-
-    unmapped = Q10Status(fault=99999)
-    assert unmapped.fault_name is None  # unknown code -> None, no crash
-    assert unmapped.fault == 99999
+def test_q10_status_fault_field_and_name() -> None:
+    """``fault`` is a typed ``YXFault`` field; ``fault_name`` mirrors the Q7 accessor."""
+    status = Q10Status(fault=YXFault.CANNOT_REACH_TARGET)
+    assert status.fault is YXFault.CANNOT_REACH_TARGET
+    assert status.fault_name == "cannot_reach_target"
 
     assert Q10Status(fault=None).fault_name is None
+
+
+def test_q10_status_fault_decodes_from_dict() -> None:
+    """A raw dpFault int decodes to the enum through the standard conversion path."""
+    status = Q10Status.from_dict({"fault": 503})
+    assert status is not None
+    assert status.fault is YXFault.DOCKING_ERROR
+
+    # An unmapped code follows the library-wide enum-field behavior:
+    # the failed conversion is logged and the field is left None.
+    unmapped = Q10Status.from_dict({"fault": 99999})
+    assert unmapped is not None
+    assert unmapped.fault is None
+    assert unmapped.fault_name is None

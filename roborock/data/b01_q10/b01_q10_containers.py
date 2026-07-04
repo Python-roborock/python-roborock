@@ -166,7 +166,7 @@ class Q10Status(RoborockBase):
     clean_task_type: YXDeviceCleanTask | None = field(default=None, metadata={"dps": B01_Q10_DP.CLEAN_TASK_TYPE})
     back_type: YXBackType | None = field(default=None, metadata={"dps": B01_Q10_DP.BACK_TYPE})
     cleaning_progress: int | None = field(default=None, metadata={"dps": B01_Q10_DP.CLEAN_PROGRESS})
-    fault: int | None = field(default=None, metadata={"dps": B01_Q10_DP.FAULT})
+    fault: YXFault | None = field(default=None, metadata={"dps": B01_Q10_DP.FAULT})
 
     # Additional state reported in the device's full status dump.
     clean_line: YXCleanLine | None = field(default=None, metadata={"dps": B01_Q10_DP.CLEAN_LINE})
@@ -205,17 +205,9 @@ class Q10Status(RoborockBase):
     sensor_life: int | None = field(default=None, metadata={"dps": B01_Q10_DP.SENSOR_LIFE})
 
     @property
-    def fault_name(self) -> YXFault | None:
-        """Decoded ``dpFault`` label, or ``None`` for an unmapped code.
-
-        Additive: ``fault`` keeps the raw integer so unknown/new codes are never
-        lost; this is the decoded companion. ``dpFault`` is overloaded (see
-        :class:`~roborock.data.b01_q10.YXFault`), so a non-``NONE`` value is not
-        necessarily an error.
-        """
-        if self.fault is None:
-            return None
-        return YXFault.from_code_optional(self.fault)
+    def fault_name(self) -> str | None:
+        """Returns the name of the current fault."""
+        return self.fault.value if self.fault is not None else None
 
 
 @dataclass
