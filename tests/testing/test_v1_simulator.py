@@ -50,7 +50,7 @@ async def test_trait_consumable_reset():
     await device.v1_properties.consumables.reset_consumable(ConsumableAttribute.FILTER_WORK_TIME)
 
     # The simulator state should be updated
-    assert fake_device.consumables["filter_work_time"] == 0
+    assert fake_device.consumables.filter_work_time == 0
     # The trait auto-refreshes after reset, so the client should reflect the change
     assert device.v1_properties.consumables.filter_work_time == 0
 

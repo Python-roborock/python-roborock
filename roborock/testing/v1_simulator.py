@@ -8,11 +8,13 @@ import json
 import logging
 import time
 from collections.abc import Callable
+from dataclasses import asdict
 from typing import Any
 from unittest.mock import Mock
 
 from roborock.data import HomeDataDevice, HomeDataProduct
 from roborock.data.v1 import RoborockStateCode
+from roborock.data.v1.v1_containers import Consumable
 from roborock.devices.cache import DeviceCache, InMemoryCache
 from roborock.devices.rpc.v1_channel import V1Channel
 from roborock.protocols.v1_protocol import SecurityData
@@ -107,16 +109,16 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
         self.dss = dss
         self.dock_type = dock_type
 
-        self.consumables = {
-            "main_brush_work_time": 74382,
-            "side_brush_work_time": 74383,
-            "filter_work_time": 74384,
-            "filter_element_work_time": 0,
-            "sensor_dirty_time": 74385,
-            "strainer_work_times": 65,
-            "dust_collection_work_times": 25,
-            "cleaning_brush_work_times": 66,
-        }
+        self.consumables = Consumable(
+            main_brush_work_time=74382,
+            side_brush_work_time=74383,
+            filter_work_time=74384,
+            filter_element_work_time=0,
+            sensor_dirty_time=74385,
+            strainer_work_times=65,
+            dust_collection_work_times=25,
+            cleaning_brush_work_times=66,
+        )
 
         self.dnd_timer = {
             "start_hour": 22,
@@ -153,7 +155,7 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
         # Set up default handlers dictionary
         self.default_handlers: dict[str, Callable[[Any], Any]] = {
             "get_status": lambda params: [self.get_status_dict()],
-            "get_consumable": lambda params: [self.consumables],
+            "get_consumable": lambda params: [{k: v for k, v in asdict(self.consumables).items() if v is not None}],
             "get_dnd_timer": lambda params: self.dnd_timer,
             "get_clean_summary": lambda params: self.clean_summary,
             "get_clean_record": lambda params: self.last_clean_record,
@@ -282,8 +284,8 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
     def _handle_reset_consumable(self, params: Any) -> str:
         if isinstance(params, list) and len(params) > 0:
             consumable_name = params[0]
-            if consumable_name in self.consumables:
-                self.consumables[consumable_name] = 0
+            if hasattr(self.consumables, consumable_name):
+                setattr(self.consumables, consumable_name, 0)
         return "ok"
 
     def _handle_app_get_init_status(self, params: Any) -> list[dict[str, Any]]:
