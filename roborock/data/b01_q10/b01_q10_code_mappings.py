@@ -321,7 +321,7 @@ class YXFault(RoborockModeEnum):
     MOPPING_MODULE_STUCK = "mopping_module_stuck", 27
     CARPET_AVOIDANCE = "carpet_avoidance", 28
     CANNOT_CROSS_CARPET = "cannot_cross_carpet", 29
-    INSTALL_DUST_BAG = "install_dust_bag", 46
+    INSTALL_DUST_BAG = "install_dust_bag", 46  # hw-confirmed (docked with bag removed; fires at dock contact)
     MOP_MOUNT_FELL_OFF = "mop_mount_fell_off", 54
     LIDAR_DIRTY = "lidar_dirty", 58
     FILTER_SERVICE_LIFE = "filter_service_life", 301
