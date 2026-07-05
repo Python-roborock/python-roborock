@@ -306,7 +306,7 @@ class YXFault(RoborockModeEnum):
     UNKNOWN = "unknown", -1
     NONE = "none", 0
     LIDAR_BLOCKED = "lidar_blocked", 1
-    BUMPER_STUCK = "bumper_stuck", 2
+    BUMPER_STUCK = "bumper_stuck", 2  # hw-confirmed (bumper held in during commanded motion)
     ROBOT_SUSPENDED = "robot_suspended", 3  # hw-confirmed (wheels lifted off the floor mid-task)
     CLIFF_SENSOR_ERROR = "cliff_sensor_error", 4  # hw-confirmed (one side lifted mid-task)
     MAIN_BRUSH_STUCK = "main_brush_stuck", 5  # hw-confirmed (two physical brush jams)
