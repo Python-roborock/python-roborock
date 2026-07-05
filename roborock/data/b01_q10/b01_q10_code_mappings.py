@@ -330,6 +330,7 @@ class YXFault(RoborockModeEnum):
     SENSOR_NEEDS_CLEANING = "sensor_needs_cleaning", 304  # hw-confirmed (fired during auto-empty)
     DUST_BAG_FULL = "dust_bag_full", 310  # inferred from auto-empty context; not hw-confirmed
     STARTING_SCHEDULED_CLEAN = "starting_scheduled_clean", 400  # hw-confirmed x3; lifecycle, not an error
+    # hw-confirmed (a due scheduled clean fired mid-clean and was ignored); lifecycle, not an error
     CLEANING_IN_PROGRESS = "cleaning_in_progress", 407
     EMPTY_DUSTBIN = "empty_dustbin", 500  # ss07 != Q7 B01Fault (lidar_blocked); app-sourced
     # hw-confirmed, fires per completed task; ss07 != Q7 (robot_suspended)
