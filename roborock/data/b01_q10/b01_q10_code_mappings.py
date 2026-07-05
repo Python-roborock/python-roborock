@@ -295,6 +295,10 @@ class YXFault(RoborockModeEnum):
     ``dpFault`` is *overloaded*: several values are lifecycle/status rather than
     errors (e.g. 400 = scheduled clean starting, 501 = returning to dock,
     502 = recharge). A non-zero fault is not necessarily a blocking error.
+    The converse also holds: the device can sit in its error state (``dpStatus``
+    12) with ``dpFault`` still 0 (observed live with the dust-bin module
+    removed), so a ``None``/``NONE`` fault does not imply the absence of an
+    error condition.
 
     These labels follow the ss07 app text, which differs from the Q7 ``B01Fault``
     for several shared numbers (500, 501, 503, 569, 570) -- so this is a
