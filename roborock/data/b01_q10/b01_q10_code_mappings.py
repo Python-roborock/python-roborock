@@ -290,7 +290,7 @@ class YXCarpetCleanType(RoborockModeEnum):
 
 
 class YXFault(RoborockModeEnum):
-    """Q10 (B01/ss07) ``dpFault`` (90) codes, seeded from the ss07 app's fault i18n.
+    """Q10 (B01/ss07) ``dpFault`` (90) codes, from the ss07 fault spec.
 
     ``dpFault`` is *overloaded*: several values are lifecycle/status rather than
     errors (e.g. 400 = scheduled clean starting, 501 = returning to dock,
@@ -300,11 +300,11 @@ class YXFault(RoborockModeEnum):
     removed), so a ``None``/``NONE`` fault does not imply the absence of an
     error condition.
 
-    These labels follow the ss07 app text, which differs from the Q7 ``B01Fault``
-    for several shared numbers (500, 501, 503, 569, 570) -- so this is a
-    Q10-specific map, not a reuse of ``B01Fault``. Codes marked "hw-confirmed" were observed
-    firing live on a physical ss07 in a context matching the label; the rest are
-    app-sourced only (single device, single app version).
+    These labels differ from the Q7 ``B01Fault`` for several shared numbers
+    (500, 501, 503, 569, 570) -- so this is a Q10-specific map, not a reuse of
+    ``B01Fault``. Codes marked "hw-confirmed" were observed firing live on a
+    physical ss07 in a context matching the label; the rest are from the spec
+    only, not yet observed live (single device).
     """
 
     UNKNOWN = "unknown", -1
@@ -336,7 +336,7 @@ class YXFault(RoborockModeEnum):
     STARTING_SCHEDULED_CLEAN = "starting_scheduled_clean", 400  # hw-confirmed x3; lifecycle, not an error
     # hw-confirmed (a due scheduled clean fired mid-clean and was ignored); lifecycle, not an error
     CLEANING_IN_PROGRESS = "cleaning_in_progress", 407
-    EMPTY_DUSTBIN = "empty_dustbin", 500  # ss07 != Q7 B01Fault (lidar_blocked); app-sourced
+    EMPTY_DUSTBIN = "empty_dustbin", 500  # ss07 != Q7 B01Fault (lidar_blocked); spec-only
     # hw-confirmed, fires per completed task; ss07 != Q7 (robot_suspended)
     CLEANING_COMPLETED_RETURNING = "cleaning_completed_returning", 501
     LOW_BATTERY_RESUME = "low_battery_resume", 502  # hw-confirmed; lifecycle
