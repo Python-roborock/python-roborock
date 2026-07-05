@@ -338,6 +338,8 @@ class YXFault(RoborockModeEnum):
     LOW_BATTERY_RESUME = "low_battery_resume", 502  # hw-confirmed; lifecycle
     DOCKING_ERROR = "docking_error", 503  # hw-confirmed; ss07 != Q7 (dustbin_not_installed)
     POSITIONING_FAILED = "positioning_failed", 556  # hw-confirmed; relocalization
+    # hw-confirmed (3rd auto-empty in ~15 min: dock refuses to run the cycle); ss07 != Q7 (main_wheels_entangled)
+    TOO_FREQUENT_EMPTYING = "too_frequent_emptying", 569
     CANNOT_REACH_TARGET = "cannot_reach_target", 570  # hw-confirmed; ss07 != Q7 (main_brush_entangled)
     OFFLINE_WARNING_ASLEEP = "offline_warning_asleep", 588
     OFFLINE_WARNING_LOW_BATTERY = "offline_warning_low_battery", 589
