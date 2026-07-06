@@ -272,6 +272,15 @@ def test_qrevo_s5v_dock_type():
     assert s.dock_type.value == 22
 
 
+def test_qv_35a_dock_type():
+    """Test that dock type code 21 (Roborock QV 35A dock) is properly recognized."""
+    modified_status = STATUS.copy()
+    modified_status["dock_type"] = 21
+    s = S7MaxVStatus.from_dict(modified_status)
+    assert s.dock_type == RoborockDockTypeCode.qv_35a_dock
+    assert s.dock_type.value == 21
+
+
 def test_multi_maps_list_info(snapshot: SnapshotAssertion) -> None:
     """Test that MultiMapsListInfo can be deserialized correctly."""
     data = {
