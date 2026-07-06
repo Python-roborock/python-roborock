@@ -3,8 +3,9 @@
 import pytest
 from syrupy import SnapshotAssertion
 
-from roborock.data import HomeDataDevice
+from roborock.data import HomeDataDevice, RoborockDockTypeCode
 from roborock.data.v1.v1_containers import ConsumableField, StatusField
+from roborock.device_features import is_wash_n_fill_dock
 from roborock.devices.device import RoborockDevice
 from roborock.devices.traits.v1.consumeable import ConsumableTrait
 from roborock.devices.traits.v1.status import StatusTrait
@@ -13,6 +14,11 @@ from tests import mock_data
 V1_DEVICES = {
     k: HomeDataDevice.from_dict(device) for k, device in mock_data.DEVICES.items() if device.get("pv") == "1.0"
 }
+
+
+def test_qrevo_master_dock_is_wash_n_fill_dock() -> None:
+    """Test that the Qrevo Master dock supports wash and fill features."""
+    assert is_wash_n_fill_dock(RoborockDockTypeCode.qrevo_master_dock)
 
 
 @pytest.mark.parametrize(
