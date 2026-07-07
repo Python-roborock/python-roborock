@@ -2,6 +2,79 @@
 
 <!-- version list -->
 
+## v5.27.0 (2026-07-07)
+
+### Documentation
+
+- Add comment explaining dss field in v1_simulator
+  ([#860](https://github.com/Python-roborock/python-roborock/pull/860),
+  [`c963ad7`](https://github.com/Python-roborock/python-roborock/commit/c963ad79b7d7206dd1b97cd7f377305a67f90364))
+
+### Features
+
+- Add roborock.testing module for stateful integration testing
+  ([#860](https://github.com/Python-roborock/python-roborock/pull/860),
+  [`c963ad7`](https://github.com/Python-roborock/python-roborock/commit/c963ad79b7d7206dd1b97cd7f377305a67f90364))
+
+- Expose dock_type configuration in V1VacuumSimulator
+  ([#860](https://github.com/Python-roborock/python-roborock/pull/860),
+  [`c963ad7`](https://github.com/Python-roborock/python-roborock/commit/c963ad79b7d7206dd1b97cd7f377305a67f90364))
+
+- Expose in_cleaning, in_returning, charge_status, and dss on V1VacuumSimulator
+  ([#860](https://github.com/Python-roborock/python-roborock/pull/860),
+  [`c963ad7`](https://github.com/Python-roborock/python-roborock/commit/c963ad79b7d7206dd1b97cd7f377305a67f90364))
+
+- Honor publish_side_effect in simulator and raise NotImplementedError in base _handle_publish
+  ([#860](https://github.com/Python-roborock/python-roborock/pull/860),
+  [`c963ad7`](https://github.com/Python-roborock/python-roborock/commit/c963ad79b7d7206dd1b97cd7f377305a67f90364))
+
+### Refactoring
+
+- Decouple default product id from device duid and share DEFAULT_PRODUCT_ID constant
+  ([#860](https://github.com/Python-roborock/python-roborock/pull/860),
+  [`c963ad7`](https://github.com/Python-roborock/python-roborock/commit/c963ad79b7d7206dd1b97cd7f377305a67f90364))
+
+- Delete redundant properties from V1VacuumSimulator and update trigger_push_update
+  ([#860](https://github.com/Python-roborock/python-roborock/pull/860),
+  [`c963ad7`](https://github.com/Python-roborock/python-roborock/commit/c963ad79b7d7206dd1b97cd7f377305a67f90364))
+
+- Export and define all simulator state default constants at package level
+  ([#860](https://github.com/Python-roborock/python-roborock/pull/860),
+  [`c963ad7`](https://github.com/Python-roborock/python-roborock/commit/c963ad79b7d7206dd1b97cd7f377305a67f90364))
+
+- Expose raw status and app_init dataclasses on simulator for direct test manipulation
+  ([#860](https://github.com/Python-roborock/python-roborock/pull/860),
+  [`c963ad7`](https://github.com/Python-roborock/python-roborock/commit/c963ad79b7d7206dd1b97cd7f377305a67f90364))
+
+- Inherit FakeChannel from Channel Protocol
+  ([#860](https://github.com/Python-roborock/python-roborock/pull/860),
+  [`c963ad7`](https://github.com/Python-roborock/python-roborock/commit/c963ad79b7d7206dd1b97cd7f377305a67f90364))
+
+- Rename self.servers to self.simulated_devices and restore hardcoded qiCNieZa in mock_data
+  ([#860](https://github.com/Python-roborock/python-roborock/pull/860),
+  [`c963ad7`](https://github.com/Python-roborock/python-roborock/commit/c963ad79b7d7206dd1b97cd7f377305a67f90364))
+
+- Replace FakeUserState with library UserData dataclass on FakeRoborockCloud
+  ([#860](https://github.com/Python-roborock/python-roborock/pull/860),
+  [`c963ad7`](https://github.com/Python-roborock/python-roborock/commit/c963ad79b7d7206dd1b97cd7f377305a67f90364))
+
+- Type simulator consumables state using Consumable dataclass
+  ([#860](https://github.com/Python-roborock/python-roborock/pull/860),
+  [`c963ad7`](https://github.com/Python-roborock/python-roborock/commit/c963ad79b7d7206dd1b97cd7f377305a67f90364))
+
+- Type simulator dnd, clean summary and record using real dataclasses
+  ([#860](https://github.com/Python-roborock/python-roborock/pull/860),
+  [`c963ad7`](https://github.com/Python-roborock/python-roborock/commit/c963ad79b7d7206dd1b97cd7f377305a67f90364))
+
+- Type simulator status, network info and init status using real dataclasses
+  ([#860](https://github.com/Python-roborock/python-roborock/pull/860),
+  [`c963ad7`](https://github.com/Python-roborock/python-roborock/commit/c963ad79b7d7206dd1b97cd7f377305a67f90364))
+
+- Update _handle_app_get_init_status to serialize self.app_init and dynamically resolve status_info
+  fields from self.status ([#860](https://github.com/Python-roborock/python-roborock/pull/860),
+  [`c963ad7`](https://github.com/Python-roborock/python-roborock/commit/c963ad79b7d7206dd1b97cd7f377305a67f90364))
+
+
 ## v5.26.0 (2026-07-06)
 
 ### Documentation
