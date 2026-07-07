@@ -846,3 +846,18 @@ class RoborockDockFeatures:
     @property
     def is_special_support_wash_temp(self) -> bool:
         return self.dock_type in _SPECIAL_WASH_TEMP_DOCK_TYPES
+
+
+WASH_N_FILL_DOCK_TYPES = [
+    dock_type for dock_type in RoborockDockTypeCode if RoborockDockFeatures.from_dock_type(dock_type).is_washable
+]
+
+
+def is_wash_n_fill_dock(dock_type: RoborockDockTypeCode) -> bool:
+    """Check if the dock type is a wash and fill dock."""
+    return RoborockDockFeatures.from_dock_type(dock_type).is_washable
+
+
+def is_valid_dock(dock_type: RoborockDockTypeCode) -> bool:
+    """Check if device supports a dock."""
+    return RoborockDockFeatures.from_dock_type(dock_type).has_dock

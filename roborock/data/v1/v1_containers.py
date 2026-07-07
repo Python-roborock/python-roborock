@@ -241,7 +241,7 @@ class Status(RoborockBase):
 
     @property
     def has_am(self) -> bool | None:
-        if not self.dss:
+        if self.dss is None:
             return None
         return (self.dss & 3) == 2
 
@@ -384,7 +384,7 @@ class StatusV2(RoborockBase):
 
     @property
     def has_am(self) -> bool | None:
-        if not self.dss:
+        if self.dss is None:
             return None
         return (self.dss & 3) == 2
 

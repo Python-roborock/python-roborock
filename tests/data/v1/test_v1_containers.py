@@ -272,6 +272,14 @@ def test_qrevo_s5v_dock_type():
     assert s.dock_type.value == 22
 
 
+def test_has_am_dss_zero_is_not_missing():
+    modified_status = STATUS.copy()
+    modified_status["dss"] = 0
+
+    assert S7MaxVStatus.from_dict(modified_status).has_am is False
+    assert StatusV2.from_dict(modified_status).has_am is False
+
+
 def test_multi_maps_list_info(snapshot: SnapshotAssertion) -> None:
     """Test that MultiMapsListInfo can be deserialized correctly."""
     data = {

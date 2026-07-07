@@ -6,7 +6,7 @@ from syrupy import SnapshotAssertion
 from roborock import SHORT_MODEL_TO_ENUM
 from roborock.data.code_mappings import RoborockProductNickname
 from roborock.data.v1 import RoborockDockTypeCode
-from roborock.device_features import DeviceFeatures, RoborockDockFeatures
+from roborock.device_features import DeviceFeatures, RoborockDockFeatures, is_valid_dock, is_wash_n_fill_dock
 from tests import mock_data
 
 
@@ -117,6 +117,8 @@ def test_dock_features(dock_type: RoborockDockTypeCode, is_collectable: bool, is
     assert dock_features.has_dock is (dock_type not in {RoborockDockTypeCode.unknown, RoborockDockTypeCode.o0_dock})
     assert dock_features.is_collectable is is_collectable
     assert dock_features.is_washable is is_washable
+    assert is_valid_dock(dock_type) is dock_features.has_dock
+    assert is_wash_n_fill_dock(dock_type) is dock_features.is_washable
 
 
 def test_dock_feature_flags_from_rr_api() -> None:
