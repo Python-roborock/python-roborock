@@ -6,6 +6,7 @@ to simulate physical devices connected to the Roborock Cloud.
 """
 
 import contextlib
+import datetime
 import re
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -173,6 +174,44 @@ class FakeWebApiClient:
             callback=get_homes_callback,
         )
 
+    def get_default_home_data(self) -> HomeData:
+        """Construct the default HomeData using simulated devices registered in the cloud."""
+        devices = [d.device_info for d in self.cloud.simulated_devices.values()]
+        products = [d.product for d in self.cloud.simulated_devices.values()]
+        return HomeData(
+            id=self.cloud.home_id,
+            name=self.cloud.home_name,
+            devices=devices,
+            products=products,
+            received_devices=[],
+            rooms=[],
+        )
+
+    def set_homes_response(
+        self,
+        home_data: HomeData | None = None,
+        status: int = 200,
+    ) -> None:
+        """Easily set the faked response payload for the homes endpoint using a HomeData dataclass.
+
+        If home_data is None, it defaults to the active get_default_home_data() state.
+        """
+        self.homes_status = status
+        if status != 200:
+            self.homes_payload_override = None
+            return
+
+        if home_data is None:
+            home_data = self.get_default_home_data()
+
+        self.homes_payload_override = {
+            "api": None,
+            "code": 200,
+            "result": home_data.as_dict(),
+            "status": "ok",
+            "success": True,
+        }
+
 
 class FakeRoborockCloud:
     """A central state object representing the Roborock Cloud environment under test."""
@@ -234,7 +273,9 @@ class FakeRoborockCloud:
         with aioresponses() as mocked:
             self.web_api.mock_requests(mocked)
 
-            # Patch Channel factories and rate limiters
+            # Mock sleep logic to speed up tests.
+            sleep_time = datetime.timedelta(seconds=0.001)
+            # Patch Channel factories, rate limiters, and backoff sleep intervals
             with (
                 patch(
                     "roborock.web_api.RoborockApiClient._login_limiter.try_acquire_async",
@@ -243,5 +284,7 @@ class FakeRoborockCloud:
                 patch("roborock.web_api.RoborockApiClient._home_data_limiter.try_acquire", return_value=True),
                 patch("roborock.devices.device_manager.create_v1_channel", side_effect=mock_create_v1_channel),
                 patch("roborock.devices.device_manager.create_mqtt_channel", side_effect=mock_create_mqtt_channel),
+                patch("roborock.devices.device.MIN_BACKOFF_INTERVAL", sleep_time),
+                patch("roborock.devices.device.MAX_BACKOFF_INTERVAL", sleep_time),
             ):
                 yield
