@@ -242,11 +242,6 @@ class FakeRoborockCloud:
 
         # Wrapper function for create_v1_channel
         def mock_create_v1_channel(user_data, mqtt_params, mqtt_session, device, device_cache):
-            if device.pv in ("A01", "B01"):
-                raise NotImplementedError(
-                    f"Simulating protocol {device.pv} is not yet supported. "
-                    "TODO: Implement stateful simulators for B01 (Q7/Q10) and A01 (Zeo/Dyad) devices."
-                )
             server = self.simulated_devices.get(device.duid)
             if server is not None:
                 if not isinstance(server, V1VacuumSimulator):
@@ -255,18 +250,23 @@ class FakeRoborockCloud:
                         f"simulator, but create_v1_channel requires a V1VacuumSimulator."
                     )
                 return server.v1_channel
-            return original_create_v1_channel(user_data, mqtt_params, mqtt_session, device, device_cache)
-
-        # Wrapper function for create_mqtt_channel
-        def mock_create_mqtt_channel(user_data, mqtt_params, mqtt_session, device):
             if device.pv in ("A01", "B01"):
                 raise NotImplementedError(
                     f"Simulating protocol {device.pv} is not yet supported. "
                     "TODO: Implement stateful simulators for B01 (Q7/Q10) and A01 (Zeo/Dyad) devices."
                 )
+            return original_create_v1_channel(user_data, mqtt_params, mqtt_session, device, device_cache)
+
+        # Wrapper function for create_mqtt_channel
+        def mock_create_mqtt_channel(user_data, mqtt_params, mqtt_session, device):
             server = self.simulated_devices.get(device.duid)
             if server:
                 return server.mqtt_channel
+            if device.pv in ("A01", "B01"):
+                raise NotImplementedError(
+                    f"Simulating protocol {device.pv} is not yet supported. "
+                    "TODO: Implement stateful simulators for B01 (Q7/Q10) and A01 (Zeo/Dyad) devices."
+                )
             return original_create_mqtt_channel(user_data, mqtt_params, mqtt_session, device)
 
         # Route Web requests using the dynamic FakeWebApiClient
