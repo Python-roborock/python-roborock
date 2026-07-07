@@ -42,8 +42,8 @@ optional traits:
     - `requires_feature` - The string name of the device feature that must be supported
         for this trait to be enabled. See `DeviceFeaturesTrait` for a list of
         available features.
-    - `requires_dock_type` - If set, this is a function that accepts a `RoborockDockTypeCode`
-        and returns a boolean indicating whether the trait is supported for that dock type.
+    - `requires_dock_features` - If set, this is a function that accepts a `RoborockDockFeatures`
+        and returns a boolean indicating whether the trait is supported for that dock.
 
 Additionally, DeviceFeaturesTrait has a method `is_field_supported` that is used to
 check individual trait field values. This is a more fine grained version to allow
@@ -59,6 +59,7 @@ from typing import Any, get_args
 
 from roborock.data.containers import HomeData, HomeDataProduct, RoborockBase
 from roborock.data.v1.v1_code_mappings import RoborockDockTypeCode
+from roborock.device_features import RoborockDockFeatures
 from roborock.devices.cache import DeviceCache
 from roborock.devices.traits import Trait
 from roborock.exceptions import RoborockException
@@ -262,9 +263,15 @@ class PropertiesApi(Trait):
         await self.device_features.refresh()
         # Dock type also acts like a device feature for some traits.
         dock_type = await self._dock_type()
+        if self.status.dss is None:
+            await self.status.refresh()
+            if self.status.dock_type is not None:
+                dock_type = self.status.dock_type
+                await self._set_cached_trait_data("dock_type", dock_type)
+        dock_features = RoborockDockFeatures.from_dock_type(dock_type, has_am=self.status.has_am)
 
         # Initialize traits with special arguments before the generic loop
-        if self.wash_towel_mode is None and self._is_supported(WashTowelModeTrait, "wash_towel_mode", dock_type):
+        if self.wash_towel_mode is None and self._is_supported(WashTowelModeTrait, "wash_towel_mode", dock_features):
             wash_towel_mode = WashTowelModeTrait(self.device_features)
             wash_towel_mode._rpc_channel = self._get_rpc_channel(wash_towel_mode)  # type: ignore[assignment]
             self.wash_towel_mode = wash_towel_mode
@@ -280,7 +287,7 @@ class PropertiesApi(Trait):
 
             # Union args may not be in declared order
             item_type = union_args[0] if union_args[1] is type(None) else union_args[1]
-            if not self._is_supported(item_type, item.name, dock_type):
+            if not self._is_supported(item_type, item.name, dock_features):
                 _LOGGER.debug("Trait '%s' not supported, skipping", item.name)
                 continue
             _LOGGER.debug("Trait '%s' is supported, initializing", item.name)
@@ -288,11 +295,11 @@ class PropertiesApi(Trait):
             setattr(self, item.name, trait)
             trait._rpc_channel = self._get_rpc_channel(trait)
 
-    def _is_supported(self, trait_type: type[V1TraitMixin], name: str, dock_type: RoborockDockTypeCode) -> bool:
+    def _is_supported(self, trait_type: type[V1TraitMixin], name: str, dock_features: RoborockDockFeatures) -> bool:
         """Check if a trait is supported by the device."""
 
-        if (requires_dock_type := getattr(trait_type, "requires_dock_type", None)) is not None:
-            return requires_dock_type(dock_type)
+        if (requires_dock_features := getattr(trait_type, "requires_dock_features", None)) is not None:
+            return requires_dock_features(dock_features)
 
         if (feature_name := getattr(trait_type, "requires_feature", None)) is None:
             _LOGGER.debug("Optional trait missing 'requires_feature' attribute %s, skipping", name)
@@ -316,7 +323,7 @@ class PropertiesApi(Trait):
         _LOGGER.debug("Fetched dock type: %s", self.status.dock_type)
         if self.status.dock_type is None:
             # Explicitly set so we reuse cached value next type
-            dock_type = RoborockDockTypeCode.no_dock
+            dock_type = RoborockDockTypeCode.o0_dock
         else:
             dock_type = self.status.dock_type
         await self._set_cached_trait_data("dock_type", dock_type)

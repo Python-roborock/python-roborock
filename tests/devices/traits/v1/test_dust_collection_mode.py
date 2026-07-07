@@ -8,6 +8,7 @@ from roborock.data import RoborockDockDustCollectionModeCode, RoborockDockTypeCo
 from roborock.devices.device import RoborockDevice
 from roborock.devices.traits.v1.dust_collection_mode import DustCollectionModeTrait
 from roborock.roborock_typing import RoborockCommand
+from tests.devices.traits.v1.helpers import dock_types_with_capability
 
 DUST_COLLECTION_MODE_DATA = [{"mode": 2}]
 
@@ -24,14 +25,7 @@ def dust_collection_mode_trait(
 
 @pytest.mark.parametrize(
     ("dock_type_code"),
-    [
-        (RoborockDockTypeCode.s7_max_ultra_dock),
-        (RoborockDockTypeCode.s8_dock),
-        (RoborockDockTypeCode.p10_dock),
-        (RoborockDockTypeCode.qrevo_s_dock),
-        (RoborockDockTypeCode.qrevo_s5v_dock),
-        (RoborockDockTypeCode.saros_20_dock),
-    ],
+    dock_types_with_capability("is_collectable"),
 )
 async def test_dust_collection_mode_available(
     dust_collection_mode: DustCollectionModeTrait | None,
@@ -56,7 +50,10 @@ async def test_dust_collection_mode_available(
     assert dust_collection_mode.mode == RoborockDockDustCollectionModeCode.balanced
 
 
-@pytest.mark.parametrize(("dock_type_code"), [(RoborockDockTypeCode.no_dock)])
+@pytest.mark.parametrize(
+    ("dock_type_code"),
+    dock_types_with_capability("is_collectable", expected=False),
+)
 async def test_unsupported_dust_collection_mode(
     dust_collection_mode: DustCollectionModeTrait | None,
     dock_type_code: RoborockDockTypeCode,

@@ -112,7 +112,7 @@ def device_fixture(
 @pytest.fixture(name="dock_type_code", autouse=True)
 def dock_type_code_fixture(request: pytest.FixtureRequest) -> RoborockDockTypeCode | None:
     """Fixture to provide the dock type code for parameterized tests."""
-    return RoborockDockTypeCode.s7_max_ultra_dock
+    return RoborockDockTypeCode.o3_plus_dock
 
 
 @pytest.fixture(autouse=True)

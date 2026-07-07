@@ -11,6 +11,7 @@ from roborock.data import (
 from roborock.devices.device import RoborockDevice
 from roborock.devices.traits.v1.wash_towel_mode import WashTowelModeTrait
 from roborock.roborock_typing import RoborockCommand
+from tests.devices.traits.v1.helpers import dock_types_with_capability
 
 WASH_TOWEL_MODE_DATA = {"wash_mode": WashTowelModes.SMART.code}
 
@@ -27,13 +28,7 @@ def wash_towel_mode_trait(
 
 @pytest.mark.parametrize(
     ("dock_type_code"),
-    [
-        (RoborockDockTypeCode.s8_dock),
-        (RoborockDockTypeCode.p10_dock),
-        (RoborockDockTypeCode.qrevo_s_dock),
-        (RoborockDockTypeCode.qrevo_s5v_dock),
-        (RoborockDockTypeCode.saros_20_dock),
-    ],
+    dock_types_with_capability("is_washable"),
 )
 async def test_wash_towel_mode_available(
     wash_towel_mode: WashTowelModeTrait,
@@ -60,10 +55,7 @@ async def test_wash_towel_mode_available(
 
 @pytest.mark.parametrize(
     ("dock_type_code"),
-    [
-        (RoborockDockTypeCode.s7_max_ultra_dock),
-        (RoborockDockTypeCode.no_dock),
-    ],
+    dock_types_with_capability("is_washable", expected=False),
 )
 async def test_unsupported_wash_towel_mode(
     wash_towel_mode: WashTowelModeTrait | None, dock_type_code: RoborockDockTypeCode
@@ -74,7 +66,7 @@ async def test_unsupported_wash_towel_mode(
 
 @pytest.mark.parametrize(
     ("dock_type_code"),
-    [(RoborockDockTypeCode.s8_dock)],
+    [(RoborockDockTypeCode.o4_dock)],
 )
 @pytest.mark.parametrize(
     ("wash_mode"),
@@ -101,7 +93,7 @@ async def test_set_wash_towel_mode(
 
 @pytest.mark.parametrize(
     ("dock_type_code"),
-    [(RoborockDockTypeCode.s8_dock)],
+    [(RoborockDockTypeCode.o4_dock)],
 )
 async def test_start_wash(
     wash_towel_mode: WashTowelModeTrait,
@@ -118,7 +110,7 @@ async def test_start_wash(
 
 @pytest.mark.parametrize(
     ("dock_type_code"),
-    [(RoborockDockTypeCode.s8_dock)],
+    [(RoborockDockTypeCode.o4_dock)],
 )
 async def test_stop_wash(
     wash_towel_mode: WashTowelModeTrait,
@@ -135,7 +127,7 @@ async def test_stop_wash(
 
 @pytest.mark.parametrize(
     ("dock_type_code"),
-    [(RoborockDockTypeCode.s8_dock)],
+    [(RoborockDockTypeCode.o4_dock)],
 )
 @pytest.mark.parametrize(
     (

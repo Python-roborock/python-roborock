@@ -650,22 +650,31 @@ class RoborockDockErrorCode(RoborockEnum):
 
 class RoborockDockTypeCode(RoborockEnum):
     unknown = -9999
-    no_dock = 0
-    auto_empty_dock = 1
-    empty_wash_fill_dock = 3
-    auto_empty_dock_pure = 5
-    s7_max_ultra_dock = 6
-    s8_dock = 7
-    p10_dock = 8
-    p10_pro_dock = 9
-    s8_maxv_ultra_dock = 10
-    qrevo_master_dock = 14
-    qrevo_s_dock = 15
-    saros_r10_dock = 16
-    qrevo_curv_dock = 17
-    saros_10_dock = 18
-    qrevo_s5v_dock = 22
-    saros_20_dock = 27
+    o0_dock = 0
+    o1_dock = 1
+    o2_dock = 2
+    o3_dock = 3
+    oc_dock = 5
+    o3_plus_dock = 6
+    o4_dock = 7
+    pearl_dock = 8
+    pearl_plus_dock = 9
+    o5_dock = 10
+    shell_2s_dock = 11
+    couple_dock = 13
+    shell_3_dock = 14
+    shell_2c_dock = 15
+    shell_3s_dock = 16
+    k1_dock = 17
+    o6_dock = 18
+    k1c_dock = 19
+    k1s_dock = 20
+    shell_e_dock = 21
+    shell_2e_dock = 22
+    shell_3c_dock = 23
+    type_27_dock = 27
+    k1c_lite_dock = 28
+    shell_2e_lite_dock = 30
 
 
 class RoborockDockDustCollectionModeCode(RoborockEnum):

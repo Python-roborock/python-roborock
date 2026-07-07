@@ -240,6 +240,12 @@ class Status(RoborockBase):
         return None
 
     @property
+    def has_am(self) -> bool | None:
+        if not self.dss:
+            return None
+        return (self.dss & 3) == 2
+
+    @property
     def clear_water_box_status(self) -> ClearWaterBoxStatus | None:
         if self.dss:
             return ClearWaterBoxStatus((self.dss >> 2) & 3)
@@ -375,6 +381,12 @@ class StatusV2(RoborockBase):
             if map_flag != NO_MAP:
                 return map_flag
         return None
+
+    @property
+    def has_am(self) -> bool | None:
+        if not self.dss:
+            return None
+        return (self.dss & 3) == 2
 
     @property
     def clear_water_box_status(self) -> ClearWaterBoxStatus | None:

@@ -5,7 +5,8 @@ from syrupy import SnapshotAssertion
 
 from roborock import SHORT_MODEL_TO_ENUM
 from roborock.data.code_mappings import RoborockProductNickname
-from roborock.device_features import DeviceFeatures
+from roborock.data.v1 import RoborockDockTypeCode
+from roborock.device_features import DeviceFeatures, RoborockDockFeatures
 from tests import mock_data
 
 
@@ -77,6 +78,74 @@ def test_new_feature_str_missing():
     assert not device_features.is_dust_collection_setting_supported
     assert not device_features.is_hot_wash_towel_supported
     assert not device_features.is_show_clean_finish_reason_supported
+
+
+@pytest.mark.parametrize(
+    ("dock_type", "is_collectable", "is_washable"),
+    [
+        (RoborockDockTypeCode.unknown, False, False),
+        (RoborockDockTypeCode.o0_dock, False, False),
+        (RoborockDockTypeCode.o1_dock, True, False),
+        (RoborockDockTypeCode.o2_dock, False, True),
+        (RoborockDockTypeCode.o3_dock, True, True),
+        (RoborockDockTypeCode.oc_dock, True, False),
+        (RoborockDockTypeCode.o3_plus_dock, True, True),
+        (RoborockDockTypeCode.o4_dock, True, True),
+        (RoborockDockTypeCode.pearl_dock, True, True),
+        (RoborockDockTypeCode.pearl_plus_dock, True, True),
+        (RoborockDockTypeCode.o5_dock, True, True),
+        (RoborockDockTypeCode.shell_2s_dock, True, True),
+        (RoborockDockTypeCode.couple_dock, True, True),
+        (RoborockDockTypeCode.shell_3_dock, True, True),
+        (RoborockDockTypeCode.shell_2c_dock, True, True),
+        (RoborockDockTypeCode.shell_3s_dock, True, True),
+        (RoborockDockTypeCode.k1_dock, True, True),
+        (RoborockDockTypeCode.o6_dock, True, True),
+        (RoborockDockTypeCode.k1c_dock, True, True),
+        (RoborockDockTypeCode.k1s_dock, True, True),
+        (RoborockDockTypeCode.shell_e_dock, True, True),
+        (RoborockDockTypeCode.shell_2e_dock, True, True),
+        (RoborockDockTypeCode.shell_3c_dock, True, True),
+        (RoborockDockTypeCode.type_27_dock, True, True),
+        (RoborockDockTypeCode.k1c_lite_dock, True, True),
+        (RoborockDockTypeCode.shell_2e_lite_dock, True, True),
+    ],
+)
+def test_dock_features(dock_type: RoborockDockTypeCode, is_collectable: bool, is_washable: bool) -> None:
+    dock_features = RoborockDockFeatures.from_dock_type(dock_type)
+
+    assert dock_features.has_dock is (dock_type not in {RoborockDockTypeCode.unknown, RoborockDockTypeCode.o0_dock})
+    assert dock_features.is_collectable is is_collectable
+    assert dock_features.is_washable is is_washable
+
+
+def test_dock_feature_flags_from_rr_api() -> None:
+    """Verify dock-specific feature flags that are not currently trait gates."""
+    assert RoborockDockFeatures.from_dock_type(RoborockDockTypeCode.shell_3s_dock).is_auto_sterilize_supported
+    assert RoborockDockFeatures.from_dock_type(RoborockDockTypeCode.o4_dock).is_cleaning_brush_supported
+    assert RoborockDockFeatures.from_dock_type(RoborockDockTypeCode.o4_dock).is_clean_fluid_auto_delivery_supported
+    assert RoborockDockFeatures.from_dock_type(RoborockDockTypeCode.couple_dock).is_hatch_door_dock_cool_fan_supported
+    assert RoborockDockFeatures.from_dock_type(RoborockDockTypeCode.shell_2e_lite_dock).is_special_support_wash_temp
+
+
+def test_dock_feature_flags_with_am_variants_from_rr_api() -> None:
+    """Verify dock flags where the app distinguishes AM and non-AM docks by the same type code."""
+    assert not RoborockDockFeatures.from_dock_type(
+        RoborockDockTypeCode.shell_3_dock
+    ).is_clean_fluid_auto_delivery_supported
+    assert RoborockDockFeatures.from_dock_type(
+        RoborockDockTypeCode.shell_3_dock, has_am=True
+    ).is_clean_fluid_auto_delivery_supported
+
+    assert RoborockDockFeatures.from_dock_type(RoborockDockTypeCode.shell_3_dock).is_clean_carousel_self_clean_supported
+    assert not RoborockDockFeatures.from_dock_type(
+        RoborockDockTypeCode.shell_3_dock, has_am=True
+    ).is_clean_carousel_self_clean_supported
+
+    assert not RoborockDockFeatures.from_dock_type(RoborockDockTypeCode.o5_dock).is_water_updown_drain_supported
+    assert RoborockDockFeatures.from_dock_type(
+        RoborockDockTypeCode.o5_dock, has_am=True
+    ).is_water_updown_drain_supported
 
 
 @pytest.mark.parametrize(
