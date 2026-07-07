@@ -5,7 +5,8 @@ subscription, and publishing logic at the message boundary. It acts as an
 in-memory replacement for `MqttChannel` and `LocalChannel` during testing.
 """
 
-from collections.abc import Awaitable, Callable
+import asyncio
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -53,7 +54,7 @@ class FakeChannel(Channel):
         self._is_local = is_local
 
         # A callback to intercept published messages (e.g., bound simulator handler).
-        # Can be either synchronous or asynchronous: Callable[[RoborockMessage], Awaitable[Any]].
+        # Must be asynchronous: Callable[[RoborockMessage], Awaitable[Any]].
         # By default, routes to self._default_publish_handler to handle the response_queue.
         self.publish_handler: Callable[[RoborockMessage], Awaitable[Any]] | None = self._default_publish_handler
 
@@ -146,3 +147,17 @@ class FakeChannel(Channel):
         self.publish.side_effect = self._publish
         self.subscribe.side_effect = self._subscribe
         self.connect.side_effect = self._connect
+
+    async def subscribe_stream(self) -> AsyncGenerator[RoborockMessage, None]:
+        """Stream messages received via this channel."""
+        queue: asyncio.Queue[RoborockMessage] = asyncio.Queue()
+
+        def callback(message: RoborockMessage) -> None:
+            queue.put_nowait(message)
+
+        unsub = await self.subscribe(callback)
+        try:
+            while True:
+                yield await queue.get()
+        finally:
+            unsub()

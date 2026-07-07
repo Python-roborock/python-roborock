@@ -15,7 +15,7 @@ from roborock.devices.cache import InMemoryCache
 from roborock.devices.device import RoborockDevice
 from roborock.devices.device_manager import UserParams, create_device_manager, create_web_api_wrapper
 from roborock.exceptions import RoborockException, RoborockInvalidCredentials
-from roborock.testing import FakeRoborockCloud, V1VacuumSimulator
+from roborock.testing import FakeRoborockCloud, Q10VacuumSimulator, V1VacuumSimulator
 from tests import mock_data
 
 USER_DATA = UserData.from_dict(mock_data.USER_DATA)
@@ -54,6 +54,83 @@ async def test_no_devices(cloud: FakeRoborockCloud, patch_device_manager: None) 
     device_manager = await create_device_manager(USER_PARAMS)
     devices = await device_manager.get_devices()
     assert devices == []
+
+
+async def test_with_q10_device(cloud: FakeRoborockCloud, patch_device_manager: None) -> None:
+    """Test DeviceManager with a Q10 device simulator registered."""
+    product = HomeDataProduct(
+        id="product-id-q10",
+        name="Roborock Q10",
+        model="roborock.vacuum.ss07",
+        category=RoborockCategory.VACUUM,
+    )
+    device_info = HomeDataDevice(
+        duid="q10_duid",
+        name="My Q10",
+        local_key="key123key123key1",
+        product_id=product.id,
+        sn="q10_serial",
+        pv="B01",
+    )
+
+    home_data = cloud.web_api.get_default_home_data()
+    home_data.devices.append(device_info)
+    home_data.products.append(product)
+    cloud.web_api.set_homes_response(home_data)
+
+    q10_sim = Q10VacuumSimulator(
+        duid="q10_duid",
+        device_info=device_info,
+        product=product,
+    )
+    cloud.add_device(q10_sim)
+
+    device_manager = await create_device_manager(USER_PARAMS)
+    devices = await device_manager.get_devices()
+
+    # The setup includes fake_device (V1) by default because of the fake_device fixture
+    # which is not requested here (we only request cloud and patch_device_manager),
+    # but the mock EAPI returns the full home_data layout containing our Q10 device.
+    assert len(devices) == 1
+
+    q10_device = await device_manager.get_device("q10_duid")
+    assert q10_device is not None
+    assert q10_device.name == "My Q10"
+    assert q10_device.product.model == "roborock.vacuum.ss07"
+
+    # Wait for background connect to establish
+    for _ in range(20):
+        if q10_device.is_connected:
+            break
+        await asyncio.sleep(0.05)
+    assert q10_device.is_connected
+
+    assert q10_device.b01_q10_properties is not None
+    assert q10_device.b01_q10_properties.status.status is None
+
+    await q10_device.b01_q10_properties.refresh()
+
+    for _ in range(20):
+        if q10_device.b01_q10_properties.status.battery == 100:
+            break
+        await asyncio.sleep(0.05)
+
+    assert q10_device.b01_q10_properties.status.battery == 100
+    from roborock.data.b01_q10.b01_q10_code_mappings import YXDeviceState
+
+    assert q10_device.b01_q10_properties.status.status == YXDeviceState.CHARGING
+
+    await q10_device.b01_q10_properties.vacuum.start_clean()
+
+    for _ in range(20):
+        if q10_device.b01_q10_properties.status.status == YXDeviceState.CLEANING:
+            break
+        await asyncio.sleep(0.05)
+
+    assert q10_device.b01_q10_properties.status.status == YXDeviceState.CLEANING
+    assert q10_sim.status[121] == 5
+
+    await device_manager.close()
 
 
 async def test_with_device(

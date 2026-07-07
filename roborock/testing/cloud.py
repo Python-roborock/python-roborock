@@ -16,6 +16,7 @@ from aioresponses import CallbackResult, aioresponses
 from roborock.data import HomeData, Reference, RRiot, UserData
 from roborock.devices.rpc.v1_channel import create_v1_channel as original_create_v1_channel
 from roborock.devices.transport.mqtt_channel import create_mqtt_channel as original_create_mqtt_channel
+from roborock.testing.b01_q10_simulator import Q10VacuumSimulator
 from roborock.testing.simulator import RoborockDeviceSimulator
 from roborock.testing.v1_simulator import V1VacuumSimulator
 
@@ -253,7 +254,7 @@ class FakeRoborockCloud:
             if device.pv in ("A01", "B01"):
                 raise NotImplementedError(
                     f"Simulating protocol {device.pv} is not yet supported. "
-                    "TODO: Implement stateful simulators for B01 (Q7/Q10) and A01 (Zeo/Dyad) devices."
+                    "TODO: Implement stateful simulators for B01 (Q7) and A01 (Zeo/Dyad) devices."
                 )
             return original_create_v1_channel(user_data, mqtt_params, mqtt_session, device, device_cache)
 
@@ -261,11 +262,17 @@ class FakeRoborockCloud:
         def mock_create_mqtt_channel(user_data, mqtt_params, mqtt_session, device):
             server = self.simulated_devices.get(device.duid)
             if server:
+                if device.pv == "B01" and not isinstance(server, Q10VacuumSimulator):
+                    raise NotImplementedError(
+                        f"Simulating protocol {device.pv} is not yet supported. "
+                        "Only Q10VacuumSimulator is supported for B01 protocols currently."
+                    )
+                server.mqtt_channel._is_connected = True
                 return server.mqtt_channel
             if device.pv in ("A01", "B01"):
                 raise NotImplementedError(
                     f"Simulating protocol {device.pv} is not yet supported. "
-                    "TODO: Implement stateful simulators for B01 (Q7/Q10) and A01 (Zeo/Dyad) devices."
+                    "TODO: Implement stateful simulators for B01 (Q7) and A01 (Zeo/Dyad) devices."
                 )
             return original_create_mqtt_channel(user_data, mqtt_params, mqtt_session, device)
 
