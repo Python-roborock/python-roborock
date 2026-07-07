@@ -291,6 +291,7 @@ async def test_v1_device(
     local_response_queue.put_nowait(
         response_builder.build_v1(protocol=RoborockMessageProtocol.HELLO_RESPONSE, payload=b"ok")
     )
+    local_response_queue.put_nowait(response_builder.build_v1_rpc(data={"id": 9101, "result": [mock_data.STATUS]}))
 
     device_manager = await device_manager_factory(user_params)
 
@@ -310,18 +311,10 @@ async def test_v1_device(
     assert device.v1_properties.device_features.is_customized_clean_supported
     assert not device.v1_properties.device_features.is_matter_supported
 
-    # In the previous test, the dock information is fetched and has the side effect of
-    # populating the status trait. This test gets dock information from the cache so
-    # we have to manually refresh status the first time (like other traits).
+    # Dock type is loaded from the cache, but status is refreshed during trait discovery
+    # so AM dock capabilities can be evaluated.
     assert device.v1_properties
     assert device.v1_properties.status
-    assert device.v1_properties.status.state_name is None
-
-    # Exercise a GET_STATUS call. id is deterministic based on deterministic_message_fixtures
-    local_response_queue.put_nowait(response_builder.build_v1_rpc(data={"id": 9101, "result": [mock_data.STATUS]}))
-
-    # Verify GET_STATUS response
-    await device.v1_properties.status.refresh()
     assert device.v1_properties.status.state_name == "charging"
 
     assert snapshot == log
