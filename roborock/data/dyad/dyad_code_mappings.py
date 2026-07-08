@@ -95,7 +95,7 @@ class DyadError(RoborockEnum):
     battery_temperature_protection = (
         20007  # Battery temperature protection. Wait for the temperature to return to a normal range.
     )
-    battery_temperature_protection_2 = 20008
+    battery_temperature_protection_2 = (20008, "battery_temperature_protection")
     power_adapter_error = 20009  # Check if the power adapter is working properly.
     dirty_charging_contacts = 10007  # Disconnection between the device and dock. Wipe charging contacts.
     low_battery = 20017  # Low battery level. Charge before starting self-cleaning.

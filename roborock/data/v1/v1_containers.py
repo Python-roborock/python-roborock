@@ -191,15 +191,15 @@ class Status(RoborockBase):
 
     @property
     def error_code_name(self) -> str | None:
-        return self.error_code.name if self.error_code is not None else None
+        return self.error_code.display_name if self.error_code is not None else None
 
     @property
     def state_name(self) -> str | None:
-        return self.state.name if self.state is not None else None
+        return self.state.display_name if self.state is not None else None
 
     @property
     def water_box_mode_name(self) -> str | None:
-        return self.water_box_mode.name if self.water_box_mode is not None else None
+        return self.water_box_mode.display_name if self.water_box_mode is not None else None
 
     @property
     def fan_power_options(self) -> list[str]:
@@ -209,23 +209,23 @@ class Status(RoborockBase):
 
     @property
     def fan_power_name(self) -> str | None:
-        return self.fan_power.name if self.fan_power is not None else None
+        return self.fan_power.display_name if self.fan_power is not None else None
 
     @property
     def mop_mode_name(self) -> str | None:
-        return self.mop_mode.name if self.mop_mode is not None else None
+        return self.mop_mode.display_name if self.mop_mode is not None else None
 
-    def get_fan_speed_code(self, fan_speed: str) -> int:
+    def get_fan_speed_code(self, fan_speed: str) -> int | None:
         if self.fan_power is None:
             raise RoborockException("Attempted to get fan speed before status has been updated.")
         return self.fan_power.as_dict().get(fan_speed)
 
-    def get_mop_intensity_code(self, mop_intensity: str) -> int:
+    def get_mop_intensity_code(self, mop_intensity: str) -> int | None:
         if self.water_box_mode is None:
             raise RoborockException("Attempted to get mop_intensity before status has been updated.")
         return self.water_box_mode.as_dict().get(mop_intensity)
 
-    def get_mop_mode_code(self, mop_mode: str) -> int:
+    def get_mop_mode_code(self, mop_mode: str) -> int | None:
         if self.mop_mode is None:
             raise RoborockException("Attempted to get mop_mode before status has been updated.")
         return self.mop_mode.as_dict().get(mop_mode)
@@ -361,11 +361,11 @@ class StatusV2(RoborockBase):
 
     @property
     def error_code_name(self) -> str | None:
-        return self.error_code.name if self.error_code is not None else None
+        return self.error_code.display_name if self.error_code is not None else None
 
     @property
     def state_name(self) -> str | None:
-        return self.state.name if self.state is not None else None
+        return self.state.display_name if self.state is not None else None
 
     @property
     def current_map(self) -> int | None:
