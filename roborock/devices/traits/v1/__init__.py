@@ -263,11 +263,6 @@ class PropertiesApi(Trait):
         await self.device_features.refresh()
         # Dock type also acts like a device feature for some traits.
         dock_type = await self._dock_type()
-        if self.status.dss is None:
-            await self.status.refresh()
-            if self.status.dock_type is not None:
-                dock_type = self.status.dock_type
-                await self._set_cached_trait_data("dock_type", dock_type)
         dock_features = RoborockDockFeatures.from_dock_type(dock_type, has_am=self.status.has_am)
 
         # Initialize traits with special arguments before the generic loop
@@ -314,9 +309,16 @@ class PropertiesApi(Trait):
         if dock_type is not None:
             _LOGGER.debug("Using cached dock type: %s", dock_type)
             try:
-                return RoborockDockTypeCode(dock_type)
+                dock_type = RoborockDockTypeCode(dock_type)
             except ValueError:
                 _LOGGER.debug("Cached dock type %s is invalid, refreshing", dock_type)
+            else:
+                if self.status.dss is None:
+                    await self.status.refresh()
+                    if self.status.dock_type is not None:
+                        dock_type = self.status.dock_type
+                        await self._set_cached_trait_data("dock_type", dock_type)
+                return dock_type
 
         _LOGGER.debug("Starting dock type discovery")
         await self.status.refresh()
