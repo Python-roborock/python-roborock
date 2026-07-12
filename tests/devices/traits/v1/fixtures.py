@@ -125,7 +125,8 @@ async def discover_features_fixture(
     """Fixture to handle device feature discovery."""
     assert device.v1_properties
 
-    new_feature_info_str = device_info.new_feature_set or str(mock_data.APP_GET_INIT_STATUS["new_feature_info_str"])
+    new_feature_info_str = device_info.new_feature_set
+    assert new_feature_info_str is not None, f"Device {device_info.name} is missing new_feature_set"
     new_feature_info = int(new_feature_info_str, 16)
 
     mock_rpc_channel.send_command.side_effect = [
