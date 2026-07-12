@@ -120,11 +120,25 @@ async def discover_features_fixture(
     device: RoborockDevice,
     mock_rpc_channel: AsyncMock,
     dock_type_code: RoborockDockTypeCode | None,
+    device_info: HomeDataDevice,
 ) -> None:
     """Fixture to handle device feature discovery."""
     assert device.v1_properties
+
+    new_feature_info_str = device_info.new_feature_set or "0000000000002000"
+    try:
+        new_feature_info = int(new_feature_info_str, 16)
+    except ValueError:
+        new_feature_info = 0
+
     mock_rpc_channel.send_command.side_effect = [
-        [mock_data.APP_GET_INIT_STATUS],
+        [
+            {
+                **mock_data.APP_GET_INIT_STATUS,
+                "new_feature_info_str": new_feature_info_str,
+                "new_feature_info": new_feature_info,
+            }
+        ],
         {
             **mock_data.STATUS,
             "dock_type": dock_type_code,
