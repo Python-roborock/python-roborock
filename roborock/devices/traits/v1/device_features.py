@@ -72,9 +72,13 @@ class DeviceFeaturesTrait(DeviceFeatures, common.V1TraitMixin):
     def is_field_supported(self, cls: type[RoborockBase], field_name: FieldNameBase) -> bool:
         """Determines if the specified field is supported by this device.
 
-        We use the `dps` dataclass field metadata to get the `RoborockDataProtocol`
-        integer ID and check it against the set of supported schema IDs for the
-        device returned in the product information.
+        We inspect the metadata defined for the field (either via dataclass field metadata
+        or the `@field_metadata` decorator on properties). Supported checks include:
+
+        - `feature`: Maps to a boolean capability property on `DeviceFeatures` / `DeviceFeaturesTrait`
+          (e.g. `is_support_water_mode`).
+        - `dock_feature`: Maps to a boolean capability property on `RoborockDockFeatures` (e.g. `is_washable`).
+        - `dps`: Maps to a `RoborockDataProtocol` ID checked against the product's supported schema IDs.
         """
         if self.dock_features is None:
             raise ValueError("DeviceFeaturesTrait was invoked but was not fully initialized")

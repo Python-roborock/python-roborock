@@ -61,10 +61,15 @@ def _attr_repr(obj: Any) -> str:
 
 
 def field_metadata(**kwargs):
-    """Decorator to attach metadata to a function or property.
+    """Decorator to attach capability check metadata to a property.
 
     This attaches a `_field_metadata` dictionary to the underlying getter function,
     which is then preserved when decorated with `@property`.
+
+    Supported metadata keys:
+    - `feature` (str): Name of a capability property on `DeviceFeaturesTrait`.
+    - `dock_feature` (str): Name of a capability property on `RoborockDockFeatures`.
+    - `dps` (str/int): RoborockDataProtocol ID to check against supported schema IDs.
     """
 
     def decorator(func):
