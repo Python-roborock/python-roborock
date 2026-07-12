@@ -109,6 +109,7 @@ def test_new_feature_str_missing():
         (RoborockDockTypeCode.type_27_dock, True, True),
         (RoborockDockTypeCode.k1c_lite_dock, True, True),
         (RoborockDockTypeCode.shell_2e_lite_dock, True, True),
+        (RoborockDockTypeCode.shell_2e_heat_dock, True, True),
     ],
 )
 def test_dock_features(dock_type: RoborockDockTypeCode, is_collectable: bool, is_washable: bool) -> None:
@@ -128,6 +129,12 @@ def test_dock_feature_flags_from_rr_api() -> None:
     assert RoborockDockFeatures.from_dock_type(RoborockDockTypeCode.o4_dock).is_clean_fluid_auto_delivery_supported
     assert RoborockDockFeatures.from_dock_type(RoborockDockTypeCode.couple_dock).is_hatch_door_dock_cool_fan_supported
     assert RoborockDockFeatures.from_dock_type(RoborockDockTypeCode.shell_2e_lite_dock).is_special_support_wash_temp
+    assert not RoborockDockFeatures.from_dock_type(
+        RoborockDockTypeCode.shell_2e_heat_dock
+    ).is_clean_fluid_auto_delivery_supported
+    assert not RoborockDockFeatures.from_dock_type(
+        RoborockDockTypeCode.shell_2e_heat_dock
+    ).is_water_updown_drain_supported
 
 
 def test_dock_feature_flags_with_am_variants_from_rr_api() -> None:
@@ -138,6 +145,10 @@ def test_dock_feature_flags_with_am_variants_from_rr_api() -> None:
     assert RoborockDockFeatures.from_dock_type(
         RoborockDockTypeCode.shell_3_dock, has_am=True
     ).is_clean_fluid_auto_delivery_supported
+    assert RoborockDockFeatures.from_dock_type(RoborockDockTypeCode.o5_dock).is_clean_fluid_auto_delivery_supported
+    assert RoborockDockFeatures.from_dock_type(
+        RoborockDockTypeCode.o5_dock, has_am=True
+    ).is_clean_fluid_auto_delivery_supported
 
     assert RoborockDockFeatures.from_dock_type(RoborockDockTypeCode.shell_3_dock).is_clean_carousel_self_clean_supported
     assert not RoborockDockFeatures.from_dock_type(
@@ -147,6 +158,12 @@ def test_dock_feature_flags_with_am_variants_from_rr_api() -> None:
     assert not RoborockDockFeatures.from_dock_type(RoborockDockTypeCode.o5_dock).is_water_updown_drain_supported
     assert RoborockDockFeatures.from_dock_type(
         RoborockDockTypeCode.o5_dock, has_am=True
+    ).is_water_updown_drain_supported
+    assert RoborockDockFeatures.from_dock_type(
+        RoborockDockTypeCode.k1s_dock, has_am=True
+    ).is_water_updown_drain_supported
+    assert RoborockDockFeatures.from_dock_type(
+        RoborockDockTypeCode.shell_3c_dock, has_am=True
     ).is_water_updown_drain_supported
 
 

@@ -675,6 +675,7 @@ class RoborockDockTypeCode(RoborockEnum):
     type_27_dock = 27
     k1c_lite_dock = 28
     shell_2e_lite_dock = 30
+    shell_2e_heat_dock = 40
 
 
 class RoborockDockDustCollectionModeCode(RoborockEnum):
