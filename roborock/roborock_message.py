@@ -274,6 +274,9 @@ ROBOROCK_DATA_CONSUMABLE_PROTOCOL = [
 ]
 
 
+MAX_PAYLOAD_REPR_LEN = 1024
+
+
 @dataclass
 class RoborockMessage:
     protocol: RoborockMessageProtocol
@@ -282,3 +285,18 @@ class RoborockMessage:
     version: bytes = b"1.0"
     random: int = field(default_factory=lambda: get_next_int(10000, 99999))
     timestamp: int = field(default_factory=lambda: get_timestamp())
+
+    def __repr__(self) -> str:
+        payload_repr = "None"
+        if self.payload is not None:
+            if isinstance(self.payload, (bytes, bytearray, str)) and len(self.payload) > MAX_PAYLOAD_REPR_LEN:
+                r = repr(self.payload[:MAX_PAYLOAD_REPR_LEN])
+                quote = r[-1]
+                payload_repr = f"{r[:-1]}...{quote} (length: {len(self.payload)})"
+            else:
+                payload_repr = repr(self.payload)
+        return (
+            f"RoborockMessage(protocol={self.protocol}, payload={payload_repr}, "
+            f"seq={self.seq}, version={self.version!r}, random={self.random}, "
+            f"timestamp={self.timestamp})"
+        )
