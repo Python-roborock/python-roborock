@@ -110,9 +110,9 @@ def device_fixture(
 
 
 @pytest.fixture(name="dock_type_code", autouse=True)
-def dock_type_code_fixture(request: pytest.FixtureRequest) -> RoborockDockTypeCode | None:
+def dock_type_code_fixture(device_info: HomeDataDevice) -> RoborockDockTypeCode | None:
     """Fixture to provide the dock type code for parameterized tests."""
-    return RoborockDockTypeCode.o3_plus_dock
+    return mock_data.PRODUCT_DOCK_TYPE_MAP.get(device_info.product_id, RoborockDockTypeCode.o3_plus_dock)
 
 
 @pytest.fixture(autouse=True)

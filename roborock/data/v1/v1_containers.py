@@ -39,7 +39,7 @@ from roborock.const import (
 from roborock.exceptions import RoborockException
 from roborock.roborock_message import RoborockDataProtocol
 
-from ..containers import NamedRoomMapping, RoborockBase, RoborockBaseTimer, _attr_repr
+from ..containers import NamedRoomMapping, RoborockBase, RoborockBaseTimer, _attr_repr, field_metadata
 from .v1_clean_modes import WashTowelModes
 from .v1_code_mappings import (
     CleanFluidStatus,
@@ -117,6 +117,15 @@ class StatusField(FieldNameBase):
     CHARGE_STATUS = "charge_status"
     DRY_STATUS = "dry_status"
     ERROR_CODE = "error_code"
+    WATER_BOX_CARRIAGE_STATUS = "water_box_carriage_status"
+    WATER_BOX_STATUS = "water_box_status"
+    WATER_SHORTAGE_STATUS = "water_shortage_status"
+    DIRTY_WATER_BOX_STATUS = "dirty_water_box_status"
+    CLEAR_WATER_BOX_STATUS = "clear_water_box_status"
+    CLEAN_FLUID_STATUS = "clean_fluid_status"
+    CLEAN_PERCENT = "clean_percent"
+    DOCK_ERROR_STATUS = "dock_error_status"
+    RDT = "rdt"
 
 
 @dataclass
@@ -246,12 +255,14 @@ class Status(RoborockBase):
         return (self.dss & 3) == 2
 
     @property
+    @field_metadata(dock_feature="is_washable")
     def clear_water_box_status(self) -> ClearWaterBoxStatus | None:
         if self.dss:
             return ClearWaterBoxStatus((self.dss >> 2) & 3)
         return None
 
     @property
+    @field_metadata(dock_feature="is_washable")
     def dirty_water_box_status(self) -> DirtyWaterBoxStatus | None:
         if self.dss:
             return DirtyWaterBoxStatus((self.dss >> 4) & 3)
@@ -270,6 +281,9 @@ class Status(RoborockBase):
         return None
 
     @property
+    @field_metadata(
+        dock_feature="is_clean_fluid_auto_delivery_supported",
+    )
     def clean_fluid_status(self) -> CleanFluidStatus | None:
         if self.dss:
             value = (self.dss >> 10) & 3
@@ -313,7 +327,7 @@ class StatusV2(RoborockBase):
     in_returning: int | None = None
     in_fresh_state: int | None = None
     lab_status: int | None = None
-    water_box_status: int | None = None
+    water_box_status: int | None = field(default=None, metadata={"feature": "is_support_water_mode"})
     back_type: int | None = None
     wash_phase: int | None = None
     wash_ready: int | None = None
@@ -323,14 +337,14 @@ class StatusV2(RoborockBase):
     is_locating: int | None = None
     lock_status: int | None = None
     water_box_mode: int | None = field(default=None, metadata={"dps": RoborockDataProtocol.WATER_BOX_MODE})
-    water_box_carriage_status: int | None = None
+    water_box_carriage_status: int | None = field(default=None, metadata={"feature": "is_support_water_mode"})
     mop_forbidden_enable: int | None = None
     camera_status: int | None = None
     is_exploring: int | None = None
     home_sec_status: int | None = None
     home_sec_enable_password: int | None = None
     adbumper_status: list[int] | None = None
-    water_shortage_status: int | None = None
+    water_shortage_status: int | None = field(default=None, metadata={"feature": "is_support_water_mode"})
     dock_type: RoborockDockTypeCode | None = None
     dust_collection_status: int | None = None
     auto_dust_collection: int | None = None
@@ -339,7 +353,8 @@ class StatusV2(RoborockBase):
     debug_mode: int | None = None
     collision_avoid_status: int | None = None
     switch_map_mode: int | None = None
-    dock_error_status: RoborockDockErrorCode | None = None
+    dock_error_status: RoborockDockErrorCode | None = field(default=None, metadata={"dock_feature": "is_collectable"})
+
     charge_status: RoborockChargeStatus | None = field(
         default=None, metadata={"dps": RoborockDataProtocol.CHARGE_STATUS}
     )
@@ -349,8 +364,8 @@ class StatusV2(RoborockBase):
     distance_off: int | None = None
     in_warmup: int | None = None
     dry_status: int | None = field(default=None, metadata={"dps": RoborockDataProtocol.DRYING_STATUS})
-    rdt: int | None = None
-    clean_percent: int | None = None
+    rdt: int | None = field(default=None, metadata={"feature": "is_supported_drying"})
+    clean_percent: int | None = field(default=None, metadata={"feature": "is_support_clean_estimate"})
     rss: int | None = None
     dss: int | None = None
     common_status: int | None = None
@@ -389,12 +404,14 @@ class StatusV2(RoborockBase):
         return (self.dss & 3) == 2
 
     @property
+    @field_metadata(dock_feature="is_washable")
     def clear_water_box_status(self) -> ClearWaterBoxStatus | None:
         if self.dss:
             return ClearWaterBoxStatus((self.dss >> 2) & 3)
         return None
 
     @property
+    @field_metadata(dock_feature="is_washable")
     def dirty_water_box_status(self) -> DirtyWaterBoxStatus | None:
         if self.dss:
             return DirtyWaterBoxStatus((self.dss >> 4) & 3)
@@ -413,6 +430,9 @@ class StatusV2(RoborockBase):
         return None
 
     @property
+    @field_metadata(
+        dock_feature="is_clean_fluid_auto_delivery_supported",
+    )
     def clean_fluid_status(self) -> CleanFluidStatus | None:
         if self.dss:
             value = (self.dss >> 10) & 3

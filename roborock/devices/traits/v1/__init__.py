@@ -264,6 +264,7 @@ class PropertiesApi(Trait):
         # Dock type also acts like a device feature for some traits.
         dock_type = await self._dock_type()
         dock_features = RoborockDockFeatures.from_dock_type(dock_type, has_am=self.status.has_am)
+        self.device_features.dock_features = dock_features
 
         # Initialize traits with special arguments before the generic loop
         if self.wash_towel_mode is None and self._is_supported(WashTowelModeTrait, "wash_towel_mode", dock_features):
