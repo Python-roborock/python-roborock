@@ -353,7 +353,7 @@ class StatusV2(RoborockBase):
     debug_mode: int | None = None
     collision_avoid_status: int | None = None
     switch_map_mode: int | None = None
-    dock_error_status: RoborockDockErrorCode | None = field(default=None, metadata={"dock_feature": "is_collectable"})
+    dock_error_status: RoborockDockErrorCode | None = field(default=None, metadata={"dock_feature": "has_dock"})
 
     charge_status: RoborockChargeStatus | None = field(
         default=None, metadata={"dps": RoborockDataProtocol.CHARGE_STATUS}
