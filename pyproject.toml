@@ -52,6 +52,8 @@ dev = [
     # Pull in the CLI dependencies so maintainers can run the `roborock`
     # command and pdoc can import roborock.cli for docs generation.
     "python-roborock[cli]",
+    # aioresponses is not compatible with aiohttp 3.14 yet. https://github.com/pnuckowski/aioresponses/issues/289
+    "aiohttp>=3.8.2,<3.14",
     "pytest-asyncio>=1.1.0",
     "pytest",
     "pre-commit>=3.5,<5.0",
