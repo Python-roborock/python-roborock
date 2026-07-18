@@ -53,6 +53,8 @@ async def test_trait_consumable_reset():
 
     await device.v1_properties.consumables.refresh()
     assert device.v1_properties.consumables.filter_work_time == 74384
+    assert device.v1_properties.consumables.strainer_work_times == 65
+    assert device.v1_properties.consumables.cleaning_brush_work_times == 66
 
     # Reset the filter consumable through the trait API
     await device.v1_properties.consumables.reset_consumable(ConsumableAttribute.FILTER_WORK_TIME)
@@ -61,6 +63,16 @@ async def test_trait_consumable_reset():
     assert fake_device.consumables.filter_work_time == 0
     # The trait auto-refreshes after reset, so the client should reflect the change
     assert device.v1_properties.consumables.filter_work_time == 0
+
+    # Reset the strainer consumable through the trait API
+    await device.v1_properties.consumables.reset_consumable(ConsumableAttribute.STRAINER_WORK_TIME)
+    assert fake_device.consumables.strainer_work_times == 0
+    assert device.v1_properties.consumables.strainer_work_times == 0
+
+    # Reset the cleaning brush consumable through the trait API
+    await device.v1_properties.consumables.reset_consumable(ConsumableAttribute.CLEANING_BRUSH_WORK_TIME)
+    assert fake_device.consumables.cleaning_brush_work_times == 0
+    assert device.v1_properties.consumables.cleaning_brush_work_times == 0
 
 
 async def test_trait_dnd_refresh():
