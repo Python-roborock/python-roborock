@@ -64,7 +64,7 @@ from roborock.devices.cache import DeviceCache
 from roborock.devices.traits import Trait
 from roborock.exceptions import RoborockException
 from roborock.map.map_parser import MapParserConfig
-from roborock.protocols.v1_protocol import V1RpcChannel, decode_data_protocol_message
+from roborock.protocols.v1_protocol import SecurityData, V1RpcChannel, decode_data_protocol_message
 from roborock.roborock_message import RoborockDataProtocol, RoborockMessage
 from roborock.web_api import UserWebApiClient
 
@@ -83,6 +83,7 @@ from . import (
     map_content,
     maps,
     network_info,
+    obstacle_photos,
     rooms,
     routines,
     smart_wash_params,
@@ -105,6 +106,7 @@ from .led_status import LedStatusTrait
 from .map_content import MapContentTrait
 from .maps import MapsTrait
 from .network_info import NetworkInfoTrait
+from .obstacle_photos import ObstaclePhotoTrait
 from .rooms import RoomsTrait
 from .routines import RoutinesTrait
 from .smart_wash_params import SmartWashParamsTrait
@@ -131,6 +133,7 @@ __all__ = [
     "map_content",
     "maps",
     "network_info",
+    "obstacle_photos",
     "rooms",
     "routines",
     "smart_wash_params",
@@ -171,6 +174,7 @@ class PropertiesApi(Trait):
     dust_collection_mode: DustCollectionModeTrait | None = None
     wash_towel_mode: WashTowelModeTrait | None = None
     smart_wash_params: SmartWashParamsTrait | None = None
+    obstacle_photos: ObstaclePhotoTrait | None = None
 
     def __init__(
         self,
@@ -180,17 +184,21 @@ class PropertiesApi(Trait):
         rpc_channel: V1RpcChannel,
         mqtt_rpc_channel: V1RpcChannel,
         map_rpc_channel: V1RpcChannel,
+        blob_rpc_channel: V1RpcChannel,
         add_dps_listener: Callable[[Callable[[dict[RoborockDataProtocol, Any]], None]], Callable[[], None]],
         web_api: UserWebApiClient,
         device_cache: DeviceCache,
         map_parser_config: MapParserConfig | None = None,
         region: str | None = None,
+        security_data: SecurityData | None = None,
     ) -> None:
         """Initialize the V1TraitProps."""
         self._device_uid = device_uid
         self._rpc_channel = rpc_channel
         self._mqtt_rpc_channel = mqtt_rpc_channel
         self._map_rpc_channel = map_rpc_channel
+        self._blob_rpc_channel = blob_rpc_channel
+        self._security_data = security_data
         self._web_api = web_api
         self._device_cache = device_cache
         self._region = region
@@ -229,6 +237,8 @@ class PropertiesApi(Trait):
         # to use the mqtt_rpc_channel (cloud only) instead of the rpc_channel (adaptive)
         if hasattr(trait, "mqtt_rpc_channel"):
             return self._mqtt_rpc_channel
+        elif hasattr(trait, "blob_rpc_channel"):
+            return self._blob_rpc_channel
         elif hasattr(trait, "map_rpc_channel"):
             return self._map_rpc_channel
         else:
@@ -272,6 +282,15 @@ class PropertiesApi(Trait):
             wash_towel_mode._rpc_channel = self._get_rpc_channel(wash_towel_mode)  # type: ignore[assignment]
             self.wash_towel_mode = wash_towel_mode
 
+        if (
+            self.obstacle_photos is None
+            and self._security_data is not None
+            and self._is_supported(ObstaclePhotoTrait, "obstacle_photos", dock_features)
+        ):
+            obstacle_photos = ObstaclePhotoTrait(self._rpc_channel, self._security_data)
+            obstacle_photos._rpc_channel = self._get_rpc_channel(obstacle_photos)
+            self.obstacle_photos = obstacle_photos
+
         # Dynamically create any traits that need to be populated
         for item in fields(self):
             if (trait := getattr(self, item.name, None)) is not None:
@@ -283,6 +302,8 @@ class PropertiesApi(Trait):
 
             # Union args may not be in declared order
             item_type = union_args[0] if union_args[1] is type(None) else union_args[1]
+            if item_type is ObstaclePhotoTrait:
+                continue
             if not self._is_supported(item_type, item.name, dock_features):
                 _LOGGER.debug("Trait '%s' not supported, skipping", item.name)
                 continue
@@ -369,11 +390,13 @@ def create(
     rpc_channel: V1RpcChannel,
     mqtt_rpc_channel: V1RpcChannel,
     map_rpc_channel: V1RpcChannel,
+    blob_rpc_channel: V1RpcChannel,
     add_dps_listener: Callable[[Callable[[dict[RoborockDataProtocol, Any]], None]], Callable[[], None]],
     web_api: UserWebApiClient,
     device_cache: DeviceCache,
     map_parser_config: MapParserConfig | None = None,
     region: str | None = None,
+    security_data: SecurityData | None = None,
 ) -> PropertiesApi:
     """Create traits for V1 devices."""
     return PropertiesApi(
@@ -383,9 +406,11 @@ def create(
         rpc_channel,
         mqtt_rpc_channel,
         map_rpc_channel,
+        blob_rpc_channel,
         add_dps_listener,
         web_api,
         device_cache,
         map_parser_config,
         region=region,
+        security_data=security_data,
     )

@@ -29,6 +29,7 @@ from roborock.protocols.v1_protocol import (
     ResponseMessage,
     SecurityData,
     V1RpcChannel,
+    create_blob_response_decoder,
     create_map_response_decoder,
     create_security_data,
     decode_data_protocol_message,
@@ -214,6 +215,11 @@ class V1Channel(Channel):
         return self._mqtt_channel.is_connected and self._mqtt_unsub is not None
 
     @property
+    def security_data(self) -> SecurityData:
+        """Return security data used for map/blob RPC commands."""
+        return self._security_data
+
+    @property
     def rpc_channel(self) -> V1RpcChannel:
         """Return the combined RPC channel that prefers local with a fallback to MQTT.
 
@@ -243,6 +249,12 @@ class V1Channel(Channel):
     def map_rpc_channel(self) -> V1RpcChannel:
         """Return the map RPC channel used for fetching map content."""
         decoder = create_map_response_decoder(security_data=self._security_data)
+        return RpcChannel(lambda: [self._create_mqtt_rpc_strategy(decoder)], self._logger)
+
+    @property
+    def blob_rpc_channel(self) -> V1RpcChannel:
+        """Return the blob RPC channel used for fetching binary content."""
+        decoder = create_blob_response_decoder()
         return RpcChannel(lambda: [self._create_mqtt_rpc_strategy(decoder)], self._logger)
 
     def _create_local_rpc_strategy(self) -> RpcStrategy | None:

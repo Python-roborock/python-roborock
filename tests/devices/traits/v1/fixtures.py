@@ -40,6 +40,12 @@ def map_rpc_channel_fixture() -> AsyncMock:
     return AsyncMock()
 
 
+@pytest.fixture(autouse=True, name="mock_blob_rpc_channel")
+def blob_rpc_channel_fixture() -> AsyncMock:
+    """Fixture to set up the blob channel for tests."""
+    return AsyncMock()
+
+
 @pytest.fixture(autouse=True, name="web_api_client")
 def web_api_client_fixture() -> AsyncMock:
     """Fixture to set up the web API client for tests."""
@@ -82,6 +88,7 @@ def device_fixture(
     mock_rpc_channel: AsyncMock,
     mock_mqtt_rpc_channel: AsyncMock,
     mock_map_rpc_channel: AsyncMock,
+    mock_blob_rpc_channel: AsyncMock,
     web_api_client: AsyncMock,
     device_cache: DeviceCache,
     device_info: HomeDataDevice,
@@ -101,6 +108,7 @@ def device_fixture(
             mock_rpc_channel,
             mock_mqtt_rpc_channel,
             mock_map_rpc_channel,
+            mock_blob_rpc_channel,
             Mock(),
             web_api_client,
             device_cache=device_cache,

@@ -52,8 +52,16 @@ def map_rpc_channel_fixture() -> AsyncMock:
     return AsyncMock()
 
 
+@pytest.fixture(autouse=True, name="blob_rpc_channel")
+def blob_rpc_channel_fixture() -> AsyncMock:
+    """Fixture to set up the blob channel for tests."""
+    return AsyncMock()
+
+
 @pytest.fixture(autouse=True, name="device")
-def device_fixture(channel: AsyncMock, rpc_channel: AsyncMock, mqtt_rpc_channel: AsyncMock) -> RoborockDevice:
+def device_fixture(
+    channel: AsyncMock, rpc_channel: AsyncMock, mqtt_rpc_channel: AsyncMock, blob_rpc_channel: AsyncMock
+) -> RoborockDevice:
     """Fixture to set up the device for tests."""
     return RoborockDevice(
         device_info=HOME_DATA.devices[0],
@@ -66,6 +74,7 @@ def device_fixture(channel: AsyncMock, rpc_channel: AsyncMock, mqtt_rpc_channel:
             rpc_channel,
             mqtt_rpc_channel,
             AsyncMock(),
+            blob_rpc_channel,
             Mock(),
             AsyncMock(),
             device_cache=DeviceCache(HOME_DATA.devices[0].duid, NoCache()),
@@ -256,6 +265,7 @@ async def test_connect_retries_after_transient_start_failure() -> None:
             duid,
             HOME_DATA.products[0],
             HOME_DATA,
+            AsyncMock(),
             AsyncMock(),
             AsyncMock(),
             AsyncMock(),
