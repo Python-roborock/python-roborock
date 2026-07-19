@@ -2,6 +2,35 @@
 
 <!-- version list -->
 
+## v5.33.0 (2026-07-19)
+
+### Chores
+
+- Remove the old version of Status
+  ([#883](https://github.com/Python-roborock/python-roborock/pull/883),
+  [`01d0cc9`](https://github.com/Python-roborock/python-roborock/commit/01d0cc9722a66ed84390bae9e67f606d378123e4))
+
+### Features
+
+- Compose Q10 maps in a pure renderer
+  ([#885](https://github.com/Python-roborock/python-roborock/pull/885),
+  [`deeb775`](https://github.com/Python-roborock/python-roborock/commit/deeb7755e799d0dca5471025350d61c8d1db6f9d))
+
+### Refactoring
+
+- Keep Q10 render intermediates internal
+  ([#885](https://github.com/Python-roborock/python-roborock/pull/885),
+  [`deeb775`](https://github.com/Python-roborock/python-roborock/commit/deeb7755e799d0dca5471025350d61c8d1db6f9d))
+
+- Render Q10 maps through one image path
+  ([#885](https://github.com/Python-roborock/python-roborock/pull/885),
+  [`deeb775`](https://github.com/Python-roborock/python-roborock/commit/deeb7755e799d0dca5471025350d61c8d1db6f9d))
+
+- **map**: Address Q10 decoding review feedback
+  ([#884](https://github.com/Python-roborock/python-roborock/pull/884),
+  [`6e5bf5b`](https://github.com/Python-roborock/python-roborock/commit/6e5bf5be71e9b055bf3a679c9286b96f32b9e0f2))
+
+
 ## v5.32.0 (2026-07-19)
 
 ### Bug Fixes
