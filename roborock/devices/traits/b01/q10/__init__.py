@@ -78,10 +78,10 @@ class Q10PropertiesApi(Trait):
     """Trait exposing remaining life of consumables."""
 
     map: MapContentTrait
-    """Trait for fetching the current parsed map (image + rooms)."""
+    """Composed map image plus caller-facing map and trace data."""
 
     map_dps: MapDpsTrait
-    """Low-level DPS values used to compose map overlays."""
+    """Restricted zones and virtual walls received through DPS."""
 
     clean_history: CleanHistoryTrait
     """Trait for fetching the device clean-record history (``dpCleanRecord``)."""

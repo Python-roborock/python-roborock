@@ -11,10 +11,9 @@ tests cover that state management; the pixel/geometry work it drives is tested i
 import asyncio
 import base64
 from collections.abc import AsyncGenerator
-from dataclasses import replace
 from pathlib import Path
 from typing import cast
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -22,10 +21,8 @@ from roborock.cli import _await_q10_map_push, cli
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
 from roborock.devices.traits.b01.q10 import Q10PropertiesApi, create
 from roborock.devices.traits.b01.q10.map import MapContentTrait, MapDpsTrait
-from roborock.map.b01_grid_layers import GridCalibration
+from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
-    Q10HeaderCalibration,
-    Q10MapPacket,
     Q10Point,
     Q10TracePacket,
     parse_map_packet,
@@ -38,34 +35,25 @@ from .conftest import FakeB01Q10Channel
 FIXTURE = Path("tests/map/testdata/b01_q10_map.bin")
 TRACE_SESSION_FIXTURE = Path("tests/map/testdata/b01_q10_trace_session.bin")
 
-# A header calibration whose pixel origin (0, 5) is usable (not a keepalive
-# frame), so a short path can calibrate the fixture map.
-_USABLE_HEADER = Q10HeaderCalibration(origin_x=0, origin_y=50, resolution=5, charger_x=0, charger_y=0, charger_phi=0)
+
+def _map_trait() -> MapContentTrait:
+    """Create a high-level trait with its required low-level dependency."""
+    return MapContentTrait(MapDpsTrait())
 
 
-def _trait_with_map() -> MapContentTrait:
-    """A trait with the fixture map already pushed into it."""
-    trait = MapContentTrait()
-    trait.update_from_map_packet(parse_map_packet(FIXTURE.read_bytes()))
-    return trait
-
-
-def _floor_world_points(packet: Q10MapPacket, cal: GridCalibration, count: int) -> list[Q10Point]:
-    """``count`` world points lying on the map's floor under ``cal``."""
-    layers = packet.layers
-    floor = [
-        (px, py)
-        for py in range(layers.height)
-        for px in range(layers.width)
-        if layers.cell_class(layers.grid[py * layers.width + px]) == "floor"
-    ]
-    return [Q10Point(*(int(v) for v in cal.pixel_to_world(px, py))) for px, py in floor[:count]]
+def _zone_blob() -> str:
+    """Return one base64-encoded restricted-zone DPS value."""
+    vertices = [(0, 0), (40, 0), (40, 40), (0, 40)]
+    record = bytes([0, len(vertices)]) + b"".join(
+        int.to_bytes(value & 0xFFFF, 2, "big") for point in vertices for value in point
+    )
+    return base64.b64encode(bytes([1, 1]) + record).decode()
 
 
 def test_update_from_map_packet_populates_image_and_rooms() -> None:
-    """A pushed 01 01 map packet populates the image, rooms and map data."""
+    """A pushed 01 01 map packet populates the image and rooms."""
     packet = parse_map_packet(FIXTURE.read_bytes())
-    trait = MapContentTrait()
+    trait = _map_trait()
     updates: list[None] = []
     trait.add_update_listener(lambda: updates.append(None))
 
@@ -80,7 +68,7 @@ def test_update_from_map_packet_populates_image_and_rooms() -> None:
 def test_update_from_trace_packet_populates_path_and_position() -> None:
     """A pushed 02 01 trace packet populates the path, position and heading."""
     trace = parse_trace_packet(TRACE_SESSION_FIXTURE.read_bytes())
-    trait = MapContentTrait()
+    trait = _map_trait()
     updates: list[None] = []
     trait.add_update_listener(lambda: updates.append(None))
 
@@ -103,7 +91,7 @@ def test_q10_position_is_available_as_top_level_cli_command() -> None:
 
 class _FakeQ10Properties:
     def __init__(self) -> None:
-        self.map = MapContentTrait()
+        self.map = _map_trait()
         self.refresh_count = 0
 
     async def refresh(self) -> None:
@@ -220,74 +208,61 @@ async def test_subscribe_loop_routes_trace_push(
 
 def test_trace_without_map_is_retained_without_rendering() -> None:
     """A trace is retained even when no map is available to render yet."""
-    trait = MapContentTrait()
+    trait = _map_trait()
     trait.update_from_trace_packet(Q10TracePacket(points=[Q10Point(i, 0) for i in range(30)]))
     assert len(trait.path) == 30
     assert trait.image_content is None
 
 
-def test_trace_update_projects_short_path_using_header() -> None:
-    """A map header and short trace are sufficient to render a path."""
-    trait = MapContentTrait()
-    packet = replace(parse_map_packet(FIXTURE.read_bytes()), header_calibration=_USABLE_HEADER)
-    trait.update_from_map_packet(packet)
-    base = trait.image_content
-    assert base is not None
-    true = GridCalibration(resolution=20.0, origin_x=0.0, origin_y=5.0, y_sign=1)
-    trait.update_from_trace_packet(Q10TracePacket(points=_floor_world_points(packet, true, 6)))
-    assert len(trait.path) < 20  # far too short for the full origin+resolution fit
-
-    assert trait.image_content is not None
-    assert trait.image_content != base
-
-
-def test_short_trace_without_header_cannot_be_projected() -> None:
-    """Without a header origin a short trace cannot be placed on the map."""
+def test_render_failure_clears_stale_image() -> None:
+    """A failed composition cannot leave an image from older source data."""
     packet = parse_map_packet(FIXTURE.read_bytes())
-    trait = MapContentTrait()
-    trait.update_from_map_packet(packet)  # the fixture header is a keepalive frame
-    base = trait.image_content
-    true = GridCalibration(resolution=10.0, origin_x=0.0, origin_y=5.0, y_sign=1)
-    trait.update_from_trace_packet(Q10TracePacket(points=_floor_world_points(packet, true, 6)))
-    assert trait.image_content == base
+    trace = Q10TracePacket(points=[Q10Point(1, 2)])
+    trait = _map_trait()
+
+    with patch(
+        "roborock.devices.traits.b01.q10.map.render_q10_map",
+        side_effect=[b"initial image", RoborockException("invalid map")],
+    ):
+        trait.update_from_map_packet(packet)
+        trait.update_from_trace_packet(trace)
+
+    assert trait.path == trace.points
+    assert trait.image_content is None
 
 
 # --- Overlays ----------------------------------------------------------------
 
 
-def test_load_overlays_places_zones_after_calibration() -> None:
-    """Decoded no-go / no-mop zones are drawn once the sources calibrate."""
+def test_map_dps_update_renders_decoded_overlays() -> None:
+    """A DPS update recomposes an existing map with decoded overlays."""
     map_dps = MapDpsTrait()
     trait = MapContentTrait(map_dps)
-    packet = replace(parse_map_packet(FIXTURE.read_bytes()), header_calibration=_USABLE_HEADER)
-    trait.update_from_map_packet(packet)
-    true = GridCalibration(resolution=20.0, origin_x=0.0, origin_y=5.0, y_sign=1)
-    trait.update_from_trace_packet(Q10TracePacket(points=_floor_world_points(packet, true, 6)))
-    before = trait.image_content
-    assert before is not None
+    packet = parse_map_packet(FIXTURE.read_bytes())
+    notified: list[None] = []
+    trait.add_update_listener(lambda: notified.append(None))
 
-    def rect(zone_type: int, corners: list[tuple[int, int]]) -> bytes:
-        out = bytes([zone_type, len(corners)])
-        for x, y in corners:
-            out += int.to_bytes(x & 0xFFFF, 2, "big") + int.to_bytes(y & 0xFFFF, 2, "big")
-        return out.ljust(18, b"\x00")
-
-    blob = bytes([1, 1]) + rect(0, [(0, 0), (40, 0), (40, 40), (0, 40)])
-    map_dps.update_from_dps({B01_Q10_DP.RESTRICTED_ZONE_UP: base64.b64encode(blob).decode()})
+    with patch(
+        "roborock.devices.traits.b01.q10.map.render_q10_map",
+        side_effect=[b"base image", b"image with overlays"],
+    ) as render:
+        trait.update_from_map_packet(packet)
+        notified.clear()
+        map_dps.update_from_dps({B01_Q10_DP.RESTRICTED_ZONE_UP: _zone_blob()})
 
     assert len(map_dps.zones) == 1
-    assert trait.image_content != before
+    assert trait.image_content == b"image with overlays"
+    assert notified == [None]
+    assert render.call_count == 2
+    assert render.call_args.args[0] is packet
+    assert render.call_args.args[1] is None
+    assert tuple(render.call_args.args[2].zones) == tuple(map_dps.zones)
 
 
 def test_load_overlays_partial_update_keeps_existing_zones() -> None:
     """A status push without the zone DP (None) must not wipe loaded zones."""
     map_dps = MapDpsTrait()
-    blob = (
-        bytes([1, 1])
-        + bytes([0, 4])
-        + b"".join(int.to_bytes(v & 0xFFFF, 2, "big") for xy in [(0, 0), (4, 0), (4, 4), (0, 4)] for v in xy)
-    )
-    map_dps.update_from_dps({B01_Q10_DP.RESTRICTED_ZONE_UP: base64.b64encode(blob).decode()})
+    map_dps.update_from_dps({B01_Q10_DP.RESTRICTED_ZONE_UP: _zone_blob()})
     assert len(map_dps.zones) == 1
     # A later partial update carrying only the (empty) virtual-wall DP.
     map_dps.update_from_dps({B01_Q10_DP.VIRTUAL_WALL_UP: "AA=="})
@@ -295,22 +270,17 @@ def test_load_overlays_partial_update_keeps_existing_zones() -> None:
     assert map_dps.virtual_walls == []
 
 
-def test_map_dps_trait_updates_high_level_map_content() -> None:
-    """The low-level DPS trait notifies the dependent high-level map trait."""
+def test_map_dps_update_without_map_does_not_notify_map_content() -> None:
+    """A DPS update cannot change high-level content before a map arrives."""
     map_dps = MapDpsTrait()
     trait = MapContentTrait(map_dps)
-    blob = (
-        bytes([1, 1])
-        + bytes([0, 4])
-        + b"".join(int.to_bytes(v & 0xFFFF, 2, "big") for xy in [(0, 0), (4, 0), (4, 4), (0, 4)] for v in xy)
-    )
     notified = []
     trait.add_update_listener(lambda: notified.append(True))
 
-    map_dps.update_from_dps({B01_Q10_DP.RESTRICTED_ZONE_UP: base64.b64encode(blob).decode()})
+    map_dps.update_from_dps({B01_Q10_DP.RESTRICTED_ZONE_UP: _zone_blob()})
 
     assert len(map_dps.zones) == 1
-    assert notified  # listeners learn the overlays changed
+    assert not notified
 
 
 def test_map_dps_push_without_overlay_data_points_is_noop() -> None:

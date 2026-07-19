@@ -72,13 +72,13 @@ class MapContentTrait(TraitUpdateListener):
 
     def __init__(
         self,
-        map_dps: MapDpsTrait | None = None,
+        map_dps: MapDpsTrait,
         *,
         map_parser_config: B01Q10MapParserConfig | None = None,
     ) -> None:
         TraitUpdateListener.__init__(self, logger=_LOGGER)
         self._config = map_parser_config or B01Q10MapParserConfig()
-        self._map_dps = map_dps or MapDpsTrait()
+        self._map_dps = map_dps
         self._map_packet: Q10MapPacket | None = None
         self._trace_packet: Q10TracePacket | None = None
         self._image_content: bytes | None = None
@@ -86,7 +86,7 @@ class MapContentTrait(TraitUpdateListener):
 
     @property
     def image_content(self) -> bytes | None:
-        """The composed map PNG, if a map has been pushed."""
+        """The composed map PNG, if the latest map rendered successfully."""
         return self._image_content
 
     @property
@@ -123,6 +123,8 @@ class MapContentTrait(TraitUpdateListener):
 
     def _map_dps_updated(self) -> None:
         """Render after the low-level DPS source changes."""
+        if self._map_packet is None:
+            return
         self._render()
         self._notify_update()
 
@@ -142,3 +144,4 @@ class MapContentTrait(TraitUpdateListener):
             )
         except RoborockException as ex:
             _LOGGER.debug("Failed to render Q10 map packet: %s", ex)
+            self._image_content = None
