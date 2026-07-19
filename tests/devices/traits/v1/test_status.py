@@ -129,6 +129,19 @@ def test_cleaning_mode_options() -> None:
     ]
 
 
+def test_cleaning_mode_options_with_vacuum_then_mop() -> None:
+    """Test vacuum-then-mop support is reflected in the available options."""
+    status_trait = _create_cleaning_mode_status_trait(is_clean_then_mop_mode_supported=True)
+
+    assert status_trait.cleaning_mode_options == [
+        CleaningMode.VACUUM,
+        CleaningMode.VAC_AND_MOP,
+        CleaningMode.VACUUM_THEN_MOP,
+        CleaningMode.MOP,
+        CleaningMode.CUSTOM,
+    ]
+
+
 @pytest.mark.parametrize(
     ("fan_power", "water_box_mode", "mop_mode", "expected_mode"),
     [
@@ -205,6 +218,22 @@ def test_current_cleaning_mode_accepts_enums() -> None:
     )
 
 
+def test_current_cleaning_mode_with_vacuum_then_mop_enabled() -> None:
+    """Test the sequence state takes precedence over individual motor settings."""
+    status_trait = _create_cleaning_mode_status_trait(is_clean_then_mop_mode_supported=True)
+
+    assert (
+        get_current_cleaning_mode(
+            clean_mode=VacuumModes.BALANCED,
+            water_mode=WaterModes.STANDARD,
+            mop_mode=CleanRoutes.STANDARD,
+            features=status_trait._device_features_trait,
+            clean_then_mop=True,
+        )
+        == CleaningMode.VACUUM_THEN_MOP
+    )
+
+
 def test_current_cleaning_mode_none() -> None:
     """Test that incomplete status values do not classify a cleaning mode."""
     status_trait = _create_cleaning_mode_status_trait()
@@ -245,6 +274,19 @@ def test_get_cleaning_mode_parameters() -> None:
     ]
 
 
+def test_get_vacuum_then_mop_parameters() -> None:
+    """Test vacuum-then-mop uses the normal vacuum and mop motor settings."""
+    status_trait = _create_cleaning_mode_status_trait(is_clean_then_mop_mode_supported=True)
+
+    assert get_cleaning_mode_parameters(CleaningMode.VACUUM_THEN_MOP, status_trait._device_features_trait) == [
+        {
+            "fan_power": VacuumModes.BALANCED.code,
+            "water_box_mode": WaterModes.STANDARD.code,
+            "mop_mode": CleanRoutes.STANDARD.code,
+        }
+    ]
+
+
 def test_get_cleaning_mode_parameters_unsupported() -> None:
     """Test unsupported cleaning modes raise a clear error."""
     status_trait = _create_cleaning_mode_status_trait()
@@ -275,6 +317,74 @@ async def test_set_cleaning_mode(
                 "mop_mode": CleanRoutes.CUSTOMIZED.code,
             }
         ],
+    )
+
+
+async def test_set_vacuum_then_mop_mode(
+    mock_rpc_channel: AsyncMock,
+) -> None:
+    """Test enabling vacuum-then-mop with the dedicated sequence RPC."""
+    status_trait = _create_cleaning_mode_status_trait(
+        is_clean_then_mop_mode_supported=True,
+        is_ctm_with_repeat_supported=True,
+    )
+    status_trait._rpc_channel = mock_rpc_channel  # type: ignore[assignment]
+
+    await status_trait.set_cleaning_mode(CleaningMode.VACUUM_THEN_MOP)
+
+    mock_rpc_channel.send_command.assert_called_once_with(
+        RoborockCommand.APP_SET_CLEAN_SEQUENCE_TYPE,
+        params={
+            "type": 1,
+            "fan_power": VacuumModes.BALANCED.code,
+            "water_box_mode": WaterModes.STANDARD.code,
+            "mop_mode": CleanRoutes.STANDARD.code,
+            "repeat": 1,
+        },
+    )
+    assert status_trait.current_cleaning_mode == CleaningMode.VACUUM_THEN_MOP
+
+
+async def test_set_vacuum_then_mop_mode_without_repeat(
+    mock_rpc_channel: AsyncMock,
+) -> None:
+    """Test repeat is omitted when the device does not advertise support."""
+    status_trait = _create_cleaning_mode_status_trait(is_clean_then_mop_mode_supported=True)
+    status_trait._rpc_channel = mock_rpc_channel  # type: ignore[assignment]
+
+    await status_trait.set_cleaning_mode(CleaningMode.VACUUM_THEN_MOP)
+
+    mock_rpc_channel.send_command.assert_called_once_with(
+        RoborockCommand.APP_SET_CLEAN_SEQUENCE_TYPE,
+        params={
+            "type": 1,
+            "fan_power": VacuumModes.BALANCED.code,
+            "water_box_mode": WaterModes.STANDARD.code,
+            "mop_mode": CleanRoutes.STANDARD.code,
+        },
+    )
+
+
+async def test_set_regular_mode_on_vacuum_then_mop_device(
+    mock_rpc_channel: AsyncMock,
+) -> None:
+    """Test regular modes explicitly disable the cleaning sequence."""
+    status_trait = _create_cleaning_mode_status_trait(
+        is_clean_then_mop_mode_supported=True,
+        is_ctm_with_repeat_supported=True,
+    )
+    status_trait._rpc_channel = mock_rpc_channel  # type: ignore[assignment]
+
+    await status_trait.set_cleaning_mode(CleaningMode.VACUUM)
+
+    mock_rpc_channel.send_command.assert_called_once_with(
+        RoborockCommand.APP_SET_CLEAN_SEQUENCE_TYPE,
+        params={
+            "type": 0,
+            "fan_power": VacuumModes.BALANCED.code,
+            "water_box_mode": WaterModes.OFF.code,
+            "mop_mode": CleanRoutes.STANDARD.code,
+        },
     )
 
 

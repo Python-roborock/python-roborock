@@ -44,6 +44,7 @@ class RoborockCommand(str, Enum):
     APP_SEGMENT_CLEAN = "app_segment_clean"
     APP_SET_AMETHYST_STATUS = "app_set_amethyst_status"
     APP_SET_CARPET_DEEP_CLEAN_STATUS = "app_set_carpet_deep_clean_status"
+    APP_SET_CLEAN_SEQUENCE_TYPE = "app_set_clean_sequence_type"
     APP_SET_CROSS_CARPET_CLEANING_STATUS = "app_set_cross_carpet_cleaning_status"
     APP_SET_DOOR_SILL_BLOCKS = "app_set_door_sill_blocks"
     APP_SET_DIRTY_REPLENISH_CLEAN_STATUS = "app_set_dirty_replenish_clean_status"

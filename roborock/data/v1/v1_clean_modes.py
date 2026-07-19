@@ -82,6 +82,7 @@ class CleaningMode(StrEnum):
 
     VACUUM = "vacuum"
     VAC_AND_MOP = "vac_and_mop"
+    VACUUM_THEN_MOP = "vacuum_then_mop"
     MOP = "mop"
     CUSTOM = "custom"
     SMART_MODE = "smart_mode"
@@ -208,6 +209,8 @@ def get_cleaning_mode_options(features: DeviceFeatures) -> list[CleaningMode]:
 
     supported_water_modes = get_water_modes(features)
     options = [CleaningMode.VACUUM, CleaningMode.VAC_AND_MOP]
+    if features.is_clean_then_mop_mode_supported:
+        options.append(CleaningMode.VACUUM_THEN_MOP)
     if features.is_pure_clean_mop_supported:
         options.append(CleaningMode.MOP)
     if features.is_customized_clean_supported and WaterModes.CUSTOMIZED in supported_water_modes:
@@ -249,6 +252,8 @@ def _get_clean_motor_mode_params(
     if mode == CleaningMode.VACUUM:
         return (VacuumModes.BALANCED, WaterModes.OFF, CleanRoutes.STANDARD)
     if mode == CleaningMode.VAC_AND_MOP:
+        return (VacuumModes.BALANCED, _get_default_mopping_water_mode(features), CleanRoutes.STANDARD)
+    if mode == CleaningMode.VACUUM_THEN_MOP:
         return (VacuumModes.BALANCED, _get_default_mopping_water_mode(features), CleanRoutes.STANDARD)
     if mode == CleaningMode.MOP:
         return (
@@ -310,10 +315,13 @@ def get_current_cleaning_mode(
     water_mode: int | WaterModes | None,
     mop_mode: int | CleanRoutes | None,
     features: DeviceFeatures,
+    clean_then_mop: bool = False,
 ) -> CleaningMode | None:
     """Classify the current high-level cleaning mode from individual mode codes."""
     if not features.is_support_water_mode:
         return None
+    if clean_then_mop and features.is_clean_then_mop_mode_supported:
+        return CleaningMode.VACUUM_THEN_MOP
     clean_mode_enum = _resolve_clean_mode(clean_mode, features)
     water_mode_enum = _resolve_mode_code(water_mode, WaterModes)
     mop_mode_enum = _resolve_mode_code(mop_mode, CleanRoutes)

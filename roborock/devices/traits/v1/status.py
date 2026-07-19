@@ -64,6 +64,7 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
         TraitUpdateListener.__init__(self, logger=_LOGGER)
         self._device_features_trait = device_feature_trait
         self._region = region
+        self._clean_then_mop_enabled = False
 
     @cached_property
     def fan_speed_options(self) -> list[VacuumModes]:
@@ -118,6 +119,7 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
             water_mode=self.water_box_mode,
             mop_mode=self.mop_mode,
             features=self._device_features_trait,
+            clean_then_mop=self._clean_then_mop_enabled,
         )
 
     @property
@@ -128,10 +130,31 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
 
     async def set_cleaning_mode(self, cleaning_mode: str | CleaningMode) -> None:
         """Set the preferred high-level cleaning mode for the device."""
+        cleaning_mode = resolve_cleaning_mode(cleaning_mode)
+        params = get_cleaning_mode_parameters(cleaning_mode, self._device_features_trait)
+        clean_then_mop_enabled = cleaning_mode == CleaningMode.VACUUM_THEN_MOP
+
+        if self._device_features_trait.is_clean_then_mop_mode_supported:
+            sequence_params = {
+                "type": int(clean_then_mop_enabled),
+                **params[0],
+            }
+            if clean_then_mop_enabled and self._device_features_trait.is_ctm_with_repeat_supported:
+                sequence_params["repeat"] = 1
+            await self.rpc_channel.send_command(
+                RoborockCommand.APP_SET_CLEAN_SEQUENCE_TYPE,
+                params=sequence_params,
+            )
+            self._clean_then_mop_enabled = clean_then_mop_enabled
+            self._notify_update()
+            return
+
         await self.rpc_channel.send_command(
             RoborockCommand.SET_CLEAN_MOTOR_MODE,
-            params=get_cleaning_mode_parameters(resolve_cleaning_mode(cleaning_mode), self._device_features_trait),
+            params=params,
         )
+        self._clean_then_mop_enabled = False
+        self._notify_update()
 
     def update_from_dps(self, decoded_dps: dict[RoborockDataProtocol, Any]) -> None:
         """Update the trait from data protocol push message data.
