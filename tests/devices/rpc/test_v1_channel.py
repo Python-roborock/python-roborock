@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from roborock.data import NetworkInfo, RoborockStateCode, S5MaxStatus, UserData
+from roborock.data import NetworkInfo, RoborockStateCode, StatusV2, UserData
 from roborock.devices.cache import DeviceCache, DeviceCacheData, InMemoryCache
 from roborock.devices.rpc.v1_channel import V1Channel
 from roborock.devices.transport.local_channel import LocalSession
@@ -341,7 +341,7 @@ async def test_v1_channel_send_command_local_preferred(
     mock_local_channel.response_queue.append(TEST_RESPONSE)
     result = await rpc_channel.send_command(
         RoborockCommand.GET_STATUS,
-        response_type=S5MaxStatus,
+        response_type=StatusV2,
     )
 
     # Verify local response was parsed
@@ -370,7 +370,7 @@ async def test_v1_channel_send_command_local_fails(
     # Send command
     result = await rpc_channel.send_command(
         RoborockCommand.GET_STATUS,
-        response_type=S5MaxStatus,
+        response_type=StatusV2,
     )
 
     # Verify result
@@ -419,7 +419,7 @@ async def test_v1_channel_send_pick_first_available(
     mock_local_channel.response_queue.extend(local_channel_responses)
     result = await rpc_channel.send_command(
         RoborockCommand.GET_STATUS,
-        response_type=S5MaxStatus,
+        response_type=StatusV2,
     )
 
     # Verify only MQTT was used
@@ -442,7 +442,7 @@ async def test_v1_channel_send_decoded_command_with_params(
     test_params = {"volume": 80}
     await rpc_channel.send_command(
         RoborockCommand.CHANGE_SOUND_VOLUME,
-        response_type=S5MaxStatus,
+        response_type=StatusV2,
         params=test_params,
     )
 

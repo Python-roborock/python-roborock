@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from syrupy import SnapshotAssertion
 
-from roborock.data import HomeData, NetworkInfo, S7MaxVStatus, UserData
+from roborock.data import HomeData, NetworkInfo, StatusV2, UserData
 from roborock.devices.cache import DeviceCache, DeviceCacheData, InMemoryCache, NoCache
 from roborock.devices.device import RoborockDevice
 from roborock.devices.rpc.v1_channel import V1Channel
@@ -23,7 +23,7 @@ from tests.fixtures.channel_fixtures import FakeChannel
 
 USER_DATA = UserData.from_dict(mock_data.USER_DATA)
 HOME_DATA = HomeData.from_dict(mock_data.HOME_DATA_RAW)
-STATUS = S7MaxVStatus.from_dict(mock_data.STATUS)
+STATUS = StatusV2.from_dict(mock_data.STATUS)
 
 TESTDATA = pathlib.Path("tests/protocols/testdata/v1_protocol/")
 

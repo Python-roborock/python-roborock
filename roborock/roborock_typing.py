@@ -1,17 +1,4 @@
-from dataclasses import dataclass, field
 from enum import Enum, StrEnum
-from typing import Self
-
-from .data import (
-    CleanRecord,
-    CleanSummary,
-    Consumable,
-    DustCollectionMode,
-    RoborockBase,
-    SmartWashParams,
-    Status,
-    WashTowelMode,
-)
 
 
 class RoborockCommand(str, Enum):
@@ -341,41 +328,3 @@ class RoborockB01Q7Methods(StrEnum):
     GET_RECORD_LIST = "service.get_record_list"
     GET_ORDER = "service.get_order"
     POST_PROP = "prop.post"
-
-
-@dataclass
-class DockSummary(RoborockBase):
-    dust_collection_mode: DustCollectionMode | None = None
-    wash_towel_mode: WashTowelMode | None = None
-    smart_wash_params: SmartWashParams | None = None
-
-
-@dataclass
-class DeviceProp(RoborockBase):
-    status: Status = field(default_factory=Status)
-    clean_summary: CleanSummary = field(default_factory=CleanSummary)
-    consumable: Consumable = field(default_factory=Consumable)
-    last_clean_record: CleanRecord | None = None
-    dock_summary: DockSummary | None = None
-    dust_collection_mode_name: str | None = None
-
-    def __post_init__(self) -> None:
-        if (
-            self.dock_summary
-            and self.dock_summary.dust_collection_mode is not None
-            and self.dock_summary.dust_collection_mode.mode is not None
-        ):
-            self.dust_collection_mode_name = self.dock_summary.dust_collection_mode.mode.name
-
-    def update(self, device_prop: Self) -> None:
-        if device_prop.status:
-            self.status = device_prop.status
-        if device_prop.clean_summary:
-            self.clean_summary = device_prop.clean_summary
-        if device_prop.consumable:
-            self.consumable = device_prop.consumable
-        if device_prop.last_clean_record:
-            self.last_clean_record = device_prop.last_clean_record
-        if device_prop.dock_summary:
-            self.dock_summary = device_prop.dock_summary
-        self.__post_init__()

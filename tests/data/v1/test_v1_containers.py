@@ -12,9 +12,6 @@ from roborock.data.v1 import (
     RoborockDockState,
     RoborockDockTypeCode,
     RoborockErrorCode,
-    RoborockFanSpeedS7MaxV,
-    RoborockMopIntensityS7,
-    RoborockMopModeS7,
     RoborockStateCode,
 )
 from roborock.data.v1.v1_code_mappings import ClearWaterBoxStatus, DirtyWaterBoxStatus, DustBagStatus
@@ -24,7 +21,6 @@ from roborock.data.v1.v1_containers import (
     CleanSummary,
     Consumable,
     DnDTimer,
-    S7MaxVStatus,
     StatusV2,
 )
 from tests.mock_data import (
@@ -49,7 +45,7 @@ def test_consumable():
 
 
 def test_status():
-    s = S7MaxVStatus.from_dict(STATUS)
+    s = StatusV2.from_dict(STATUS)
     assert s.msg_ver == 2
     assert s.msg_seq == 458
     assert s.state == RoborockStateCode.charging
@@ -94,9 +90,9 @@ def test_status():
     assert s.charge_status == RoborockChargeStatus.charging
     assert s.unsave_map_reason == 0
     assert s.unsave_map_flag == 0
-    assert s.fan_power == RoborockFanSpeedS7MaxV.balanced
-    assert s.mop_mode == RoborockMopModeS7.standard
-    assert s.water_box_mode == RoborockMopIntensityS7.intense
+    assert s.fan_power == 102
+    assert s.mop_mode == 300
+    assert s.water_box_mode == 203
     assert s.dss == 169
     assert s.clear_water_box_status == ClearWaterBoxStatus.okay
     assert s.dirty_water_box_status == DirtyWaterBoxStatus.okay
@@ -129,7 +125,7 @@ def test_dss_status(
 
 def test_current_map() -> None:
     """Test the current map logic based on map status."""
-    s = S7MaxVStatus.from_dict(STATUS)
+    s = StatusV2.from_dict(STATUS)
     assert s.map_status == 3
     assert s.current_map == 0
 
@@ -257,7 +253,7 @@ def test_clean_record():
 def test_no_value():
     modified_status = STATUS.copy()
     modified_status["dock_type"] = 9999
-    s = S7MaxVStatus.from_dict(modified_status)
+    s = StatusV2.from_dict(modified_status)
     assert s.dock_type == RoborockDockTypeCode.unknown
     assert -9999 not in RoborockDockTypeCode.keys()
     assert "missing" not in RoborockDockTypeCode.values()
@@ -267,7 +263,7 @@ def test_qrevo_s5v_dock_type():
     """Test that dock type code 22 (Qrevo S5V dock) is properly recognized."""
     modified_status = STATUS.copy()
     modified_status["dock_type"] = 22
-    s = S7MaxVStatus.from_dict(modified_status)
+    s = StatusV2.from_dict(modified_status)
     assert s.dock_type == RoborockDockTypeCode.shell_2e_dock
     assert s.dock_type.value == 22
 
@@ -276,7 +272,6 @@ def test_has_am_dss_zero_is_not_missing():
     modified_status = STATUS.copy()
     modified_status["dss"] = 0
 
-    assert S7MaxVStatus.from_dict(modified_status).has_am is False
     assert StatusV2.from_dict(modified_status).has_am is False
 
 
@@ -334,9 +329,9 @@ def test_multi_maps_list_info(snapshot: SnapshotAssertion) -> None:
 
 def test_accurate_map_flag() -> None:
     """Test that we parse the map flag accurately."""
-    s = S7MaxVStatus.from_dict(STATUS)
+    s = StatusV2.from_dict(STATUS)
     assert s.current_map == 0
-    s = S7MaxVStatus.from_dict(
+    s = StatusV2.from_dict(
         {
             **STATUS,
             "map_status": 252,  # Code for no map

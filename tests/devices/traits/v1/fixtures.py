@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from roborock.data import HomeData, HomeDataDevice, HomeDataProduct, RoborockDockTypeCode, S7MaxVStatus, UserData
+from roborock.data import HomeData, HomeDataDevice, HomeDataProduct, RoborockDockTypeCode, StatusV2, UserData
 from roborock.devices.cache import Cache, DeviceCache, InMemoryCache
 from roborock.devices.device import RoborockDevice
 from roborock.devices.traits import v1
@@ -13,7 +13,7 @@ from tests import mock_data
 
 USER_DATA = UserData.from_dict(mock_data.USER_DATA)
 HOME_DATA = HomeData.from_dict(mock_data.HOME_DATA_RAW)
-STATUS = S7MaxVStatus.from_dict(mock_data.STATUS)
+STATUS = StatusV2.from_dict(mock_data.STATUS)
 
 
 @pytest.fixture(autouse=True, name="channel")
