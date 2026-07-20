@@ -4,6 +4,7 @@ This test simulates communication across both the MQTT and local connections
 and failure modes, ensuring the V1Channel behaves correctly in various scenarios.
 """
 
+import gzip
 import json
 import logging
 from collections.abc import Iterator
@@ -161,6 +162,12 @@ def setup_mqtt_rpc_channel(v1_channel: V1Channel) -> V1RpcChannel:
 def setup_map_rpc_channel(v1_channel: V1Channel) -> V1RpcChannel:
     """Fixture to set up the Map RPC channel for tests."""
     return v1_channel.map_rpc_channel
+
+
+@pytest.fixture(name="blob_rpc_channel")
+def setup_blob_rpc_channel(v1_channel: V1Channel) -> V1RpcChannel:
+    """Fixture to set up the Blob RPC channel for tests."""
+    return v1_channel.blob_rpc_channel
 
 
 @pytest.fixture(name="warning_caplog")
@@ -630,6 +637,75 @@ async def test_v1_channel_send_map_command(
 
     # Verify the result is the data from our mocked decoder
     assert result == decompressed_map_data
+
+
+async def test_v1_channel_send_blob_command(
+    blob_rpc_channel: V1RpcChannel,
+    mock_mqtt_channel: FakeChannel,
+) -> None:
+    """Test that the blob channel adds security parameters and decodes the response."""
+    public_key = {"n": "abc", "e": "010001"}
+    mock_mqtt_channel.response_queue.append(
+        RoborockMessage(
+            protocol=RoborockMessageProtocol.RPC_RESPONSE,
+            payload=json.dumps({"dps": {"102": json.dumps({"id": 12345, "result": {"pub_key": public_key}})}}).encode(),
+        )
+    )
+
+    blob_data = b"blob response"
+    compressed = gzip.compress(blob_data)
+    header_size = 24
+    payload = bytearray(header_size + len(compressed))
+    payload[:8] = b"ROBOROCK"
+    payload[8:12] = (12346).to_bytes(4, "little")
+    payload[16:18] = header_size.to_bytes(2, "little")
+    payload[20:24] = len(compressed).to_bytes(4, "little")
+    payload[header_size:] = compressed
+    mock_mqtt_channel.response_queue.append(
+        RoborockMessage(protocol=RoborockMessageProtocol.MAP_RESPONSE, payload=bytes(payload))
+    )
+
+    result = await blob_rpc_channel.send_command(
+        RoborockCommand.GET_PHOTO,
+        params={"img_id": "photo-id", "type": 1},
+    )
+
+    assert result == blob_data
+    sent_payload = mock_mqtt_channel.published_messages[-1].payload
+    assert sent_payload is not None
+    request_payload = json.loads(sent_payload)
+    request = json.loads(request_payload["dps"]["101"])
+    assert request["method"] == RoborockCommand.GET_PHOTO
+    assert request["params"] == {
+        "security": {
+            "pub_key": public_key,
+            "cipher_suite": 0,
+        },
+        "endpoint": TEST_SECURITY_DATA.endpoint,
+        "nonce": TEST_SECURITY_DATA.nonce.hex(),
+        "data_filter": {"img_id": "photo-id", "type": 1},
+    }
+
+
+async def test_v1_channel_send_blob_command_rejects_invalid_public_key(
+    blob_rpc_channel: V1RpcChannel,
+    mock_mqtt_channel: FakeChannel,
+) -> None:
+    """Test that the blob channel rejects an invalid public key response."""
+    mock_mqtt_channel.response_queue.append(
+        RoborockMessage(
+            protocol=RoborockMessageProtocol.RPC_RESPONSE,
+            payload=json.dumps({"dps": {"102": json.dumps({"id": 12345, "result": {}})}}).encode(),
+        )
+    )
+
+    with pytest.raises(RoborockException, match="did not contain a public key"):
+        await blob_rpc_channel.send_command(
+            RoborockCommand.GET_PHOTO,
+            params={"img_id": "photo-id", "type": 1},
+        )
+
+    assert len(mock_mqtt_channel.published_messages) == 1
 
 
 async def test_v1_channel_add_dps_listener(

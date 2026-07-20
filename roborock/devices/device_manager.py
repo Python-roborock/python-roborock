@@ -252,7 +252,6 @@ async def create_device_manager(
                     device_cache=device_cache,
                     map_parser_config=map_parser_config,
                     region=user_data.region,
-                    security_data=channel.security_data,
                 )
             case DeviceVersion.A01:
                 channel = create_mqtt_channel(user_data, mqtt_params, mqtt_session, device)

@@ -64,7 +64,7 @@ from roborock.devices.cache import DeviceCache
 from roborock.devices.traits import Trait
 from roborock.exceptions import RoborockException
 from roborock.map.map_parser import MapParserConfig
-from roborock.protocols.v1_protocol import SecurityData, V1RpcChannel, decode_data_protocol_message
+from roborock.protocols.v1_protocol import V1RpcChannel, decode_data_protocol_message
 from roborock.roborock_message import RoborockDataProtocol, RoborockMessage
 from roborock.web_api import UserWebApiClient
 
@@ -190,7 +190,6 @@ class PropertiesApi(Trait):
         device_cache: DeviceCache,
         map_parser_config: MapParserConfig | None = None,
         region: str | None = None,
-        security_data: SecurityData | None = None,
     ) -> None:
         """Initialize the V1TraitProps."""
         self._device_uid = device_uid
@@ -198,7 +197,6 @@ class PropertiesApi(Trait):
         self._mqtt_rpc_channel = mqtt_rpc_channel
         self._map_rpc_channel = map_rpc_channel
         self._blob_rpc_channel = blob_rpc_channel
-        self._security_data = security_data
         self._web_api = web_api
         self._device_cache = device_cache
         self._region = region
@@ -282,12 +280,8 @@ class PropertiesApi(Trait):
             wash_towel_mode._rpc_channel = self._get_rpc_channel(wash_towel_mode)  # type: ignore[assignment]
             self.wash_towel_mode = wash_towel_mode
 
-        if (
-            self.obstacle_photos is None
-            and self._security_data is not None
-            and self._is_supported(ObstaclePhotoTrait, "obstacle_photos", dock_features)
-        ):
-            obstacle_photos = ObstaclePhotoTrait(self._rpc_channel, self._security_data)
+        if self.obstacle_photos is None and self._is_supported(ObstaclePhotoTrait, "obstacle_photos", dock_features):
+            obstacle_photos = ObstaclePhotoTrait(self._rpc_channel)
             obstacle_photos._rpc_channel = self._get_rpc_channel(obstacle_photos)
             self.obstacle_photos = obstacle_photos
 
@@ -396,7 +390,6 @@ def create(
     device_cache: DeviceCache,
     map_parser_config: MapParserConfig | None = None,
     region: str | None = None,
-    security_data: SecurityData | None = None,
 ) -> PropertiesApi:
     """Create traits for V1 devices."""
     return PropertiesApi(
@@ -412,5 +405,4 @@ def create(
         device_cache,
         map_parser_config,
         region=region,
-        security_data=security_data,
     )

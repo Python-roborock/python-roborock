@@ -11,7 +11,7 @@ from roborock.devices.traits.v1.obstacle_photos import (
     parse_photo_data,
 )
 from roborock.exceptions import RoborockException
-from roborock.protocols.v1_protocol import SecurityData, create_blob_response_decoder
+from roborock.protocols.v1_protocol import create_blob_response_decoder
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 from roborock.roborock_typing import RoborockCommand
 
@@ -33,10 +33,7 @@ def _block(block_type: int, payload: bytes, header_size: int = 8) -> bytes:
 def obstacle_photo_trait(device: RoborockDevice, mock_blob_rpc_channel: AsyncMock) -> ObstaclePhotoTrait:
     """Create an ObstaclePhotoTrait instance with mocked dependencies."""
     assert device.v1_properties
-    trait = ObstaclePhotoTrait(
-        device.v1_properties.status.rpc_channel,
-        SecurityData(endpoint="endpoint", nonce=b"1234567890abcdef"),
-    )
+    trait = ObstaclePhotoTrait(device.v1_properties.status.rpc_channel)
     trait._rpc_channel = mock_blob_rpc_channel
     return trait
 
@@ -101,26 +98,15 @@ async def test_get_enabled(obstacle_photo_trait: ObstaclePhotoTrait, mock_rpc_ch
 async def test_get_photo(
     obstacle_photo_trait: ObstaclePhotoTrait,
     mock_blob_rpc_channel: AsyncMock,
-    mock_rpc_channel: AsyncMock,
 ) -> None:
     """Test fetching and parsing obstacle photo content."""
-    mock_rpc_channel.send_command.return_value = {"pub_key": {"n": "abc", "e": "010001"}}
     mock_blob_rpc_channel.send_command.return_value = _block(3, PNG_BYTES)
 
     photo = await obstacle_photo_trait.get_photo("photo-id")
 
     assert photo.photo_id == "photo-id"
     assert photo.image_content == PNG_BYTES
-    mock_rpc_channel.send_command.assert_called_once_with(RoborockCommand.GET_RANDOM_PKEY)
     mock_blob_rpc_channel.send_command.assert_called_once_with(
         RoborockCommand.GET_PHOTO,
-        params={
-            "security": {
-                "pub_key": {"n": "abc", "e": "010001"},
-                "cipher_suite": 0,
-            },
-            "endpoint": "endpoint",
-            "nonce": "31323334353637383930616263646566",
-            "data_filter": {"img_id": "photo-id", "type": 1},
-        },
+        params={"img_id": "photo-id", "type": 1},
     )

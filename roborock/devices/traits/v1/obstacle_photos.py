@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from roborock.data import RoborockBase
 from roborock.devices.traits.v1 import common
 from roborock.exceptions import RoborockException
-from roborock.protocols.v1_protocol import SecurityData, V1RpcChannel
+from roborock.protocols.v1_protocol import V1RpcChannel
 from roborock.roborock_typing import RoborockCommand
 
 _PHOTO_TYPE_SMALL = 1
@@ -76,11 +76,10 @@ class ObstaclePhotoTrait(RoborockBase, common.V1TraitMixin):
     blob_rpc_channel = True
     requires_feature = "is_ai_recognition_obstacle_supported"
 
-    def __init__(self, standard_rpc_channel: V1RpcChannel, security_data: SecurityData) -> None:
+    def __init__(self, standard_rpc_channel: V1RpcChannel) -> None:
         """Initialize the obstacle photo trait."""
         super().__init__()
         self._standard_rpc_channel = standard_rpc_channel
-        self._security_data = security_data
 
     async def get_enabled(self) -> bool:
         """Return whether map object photo capture is enabled on the vacuum."""
@@ -91,21 +90,9 @@ class ObstaclePhotoTrait(RoborockBase, common.V1TraitMixin):
 
     async def get_photo(self, photo_id: str, photo_type: int = _PHOTO_TYPE_SMALL) -> ObstaclePhoto:
         """Fetch an obstacle photo by its map photo id."""
-        public_key = await self._standard_rpc_channel.send_command(RoborockCommand.GET_RANDOM_PKEY)
-        if not isinstance(public_key, dict) or not isinstance(public_key.get("pub_key"), dict):
-            raise RoborockException("get_random_pkey response did not contain a public key")
-        security = self._security_data.to_dict()["security"]
         response = await self.rpc_channel.send_command(
             self.command,
-            params={
-                "security": {
-                    "pub_key": public_key["pub_key"],
-                    "cipher_suite": 0,
-                },
-                "endpoint": security["endpoint"],
-                "nonce": security["nonce"],
-                "data_filter": {"img_id": photo_id, "type": photo_type},
-            },
+            params={"img_id": photo_id, "type": photo_type},
         )
         photo = self.converter.convert(response)
         photo.photo_id = photo_id

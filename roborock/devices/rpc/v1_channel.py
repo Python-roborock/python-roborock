@@ -162,6 +162,50 @@ class RpcChannel(V1RpcChannel):
         return result
 
 
+class BlobRpcChannel(V1RpcChannel):
+    """RPC channel that adds the security envelope required for blob requests."""
+
+    def __init__(
+        self,
+        rpc_channel: V1RpcChannel,
+        raw_blob_rpc_channel: V1RpcChannel,
+        security_data: SecurityData,
+    ) -> None:
+        """Initialize the blob RPC channel."""
+        self._rpc_channel = rpc_channel
+        self._raw_blob_rpc_channel = raw_blob_rpc_channel
+        self._security_data = security_data
+
+    async def send_command(
+        self,
+        method: CommandType,
+        *,
+        response_type: type[_T] | None = None,
+        params: ParamsType = None,
+    ) -> _T | Any:
+        """Send a blob command after adding the device security parameters."""
+        public_key = await self._rpc_channel.send_command(RoborockCommand.GET_RANDOM_PKEY)
+        if not isinstance(public_key, dict) or not isinstance(public_key.get("pub_key"), dict):
+            raise RoborockException("get_random_pkey response did not contain a public key")
+        security = self._security_data.to_dict()["security"]
+        blob_params = {
+            "security": {
+                "pub_key": public_key["pub_key"],
+                "cipher_suite": 0,
+            },
+            "endpoint": security["endpoint"],
+            "nonce": security["nonce"],
+            "data_filter": params,
+        }
+        if response_type is not None:
+            return await self._raw_blob_rpc_channel.send_command(
+                method,
+                response_type=response_type,
+                params=blob_params,
+            )
+        return await self._raw_blob_rpc_channel.send_command(method, params=blob_params)
+
+
 class V1Channel(Channel):
     """Unified V1 protocol channel with automatic MQTT/local connection handling.
 
@@ -215,11 +259,6 @@ class V1Channel(Channel):
         return self._mqtt_channel.is_connected and self._mqtt_unsub is not None
 
     @property
-    def security_data(self) -> SecurityData:
-        """Return security data used for map/blob RPC commands."""
-        return self._security_data
-
-    @property
     def rpc_channel(self) -> V1RpcChannel:
         """Return the combined RPC channel that prefers local with a fallback to MQTT.
 
@@ -255,7 +294,8 @@ class V1Channel(Channel):
     def blob_rpc_channel(self) -> V1RpcChannel:
         """Return the blob RPC channel used for fetching binary content."""
         decoder = create_blob_response_decoder()
-        return RpcChannel(lambda: [self._create_mqtt_rpc_strategy(decoder)], self._logger)
+        raw_blob_rpc_channel = RpcChannel(lambda: [self._create_mqtt_rpc_strategy(decoder)], self._logger)
+        return BlobRpcChannel(self.rpc_channel, raw_blob_rpc_channel, self._security_data)
 
     def _create_local_rpc_strategy(self) -> RpcStrategy | None:
         """Create the RPC strategy for local transport."""
