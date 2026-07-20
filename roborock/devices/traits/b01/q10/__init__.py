@@ -32,7 +32,6 @@ __all__ = [
     "DoNotDisturbTrait",
     "DustCollectionTrait",
     "MapContentTrait",
-    "MapDpsTrait",
     "NetworkInfoTrait",
     "SoundVolumeTrait",
     "StatusTrait",
@@ -80,8 +79,8 @@ class Q10PropertiesApi(Trait):
     map: MapContentTrait
     """Composed map image plus caller-facing map and trace data."""
 
-    map_dps: MapDpsTrait
-    """Restricted zones and virtual walls received through DPS."""
+    _map_dps: MapDpsTrait
+    """Private source of restricted zones and virtual walls received through DPS."""
 
     clean_history: CleanHistoryTrait
     """Trait for fetching the device clean-record history (``dpCleanRecord``)."""
@@ -100,8 +99,8 @@ class Q10PropertiesApi(Trait):
         self.button_light = ButtonLightTrait(self.command)
         self.network_info = NetworkInfoTrait()
         self.consumable = ConsumableTrait()
-        self.map_dps = MapDpsTrait()
-        self.map = MapContentTrait(self.map_dps)
+        self._map_dps = MapDpsTrait()
+        self.map = MapContentTrait(self._map_dps)
         self.clean_history = CleanHistoryTrait(self.command)
         # Read-model traits updated from the device's DPS push stream.
         self._updatable_traits = [
@@ -113,7 +112,7 @@ class Q10PropertiesApi(Trait):
             self.network_info,
             self.consumable,
             self.clean_history,
-            self.map_dps,
+            self._map_dps,
         ]
         self._subscribe_task: asyncio.Task[None] | None = None
 

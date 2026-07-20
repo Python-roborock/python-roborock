@@ -28,6 +28,7 @@ from roborock.map.b01_q10_map_parser import (
     parse_map_packet,
     parse_trace_packet,
 )
+from roborock.map.b01_q10_render import Q10MapOverlays
 from roborock.protocols.b01_q10_protocol import Q10Message
 
 from .conftest import FakeB01Q10Channel
@@ -84,6 +85,13 @@ def test_update_from_trace_packet_populates_path_and_position() -> None:
 
 def test_q10_position_is_available_as_top_level_cli_command() -> None:
     assert "q10-position" in cli.commands
+
+
+def test_q10_map_dps_trait_is_private() -> None:
+    api = create(FakeB01Q10Channel())
+
+    assert not hasattr(api, "map_dps")
+    assert api._map_dps in api._updatable_traits
 
 
 # --- CLI push waiting --------------------------------------------------------
@@ -250,24 +258,41 @@ def test_map_dps_update_renders_decoded_overlays() -> None:
         notified.clear()
         map_dps.update_from_dps({B01_Q10_DP.RESTRICTED_ZONE_UP: _zone_blob()})
 
-    assert len(map_dps.zones) == 1
+    assert len(map_dps.overlays.zones) == 1
     assert trait.image_content == b"image with overlays"
     assert notified == [None]
     assert render.call_count == 2
     assert render.call_args.args[0] is packet
     assert render.call_args.args[1] is None
-    assert tuple(render.call_args.args[2].zones) == tuple(map_dps.zones)
+    assert render.call_args.args[2] is map_dps.overlays
+
+
+def test_map_dps_blobs_are_decoded_only_when_dps_arrives() -> None:
+    """Map and trace renders reuse the overlays decoded by the DPS trait."""
+    map_dps = MapDpsTrait()
+    trait = MapContentTrait(map_dps)
+
+    with (
+        patch("roborock.devices.traits.b01.q10.map.parse_zone_blob", return_value=[]) as parse_zones,
+        patch("roborock.devices.traits.b01.q10.map.parse_virtual_wall_blob", return_value=[]) as parse_walls,
+    ):
+        map_dps.update_from_dps({B01_Q10_DP.RESTRICTED_ZONE_UP: _zone_blob()})
+        trait.update_from_map_packet(parse_map_packet(FIXTURE.read_bytes()))
+        trait.update_from_trace_packet(parse_trace_packet(TRACE_SESSION_FIXTURE.read_bytes()))
+
+    parse_zones.assert_called_once_with(_zone_blob())
+    parse_walls.assert_called_once_with(None)
 
 
 def test_load_overlays_partial_update_keeps_existing_zones() -> None:
     """A status push without the zone DP (None) must not wipe loaded zones."""
     map_dps = MapDpsTrait()
     map_dps.update_from_dps({B01_Q10_DP.RESTRICTED_ZONE_UP: _zone_blob()})
-    assert len(map_dps.zones) == 1
+    assert len(map_dps.overlays.zones) == 1
     # A later partial update carrying only the (empty) virtual-wall DP.
     map_dps.update_from_dps({B01_Q10_DP.VIRTUAL_WALL_UP: "AA=="})
-    assert len(map_dps.zones) == 1  # zones preserved
-    assert map_dps.virtual_walls == []
+    assert len(map_dps.overlays.zones) == 1  # zones preserved
+    assert map_dps.overlays.virtual_walls == ()
 
 
 def test_map_dps_update_without_map_does_not_notify_map_content() -> None:
@@ -279,7 +304,7 @@ def test_map_dps_update_without_map_does_not_notify_map_content() -> None:
 
     map_dps.update_from_dps({B01_Q10_DP.RESTRICTED_ZONE_UP: _zone_blob()})
 
-    assert len(map_dps.zones) == 1
+    assert len(map_dps.overlays.zones) == 1
     assert not notified
 
 
@@ -292,6 +317,5 @@ def test_map_dps_push_without_overlay_data_points_is_noop() -> None:
 
     map_dps.update_from_dps({B01_Q10_DP.BATTERY: 50})
 
-    assert map_dps.zones == []
-    assert map_dps.virtual_walls == []
+    assert map_dps.overlays == Q10MapOverlays()
     assert not notified

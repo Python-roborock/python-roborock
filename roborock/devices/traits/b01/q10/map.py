@@ -15,6 +15,7 @@ calibration, path placement and overlay placement remain inside the renderer.
 
 import logging
 from dataclasses import dataclass, field
+from typing import Any
 
 from roborock.data import RoborockBase
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
@@ -27,7 +28,7 @@ from roborock.map.b01_q10_map_parser import (
     Q10Room,
     Q10TracePacket,
 )
-from roborock.map.b01_q10_overlays import Q10Zone, parse_virtual_wall_blob, parse_zone_blob
+from roborock.map.b01_q10_overlays import parse_virtual_wall_blob, parse_zone_blob
 from roborock.map.b01_q10_render import Q10MapOverlays, render_q10_map
 
 from .common import UpdatableTrait
@@ -44,23 +45,29 @@ class MapDps(RoborockBase):
 
 
 class MapDpsTrait(MapDps, UpdatableTrait):
-    """Converter-backed read model for map-related DPS values."""
+    """Private read model for map-related DPS values and decoded overlays."""
 
     _CONVERTER = DpsDataConverter.from_dataclass(MapDps)
 
     def __init__(self) -> None:
         MapDps.__init__(self)
         UpdatableTrait.__init__(self, command=None, logger=_LOGGER)
+        self._overlays = Q10MapOverlays()
 
     @property
-    def zones(self) -> list[Q10Zone]:
-        """Restricted zones decoded from the latest DPS value."""
-        return parse_zone_blob(self.restricted_zone_up)
+    def overlays(self) -> Q10MapOverlays:
+        """Overlays decoded once from the latest relevant DPS update."""
+        return self._overlays
 
-    @property
-    def virtual_walls(self) -> list[Q10Zone]:
-        """Virtual walls decoded from the latest DPS value."""
-        return parse_virtual_wall_blob(self.virtual_wall_up)
+    def update_from_dps(self, decoded_dps: dict[B01_Q10_DP, Any]) -> None:
+        """Decode overlay blobs when they arrive, then notify dependents."""
+        if not self._CONVERTER.update_from_dps(self, decoded_dps):
+            return
+        self._overlays = Q10MapOverlays(
+            zones=tuple(parse_zone_blob(self.restricted_zone_up)),
+            virtual_walls=tuple(parse_virtual_wall_blob(self.virtual_wall_up)),
+        )
+        self._notify_update()
 
 
 class MapContentTrait(TraitUpdateListener):
@@ -96,17 +103,17 @@ class MapContentTrait(TraitUpdateListener):
 
     @property
     def path(self) -> list[Q10Point]:
-        """Full path from the latest trace packet."""
+        """Full path for live status and callers drawing their own map overlay."""
         return self._trace_packet.points if self._trace_packet else []
 
     @property
     def robot_position(self) -> Q10Point | None:
-        """Current robot position from the latest trace packet."""
+        """Current position for live status and caller-rendered map overlays."""
         return self._trace_packet.robot_position if self._trace_packet else None
 
     @property
     def robot_heading(self) -> int | None:
-        """Current robot heading from the latest trace packet."""
+        """Current heading for orienting a robot marker on a caller-rendered map."""
         return self._trace_packet.heading if self._trace_packet else None
 
     def update_from_map_packet(self, packet: Q10MapPacket) -> None:
@@ -129,17 +136,14 @@ class MapContentTrait(TraitUpdateListener):
         self._notify_update()
 
     def _render(self) -> None:
-        """Render the latest map, trace and DPS sources, if a map is available."""
+        """Render the required map with the latest optional trace and overlays."""
         if self._map_packet is None:
             return
         try:
             self._image_content = render_q10_map(
                 self._map_packet,
                 self._trace_packet,
-                Q10MapOverlays(
-                    zones=tuple(self._map_dps.zones),
-                    virtual_walls=tuple(self._map_dps.virtual_walls),
-                ),
+                self._map_dps.overlays,
                 config=self._config,
             )
         except RoborockException as ex:
