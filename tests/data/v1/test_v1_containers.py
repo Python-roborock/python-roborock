@@ -5,6 +5,7 @@ import copy
 import pytest
 from syrupy.assertion import SnapshotAssertion
 
+from roborock import CleanRoutes, VacuumModes, WaterModes
 from roborock.data.v1 import (
     MultiMapsList,
     RoborockChargeStatus,
@@ -63,13 +64,13 @@ def test_status():
     assert s.back_type == -1
     assert s.wash_phase == 0
     assert s.wash_ready == 0
-    assert s.fan_power == 102
+    assert s.fan_power == VacuumModes.BALANCED.code
     assert s.dnd_enabled == 0
     assert s.map_status == 3
     assert s.current_map == 0
     assert s.is_locating == 0
     assert s.lock_status == 0
-    assert s.water_box_mode == 203
+    assert s.water_box_mode == WaterModes.INTENSE.code
     assert s.water_box_carriage_status == 1
     assert s.mop_forbidden_enable == 1
     assert s.camera_status == 3457
@@ -82,7 +83,7 @@ def test_status():
     assert s.dust_collection_status == 0
     assert s.auto_dust_collection == 1
     assert s.avoid_count == 19
-    assert s.mop_mode == 300
+    assert s.mop_mode == CleanRoutes.STANDARD.code
     assert s.debug_mode == 0
     assert s.collision_avoid_status == 1
     assert s.switch_map_mode == 0
@@ -90,9 +91,9 @@ def test_status():
     assert s.charge_status == RoborockChargeStatus.charging
     assert s.unsave_map_reason == 0
     assert s.unsave_map_flag == 0
-    assert s.fan_power == 102
-    assert s.mop_mode == 300
-    assert s.water_box_mode == 203
+    assert s.fan_power == VacuumModes.BALANCED.code
+    assert s.mop_mode == CleanRoutes.STANDARD.code
+    assert s.water_box_mode == WaterModes.INTENSE.code
     assert s.dss == 169
     assert s.clear_water_box_status == ClearWaterBoxStatus.okay
     assert s.dirty_water_box_status == DirtyWaterBoxStatus.okay

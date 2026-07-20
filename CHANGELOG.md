@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v5.34.0 (2026-07-20)
+
+### Chores
+
+- Delete slop md
+  ([`9ba41bb`](https://github.com/Python-roborock/python-roborock/commit/9ba41bb56ce7ac329c77e6ab985c98f31fd5fe51))
+
+### Features
+
+- Change license to apache 2.0 ([#890](https://github.com/Python-roborock/python-roborock/pull/890),
+  [`a304471`](https://github.com/Python-roborock/python-roborock/commit/a30447130241787cec8c6c75a63d35624e22702c))
+
+
 ## v5.33.0 (2026-07-19)
 
 ### Chores
