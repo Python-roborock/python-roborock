@@ -1,7 +1,7 @@
 """Tests for the ObstaclePhotoTrait."""
 
 import gzip
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -11,6 +11,7 @@ from roborock.devices.traits.v1.obstacle_photos import (
     parse_photo_data,
 )
 from roborock.exceptions import RoborockException
+from roborock.protocol import Utils
 from roborock.protocols.v1_protocol import create_blob_response_decoder
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 from roborock.roborock_typing import RoborockCommand
@@ -79,6 +80,35 @@ def test_decode_blob_response() -> None:
     assert response is not None
     assert response.request_id == request_id
     assert response.data == decompressed
+
+
+def test_decode_blob_response_wraps_decompression_errors() -> None:
+    """Test expected gzip decompression errors are wrapped."""
+    payload = bytearray(25)
+    payload[:8] = b"ROBOROCK"
+    payload[16:18] = (24).to_bytes(2, "little")
+    payload[20:24] = (1).to_bytes(4, "little")
+
+    with pytest.raises(RoborockException, match="Failed to decode blob message payload"):
+        create_blob_response_decoder()(
+            RoborockMessage(protocol=RoborockMessageProtocol.MAP_RESPONSE, payload=bytes(payload))
+        )
+
+
+def test_decode_blob_response_does_not_wrap_unexpected_errors() -> None:
+    """Test unexpected decompression errors propagate unchanged."""
+    payload = bytearray(25)
+    payload[:8] = b"ROBOROCK"
+    payload[16:18] = (24).to_bytes(2, "little")
+    payload[20:24] = (1).to_bytes(4, "little")
+
+    with (
+        patch.object(Utils, "decompress", side_effect=RuntimeError("unexpected")),
+        pytest.raises(RuntimeError, match="unexpected"),
+    ):
+        create_blob_response_decoder()(
+            RoborockMessage(protocol=RoborockMessageProtocol.MAP_RESPONSE, payload=bytes(payload))
+        )
 
 
 def test_obstacle_photo_trait_metadata() -> None:

@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import base64
+import gzip
 import json
 import logging
 import secrets
 import struct
+import zlib
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -297,7 +299,7 @@ def create_blob_response_decoder() -> Callable[[RoborockMessage], BlobResponse |
             raise RoborockException("Invalid V1 blob response format")
         try:
             data = Utils.decompress(payload[header_size:end_offset])
-        except Exception as err:
+        except (gzip.BadGzipFile, EOFError, zlib.error) as err:
             raise RoborockException("Failed to decode blob message payload") from err
         return BlobResponse(request_id=request_id, data=data)
 

@@ -88,11 +88,16 @@ class ObstaclePhotoTrait(RoborockBase, common.V1TraitMixin):
             raise RoborockException("get_camera_status response did not contain camera status")
         return bool((response[0] >> _MAP_OBJECT_PHOTO_ENABLED_BIT) & 1)
 
-    async def get_photo(self, photo_id: str, photo_type: int = _PHOTO_TYPE_SMALL) -> ObstaclePhoto:
-        """Fetch an obstacle photo by its map photo id."""
+    async def get_photo(self, photo_id: str) -> ObstaclePhoto:
+        """Fetch the small obstacle photo for a map photo ID.
+
+        Photo IDs are available as ``Obstacle.details.photo_name`` in
+        ``ParsedMapData.map_data.obstacles_with_photo`` and
+        ``ParsedMapData.map_data.ignored_obstacles_with_photo``.
+        """
         response = await self.rpc_channel.send_command(
             self.command,
-            params={"img_id": photo_id, "type": photo_type},
+            params={"img_id": photo_id, "type": _PHOTO_TYPE_SMALL},
         )
         photo = self.converter.convert(response)
         photo.photo_id = photo_id
