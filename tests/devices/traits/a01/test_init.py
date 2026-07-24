@@ -136,6 +136,27 @@ async def test_dyad_invalid_response_value(
     assert result == expected_result
 
 
+async def test_dyad_add_listener(dyad_api: DyadApi, fake_channel: FakeChannel):
+    """add_listener delivers decoded values for pushed messages and skips unknown codes."""
+    received: list[dict[RoborockDyadDataProtocol, Any]] = []
+    unsub = await dyad_api.add_listener(received.append)
+
+    # 999 is not a known protocol: it must be skipped, not mapped to the first enum member.
+    fake_channel.notify_subscribers(build_a01_message({206: 3, 209: 80, 216: 0, 999: 1}))
+
+    assert received == [
+        {
+            RoborockDyadDataProtocol.SUCTION: "l3",
+            RoborockDyadDataProtocol.POWER: 80,
+            RoborockDyadDataProtocol.ERROR: "none",
+        }
+    ]
+
+    unsub()
+    fake_channel.notify_subscribers(build_a01_message({206: 1}))
+    assert len(received) == 1  # no callback fires after unsubscribing
+
+
 async def test_zeo_api_query_values(zeo_api: ZeoApi, fake_channel: FakeChannel):
     """Test that ZeoApi currently returns raw values without conversion."""
     fake_channel.response_queue.append(
