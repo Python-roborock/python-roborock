@@ -141,7 +141,6 @@ async def test_dyad_add_listener(dyad_api: DyadApi, fake_channel: FakeChannel):
     received: list[dict[RoborockDyadDataProtocol, Any]] = []
     unsub = await dyad_api.add_listener(received.append)
 
-    # 999 is not a known protocol: it must be skipped, not mapped to the first enum member.
     fake_channel.notify_subscribers(build_a01_message({206: 3, 209: 80, 216: 0, 999: 1}))
 
     assert received == [
@@ -154,7 +153,7 @@ async def test_dyad_add_listener(dyad_api: DyadApi, fake_channel: FakeChannel):
 
     unsub()
     fake_channel.notify_subscribers(build_a01_message({206: 1}))
-    assert len(received) == 1  # no callback fires after unsubscribing
+    assert len(received) == 1
 
 
 async def test_zeo_api_query_values(zeo_api: ZeoApi, fake_channel: FakeChannel):

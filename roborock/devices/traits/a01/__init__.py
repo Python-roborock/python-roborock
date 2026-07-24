@@ -138,9 +138,6 @@ def convert_zeo_value(protocol_value: RoborockZeoProtocol, value: Any) -> Any:
     return None
 
 
-# RoborockDyadDataProtocol._missing_ maps any unknown code to its first member
-# instead of raising, so incoming data points must be checked against this set
-# before being converted to a protocol.
 _DYAD_PROTOCOL_VALUES = frozenset(protocol.value for protocol in RoborockDyadDataProtocol)
 
 
