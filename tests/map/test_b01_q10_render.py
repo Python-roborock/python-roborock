@@ -164,13 +164,13 @@ def test_render_draws_dock_from_header_without_trace() -> None:
 
 
 def test_place_charger_uses_absolute_header_pixels() -> None:
-    """The dock uses absolute pixels and converts its axis to a V1 heading."""
+    """The dock coordinates do not receive the world origin a second time."""
     packet = replace(_packet(), header_calibration=HEADER)
     map_data = MapData()
 
     assert _place_charger_from_header(map_data, packet)
 
-    assert map_data.charger == Point(3, 3, 0)
+    assert map_data.charger == Point(3, 3, 90)
 
 
 def test_place_docked_robot_uses_shared_v1_marker_geometry() -> None:
@@ -186,6 +186,22 @@ def test_place_docked_robot_uses_shared_v1_marker_geometry() -> None:
         90,
     )
     assert map_data.path is None
+
+
+def test_q10_zero_degree_dock_places_robot_to_its_right() -> None:
+    """The Q10 dock heading is already its outward-facing direction."""
+    packet = replace(_packet(), header_calibration=replace(HEADER, charger_phi=0))
+    map_data = MapData()
+
+    assert _place_charger_from_header(map_data, packet)
+    assert _place_docked_robot(map_data)
+
+    assert map_data.charger == Point(3, 3, 0)
+    assert map_data.vacuum_position == Point(
+        3 + Sizes.SIZES[Size.CHARGER_RADIUS],
+        3,
+        0,
+    )
 
 
 def test_render_applies_erase_zones() -> None:

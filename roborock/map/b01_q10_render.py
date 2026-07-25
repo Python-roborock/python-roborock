@@ -259,15 +259,11 @@ def _place_charger_from_header(
     map_data: MapData,
     packet: Q10MapPacket,
 ) -> bool:
-    """Place the saved dock using its absolute header pixel coordinates.
-
-    The Q10 header angle follows the dock axis, while the shared V1 marker
-    expects the outward-facing normal, so rotate it by 90 degrees.
-    """
+    """Place the saved dock using its absolute header pixel coordinates."""
     header = packet.header_calibration
     if header is None or (position := header.charger_pixels()) is None:
         return False
-    map_data.charger = Point(*position, 90 - header.charger_phi)
+    map_data.charger = Point(*position, header.charger_phi)
     return True
 
 
