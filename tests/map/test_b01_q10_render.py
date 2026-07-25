@@ -10,6 +10,8 @@ from dataclasses import replace
 from pathlib import Path
 
 from PIL import Image
+from vacuum_map_parser_base.config.size import Size, Sizes
+from vacuum_map_parser_base.map_data import MapData, Point
 
 from roborock.map.b01_grid_layers import GridCalibration
 from roborock.map.b01_q10_map_parser import (
@@ -32,6 +34,8 @@ from roborock.map.b01_q10_render import (
     Q10MapOverlays,
     _calibration_from_header_metadata,
     _erased_cells,
+    _place_charger_from_header,
+    _place_docked_robot,
     _vector_calibration,
     render_q10_map,
     solve_q10_calibration,
@@ -157,6 +161,31 @@ def test_render_draws_dock_from_header_without_trace() -> None:
     rendered = _render(replace(packet, header_calibration=HEADER))
 
     assert rendered != base
+
+
+def test_place_charger_uses_absolute_header_pixels() -> None:
+    """The dock coordinates do not receive the world origin a second time."""
+    packet = replace(_packet(), header_calibration=HEADER)
+    map_data = MapData()
+
+    assert _place_charger_from_header(map_data, packet)
+
+    assert map_data.charger == Point(3, 3, -90)
+
+
+def test_place_docked_robot_uses_shared_v1_marker_geometry() -> None:
+    """The idle robot sits beside the dock, facing it, without a path."""
+    map_data = MapData()
+    map_data.charger = Point(20, 30, 90)
+
+    assert _place_docked_robot(map_data)
+
+    assert map_data.vacuum_position == Point(
+        20,
+        30 - Sizes.SIZES[Size.CHARGER_RADIUS],
+        90,
+    )
+    assert map_data.path is None
 
 
 def test_render_applies_erase_zones() -> None:

@@ -14,10 +14,12 @@ drawing) and the calibration policy live here, next to the rest of the map code.
 """
 
 import io
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 
 from vacuum_map_parser_base.config.drawable import Drawable
+from vacuum_map_parser_base.config.size import Size, Sizes
 from vacuum_map_parser_base.map_data import Area, MapData, Path, Point, Wall
 
 from roborock.exceptions import RoborockException
@@ -86,6 +88,7 @@ def render_q10_map(
     overlays: Q10MapOverlays,
     *,
     config: B01Q10MapParserConfig,
+    robot_at_dock: bool = False,
 ) -> bytes:
     """Compose the latest map, trace and DPS inputs into one PNG image.
 
@@ -116,8 +119,10 @@ def render_q10_map(
         charger_heading = packet.header_calibration.charger_phi if packet.header_calibration is not None else None
         _place_trace(map_data, trace_calibration, trace, charger_heading=charger_heading)
         has_drawables = True
+    has_drawables = _place_charger_from_header(map_data, packet) or has_drawables
+    if robot_at_dock:
+        has_drawables = _place_docked_robot(map_data) or has_drawables
     if vector_calibration is not None:
-        has_drawables = _place_charger_from_header(map_data, packet, vector_calibration) or has_drawables
         _place_overlays(map_data, vector_calibration, overlays)
         has_drawables = has_drawables or bool(map_data.no_go_areas or map_data.no_mopping_areas or map_data.walls)
     if has_drawables:
@@ -253,14 +258,33 @@ def _place_trace(
 def _place_charger_from_header(
     map_data: MapData,
     packet: Q10MapPacket,
-    calibration: GridCalibration,
 ) -> bool:
-    """Place the saved dock using the header's 5 mm coordinates."""
+    """Place the saved dock using its absolute header pixel coordinates."""
     header = packet.header_calibration
-    if header is None:
+    if header is None or (position := header.charger_pixels()) is None:
         return False
-    px, py = calibration.world_to_pixel(header.charger_x, header.charger_y)
-    map_data.charger = Point(px, py, calibration.y_sign * header.charger_phi)
+    map_data.charger = Point(*position, -header.charger_phi)
+    return True
+
+
+def _place_docked_robot(map_data: MapData) -> bool:
+    """Place a charging robot immediately in front of the saved dock.
+
+    A zero-point idle trace has no robot coordinates. The dock heading does,
+    however, identify its outward-facing side. Offset the robot by the shared
+    unscaled V1 charger radius so the two standard glyphs meet without one
+    covering the other, and preserve the saved dock heading.
+    """
+    charger = map_data.charger
+    if charger is None or charger.a is None:
+        return False
+    angle = math.radians(charger.a)
+    offset = Sizes.SIZES[Size.CHARGER_RADIUS]
+    map_data.vacuum_position = Point(
+        charger.x + offset * math.cos(angle),
+        charger.y - offset * math.sin(angle),
+        charger.a,
+    )
     return True
 
 

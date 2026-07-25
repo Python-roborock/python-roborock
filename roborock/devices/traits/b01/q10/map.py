@@ -1,15 +1,17 @@
 """Push-driven map traits for B01 Q10 devices.
 
-Map-related state arrives on three independent streams:
+Map-related state arrives on four independent streams:
 
 * map packets are decoded from map-protocol responses;
 * trace packets are decoded from trace-protocol responses;
 * restricted zones and virtual walls arrive as ordinary DPS values.
+* the device status indicates when an idle robot is charging at the saved dock.
 
 ``MapDpsTrait`` owns the low-level DPS read model. ``MapContentTrait`` depends
-on it and combines that state with the latest map/trace packets through the pure
-functions in :mod:`roborock.map.b01_q10_render`. The high-level trait keeps only
-the latest value from each source and one replace-whole rendered image;
+on it and the status trait, then combines that state with the latest map/trace
+packets through the pure functions in :mod:`roborock.map.b01_q10_render`. The
+high-level trait keeps only the latest value from each source and one
+replace-whole rendered image;
 calibration, path placement and overlay placement remain inside the renderer.
 """
 
@@ -18,7 +20,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from roborock.data import RoborockBase
-from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
+from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP, YXDeviceState
 from roborock.devices.traits.common import DpsDataConverter, TraitUpdateListener
 from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
@@ -32,6 +34,7 @@ from roborock.map.b01_q10_overlays import parse_virtual_wall_blob, parse_zone_bl
 from roborock.map.b01_q10_render import Q10MapOverlays, render_q10_map
 
 from .common import UpdatableTrait
+from .status import StatusTrait
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -73,23 +76,27 @@ class MapDpsTrait(MapDps, UpdatableTrait):
 class MapContentTrait(TraitUpdateListener):
     """High-level composed Q10 map view.
 
-    The latest map and trace packets are combined with the injected
-    :class:`MapDpsTrait` whenever any of those three sources changes.
+    The latest map and trace packets are combined with the injected map DPS and
+    status traits whenever any source changes.
     """
 
     def __init__(
         self,
         map_dps: MapDpsTrait,
+        status: StatusTrait | None = None,
         *,
         map_parser_config: B01Q10MapParserConfig | None = None,
     ) -> None:
         TraitUpdateListener.__init__(self, logger=_LOGGER)
         self._config = map_parser_config or B01Q10MapParserConfig()
         self._map_dps = map_dps
+        self._status = status or StatusTrait()
+        self._robot_at_dock = self._status.status == YXDeviceState.CHARGING
         self._map_packet: Q10MapPacket | None = None
         self._trace_packet: Q10TracePacket | None = None
         self._image_content: bytes | None = None
         self._map_dps.add_update_listener(self._map_dps_updated)
+        self._status.add_update_listener(self._status_updated)
 
     @property
     def image_content(self) -> bytes | None:
@@ -129,7 +136,18 @@ class MapContentTrait(TraitUpdateListener):
         self._notify_update()
 
     def _map_dps_updated(self) -> None:
-        """Render after the low-level DPS source changes."""
+        """Render after the low-level map DPS source changes."""
+        if self._map_packet is None:
+            return
+        self._render()
+        self._notify_update()
+
+    def _status_updated(self) -> None:
+        """Render only when the status changes whether the robot is docked."""
+        robot_at_dock = self._status.status == YXDeviceState.CHARGING
+        if robot_at_dock == self._robot_at_dock:
+            return
+        self._robot_at_dock = robot_at_dock
         if self._map_packet is None:
             return
         self._render()
@@ -145,6 +163,7 @@ class MapContentTrait(TraitUpdateListener):
                 self._trace_packet,
                 self._map_dps.overlays,
                 config=self._config,
+                robot_at_dock=self._robot_at_dock,
             )
         except RoborockException as ex:
             _LOGGER.debug("Failed to render Q10 map packet: %s", ex)

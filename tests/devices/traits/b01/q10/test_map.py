@@ -21,6 +21,7 @@ from roborock.cli import _await_q10_map_push, cli
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
 from roborock.devices.traits.b01.q10 import Q10PropertiesApi, create
 from roborock.devices.traits.b01.q10.map import MapContentTrait, MapDpsTrait
+from roborock.devices.traits.b01.q10.status import StatusTrait
 from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
     Q10Point,
@@ -375,3 +376,27 @@ def test_map_dps_push_without_overlay_data_points_is_noop() -> None:
 
     assert map_dps.overlays == Q10MapOverlays()
     assert not notified
+
+
+def test_charging_status_renders_robot_at_dock() -> None:
+    """Charging status adds the idle robot marker without inventing a path."""
+    status = StatusTrait()
+    trait = MapContentTrait(MapDpsTrait(), status)
+    packet = parse_map_packet(FIXTURE.read_bytes())
+    notified: list[None] = []
+    trait.add_update_listener(lambda: notified.append(None))
+
+    with patch(
+        "roborock.devices.traits.b01.q10.map.render_q10_map",
+        side_effect=[b"map with dock", b"map with docked robot"],
+    ) as render:
+        trait.update_from_map_packet(packet)
+        notified.clear()
+        status.update_from_dps({B01_Q10_DP.STATUS: 8})
+        status.update_from_dps({B01_Q10_DP.BATTERY: 50})
+
+    assert trait.image_content == b"map with docked robot"
+    assert trait.path == []
+    assert notified == [None]
+    assert render.call_count == 2
+    assert render.call_args.kwargs["robot_at_dock"] is True

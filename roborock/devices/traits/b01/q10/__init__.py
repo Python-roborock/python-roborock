@@ -119,7 +119,7 @@ class Q10PropertiesApi(Trait):
         self.network_info = NetworkInfoTrait()
         self.consumable = ConsumableTrait()
         self._map_dps = MapDpsTrait()
-        self.map = MapContentTrait(self._map_dps)
+        self.map = MapContentTrait(self._map_dps, self.status)
         self.clean_history = CleanHistoryTrait(self.command)
         # Read-model traits updated from the device's DPS push stream.
         self._updatable_traits = [

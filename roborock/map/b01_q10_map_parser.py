@@ -93,15 +93,18 @@ _MAX_ERASE_ZONE_VERTICES = 16
 #   50 mm/px, so dividing by 10 yields the origin in grid pixels -- the (ox, oy)
 #   that solve_calibration otherwise recovers by sliding the path.
 # - 15-16 resolution (u16be): reads 5 (= 0.05 m/px = 50 mm/px) universally.
-# - 17-18 charger x, 19-20 charger y (s16be, 5 mm units), 21-22 charger phi.
+# - 17-18 charger x, 19-20 charger y (s16be, absolute map decipixels),
+#   21-22 charger phi. The official app's device-point transform confirms these
+#   coordinates are already in the map-array frame and must not receive x_min /
+#   y_min a second time.
 _ORIGIN_X_OFFSET = 11
 _ORIGIN_Y_OFFSET = 13
 _HEADER_RESOLUTION_OFFSET = 15
 _CHARGER_X_OFFSET = 17
 _CHARGER_Y_OFFSET = 19
 _CHARGER_PHI_OFFSET = 21
-# The header origin/charger are in 5 mm units and the grid is 50 mm/px, so a
-# header coordinate maps to grid pixels by dividing by this.
+# The header origin and charger fields both divide by 10 to reach grid pixels,
+# although they use different coordinate frames as documented above.
 _HEADER_UNITS_PER_PIXEL = 10
 
 # Grid cell values >= this are walls / borders rather than room segments.
@@ -149,9 +152,11 @@ class Q10HeaderCalibration:
     straight from the map packet -- no cleaning path / fit required, so it works
     docked or pre-clean. See :meth:`origin_pixels`.
 
-    ``origin_x`` / ``origin_y`` and the charger coordinates are in 5 mm units;
-    ``resolution`` is the raw header field (5 == 50 mm/px). ``charger_phi`` is the
-    raw dock heading field. Reported and verified by @andrewlyeats (ss07).
+    ``origin_x`` / ``origin_y`` are in 5 mm units and define the world-coordinate
+    origin. The charger coordinates are absolute decipixels in the map-array
+    frame, so they are divided by 10 without applying that origin again.
+    ``resolution`` is the raw header field (5 == 50 mm/px). ``charger_phi`` is
+    the raw dock heading field. Reported and verified by @andrewlyeats (ss07).
     """
 
     origin_x: int
@@ -176,6 +181,15 @@ class Q10HeaderCalibration:
         if self.is_keepalive:
             return None
         return (self.origin_x / _HEADER_UNITS_PER_PIXEL, self.origin_y / _HEADER_UNITS_PER_PIXEL)
+
+    def charger_pixels(self) -> tuple[float, float] | None:
+        """Return the saved dock in absolute map-array pixel coordinates."""
+        if (self.charger_x == 0 and self.charger_y == 0) or self.charger_x == -1 or self.charger_y == -1:
+            return None
+        return (
+            self.charger_x / _HEADER_UNITS_PER_PIXEL,
+            self.charger_y / _HEADER_UNITS_PER_PIXEL,
+        )
 
 
 @dataclass
