@@ -539,6 +539,12 @@ class DeviceFeatures(RoborockBase):
             ]
         }
     )
+    is_ai_recognition_setting_supported: bool = field(
+        metadata={"product_features": [ProductFeatures.AIRECOGNITION_SETTING]}
+    )
+    is_ai_recognition_obstacle_supported: bool = field(
+        metadata={"product_features": [ProductFeatures.AIRECOGNITION_OBSTACLE]}
+    )
     is_pure_clean_mop_supported: bool = field(metadata={"product_features": [ProductFeatures.CLEANMODE_PURECLEANMOP]})
     is_new_remote_view_supported: bool = field(metadata={"product_features": [ProductFeatures.REMOTE_BACK]})
     is_max_plus_mode_supported: bool = field(metadata={"product_features": [ProductFeatures.CLEANMODE_MAXPLUS]})
