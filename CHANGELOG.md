@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v5.37.1 (2026-07-25)
+
+### Bug Fixes
+
+- Add missing dock ids
+  ([`f431c5d`](https://github.com/Python-roborock/python-roborock/commit/f431c5dbab2730df73fdaf5b6c42319a0a77a07d))
+
+
 ## v5.37.0 (2026-07-25)
 
 ### Chores
