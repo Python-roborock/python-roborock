@@ -2,6 +2,23 @@
 
 <!-- version list -->
 
+## v5.37.0 (2026-07-25)
+
+### Chores
+
+- Clean up security location ([#880](https://github.com/Python-roborock/python-roborock/pull/880),
+  [`f0579b8`](https://github.com/Python-roborock/python-roborock/commit/f0579b8dcee5be26da0c572d686f3a831d3867a9))
+
+- Mild clean ups ([#880](https://github.com/Python-roborock/python-roborock/pull/880),
+  [`f0579b8`](https://github.com/Python-roborock/python-roborock/commit/f0579b8dcee5be26da0c572d686f3a831d3867a9))
+
+### Features
+
+- Add photo for obstacle avoidance
+  ([#880](https://github.com/Python-roborock/python-roborock/pull/880),
+  [`f0579b8`](https://github.com/Python-roborock/python-roborock/commit/f0579b8dcee5be26da0c572d686f3a831d3867a9))
+
+
 ## v5.36.0 (2026-07-21)
 
 ### Features
