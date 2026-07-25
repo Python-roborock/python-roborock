@@ -603,6 +603,7 @@ _Q10_MAP_PUSH_TIMEOUT = 30.0
 async def _await_q10_map_push(
     properties: Q10PropertiesApi,
     predicate: Callable[[], bool],
+    generation: Callable[[], int],
     *,
     timeout: float = _Q10_MAP_PUSH_TIMEOUT,
     allow_cached_on_timeout: bool = False,
@@ -617,9 +618,10 @@ async def _await_q10_map_push(
     """
     loop = asyncio.get_running_loop()
     updated: asyncio.Future[None] = loop.create_future()
+    initial_generation = generation()
 
     def on_update() -> None:
-        if predicate() and not updated.done():
+        if generation() != initial_generation and predicate() and not updated.done():
             updated.set_result(None)
 
     unsub = properties.map.add_update_listener(on_update)
@@ -648,6 +650,7 @@ async def map_image(ctx, device_id: str, output_file: str):
         await _await_q10_map_push(
             properties,
             lambda: properties.map.image_content is not None,
+            lambda: properties.map.map_generation,
             allow_cached_on_timeout=True,
         )
         image_content = properties.map.image_content
@@ -706,7 +709,11 @@ async def q10_position(ctx, device_id: str, include_path: bool):
         click.echo("Feature not supported by device")
         return
     properties = device.b01_q10_properties
-    got_trace = await _await_q10_map_push(properties, lambda: bool(properties.map.path))
+    got_trace = await _await_q10_map_push(
+        properties,
+        lambda: bool(properties.map.path),
+        lambda: properties.map.trace_generation,
+    )
     if not got_trace:
         click.echo("No live trace available (the robot only reports position while cleaning).")
         return
@@ -871,6 +878,7 @@ async def rooms(ctx, device_id: str):
         await _await_q10_map_push(
             properties,
             lambda: properties.map.image_content is not None,
+            lambda: properties.map.map_generation,
             allow_cached_on_timeout=True,
         )
         click.echo(dump_json({room.id: room.name for room in properties.map.rooms}))

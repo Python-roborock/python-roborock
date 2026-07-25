@@ -40,6 +40,7 @@ __all__ = [
 ]
 
 _LOGGER = logging.getLogger(__name__)
+_MAP_LIST_REQUEST_TIMEOUT = 30.0
 
 
 def _map_id_from_list_response(response: Any) -> int | str | None:
@@ -134,7 +135,9 @@ class Q10PropertiesApi(Trait):
             self._map_dps,
         ]
         self._subscribe_task: asyncio.Task[None] | None = None
-        self._map_list_requested = False
+        self._map_request_lock = asyncio.Lock()
+        self._map_list_request_token: object | None = None
+        self._map_list_requested_at: float | None = None
 
     async def start(self) -> None:
         """Start any necessary subscriptions for the trait."""
@@ -166,15 +169,27 @@ class Q10PropertiesApi(Trait):
         matching ``get`` command; the resulting protocol-301 map packet is
         routed to :attr:`map`.
         """
-        self._map_list_requested = True
-        try:
-            await self.command.send(
-                B01_Q10_DP.COMMON,
-                {str(B01_Q10_DP.MULTI_MAP.code): {"op": "list"}},
-            )
-        except RoborockException:
-            self._map_list_requested = False
-            raise
+        async with self._map_request_lock:
+            now = asyncio.get_running_loop().time()
+            if (
+                self._map_list_request_token is not None
+                and self._map_list_requested_at is not None
+                and now - self._map_list_requested_at < _MAP_LIST_REQUEST_TIMEOUT
+            ):
+                return
+            token = object()
+            self._map_list_request_token = token
+            self._map_list_requested_at = now
+            try:
+                await self.command.send(
+                    B01_Q10_DP.COMMON,
+                    {str(B01_Q10_DP.MULTI_MAP.code): {"op": "list"}},
+                )
+            except BaseException:
+                if self._map_list_request_token is token:
+                    self._map_list_request_token = None
+                    self._map_list_requested_at = None
+                raise
 
     async def _subscribe_loop(self) -> None:
         """Persistent loop dispatching decoded messages to the read-model traits."""
@@ -197,18 +212,25 @@ class Q10PropertiesApi(Trait):
             _LOGGER.debug("Received Q10 status update: %s", message.dps)
             # Notify all read-model traits about the new message; each trait
             # only updates the fields that it is responsible for.
-            for trait in self._updatable_traits:
-                trait.update_from_dps(message.dps)
+            self.map.begin_source_update()
+            try:
+                for trait in self._updatable_traits:
+                    trait.update_from_dps(message.dps)
+            finally:
+                self.map.end_source_update()
             await self._request_map_from_list_response(message.dps)
 
     async def _request_map_from_list_response(self, decoded_dps: dict[B01_Q10_DP, Any]) -> None:
         """Request map content after receiving our pending map-list response."""
         response = decoded_dps.get(B01_Q10_DP.MULTI_MAP)
-        if not self._map_list_requested or not isinstance(response, dict) or response.get("op") != "list":
+        if self._map_list_request_token is None or not isinstance(response, dict) or response.get("op") != "list":
             return
 
-        self._map_list_requested = False
+        token = self._map_list_request_token
         if (map_id := _map_id_from_list_response(response)) is None:
+            if self._map_list_request_token is token:
+                self._map_list_request_token = None
+                self._map_list_requested_at = None
             _LOGGER.debug("Q10 map list response did not contain a usable map ID")
             return
 
@@ -225,6 +247,10 @@ class Q10PropertiesApi(Trait):
         except RoborockException as ex:
             # A failed follow-up must not kill the persistent subscribe loop.
             _LOGGER.debug("Failed to request Q10 map content: %s", ex)
+        finally:
+            if self._map_list_request_token is token:
+                self._map_list_request_token = None
+                self._map_list_requested_at = None
 
 
 def create(channel: B01Q10Channel) -> Q10PropertiesApi:

@@ -67,4 +67,15 @@ def test_v1_parser_gives_adjacent_rooms_distinct_palette_colors() -> None:
     assert isolated_image.getpixel((0, 0))[: len(original_room_12)] == original_room_12
 
 
+def test_v1_parser_keeps_adjacent_rooms_hidden_when_rooms_disabled() -> None:
+    """Adjacency conflict handling cannot override intentional transparency."""
+    parser = _create_map_data_parser(MapParserConfig(show_rooms=False, map_scale=1))._image_parser
+    raw_data = bytes([(2 << 3) | 7, (12 << 3) | 7])
+
+    image, _rooms = parser.parse(raw_data, 2, 1, None)
+
+    assert image is not None
+    assert [image.getpixel((x, 0)) for x in range(2)] == [(0, 0, 0, 0)] * 2
+
+
 # We can add additional tests here in the future that actually parse valid map data

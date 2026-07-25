@@ -13,7 +13,7 @@ import base64
 from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import cast
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -112,7 +112,10 @@ async def test_await_q10_map_push_waits_for_fresh_update() -> None:
     properties.map.update_from_trace_packet(Q10TracePacket(points=[Q10Point(1, 2)]))
 
     got_trace = await _await_q10_map_push(
-        cast(Q10PropertiesApi, properties), lambda: bool(properties.map.path), timeout=0.01
+        cast(Q10PropertiesApi, properties),
+        lambda: bool(properties.map.path),
+        lambda: properties.map.trace_generation,
+        timeout=0.01,
     )
 
     assert got_trace is False
@@ -123,7 +126,10 @@ async def test_await_q10_map_push_returns_true_after_update() -> None:
     properties = _FakeQ10PropertiesWithTrace()
 
     got_trace = await _await_q10_map_push(
-        cast(Q10PropertiesApi, properties), lambda: bool(properties.map.path), timeout=0.01
+        cast(Q10PropertiesApi, properties),
+        lambda: bool(properties.map.path),
+        lambda: properties.map.trace_generation,
+        timeout=0.01,
     )
 
     assert got_trace is True
@@ -137,12 +143,37 @@ async def test_await_q10_map_push_can_fall_back_to_cached_map_on_timeout() -> No
     got_map = await _await_q10_map_push(
         cast(Q10PropertiesApi, properties),
         lambda: properties.map.image_content is not None,
+        lambda: properties.map.map_generation,
         timeout=0.01,
         allow_cached_on_timeout=True,
     )
 
     assert got_map is True
     assert properties.refresh_count == 1
+
+
+async def test_await_q10_map_push_ignores_status_only_render() -> None:
+    """A status recomposition cannot masquerade as a fresh map packet."""
+    status = StatusTrait()
+    properties = _FakeQ10Properties()
+    properties.map = MapContentTrait(MapDpsTrait(), status)
+    properties.map.update_from_map_packet(parse_map_packet(FIXTURE.read_bytes()))
+
+    async def refresh_status_only() -> None:
+        properties.refresh_count += 1
+        status.update_from_dps({B01_Q10_DP.STATUS: 8})
+
+    properties.refresh = refresh_status_only  # type: ignore[method-assign]
+
+    got_map = await _await_q10_map_push(
+        cast(Q10PropertiesApi, properties),
+        lambda: properties.map.image_content is not None,
+        lambda: properties.map.map_generation,
+        timeout=0.01,
+    )
+
+    assert got_map is False
+    assert properties.map.map_generation == 1
 
 
 # --- Integration through the Q10PropertiesApi subscribe loop -----------------
@@ -266,6 +297,80 @@ async def test_unsolicited_map_list_does_not_request_map(
 
     await asyncio.sleep(0.01)
     assert mock_channel.published_commands == []
+
+
+async def test_concurrent_map_requests_are_coalesced(q10_api: Q10PropertiesApi) -> None:
+    """Only one list request remains pending when callers refresh together."""
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    async def send_list(*_args, **_kwargs) -> None:
+        started.set()
+        await release.wait()
+
+    with patch.object(q10_api.command, "send", side_effect=send_list) as send:
+        first = asyncio.create_task(q10_api.request_map())
+        await started.wait()
+        second = asyncio.create_task(q10_api.request_map())
+        await asyncio.sleep(0)
+        release.set()
+        await asyncio.gather(first, second)
+
+    send.assert_awaited_once()
+
+
+async def test_cancelled_map_request_can_be_retried(q10_api: Q10PropertiesApi) -> None:
+    """Cancellation clears only its own pending list request."""
+    started = asyncio.Event()
+    blocked = asyncio.Event()
+
+    async def send_list(*_args, **_kwargs) -> None:
+        started.set()
+        await blocked.wait()
+
+    with patch.object(q10_api.command, "send", side_effect=send_list):
+        request = asyncio.create_task(q10_api.request_map())
+        await started.wait()
+        request.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await request
+
+    with patch.object(q10_api.command, "send", new=AsyncMock()) as retry:
+        await q10_api.request_map()
+
+    retry.assert_awaited_once()
+
+
+async def test_map_request_stays_coalesced_through_get(q10_api: Q10PropertiesApi) -> None:
+    """The pending flow includes the follow-up get publish."""
+    get_started = asyncio.Event()
+    release_get = asyncio.Event()
+
+    async def send_command(_dp, params) -> None:
+        operation = params[str(B01_Q10_DP.MULTI_MAP.code)]["op"]
+        if operation == "get":
+            get_started.set()
+            await release_get.wait()
+
+    response = {
+        B01_Q10_DP.MULTI_MAP: {
+            "data": [{"id": "12345"}],
+            "op": "list",
+            "result": 1,
+        }
+    }
+    with patch.object(q10_api.command, "send", side_effect=send_command) as send:
+        await q10_api.request_map()
+        get_request = asyncio.create_task(q10_api._request_map_from_list_response(response))
+        await get_started.wait()
+
+        await q10_api.request_map()
+        assert send.await_count == 2
+
+        release_get.set()
+        await get_request
+        await q10_api.request_map()
+        assert send.await_count == 3
 
 
 # --- Source composition + rendering ------------------------------------------
@@ -400,3 +505,73 @@ def test_charging_status_renders_robot_at_dock() -> None:
     assert notified == [None]
     assert render.call_count == 2
     assert render.call_args.kwargs["robot_at_dock"] is True
+
+
+def test_entering_docked_state_clears_stale_live_trace() -> None:
+    """A completed cleaning path cannot remain the caller-facing live position."""
+    status = StatusTrait()
+    trait = MapContentTrait(MapDpsTrait(), status)
+    trait.update_from_trace_packet(Q10TracePacket(points=[Q10Point(1, 2), Q10Point(3, 4)]))
+    notified: list[None] = []
+    trait.add_update_listener(lambda: notified.append(None))
+
+    status.update_from_dps({B01_Q10_DP.STATUS: 8})
+
+    assert trait.path == []
+    assert trait.robot_position is None
+    assert trait.robot_heading is None
+    assert notified == [None]
+
+
+def test_late_trace_does_not_move_docked_robot() -> None:
+    """A delayed trace packet cannot revive a completed cleaning path."""
+    status = StatusTrait()
+    status.update_from_dps({B01_Q10_DP.STATUS: 8})
+    trait = MapContentTrait(MapDpsTrait(), status)
+
+    trait.update_from_trace_packet(Q10TracePacket(points=[Q10Point(1, 2)]))
+
+    assert trait.path == []
+    assert trait.robot_position is None
+    assert trait.trace_generation == 1
+
+
+def test_emptying_state_keeps_robot_at_dock() -> None:
+    """Dock emptying must not briefly remove the docked robot marker."""
+    status = StatusTrait()
+    trait = MapContentTrait(MapDpsTrait(), status)
+    packet = parse_map_packet(FIXTURE.read_bytes())
+
+    with patch(
+        "roborock.devices.traits.b01.q10.map.render_q10_map",
+        side_effect=[b"map with dock", b"map while emptying"],
+    ) as render:
+        trait.update_from_map_packet(packet)
+        status.update_from_dps({B01_Q10_DP.STATUS: 22})
+
+    assert trait.image_content == b"map while emptying"
+    assert render.call_args.kwargs["robot_at_dock"] is True
+
+
+async def test_combined_status_and_overlay_update_renders_once(q10_api: Q10PropertiesApi) -> None:
+    """One DPS message publishes one coherent composed-map update."""
+    q10_api.map.update_from_map_packet(parse_map_packet(FIXTURE.read_bytes()))
+    notified: list[None] = []
+    q10_api.map.add_update_listener(lambda: notified.append(None))
+
+    with patch(
+        "roborock.devices.traits.b01.q10.map.render_q10_map",
+        return_value=b"combined map",
+    ) as render:
+        await q10_api._handle_message(
+            Q10DpsUpdate(
+                dps={
+                    B01_Q10_DP.STATUS: 8,
+                    B01_Q10_DP.RESTRICTED_ZONE_UP: _zone_blob(),
+                }
+            )
+        )
+
+    assert render.call_count == 1
+    assert notified == [None]
+    assert q10_api.map.image_content == b"combined map"

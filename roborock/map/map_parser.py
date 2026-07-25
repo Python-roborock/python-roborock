@@ -2,6 +2,7 @@
 
 import io
 import logging
+import threading
 from dataclasses import dataclass, field
 
 from vacuum_map_parser_base.config.color import Color, ColorsPalette, SupportedColor
@@ -105,10 +106,18 @@ class MapParser:
 class _AdjacencyAwareRoborockImageParser(RoborockImageParser):
     """Apply the shared adjacency color policy to V1 room cells."""
 
-    def __init__(self, palette: ColorsPalette, image_config: ImageConfig) -> None:
+    def __init__(
+        self,
+        palette: ColorsPalette,
+        image_config: ImageConfig,
+        *,
+        recolor_rooms: bool = True,
+    ) -> None:
         super().__init__(palette, image_config)
         self._room_palette = palette
         self._base_room_colors = palette.cached_room_colors.copy()
+        self._recolor_rooms = recolor_rooms
+        self._palette_lock = threading.Lock()
 
     def parse(
         self,
@@ -119,19 +128,22 @@ class _AdjacencyAwareRoborockImageParser(RoborockImageParser):
         removed_map: set[int] | None = None,
     ):
         """Assign non-conflicting room colors before the V1 image pass."""
-        self._room_palette.cached_room_colors.clear()
-        self._room_palette.cached_room_colors.update(self._base_room_colors)
+        with self._palette_lock:
+            self._room_palette.cached_room_colors.clear()
+            self._room_palette.cached_room_colors.update(self._base_room_colors)
 
-        def room_id(value: int) -> int | None:
-            if value in (self.MAP_OUTSIDE, self.MAP_WALL, self.MAP_INSIDE, self.MAP_SCAN):
-                return None
-            return self._get_room_number(value) if value & 0x07 == 0x07 else None
+            if self._recolor_rooms:
 
-        room_colors = adjacency_aware_room_colors(raw_data, width, self._room_palette, room_id)
-        for number, color in room_colors.items():
-            self._room_palette.cached_room_colors[number] = color
-            self._room_palette.cached_room_colors[str(number)] = color
-        return super().parse(raw_data, width, height, carpet_map, removed_map)
+                def room_id(value: int) -> int | None:
+                    if value in (self.MAP_OUTSIDE, self.MAP_WALL, self.MAP_INSIDE, self.MAP_SCAN):
+                        return None
+                    return self._get_room_number(value) if value & 0x07 == 0x07 else None
+
+                room_colors = adjacency_aware_room_colors(raw_data, width, self._room_palette, room_id)
+                for number, color in room_colors.items():
+                    self._room_palette.cached_room_colors[number] = color
+                    self._room_palette.cached_room_colors[str(number)] = color
+            return super().parse(raw_data, width, height, carpet_map, removed_map)
 
 
 def _create_map_data_parser(config: MapParserConfig) -> RoborockMapDataParser:
@@ -144,7 +156,11 @@ def _create_map_data_parser(config: MapParserConfig) -> RoborockMapDataParser:
         image_config,
         [],
     )
-    parser._image_parser = _AdjacencyAwareRoborockImageParser(palette, image_config)
+    parser._image_parser = _AdjacencyAwareRoborockImageParser(
+        palette,
+        image_config,
+        recolor_rooms=config.show_rooms,
+    )
     return parser
 
 
@@ -184,7 +200,7 @@ def _create_rendering_components(
         color_dicts[SupportedColor.MAP_WALL_V2] = (0, 0, 0, 0)
 
     if not config.show_rooms:
-        room_colors = {str(x): (0, 0, 0, 0) for x in range(1, 32)}
+        room_colors = {str(room_id): (0, 0, 0, 0) for room_id in map(int, ColorsPalette.ROOM_COLORS)}
 
     return (
         ColorsPalette(color_dicts, room_colors),
