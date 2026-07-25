@@ -1,7 +1,7 @@
 """Parser for Roborock Q10 (B01/ss07) map packets.
 
-Q10 devices deliver map data as a protocol-301 ``MAP_RESPONSE`` message (pushed a
-few seconds after a ``dpRequestDps`` request). Unlike the Q7 ``SCMap`` protobuf
+Q10 devices deliver map data as a protocol-301 ``MAP_RESPONSE`` message after a
+``dpMultiMap`` list/get request. Unlike the Q7 ``SCMap`` protobuf
 format, the Q10 uses a custom, unencrypted binary packet:
 
 - ``01 01`` marker, then a ``u32be`` map id (bytes 2-5) and two consecutive

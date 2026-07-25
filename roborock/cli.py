@@ -594,26 +594,28 @@ async def maps(ctx, device_id: str):
     await _display_v1_trait(context, device_id, lambda v1: v1.maps)
 
 
-# The Q10 pushes its map ~9s after a dpRequestDps; firmware throttles pushes to
-# ~once per 60-70s, so a single request is answered quickly but rapid re-requests
-# may not be. This bounds how long a one-shot CLI command waits for that push.
+# The Q10 publishes its map asynchronously after a dpMultiMap list/get request.
+# Firmware throttles pushes to ~once per 60-70s, so rapid re-requests may not be
+# answered immediately. This bounds how long a one-shot CLI command waits.
 _Q10_MAP_PUSH_TIMEOUT = 30.0
 
 
 async def _await_q10_map_push(
     properties: Q10PropertiesApi,
     predicate: Callable[[], bool],
+    add_source_listener: Callable[[Callable[[], None]], Callable[[], None]],
     *,
     timeout: float = _Q10_MAP_PUSH_TIMEOUT,
     allow_cached_on_timeout: bool = False,
 ) -> bool:
     """Nudge a Q10 to push its map/trace and wait for a fresh update.
 
-    The Q10 map API is entirely push-driven: there is no synchronous get-map
-    request. A ``dpRequestDps`` causes the device to publish a ``MAP_RESPONSE``,
-    which the device's subscribe loop feeds into the map trait. Here we register
-    an update listener, send the request, and wait for a newly pushed update to
-    satisfy ``predicate``. Returns whether it did within ``timeout``.
+    The Q10 map response remains asynchronous: ``refresh`` starts a
+    ``dpMultiMap`` list/get exchange, after which the device publishes a
+    ``MAP_RESPONSE`` that its subscribe loop feeds into the map trait. Here we
+    register a packet-specific listener, send the request, and wait for a newly
+    pushed update to satisfy ``predicate``. Returns whether it did within
+    ``timeout``.
     """
     loop = asyncio.get_running_loop()
     updated: asyncio.Future[None] = loop.create_future()
@@ -622,7 +624,7 @@ async def _await_q10_map_push(
         if predicate() and not updated.done():
             updated.set_result(None)
 
-    unsub = properties.map.add_update_listener(on_update)
+    unsub = add_source_listener(on_update)
     try:
         await properties.refresh()
         await asyncio.wait_for(updated, timeout=timeout)
@@ -648,6 +650,7 @@ async def map_image(ctx, device_id: str, output_file: str):
         await _await_q10_map_push(
             properties,
             lambda: properties.map.image_content is not None,
+            properties.map._add_map_packet_listener,
             allow_cached_on_timeout=True,
         )
         image_content = properties.map.image_content
@@ -706,7 +709,11 @@ async def q10_position(ctx, device_id: str, include_path: bool):
         click.echo("Feature not supported by device")
         return
     properties = device.b01_q10_properties
-    got_trace = await _await_q10_map_push(properties, lambda: bool(properties.map.path))
+    got_trace = await _await_q10_map_push(
+        properties,
+        lambda: bool(properties.map.path),
+        properties.map._add_trace_packet_listener,
+    )
     if not got_trace:
         click.echo("No live trace available (the robot only reports position while cleaning).")
         return
@@ -871,6 +878,7 @@ async def rooms(ctx, device_id: str):
         await _await_q10_map_push(
             properties,
             lambda: properties.map.image_content is not None,
+            properties.map._add_map_packet_listener,
             allow_cached_on_timeout=True,
         )
         click.echo(dump_json({room.id: room.name for room in properties.map.rooms}))
