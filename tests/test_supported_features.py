@@ -109,6 +109,7 @@ def test_new_feature_str_missing():
         (RoborockDockTypeCode.type_27_dock, True, True),
         (RoborockDockTypeCode.k1c_lite_dock, True, True),
         (RoborockDockTypeCode.shell_2e_lite_dock, True, True),
+        (RoborockDockTypeCode.type_38_dock, True, True),
         (RoborockDockTypeCode.shell_2e_heat_dock, True, True),
     ],
 )
@@ -120,6 +121,19 @@ def test_dock_features(dock_type: RoborockDockTypeCode, is_collectable: bool, is
     assert dock_features.is_washable is is_washable
     assert is_valid_dock(dock_type) is dock_features.has_dock
     assert is_wash_n_fill_dock(dock_type) is dock_features.is_washable
+
+
+def test_qrevo_edge_2_dock_type_is_mapped() -> None:
+    """Dock type 38 (Qrevo Edge 2) must resolve to a real wash-and-dry dock."""
+    dock_type = RoborockDockTypeCode(38)
+
+    assert dock_type is not RoborockDockTypeCode.unknown
+    assert is_valid_dock(dock_type)
+    assert is_wash_n_fill_dock(dock_type)
+
+    dock_features = RoborockDockFeatures.from_dock_type(dock_type)
+    assert dock_features.is_collectable
+    assert dock_features.is_dryable
 
 
 def test_dock_feature_flags_from_rr_api() -> None:
