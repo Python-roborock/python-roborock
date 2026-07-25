@@ -164,13 +164,13 @@ def test_render_draws_dock_from_header_without_trace() -> None:
 
 
 def test_place_charger_uses_absolute_header_pixels() -> None:
-    """The dock coordinates do not receive the world origin a second time."""
+    """The dock uses absolute pixels and converts its axis to a V1 heading."""
     packet = replace(_packet(), header_calibration=HEADER)
     map_data = MapData()
 
     assert _place_charger_from_header(map_data, packet)
 
-    assert map_data.charger == Point(3, 3, -90)
+    assert map_data.charger == Point(3, 3, 0)
 
 
 def test_place_docked_robot_uses_shared_v1_marker_geometry() -> None:
