@@ -5,10 +5,11 @@ import logging
 import threading
 from dataclasses import dataclass, field
 
-from vacuum_map_parser_base.config.color import ColorsPalette, SupportedColor
+from vacuum_map_parser_base.config.color import Color, ColorsPalette, SupportedColor
 from vacuum_map_parser_base.config.drawable import Drawable
 from vacuum_map_parser_base.config.image_config import ImageConfig
 from vacuum_map_parser_base.config.size import Size, Sizes
+from vacuum_map_parser_base.image_generator import ImageGenerator
 from vacuum_map_parser_base.map_data import MapData
 from vacuum_map_parser_roborock.image_parser import RoborockImageParser
 from vacuum_map_parser_roborock.map_data_parser import RoborockMapDataParser
@@ -150,25 +151,10 @@ class _AdjacencyAwareRoborockImageParser(RoborockImageParser):
 
 def _create_map_data_parser(config: MapParserConfig) -> RoborockMapDataParser:
     """Create a RoborockMapDataParser based on the config entry."""
-    color_dicts = {}
-    room_colors = {}
-
-    if not config.show_background:
-        color_dicts[SupportedColor.MAP_OUTSIDE] = (0, 0, 0, 0)
-
-    if not config.show_walls:
-        color_dicts[SupportedColor.GREY_WALL] = (0, 0, 0, 0)
-        color_dicts[SupportedColor.MAP_WALL] = (0, 0, 0, 0)
-        color_dicts[SupportedColor.MAP_WALL_V2] = (0, 0, 0, 0)
-
-    if not config.show_rooms:
-        room_colors = {str(x): (0, 0, 0, 0) for x in range(1, 32)}
-
-    palette = ColorsPalette(color_dicts, room_colors)
-    image_config = ImageConfig(scale=config.map_scale)
+    palette, sizes, image_config = _create_rendering_components(config)
     parser = RoborockMapDataParser(
         palette,
-        Sizes({k: v * config.map_scale for k, v in Sizes.SIZES.items() if k != Size.MOP_PATH_WIDTH}),
+        sizes,
         config.drawables,
         image_config,
         [],
@@ -179,3 +165,48 @@ def _create_map_data_parser(config: MapParserConfig) -> RoborockMapDataParser:
         recolor_rooms=config.show_rooms,
     )
     return parser
+
+
+def _create_image_generator(
+    config: MapParserConfig,
+    *,
+    drawables: list[Drawable] | None = None,
+) -> ImageGenerator:
+    """Create the image generator used by V1-compatible package renderers.
+
+    Other protocols should use this factory for shared drawables instead of
+    copying V1 colors, sizes, glyphs, or transparency behavior.
+    """
+    palette, sizes, image_config = _create_rendering_components(config)
+    return ImageGenerator(
+        palette,
+        sizes,
+        config.drawables if drawables is None else drawables,
+        image_config,
+        [],
+    )
+
+
+def _create_rendering_components(
+    config: MapParserConfig,
+) -> tuple[ColorsPalette, Sizes, ImageConfig]:
+    """Build the shared V1 palette, scaled sizes, and image configuration."""
+    color_dicts: dict[SupportedColor, Color] = {}
+    room_colors: dict[str, Color] = {}
+
+    if not config.show_background:
+        color_dicts[SupportedColor.MAP_OUTSIDE] = (0, 0, 0, 0)
+
+    if not config.show_walls:
+        color_dicts[SupportedColor.GREY_WALL] = (0, 0, 0, 0)
+        color_dicts[SupportedColor.MAP_WALL] = (0, 0, 0, 0)
+        color_dicts[SupportedColor.MAP_WALL_V2] = (0, 0, 0, 0)
+
+    if not config.show_rooms:
+        room_colors = {str(room_id): (0, 0, 0, 0) for room_id in range(1, 32)}
+
+    return (
+        ColorsPalette(color_dicts, room_colors),
+        Sizes({k: v * config.map_scale for k, v in Sizes.SIZES.items() if k != Size.MOP_PATH_WIDTH}),
+        ImageConfig(scale=config.map_scale),
+    )

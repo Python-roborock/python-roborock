@@ -27,7 +27,7 @@ from dataclasses import dataclass, field, replace
 from PIL import Image
 from vacuum_map_parser_base.config.color import ColorsPalette, SupportedColor
 from vacuum_map_parser_base.config.image_config import ImageConfig
-from vacuum_map_parser_base.map_data import ImageData, MapData
+from vacuum_map_parser_base.map_data import ImageData, MapData, Point
 
 from roborock.exceptions import RoborockException
 
@@ -94,15 +94,18 @@ _MAX_ERASE_ZONE_VERTICES = 16
 #   50 mm/px, so dividing by 10 yields the origin in grid pixels -- the (ox, oy)
 #   that solve_calibration otherwise recovers by sliding the path.
 # - 15-16 resolution (u16be): reads 5 (= 0.05 m/px = 50 mm/px) universally.
-# - 17-18 charger x, 19-20 charger y (s16be, 5 mm units), 21-22 charger phi.
+# - 17-18 charger x, 19-20 charger y (s16be, absolute map decipixels),
+#   21-22 charger phi. The official app's device-point transform confirms these
+#   coordinates are already in the map-array frame and must not receive x_min /
+#   y_min a second time.
 _ORIGIN_X_OFFSET = 11
 _ORIGIN_Y_OFFSET = 13
 _HEADER_RESOLUTION_OFFSET = 15
 _CHARGER_X_OFFSET = 17
 _CHARGER_Y_OFFSET = 19
 _CHARGER_PHI_OFFSET = 21
-# The header origin/charger are in 5 mm units and the grid is 50 mm/px, so a
-# header coordinate maps to grid pixels by dividing by this.
+# The header origin and charger fields both divide by 10 to reach grid pixels,
+# although they use different coordinate frames as documented above.
 _HEADER_UNITS_PER_PIXEL = 10
 
 # Grid cell values >= this are walls / borders rather than room segments.
@@ -130,7 +133,8 @@ class Q10EraseZone:
 
     These are the app's *Erase* tool rectangles -- regions the user marked to be
     removed from the map (e.g. phantom floor the lidar mapped through windows).
-    Coordinates are world units (millimetres), same frame as the path/zones.
+    Coordinates are 5 mm world units, the same frame as restriction zones.
+    Trace points use a separate 2.5 mm scale.
 
     Confirmed by a controlled diff: removing the two erase zones on a live device
     dropped this section's count from 2 to 0 while the grid and the trailing
@@ -149,9 +153,11 @@ class Q10HeaderCalibration:
     straight from the map packet -- no cleaning path / fit required, so it works
     docked or pre-clean. See :meth:`origin_pixels`.
 
-    ``origin_x`` / ``origin_y`` and the charger coordinates are in 5 mm units;
-    ``resolution`` is the raw header field (5 == 50 mm/px). ``charger_phi`` is the
-    raw dock heading field. Reported and verified by @andrewlyeats (ss07).
+    ``origin_x`` / ``origin_y`` are in 5 mm units and define the world-coordinate
+    origin. The charger coordinates are absolute decipixels in the map-array
+    frame, so they are divided by 10 without applying that origin again.
+    ``resolution`` is the raw header field (5 == 50 mm/px). ``charger_phi`` is
+    the raw dock heading field. Reported and verified by @andrewlyeats (ss07).
     """
 
     origin_x: int
@@ -176,6 +182,15 @@ class Q10HeaderCalibration:
         if self.is_keepalive:
             return None
         return (self.origin_x / _HEADER_UNITS_PER_PIXEL, self.origin_y / _HEADER_UNITS_PER_PIXEL)
+
+    def charger_pixels(self) -> tuple[float, float] | None:
+        """Return the saved dock in absolute map-array pixel coordinates."""
+        if (self.charger_x == 0 and self.charger_y == 0) or self.charger_x == -1 or self.charger_y == -1:
+            return None
+        return (
+            self.charger_x / _HEADER_UNITS_PER_PIXEL,
+            self.charger_y / _HEADER_UNITS_PER_PIXEL,
+        )
 
 
 @dataclass
@@ -640,7 +655,12 @@ class B01Q10MapParser:
             width=packet.width,
             image_config=ImageConfig(scale=self._config.map_scale),
             data=image,
-            img_transformation=lambda p: p,
+            # ImageDimensions uses V1's bottom-up map convention before
+            # projecting into the top-down PNG. Q10 points are already
+            # top-down grid pixels, so this adapter cancels that standard flip
+            # and lets Q10 use the shared V1 ImageGenerator without moving
+            # overlays vertically.
+            img_transformation=lambda p: Point(p.x, packet.height - p.y - 1, p.a),
         )
         room_names = {room.id: room.name for room in packet.rooms}
         if room_names:

@@ -456,6 +456,7 @@ def test_parse_header_calibration_fields() -> None:
     assert not cal.is_keepalive
     # 5 mm units / (50 mm/px) -> divide by 10 for grid pixels.
     assert cal.origin_pixels() == (-376.0, 192.0)
+    assert cal.charger_pixels() == (-5.0, 3.0)
 
 
 def test_parse_header_calibration_keepalive_has_no_origin() -> None:
