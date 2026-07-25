@@ -1,10 +1,10 @@
 """Tests for the Q10 B01 map content trait.
 
-The Q10 map API is push-driven: the device publishes ``MAP_RESPONSE`` messages
-which the protocol layer decodes into typed map/trace packets; the trait updates
-its cached state from them via ``update_from_map_packet`` /
-``update_from_trace_packet`` (there is no synchronous get-map request). These
-tests cover that state management; the pixel/geometry work it drives is tested in
+The Q10 map API uses an asynchronous ``dpMultiMap`` list/get exchange. The
+device then publishes ``MAP_RESPONSE`` messages which the protocol layer
+decodes into typed map/trace packets; the trait updates its cached state from
+them via ``update_from_map_packet`` / ``update_from_trace_packet``. These tests
+cover that state management; the pixel/geometry work it drives is tested in
 ``tests/map/test_b01_q10_render.py``.
 """
 
@@ -29,7 +29,7 @@ from roborock.map.b01_q10_map_parser import (
     parse_trace_packet,
 )
 from roborock.map.b01_q10_render import Q10MapOverlays
-from roborock.protocols.b01_q10_protocol import Q10Message
+from roborock.protocols.b01_q10_protocol import Q10DpsUpdate, Q10Message
 
 from .conftest import FakeB01Q10Channel
 
@@ -209,6 +209,69 @@ async def test_subscribe_loop_routes_trace_push(
 
     await _wait_for(lambda: bool(q10_api.map.path))
     assert q10_api.map.robot_position is not None
+
+
+async def test_map_list_response_requests_first_map(
+    q10_api: Q10PropertiesApi,
+    mock_channel: FakeB01Q10Channel,
+    message_queue: asyncio.Queue[Q10Message],
+) -> None:
+    """A requested map list is followed by a get for its first map ID."""
+    await q10_api.request_map()
+    assert mock_channel.published_commands == [
+        (
+            B01_Q10_DP.COMMON,
+            {str(B01_Q10_DP.MULTI_MAP.code): {"op": "list"}},
+        )
+    ]
+
+    message_queue.put_nowait(
+        Q10DpsUpdate(
+            dps={
+                B01_Q10_DP.MULTI_MAP: {
+                    "data": [
+                        {"id": "12345", "name": "Current", "timestamp": 1},
+                        {"id": "67890", "name": "Other", "timestamp": 2},
+                    ],
+                    "op": "list",
+                    "result": 1,
+                }
+            }
+        )
+    )
+
+    await _wait_for(lambda: len(mock_channel.published_commands) == 2)
+    assert mock_channel.published_commands[1] == (
+        B01_Q10_DP.COMMON,
+        {
+            str(B01_Q10_DP.MULTI_MAP.code): {
+                "op": "get",
+                "id": "12345",
+            }
+        },
+    )
+
+
+async def test_unsolicited_map_list_does_not_request_map(
+    q10_api: Q10PropertiesApi,
+    mock_channel: FakeB01Q10Channel,
+    message_queue: asyncio.Queue[Q10Message],
+) -> None:
+    """A list response not initiated by this API cannot trigger a map get."""
+    message_queue.put_nowait(
+        Q10DpsUpdate(
+            dps={
+                B01_Q10_DP.MULTI_MAP: {
+                    "data": [{"id": "12345"}],
+                    "op": "list",
+                    "result": 1,
+                }
+            }
+        )
+    )
+
+    await asyncio.sleep(0.01)
+    assert mock_channel.published_commands == []
 
 
 # --- Source composition + rendering ------------------------------------------

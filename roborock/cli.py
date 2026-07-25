@@ -594,9 +594,9 @@ async def maps(ctx, device_id: str):
     await _display_v1_trait(context, device_id, lambda v1: v1.maps)
 
 
-# The Q10 pushes its map ~9s after a dpRequestDps; firmware throttles pushes to
-# ~once per 60-70s, so a single request is answered quickly but rapid re-requests
-# may not be. This bounds how long a one-shot CLI command waits for that push.
+# The Q10 publishes its map asynchronously after a dpMultiMap list/get request.
+# Firmware throttles pushes to ~once per 60-70s, so rapid re-requests may not be
+# answered immediately. This bounds how long a one-shot CLI command waits.
 _Q10_MAP_PUSH_TIMEOUT = 30.0
 
 
@@ -609,11 +609,11 @@ async def _await_q10_map_push(
 ) -> bool:
     """Nudge a Q10 to push its map/trace and wait for a fresh update.
 
-    The Q10 map API is entirely push-driven: there is no synchronous get-map
-    request. A ``dpRequestDps`` causes the device to publish a ``MAP_RESPONSE``,
-    which the device's subscribe loop feeds into the map trait. Here we register
-    an update listener, send the request, and wait for a newly pushed update to
-    satisfy ``predicate``. Returns whether it did within ``timeout``.
+    The Q10 map response remains asynchronous: ``refresh`` starts a
+    ``dpMultiMap`` list/get exchange, after which the device publishes a
+    ``MAP_RESPONSE`` that its subscribe loop feeds into the map trait. Here we
+    register an update listener, send the request, and wait for a newly pushed
+    update to satisfy ``predicate``. Returns whether it did within ``timeout``.
     """
     loop = asyncio.get_running_loop()
     updated: asyncio.Future[None] = loop.create_future()

@@ -1,7 +1,7 @@
 """Parser for Roborock Q10 (B01/ss07) map packets.
 
-Q10 devices deliver map data as a protocol-301 ``MAP_RESPONSE`` message (pushed a
-few seconds after a ``dpRequestDps`` request). Unlike the Q7 ``SCMap`` protobuf
+Q10 devices deliver map data as a protocol-301 ``MAP_RESPONSE`` message after a
+``dpMultiMap`` list/get request. Unlike the Q7 ``SCMap`` protobuf
 format, the Q10 uses a custom, unencrypted binary packet:
 
 - ``01 01`` marker, then a ``u32be`` map id (bytes 2-5) and two consecutive
@@ -19,15 +19,15 @@ documentation that informed this clean-room implementation comes from the
 https://github.com/v1b3c0d3x3r/roborock-qseries-map-bridge
 """
 
-import colorsys
 import io
 import math
 import statistics
 from dataclasses import dataclass, field, replace
 
 from PIL import Image
+from vacuum_map_parser_base.config.color import ColorsPalette, SupportedColor
 from vacuum_map_parser_base.config.image_config import ImageConfig
-from vacuum_map_parser_base.map_data import ImageData, MapData
+from vacuum_map_parser_base.map_data import ImageData, MapData, Point
 
 from roborock.exceptions import RoborockException
 
@@ -129,7 +129,8 @@ class Q10EraseZone:
 
     These are the app's *Erase* tool rectangles -- regions the user marked to be
     removed from the map (e.g. phantom floor the lidar mapped through windows).
-    Coordinates are world units (millimetres), same frame as the path/zones.
+    Coordinates are 5 mm world units, the same frame as restriction zones.
+    Trace points use a separate 2.5 mm scale.
 
     Confirmed by a controlled diff: removing the two erase zones on a live device
     dropped this section's count from 2 to 0 while the grid and the trailing
@@ -639,7 +640,12 @@ class B01Q10MapParser:
             width=packet.width,
             image_config=ImageConfig(scale=self._config.map_scale),
             data=image,
-            img_transformation=lambda p: p,
+            # ImageDimensions uses V1's bottom-up map convention before
+            # projecting into the top-down PNG. Q10 points are already
+            # top-down grid pixels, so this adapter cancels that standard flip
+            # and lets Q10 use the shared V1 ImageGenerator without moving
+            # overlays vertically.
+            img_transformation=lambda p: Point(p.x, packet.height - p.y - 1, p.a),
         )
         room_names = {room.id: room.name for room in packet.rooms}
         if room_names:
@@ -655,12 +661,12 @@ class B01Q10MapParser:
         return ParsedMapData(image_content=image_bytes.getvalue(), map_data=map_data)
 
     def _render(self, packet: Q10MapPacket) -> Image.Image:
-        """Render the Q10 grid: rooms get distinct colors, walls white, rest dark."""
+        """Render the Q10 grid with the V1 map palette."""
         palette = _build_palette(packet.grid)
-        rgb = bytearray()
+        rgba = bytearray()
         for value in packet.grid:
-            rgb.extend(palette[value])
-        img = Image.frombytes("RGB", (packet.width, packet.height), bytes(rgb))
+            rgba.extend(palette[value])
+        img = Image.frombytes("RGBA", (packet.width, packet.height), bytes(rgba))
         # The ss07 grid is stored top-down (row 0 = top of the home), so it is
         # rendered as-is -- unlike the V1/Q7 convention, no vertical flip.
         scale = self._config.map_scale
@@ -669,15 +675,22 @@ class B01Q10MapParser:
         return img
 
 
-def _build_palette(grid: bytes) -> list[tuple[int, int, int]]:
-    """Map each grid value to an RGB color (rooms distinct, walls white)."""
-    palette: list[tuple[int, int, int]] = [(28, 30, 38)] * 256  # default: unknown/outside
-    room_values = sorted({v for v in set(grid) if 0 < v < _WALL_THRESHOLD})
-    for index, value in enumerate(room_values):
-        hue = (index * 0.139) % 1.0
-        r, g, b = colorsys.hsv_to_rgb(hue, 0.5, 0.95)
-        palette[value] = (int(r * 255), int(g * 255), int(b * 255))
+def _opaque(color: tuple[int, ...]) -> tuple[int, int, int, int]:
+    """Return a palette color as RGBA."""
+    return (color[0], color[1], color[2], color[3] if len(color) == 4 else 255)
+
+
+def _build_palette(grid: bytes) -> list[tuple[int, int, int, int]]:
+    """Map Q10 cells onto the same colors used by the V1 map renderer."""
+    colors = ColorsPalette()
+    outside = (0, 0, 0, 0)
+    palette = [outside] * 256
+    for value in {value for value in grid if 0 < value < _WALL_THRESHOLD}:
+        palette[value] = _opaque(colors.get_room_color(max(1, value // 4)))
+    wall = _opaque(colors.get_color(SupportedColor.GREY_WALL))
     for value in range(_WALL_THRESHOLD, 256):
-        palette[value] = (235, 235, 240)  # walls / borders
-    palette[0] = (28, 30, 38)
+        palette[value] = wall
+    palette[_UNSEGMENTED_FLOOR_VALUE] = _opaque(colors.get_color(SupportedColor.MAP_INSIDE))
+    palette[_BACKGROUND_VALUE] = outside
+    palette[0] = outside
     return palette

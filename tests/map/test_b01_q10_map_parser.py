@@ -159,6 +159,23 @@ def test_parse_map_packet_allows_zero_room_metadata() -> None:
     assert packet.rooms == []
 
 
+def test_parser_renders_distinct_background_floor_and_walls() -> None:
+    """Background must not hide the wall layer by sharing its color."""
+    grid = bytes([243, 240, 249, 8])
+    payload = _synthetic_map_payload(width=4, decoded_layout=grid + b"\x01\x00")
+    parser = B01Q10MapParser()
+
+    parsed = parser.parse(payload)
+
+    assert parsed.image_content is not None
+    image = Image.open(io.BytesIO(parsed.image_content))
+    scale = parser.config.map_scale
+    assert image.getpixel((0, 0)) == (0, 0, 0, 0)
+    assert image.getpixel((scale, 0)) == (32, 115, 185, 255)
+    assert image.getpixel((scale * 2, 0)) == (93, 109, 126, 255)
+    assert image.getpixel((scale * 3, 0)) == (133, 193, 233, 255)
+
+
 def test_parse_map_packet_reads_header_height() -> None:
     """Width and height come straight from the u16be header fields."""
     grid = bytes([8]) * 6 + bytes([12]) * 6  # two rooms, 4x3 grid

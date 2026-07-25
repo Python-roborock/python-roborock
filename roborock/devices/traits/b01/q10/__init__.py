@@ -2,10 +2,12 @@
 
 import asyncio
 import logging
+from typing import Any
 
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
 from roborock.devices.rpc.b01_q10_channel import B01Q10Channel
 from roborock.devices.traits import Trait
+from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import Q10MapPacket, Q10TracePacket
 from roborock.protocols.b01_q10_protocol import Q10DpsUpdate, Q10Message
 
@@ -38,6 +40,23 @@ __all__ = [
 ]
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _map_id_from_list_response(response: Any) -> int | str | None:
+    """Return the first usable map ID from a ``dpMultiMap`` list response."""
+    if not isinstance(response, dict) or response.get("op") != "list":
+        return None
+    data = response.get("data")
+    if not isinstance(data, list):
+        return None
+    for map_info in data:
+        if isinstance(map_info, dict):
+            map_id = map_info.get("id")
+        else:
+            map_id = map_info
+        if isinstance(map_id, (int, str)) and not isinstance(map_id, bool):
+            return map_id
+    return None
 
 
 class Q10PropertiesApi(Trait):
@@ -115,6 +134,7 @@ class Q10PropertiesApi(Trait):
             self._map_dps,
         ]
         self._subscribe_task: asyncio.Task[None] | None = None
+        self._map_list_requested = False
 
     async def start(self) -> None:
         """Start any necessary subscriptions for the trait."""
@@ -132,22 +152,42 @@ class Q10PropertiesApi(Trait):
 
     async def refresh(self) -> None:
         """Refresh all traits."""
-        # Sending the REQUEST_DPS will cause the device to send all DPS values
-        # to the device. Updates will be received by the subscribe loop below.
+        # Status and map retrieval use separate Q10 requests. A bare REQUEST_DPS
+        # reliably refreshes status but does not reliably make every firmware
+        # publish its map.
         await self.command.send(B01_Q10_DP.REQUEST_DPS, params={})
+        await self.request_map()
+
+    async def request_map(self) -> None:
+        """Request the current saved map through the Q10 multi-map protocol.
+
+        The list response arrives asynchronously on the subscribe stream.
+        ``_handle_message`` extracts its first map ID and follows up with the
+        matching ``get`` command; the resulting protocol-301 map packet is
+        routed to :attr:`map`.
+        """
+        self._map_list_requested = True
+        try:
+            await self.command.send(
+                B01_Q10_DP.COMMON,
+                {str(B01_Q10_DP.MULTI_MAP.code): {"op": "list"}},
+            )
+        except RoborockException:
+            self._map_list_requested = False
+            raise
 
     async def _subscribe_loop(self) -> None:
         """Persistent loop dispatching decoded messages to the read-model traits."""
         async for message in self._channel.subscribe_stream():
-            self._handle_message(message)
+            await self._handle_message(message)
 
-    def _handle_message(self, message: Q10Message) -> None:
+    async def _handle_message(self, message: Q10Message) -> None:
         """Route a single decoded message to the trait responsible for it.
 
-        Map and trace packets arrive as protocol-301 ``MAP_RESPONSE`` pushes (the
-        Q10 is entirely push-driven: there is no synchronous get-map request, a
-        ``dpRequestDps`` just nudges the device to publish its current map). DPS
-        updates feed the read-model traits. More traits can be dispatched here below.
+        Map and trace packets arrive as protocol-301 ``MAP_RESPONSE`` pushes.
+        A ``dpMultiMap`` list response completes the asynchronous request flow
+        started by :meth:`request_map`; other DPS updates feed the read-model
+        traits.
         """
         if isinstance(message, Q10MapPacket):
             self.map.update_from_map_packet(message)
@@ -159,6 +199,32 @@ class Q10PropertiesApi(Trait):
             # only updates the fields that it is responsible for.
             for trait in self._updatable_traits:
                 trait.update_from_dps(message.dps)
+            await self._request_map_from_list_response(message.dps)
+
+    async def _request_map_from_list_response(self, decoded_dps: dict[B01_Q10_DP, Any]) -> None:
+        """Request map content after receiving our pending map-list response."""
+        response = decoded_dps.get(B01_Q10_DP.MULTI_MAP)
+        if not self._map_list_requested or not isinstance(response, dict) or response.get("op") != "list":
+            return
+
+        self._map_list_requested = False
+        if (map_id := _map_id_from_list_response(response)) is None:
+            _LOGGER.debug("Q10 map list response did not contain a usable map ID")
+            return
+
+        try:
+            await self.command.send(
+                B01_Q10_DP.COMMON,
+                {
+                    str(B01_Q10_DP.MULTI_MAP.code): {
+                        "op": "get",
+                        "id": map_id,
+                    }
+                },
+            )
+        except RoborockException as ex:
+            # A failed follow-up must not kill the persistent subscribe loop.
+            _LOGGER.debug("Failed to request Q10 map content: %s", ex)
 
 
 def create(channel: B01Q10Channel) -> Q10PropertiesApi:
