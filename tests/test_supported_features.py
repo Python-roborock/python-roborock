@@ -9,6 +9,53 @@ from roborock.data.v1 import RoborockDockTypeCode
 from roborock.device_features import DeviceFeatures, RoborockDockFeatures, is_valid_dock, is_wash_n_fill_dock
 from tests import mock_data
 
+# RR_API DockConfigs snapshot from the Qrevo Edge 2 bundle decoded on 2026-07-11.
+RR_API_DOCK_TYPES = {
+    0: "o0_dock",
+    1: "o1_dock",
+    2: "o2_dock",
+    3: "o3_dock",
+    5: "oc_dock",
+    6: "o3_plus_dock",
+    7: "o4_dock",
+    8: "pearl_dock",
+    9: "pearl_plus_dock",
+    10: "o5_dock",
+    11: "shell_2s_dock",
+    13: "couple_dock",
+    14: "shell_3_dock",
+    15: "shell_2c_dock",
+    16: "shell_3s_dock",
+    17: "k1_dock",
+    18: "o6_dock",
+    19: "k1c_dock",
+    20: "k1s_dock",
+    21: "shell_e_dock",
+    22: "shell_2e_dock",
+    23: "shell_3c_dock",
+    24: "hera_dock",
+    26: "k1s_pro_dock",
+    27: "type_27_dock",
+    28: "k1c_lite_dock",
+    29: "k1r_dock",
+    30: "shell_2e_lite_dock",
+    31: "shell_4rc_dock",
+    32: "shell_4r_dock",
+    33: "shell_4p_dock",
+    34: "shell_4s_dock",
+    35: "o7_dock",
+    37: "k1d_dock",
+    38: "shell_3p_dock",
+    39: "shell_4d_dock",
+    40: "shell_2e_heat_dock",
+    41: "f1_dock",
+    42: "f1r_dock",
+    43: "f2r_dock",
+    44: "f1s_dock",
+    45: "o7h_dock",
+    46: "f1c_dock",
+}
+
 
 def test_supported_features_qrevo_maxv():
     """Ensure that a QREVO MaxV has some more complicated features enabled."""
@@ -106,10 +153,27 @@ def test_new_feature_str_missing():
         (RoborockDockTypeCode.shell_e_dock, True, True),
         (RoborockDockTypeCode.shell_2e_dock, True, True),
         (RoborockDockTypeCode.shell_3c_dock, True, True),
+        (RoborockDockTypeCode.hera_dock, True, True),
+        (RoborockDockTypeCode.k1s_pro_dock, True, True),
         (RoborockDockTypeCode.type_27_dock, True, True),
         (RoborockDockTypeCode.k1c_lite_dock, True, True),
+        (RoborockDockTypeCode.k1r_dock, True, True),
         (RoborockDockTypeCode.shell_2e_lite_dock, True, True),
+        (RoborockDockTypeCode.shell_4rc_dock, True, True),
+        (RoborockDockTypeCode.shell_4r_dock, True, True),
+        (RoborockDockTypeCode.shell_4p_dock, True, True),
+        (RoborockDockTypeCode.shell_4s_dock, True, True),
+        (RoborockDockTypeCode.o7_dock, True, True),
+        (RoborockDockTypeCode.k1d_dock, True, True),
+        (RoborockDockTypeCode.shell_3p_dock, True, True),
+        (RoborockDockTypeCode.shell_4d_dock, True, True),
         (RoborockDockTypeCode.shell_2e_heat_dock, True, True),
+        (RoborockDockTypeCode.f1_dock, True, True),
+        (RoborockDockTypeCode.f1r_dock, True, True),
+        (RoborockDockTypeCode.f2r_dock, True, True),
+        (RoborockDockTypeCode.f1s_dock, True, True),
+        (RoborockDockTypeCode.o7h_dock, True, True),
+        (RoborockDockTypeCode.f1c_dock, True, True),
     ],
 )
 def test_dock_features(dock_type: RoborockDockTypeCode, is_collectable: bool, is_washable: bool) -> None:
@@ -120,6 +184,17 @@ def test_dock_features(dock_type: RoborockDockTypeCode, is_collectable: bool, is
     assert dock_features.is_washable is is_washable
     assert is_valid_dock(dock_type) is dock_features.has_dock
     assert is_wash_n_fill_dock(dock_type) is dock_features.is_washable
+
+
+def test_all_rr_api_dock_types_are_mapped() -> None:
+    """Keep the enum synchronized with the RR_API DockConfigs snapshot."""
+    mapped_docks = {
+        dock_type.value: dock_type.name
+        for dock_type in RoborockDockTypeCode
+        if dock_type is not RoborockDockTypeCode.unknown
+    }
+
+    assert mapped_docks == RR_API_DOCK_TYPES
 
 
 def test_dock_feature_flags_from_rr_api() -> None:
@@ -135,6 +210,17 @@ def test_dock_feature_flags_from_rr_api() -> None:
     assert not RoborockDockFeatures.from_dock_type(
         RoborockDockTypeCode.shell_2e_heat_dock
     ).is_water_updown_drain_supported
+    assert RoborockDockFeatures.from_dock_type(
+        RoborockDockTypeCode.shell_3p_dock
+    ).is_clean_carousel_self_clean_supported
+    assert RoborockDockFeatures.from_dock_type(
+        RoborockDockTypeCode.shell_3p_dock
+    ).is_double_serial_communication_supported
+    assert RoborockDockFeatures.from_dock_type(RoborockDockTypeCode.o7_dock).is_only_x_series
+    assert RoborockDockFeatures.from_dock_type(RoborockDockTypeCode.o7_dock).is_clean_fluid_auto_delivery_supported
+    assert RoborockDockFeatures.from_dock_type(RoborockDockTypeCode.o7h_dock).is_steam_wash_supported
+    assert RoborockDockFeatures.from_dock_type(RoborockDockTypeCode.f1_dock).is_simple_wash_mode_supported
+    assert RoborockDockFeatures.from_dock_type(RoborockDockTypeCode.f1r_dock).is_no_water_flow_carousel
 
 
 def test_dock_feature_flags_with_am_variants_from_rr_api() -> None:
@@ -165,6 +251,19 @@ def test_dock_feature_flags_with_am_variants_from_rr_api() -> None:
     assert RoborockDockFeatures.from_dock_type(
         RoborockDockTypeCode.shell_3c_dock, has_am=True
     ).is_water_updown_drain_supported
+
+    shell_4rc = RoborockDockFeatures.from_dock_type(RoborockDockTypeCode.shell_4rc_dock)
+    shell_4rc_am = RoborockDockFeatures.from_dock_type(RoborockDockTypeCode.shell_4rc_dock, has_am=True)
+    assert shell_4rc.is_clean_carousel_self_clean_supported
+    assert not shell_4rc_am.is_clean_carousel_self_clean_supported
+    assert not shell_4rc.is_water_updown_drain_supported
+    assert shell_4rc_am.is_water_updown_drain_supported
+    assert not shell_4rc.is_clean_fluid_auto_delivery_supported
+    assert not shell_4rc_am.is_clean_fluid_auto_delivery_supported
+    assert shell_4rc.is_high_tmp_water_supported
+    assert shell_4rc_am.is_high_tmp_water_supported
+    assert not shell_4rc.is_double_serial_communication_supported
+    assert shell_4rc_am.is_double_serial_communication_supported
 
 
 @pytest.mark.parametrize(

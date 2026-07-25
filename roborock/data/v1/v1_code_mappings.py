@@ -365,10 +365,27 @@ class RoborockDockTypeCode(RoborockEnum):
     shell_e_dock = 21
     shell_2e_dock = 22
     shell_3c_dock = 23
+    hera_dock = 24
+    k1s_pro_dock = 26
     type_27_dock = 27
     k1c_lite_dock = 28
+    k1r_dock = 29
     shell_2e_lite_dock = 30
+    shell_4rc_dock = 31
+    shell_4r_dock = 32
+    shell_4p_dock = 33
+    shell_4s_dock = 34
+    o7_dock = 35
+    k1d_dock = 37
+    shell_3p_dock = 38
+    shell_4d_dock = 39
     shell_2e_heat_dock = 40
+    f1_dock = 41
+    f1r_dock = 42
+    f2r_dock = 43
+    f1s_dock = 44
+    o7h_dock = 45
+    f1c_dock = 46
 
 
 class RoborockDockDustCollectionModeCode(RoborockEnum):
