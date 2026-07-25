@@ -40,6 +40,7 @@ from .b01_grid_layers import (
     decompose_grid,
 )
 from .map_parser import ParsedMapData
+from .room_colors import adjacency_aware_room_colors
 
 _MAP_FILE_FORMAT = "PNG"
 
@@ -676,7 +677,7 @@ class B01Q10MapParser:
 
     def _render(self, packet: Q10MapPacket) -> Image.Image:
         """Render the Q10 grid with the V1 map palette."""
-        palette = _build_palette(packet.grid)
+        palette = _build_palette(packet.grid, packet.width)
         rgba = bytearray()
         for value in packet.grid:
             rgba.extend(palette[value])
@@ -694,13 +695,23 @@ def _opaque(color: tuple[int, ...]) -> tuple[int, int, int, int]:
     return (color[0], color[1], color[2], color[3] if len(color) == 4 else 255)
 
 
-def _build_palette(grid: bytes) -> list[tuple[int, int, int, int]]:
+def _build_palette(grid: bytes, width: int) -> list[tuple[int, int, int, int]]:
     """Map Q10 cells onto the same colors used by the V1 map renderer."""
+
+    def room_id(value: int) -> int | None:
+        return max(1, value // 4) if 0 < value < _WALL_THRESHOLD else None
+
     colors = ColorsPalette()
+    room_colors = adjacency_aware_room_colors(
+        grid,
+        width,
+        colors,
+        room_id,
+    )
     outside = (0, 0, 0, 0)
     palette = [outside] * 256
     for value in {value for value in grid if 0 < value < _WALL_THRESHOLD}:
-        palette[value] = _opaque(colors.get_room_color(max(1, value // 4)))
+        palette[value] = _opaque(room_colors[max(1, value // 4)])
     wall = _opaque(colors.get_color(SupportedColor.GREY_WALL))
     for value in range(_WALL_THRESHOLD, 256):
         palette[value] = wall

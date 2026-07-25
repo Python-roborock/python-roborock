@@ -3,13 +3,16 @@
 from pathlib import Path
 
 import pytest
+from vacuum_map_parser_base.config.color import ColorsPalette
 from vacuum_map_parser_base.config.drawable import Drawable
+from vacuum_map_parser_base.config.image_config import ImageConfig
 from vacuum_map_parser_base.config.size import Size
 
 from roborock.exceptions import RoborockException
 from roborock.map.map_parser import (
     MapParser,
     MapParserConfig,
+    _AdjacencyAwareRoborockImageParser,
     _create_map_data_parser,
     create_image_generator,
 )
@@ -44,6 +47,24 @@ def test_shared_image_generator_matches_v1_rendering_components() -> None:
     assert shared._drawables == drawables
     for size in Size:
         assert shared._sizes.get_size(size) == v1._sizes.get_size(size)
+
+
+def test_v1_parser_gives_adjacent_rooms_distinct_palette_colors() -> None:
+    """Repeated palette entries do not merge neighboring V1 rooms."""
+    palette = ColorsPalette()
+    original_room_12 = palette.get_room_color(12)
+    image_parser = _AdjacencyAwareRoborockImageParser(palette, ImageConfig())
+    raw_data = bytes([(2 << 3) | 7, (12 << 3) | 7])
+
+    image, _rooms = image_parser.parse(raw_data, 2, 1, None)
+
+    assert image is not None
+    assert image.getpixel((0, 0)) != image.getpixel((1, 0))
+
+    isolated_image, _rooms = image_parser.parse(bytes([(12 << 3) | 7]), 1, 1, None)
+
+    assert isolated_image is not None
+    assert isolated_image.getpixel((0, 0))[: len(original_room_12)] == original_room_12
 
 
 # We can add additional tests here in the future that actually parse valid map data
