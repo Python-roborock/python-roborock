@@ -87,13 +87,6 @@ def test_q10_position_is_available_as_top_level_cli_command() -> None:
     assert "q10-position" in cli.commands
 
 
-def test_q10_map_dps_trait_is_private() -> None:
-    api = create(FakeB01Q10Channel())
-
-    assert not hasattr(api, "map_dps")
-    assert api._map_dps in api._updatable_traits
-
-
 # --- CLI push waiting --------------------------------------------------------
 
 

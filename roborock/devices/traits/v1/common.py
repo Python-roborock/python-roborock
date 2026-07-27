@@ -16,7 +16,7 @@ from roborock.roborock_typing import RoborockCommand
 _LOGGER = logging.getLogger(__name__)
 
 
-V1ResponseData = dict | list | int | str
+V1ResponseData = dict | list | int | str | bytes
 
 
 class V1TraitDataConverter(ABC):

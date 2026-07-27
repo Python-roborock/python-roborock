@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import base64
+import gzip
 import json
 import logging
 import secrets
 import struct
+import zlib
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -24,6 +26,7 @@ _LOGGER = logging.getLogger(__name__)
 __all__ = [
     "SecurityData",
     "create_security_data",
+    "create_blob_response_decoder",
     "decode_data_protocol_message",
     "decode_rpc_response",
     "V1RpcChannel",
@@ -259,6 +262,48 @@ class MapResponse:
 
     data: bytes
     """The map data, decrypted and decompressed."""
+
+
+@dataclass
+class BlobResponse:
+    """Data structure for V1 blob responses."""
+
+    request_id: int
+    """The request ID of the blob response."""
+
+    data: bytes
+    """The blob data, decompressed."""
+
+
+def create_blob_response_decoder() -> Callable[[RoborockMessage], BlobResponse | None]:
+    """Create a decoder for V1 blob response messages.
+
+    Obstacle photos are acknowledged through the normal RPC response with
+    ``["ok"]`` and delivered later as a protocol-301 blob frame. The frame starts
+    with ``ROBOROCK``, stores the RPC request id at bytes 8-11, the header size
+    at bytes 16-17, and the gzip payload length at bytes 20-23.
+    """
+
+    def _decode_blob_response(message: RoborockMessage) -> BlobResponse | None:
+        """Decode a V1 blob response message."""
+        if message.protocol != RoborockMessageProtocol.MAP_RESPONSE:
+            return None
+        payload = message.payload
+        if not payload or not payload.startswith(b"ROBOROCK") or len(payload) < 24:
+            return None
+        request_id = int.from_bytes(payload[8:12], "little")
+        header_size = int.from_bytes(payload[16:18], "little")
+        payload_size = int.from_bytes(payload[20:24], "little")
+        end_offset = header_size + payload_size
+        if header_size < 24 or end_offset > len(payload):
+            raise RoborockException("Invalid V1 blob response format")
+        try:
+            data = Utils.decompress(payload[header_size:end_offset])
+        except (gzip.BadGzipFile, EOFError, zlib.error) as err:
+            raise RoborockException("Failed to decode blob message payload") from err
+        return BlobResponse(request_id=request_id, data=data)
+
+    return _decode_blob_response
 
 
 def create_map_response_decoder(security_data: SecurityData) -> Callable[[RoborockMessage], MapResponse | None]:

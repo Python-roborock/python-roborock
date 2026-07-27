@@ -184,6 +184,8 @@
               125,
             ]),
             'isActivateVideoChargingAndStandbySupported': False,
+            'isAiRecognitionObstacleSupported': True,
+            'isAiRecognitionSettingSupported': True,
             'isAnalysisSupported': True,
             'isAnyStateTransitGotoSupported': False,
             'isAutoCollection2Supported': False,

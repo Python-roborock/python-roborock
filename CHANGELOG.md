@@ -2,6 +2,50 @@
 
 <!-- version list -->
 
+## v6.0.0 (2026-07-27)
+
+### Features
+
+- Audit and complete Zeo protocol DP and enum mappings
+  ([#892](https://github.com/Python-roborock/python-roborock/pull/892),
+  [`dba564d`](https://github.com/Python-roborock/python-roborock/commit/dba564d10b88afcd6195298b90c6d49844e334f5))
+
+- Full Zeo protocol definition — 67 DPs, complete enum mappings, all 56 devices covered
+  ([#892](https://github.com/Python-roborock/python-roborock/pull/892),
+  [`dba564d`](https://github.com/Python-roborock/python-roborock/commit/dba564d10b88afcd6195298b90c6d49844e334f5))
+
+### Refactoring
+
+- **zeo**: Replace raw integer fields with enum types
+  ([#892](https://github.com/Python-roborock/python-roborock/pull/892),
+  [`dba564d`](https://github.com/Python-roborock/python-roborock/commit/dba564d10b88afcd6195298b90c6d49844e334f5))
+
+
+## v5.37.1 (2026-07-25)
+
+### Bug Fixes
+
+- Add missing dock ids
+  ([`f431c5d`](https://github.com/Python-roborock/python-roborock/commit/f431c5dbab2730df73fdaf5b6c42319a0a77a07d))
+
+
+## v5.37.0 (2026-07-25)
+
+### Chores
+
+- Clean up security location ([#880](https://github.com/Python-roborock/python-roborock/pull/880),
+  [`f0579b8`](https://github.com/Python-roborock/python-roborock/commit/f0579b8dcee5be26da0c572d686f3a831d3867a9))
+
+- Mild clean ups ([#880](https://github.com/Python-roborock/python-roborock/pull/880),
+  [`f0579b8`](https://github.com/Python-roborock/python-roborock/commit/f0579b8dcee5be26da0c572d686f3a831d3867a9))
+
+### Features
+
+- Add photo for obstacle avoidance
+  ([#880](https://github.com/Python-roborock/python-roborock/pull/880),
+  [`f0579b8`](https://github.com/Python-roborock/python-roborock/commit/f0579b8dcee5be26da0c572d686f3a831d3867a9))
+
+
 ## v5.36.0 (2026-07-21)
 
 ### Features
