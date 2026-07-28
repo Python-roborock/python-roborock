@@ -202,7 +202,7 @@ class RoborockDevice(ABC, TraitsMixin):
                 await self.v1_properties.start()
             elif self.b01_q10_properties is not None:
                 await self.b01_q10_properties.start()
-            if self.zeo is not None:
+            elif self.zeo is not None:
                 await self.zeo.start()
         except RoborockException:
             # Expected: start() can fail transiently. Unsubscribe before propagating

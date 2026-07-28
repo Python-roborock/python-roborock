@@ -54,7 +54,7 @@ from roborock.devices.rpc.a01_channel import send_decoded_command
 from roborock.devices.traits import Trait
 from roborock.devices.traits.common import TraitUpdateListener
 from roborock.devices.transport.mqtt_channel import MqttChannel
-from roborock.exceptions import RoborockException
+from roborock.exceptions import RoborockException, RoborockTimeout
 from roborock.protocols.a01_protocol import decode_rpc_response
 from roborock.roborock_message import (
     RoborockDyadDataProtocol,
@@ -103,6 +103,14 @@ DYAD_PROTOCOL_ENTRIES: dict[RoborockDyadDataProtocol, Callable] = {
     RoborockDyadDataProtocol.SND_STATE: lambda val: DyadSndState.from_dict(val),
     RoborockDyadDataProtocol.PRODUCT_INFO: lambda val: DyadProductInfo.from_dict(val),
 }
+
+# Devices known to lack FEATURE_BITS (DP 237).
+_UNSUPPORTED_FEATURE_BITS: frozenset[str] = frozenset(
+    {
+        "roborock.wm.a63",  # H1
+        "roborock.wm.a90",  # H1 Lite
+    }
+)
 
 ZEO_PROTOCOL_ENTRIES: dict[RoborockZeoProtocol, Callable] = {
     # read-only
@@ -173,13 +181,14 @@ class ZeoApi(Trait, TraitUpdateListener):
 
     name = "zeo"
 
-    def __init__(self, channel: MqttChannel) -> None:
+    def __init__(self, channel: MqttChannel, product_id: str | None = None) -> None:
         """Initialize the Zeo API."""
         TraitUpdateListener.__init__(self, _LOGGER)
         self._channel = channel
         self._dps_cache: dict[int, Any] = {}
         self._dps_unsub: Callable[[], None] | None = None
         self._feature_bits: int = 0
+        self._product_id = product_id
 
     async def start(self) -> None:
         """Subscribe to MQTT push and discover device features.
@@ -205,15 +214,17 @@ class ZeoApi(Trait, TraitUpdateListener):
     async def _discover_features(self) -> None:
         """Query FEATURE_BITS to wake the device and cache capabilities.
 
-        Sending an RPC query after subscribing triggers the device to
-        start pushing its full state — equivalent to how V1's
-        ``discover_features()`` uses ``device_features.refresh()`` to
-        initiate the push cycle.
+        Only devices that support the FeatureBits DP will respond;
+        For devices known to lack this DP
+        the query is skipped entirely; for all other devices a
+        timeout propagates as a connection error.
         """
+        if self._product_id in _UNSUPPORTED_FEATURE_BITS:
+            return
         try:
             result = await self.query_values([RoborockZeoProtocol.FEATURE_BITS])
             self._feature_bits = result.get(RoborockZeoProtocol.FEATURE_BITS, 0)
-        except Exception:
+        except RoborockTimeout:
             self._feature_bits = 0
 
     def supports(self, feature: ZeoFeatureBits) -> bool:
@@ -221,21 +232,16 @@ class ZeoApi(Trait, TraitUpdateListener):
         return bool(self._feature_bits & (1 << feature.value))
 
     def _on_dps_message(self, message: RoborockMessage) -> None:
-        """Handle unsolicited MQTT push (protocol 102 — RPC_RESPONSE).
-
-        Zeo devices broadcast status changes as ``{"dps": {...}}`` JSON
-        payloads.  This callback decodes them and feeds the cache so
-        that ``query_values`` can skip the device round-trip when the
-        requested DPs are already up to date.
-        """
+        """Handle unsolicited MQTT push (protocol 102 — RPC_RESPONSE)."""
         if message.protocol != RoborockMessageProtocol.RPC_RESPONSE:
             return
         try:
             decoded = decode_rpc_response(message)
-            self._dps_cache.update(decoded)
-            self._notify_update()
         except RoborockException:
-            _LOGGER.debug("Failed to decode push message, skipping: %s", message, exc_info=True)
+            _LOGGER.debug("Dropped malformed push message", exc_info=True)
+            return
+        self._dps_cache.update(decoded)
+        self._notify_update()
 
     async def query_values(self, protocols: list[RoborockZeoProtocol]) -> dict[RoborockZeoProtocol, Any]:
         """Query the device for the values of the given protocols."""
@@ -244,9 +250,6 @@ class ZeoApi(Trait, TraitUpdateListener):
             {RoborockZeoProtocol.ID_QUERY: protocols},
             value_encoder=json.dumps,
         )
-        for protocol, value in response.items():
-            if value is not None:
-                self._dps_cache[int(protocol)] = value
         return {protocol: convert_zeo_value(protocol, response.get(protocol)) for protocol in protocols}
 
     async def set_value(self, protocol: RoborockZeoProtocol, value: Any) -> dict[RoborockZeoProtocol, Any]:
@@ -261,6 +264,6 @@ def create(product: HomeDataProduct, mqtt_channel: MqttChannel) -> DyadApi | Zeo
         case RoborockCategory.WET_DRY_VAC:
             return DyadApi(mqtt_channel)
         case RoborockCategory.WASHING_MACHINE:
-            return ZeoApi(mqtt_channel)
+            return ZeoApi(mqtt_channel, product_id=product.id)
         case _:
             raise NotImplementedError(f"Unsupported category {product.category}")
