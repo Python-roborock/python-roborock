@@ -36,6 +36,7 @@ def test_v1_parser_gives_adjacent_rooms_distinct_palette_colors() -> None:
 
     assert image is not None
     assert image.getpixel((0, 0)) != image.getpixel((1, 0))
+    assert palette.get_room_color(12) == palette.get_room_color("12")
 
     isolated_image, _rooms = image_parser.parse(bytes([(12 << 3) | 7]), 1, 1, None)
 

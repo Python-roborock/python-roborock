@@ -128,8 +128,10 @@ class _AdjacencyAwareRoborockImageParser(RoborockImageParser):
     ):
         """Assign non-conflicting room colors before the V1 image pass."""
         with self._palette_lock:
-            self._room_palette.cached_room_colors.clear()
-            self._room_palette.cached_room_colors.update(self._base_room_colors)
+            # cached_room_colors is a read-only property, so reset its dict in place.
+            cached_room_colors = self._room_palette.cached_room_colors
+            cached_room_colors.clear()
+            cached_room_colors.update(self._base_room_colors)
 
             if self._recolor_rooms:
 
@@ -140,8 +142,9 @@ class _AdjacencyAwareRoborockImageParser(RoborockImageParser):
 
                 room_colors = adjacency_aware_room_colors(raw_data, width, self._room_palette, room_id)
                 for number, color in room_colors.items():
-                    self._room_palette.cached_room_colors[number] = color
-                    self._room_palette.cached_room_colors[str(number)] = color
+                    # ColorsPalette caches both forms for get_room_color(str | int).
+                    cached_room_colors[number] = color
+                    cached_room_colors[str(number)] = color
             return super().parse(raw_data, width, height, carpet_map, removed_map)
 
 
