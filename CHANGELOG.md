@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v6.0.0 (2026-07-27)
+
+### Features
+
+- Audit and complete Zeo protocol DP and enum mappings
+  ([#892](https://github.com/Python-roborock/python-roborock/pull/892),
+  [`dba564d`](https://github.com/Python-roborock/python-roborock/commit/dba564d10b88afcd6195298b90c6d49844e334f5))
+
+- Full Zeo protocol definition — 67 DPs, complete enum mappings, all 56 devices covered
+  ([#892](https://github.com/Python-roborock/python-roborock/pull/892),
+  [`dba564d`](https://github.com/Python-roborock/python-roborock/commit/dba564d10b88afcd6195298b90c6d49844e334f5))
+
+### Refactoring
+
+- **zeo**: Replace raw integer fields with enum types
+  ([#892](https://github.com/Python-roborock/python-roborock/pull/892),
+  [`dba564d`](https://github.com/Python-roborock/python-roborock/commit/dba564d10b88afcd6195298b90c6d49844e334f5))
+
+
 ## v5.37.1 (2026-07-25)
 
 ### Bug Fixes
