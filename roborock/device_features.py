@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field, fields
 from enum import IntEnum, StrEnum
+from functools import cache
 from typing import Any, Self
 
 from roborock.data.code_mappings import RoborockProductNickname
@@ -538,6 +539,12 @@ class DeviceFeatures(RoborockBase):
             ]
         }
     )
+    is_ai_recognition_setting_supported: bool = field(
+        metadata={"product_features": [ProductFeatures.AIRECOGNITION_SETTING]}
+    )
+    is_ai_recognition_obstacle_supported: bool = field(
+        metadata={"product_features": [ProductFeatures.AIRECOGNITION_OBSTACLE]}
+    )
     is_pure_clean_mop_supported: bool = field(metadata={"product_features": [ProductFeatures.CLEANMODE_PURECLEANMOP]})
     is_new_remote_view_supported: bool = field(metadata={"product_features": [ProductFeatures.REMOTE_BACK]})
     is_max_plus_mode_supported: bool = field(metadata={"product_features": [ProductFeatures.CLEANMODE_MAXPLUS]})
@@ -644,25 +651,325 @@ class DeviceFeatures(RoborockBase):
         return [k for k, v in vars(self).items() if v]
 
 
+_NO_DOCK_TYPES = {
+    RoborockDockTypeCode.unknown,
+    RoborockDockTypeCode.o0_dock,
+}
+
+_PURE_COLLECT_DOCK_TYPES = {
+    RoborockDockTypeCode.o1_dock,
+    RoborockDockTypeCode.oc_dock,
+}
+
+_PURE_WASH_DOCK_TYPES = {
+    RoborockDockTypeCode.o2_dock,
+}
+
+_COLLECT_WASH_DOCK_TYPES = {
+    RoborockDockTypeCode.o3_dock,
+}
+
+_ONLY_X_SERIES_DOCK_TYPES = {
+    RoborockDockTypeCode.o2_dock,
+    RoborockDockTypeCode.o3_dock,
+    RoborockDockTypeCode.o3_plus_dock,
+    RoborockDockTypeCode.o4_dock,
+    RoborockDockTypeCode.o5_dock,
+    RoborockDockTypeCode.o6_dock,
+    RoborockDockTypeCode.o7_dock,
+    RoborockDockTypeCode.o7h_dock,
+}
+
+_CLEAN_FLUID_AUTO_DELIVERY_DOCK_TYPES = {
+    RoborockDockTypeCode.o4_dock,
+    RoborockDockTypeCode.o5_dock,
+    RoborockDockTypeCode.pearl_plus_dock,
+    RoborockDockTypeCode.shell_3s_dock,
+    RoborockDockTypeCode.o6_dock,
+    RoborockDockTypeCode.couple_dock,
+    RoborockDockTypeCode.type_27_dock,
+    RoborockDockTypeCode.o7_dock,
+    RoborockDockTypeCode.f1s_dock,
+    RoborockDockTypeCode.o7h_dock,
+}
+
+_CLEAN_FLUID_AUTO_DELIVERY_AM_DOCK_TYPES = {
+    RoborockDockTypeCode.shell_2s_dock,
+    RoborockDockTypeCode.shell_3_dock,
+    RoborockDockTypeCode.shell_2c_dock,
+    RoborockDockTypeCode.k1_dock,
+    RoborockDockTypeCode.k1s_dock,
+    RoborockDockTypeCode.shell_e_dock,
+    RoborockDockTypeCode.shell_2e_dock,
+    RoborockDockTypeCode.shell_3c_dock,
+    RoborockDockTypeCode.k1c_dock,
+}
+
+_AUTO_STERILIZE_DOCK_TYPES = {
+    RoborockDockTypeCode.shell_3s_dock,
+}
+
+_INNER_CHARGE_HEAD_DOCK_TYPES = {
+    RoborockDockTypeCode.o0_dock,
+    RoborockDockTypeCode.o1_dock,
+    RoborockDockTypeCode.oc_dock,
+    RoborockDockTypeCode.o2_dock,
+    RoborockDockTypeCode.o3_dock,
+    RoborockDockTypeCode.o3_plus_dock,
+    RoborockDockTypeCode.o4_dock,
+}
+
+_DUST_BUCKET_DOCK_TYPES = {
+    RoborockDockTypeCode.o3_dock,
+    RoborockDockTypeCode.o3_plus_dock,
+    RoborockDockTypeCode.o4_dock,
+}
+
+_CLEAN_CAROUSEL_SELF_CLEAN_DOCK_TYPES = {
+    RoborockDockTypeCode.shell_3_dock,
+    RoborockDockTypeCode.k1_dock,
+    RoborockDockTypeCode.couple_dock,
+    RoborockDockTypeCode.shell_3s_dock,
+    RoborockDockTypeCode.k1s_dock,
+    RoborockDockTypeCode.shell_3c_dock,
+    RoborockDockTypeCode.k1s_pro_dock,
+    RoborockDockTypeCode.type_27_dock,
+    RoborockDockTypeCode.k1r_dock,
+    RoborockDockTypeCode.shell_4rc_dock,
+    RoborockDockTypeCode.shell_4p_dock,
+    RoborockDockTypeCode.shell_4s_dock,
+    RoborockDockTypeCode.k1d_dock,
+    RoborockDockTypeCode.shell_3p_dock,
+    RoborockDockTypeCode.f1_dock,
+    RoborockDockTypeCode.f2r_dock,
+    RoborockDockTypeCode.f1s_dock,
+    RoborockDockTypeCode.f1c_dock,
+}
+
+_WATER_UPDOWN_DRAIN_DOCK_TYPES = {
+    RoborockDockTypeCode.o4_dock,
+    RoborockDockTypeCode.pearl_plus_dock,
+    RoborockDockTypeCode.couple_dock,
+}
+
+_WATER_UPDOWN_DRAIN_AM_DOCK_TYPES = {
+    RoborockDockTypeCode.o5_dock,
+    RoborockDockTypeCode.shell_2s_dock,
+    RoborockDockTypeCode.shell_3_dock,
+    RoborockDockTypeCode.shell_2c_dock,
+    RoborockDockTypeCode.shell_3s_dock,
+    RoborockDockTypeCode.k1_dock,
+    RoborockDockTypeCode.k1s_dock,
+    RoborockDockTypeCode.o6_dock,
+    RoborockDockTypeCode.shell_e_dock,
+    RoborockDockTypeCode.shell_2e_dock,
+    RoborockDockTypeCode.shell_3c_dock,
+    RoborockDockTypeCode.k1c_dock,
+    RoborockDockTypeCode.hera_dock,
+    RoborockDockTypeCode.k1s_pro_dock,
+    RoborockDockTypeCode.type_27_dock,
+    RoborockDockTypeCode.shell_4rc_dock,
+    RoborockDockTypeCode.shell_4r_dock,
+    RoborockDockTypeCode.shell_4p_dock,
+    RoborockDockTypeCode.shell_4s_dock,
+    RoborockDockTypeCode.o7_dock,
+    RoborockDockTypeCode.shell_4d_dock,
+    RoborockDockTypeCode.f1r_dock,
+    RoborockDockTypeCode.f1s_dock,
+    RoborockDockTypeCode.o7h_dock,
+}
+
+_HATCH_DOOR_DOCK_COOL_FAN_DOCK_TYPES = {
+    RoborockDockTypeCode.couple_dock,
+}
+
+_SPECIAL_WASH_TEMP_DOCK_TYPES = {
+    RoborockDockTypeCode.shell_2e_lite_dock,
+}
+
+_HIGH_TMP_WATER_DOCK_TYPES = {
+    RoborockDockTypeCode.k1r_dock,
+    RoborockDockTypeCode.shell_4rc_dock,
+    RoborockDockTypeCode.shell_2e_heat_dock,
+    RoborockDockTypeCode.f1_dock,
+    RoborockDockTypeCode.f1r_dock,
+    RoborockDockTypeCode.f2r_dock,
+    RoborockDockTypeCode.f1c_dock,
+}
+
+_DOUBLE_SERIAL_COMMUNICATION_DOCK_TYPES = {
+    RoborockDockTypeCode.k1s_pro_dock,
+    RoborockDockTypeCode.type_27_dock,
+    RoborockDockTypeCode.k1r_dock,
+    RoborockDockTypeCode.shell_4r_dock,
+    RoborockDockTypeCode.shell_4p_dock,
+    RoborockDockTypeCode.shell_4s_dock,
+    RoborockDockTypeCode.o7_dock,
+    RoborockDockTypeCode.k1d_dock,
+    RoborockDockTypeCode.shell_3p_dock,
+    RoborockDockTypeCode.f1_dock,
+    RoborockDockTypeCode.f1r_dock,
+    RoborockDockTypeCode.f2r_dock,
+    RoborockDockTypeCode.f1s_dock,
+    RoborockDockTypeCode.o7h_dock,
+    RoborockDockTypeCode.f1c_dock,
+}
+
+_DOUBLE_SERIAL_COMMUNICATION_AM_DOCK_TYPES = {
+    RoborockDockTypeCode.shell_4rc_dock,
+    RoborockDockTypeCode.shell_4d_dock,
+}
+
+_NO_WATER_FLOW_CAROUSEL_DOCK_TYPES = {
+    RoborockDockTypeCode.f1r_dock,
+    RoborockDockTypeCode.f2r_dock,
+    RoborockDockTypeCode.f1s_dock,
+}
+
+_SIMPLE_WASH_MODE_DOCK_TYPES = {
+    RoborockDockTypeCode.f1_dock,
+    RoborockDockTypeCode.f1r_dock,
+    RoborockDockTypeCode.f2r_dock,
+    RoborockDockTypeCode.f1c_dock,
+}
+
+_STEAM_WASH_DOCK_TYPES = {
+    RoborockDockTypeCode.o7h_dock,
+}
+
+
+@dataclass(frozen=True)
+class RoborockDockFeatures:
+    """Capabilities derived from a V1 dock type.
+
+    This mirrors the Roborock app's DK capability model: feature availability
+    should be attached to the dock family instead of repeated per trait.
+    """
+
+    dock_type: RoborockDockTypeCode
+    has_am: bool | None = None
+
+    @classmethod
+    @cache
+    def from_dock_type(cls, dock_type: RoborockDockTypeCode | None, has_am: bool | None = None) -> Self:
+        """Return cached capabilities for a V1 dock type."""
+        return cls(dock_type or RoborockDockTypeCode.o0_dock, has_am=has_am)
+
+    def _matches_am_variant(self, dock_types: set[RoborockDockTypeCode]) -> bool:
+        return self.has_am is True and self.dock_type in dock_types
+
+    def _matches_non_am_variant(self, dock_types: set[RoborockDockTypeCode]) -> bool:
+        return self.has_am is not True and self.dock_type in dock_types
+
+    @property
+    def has_dock(self) -> bool:
+        return self.dock_type not in _NO_DOCK_TYPES
+
+    @property
+    def is_pure_collect(self) -> bool:
+        return self.dock_type in _PURE_COLLECT_DOCK_TYPES
+
+    @property
+    def is_pure_wash(self) -> bool:
+        return self.dock_type in _PURE_WASH_DOCK_TYPES
+
+    @property
+    def is_collect_wash(self) -> bool:
+        return self.dock_type in _COLLECT_WASH_DOCK_TYPES
+
+    @property
+    def is_collect_wash_dry(self) -> bool:
+        return self.has_dock and not (self.is_pure_collect or self.is_pure_wash or self.is_collect_wash)
+
+    @property
+    def is_collectable(self) -> bool:
+        return self.is_collect_wash or self.is_collect_wash_dry or self.is_pure_collect
+
+    @property
+    def is_washable(self) -> bool:
+        return self.is_pure_wash or self.is_collect_wash or self.is_collect_wash_dry
+
+    @property
+    def is_dryable(self) -> bool:
+        return self.is_collect_wash_dry
+
+    @property
+    def is_only_x_series(self) -> bool:
+        return self.dock_type in _ONLY_X_SERIES_DOCK_TYPES
+
+    @property
+    def is_cleaning_brush_supported(self) -> bool:
+        return self.is_only_x_series
+
+    @property
+    def is_clean_fluid_auto_delivery_supported(self) -> bool:
+        return self.dock_type in _CLEAN_FLUID_AUTO_DELIVERY_DOCK_TYPES or self._matches_am_variant(
+            _CLEAN_FLUID_AUTO_DELIVERY_AM_DOCK_TYPES
+        )
+
+    @property
+    def is_auto_sterilize_supported(self) -> bool:
+        return self.dock_type in _AUTO_STERILIZE_DOCK_TYPES
+
+    @property
+    def is_inner_charge_head(self) -> bool:
+        return self.dock_type in _INNER_CHARGE_HEAD_DOCK_TYPES
+
+    @property
+    def is_dust_bucket_supported(self) -> bool:
+        return self.dock_type in _DUST_BUCKET_DOCK_TYPES
+
+    @property
+    def is_clean_carousel_self_clean_supported(self) -> bool:
+        return self._matches_non_am_variant(_CLEAN_CAROUSEL_SELF_CLEAN_DOCK_TYPES)
+
+    @property
+    def is_water_updown_drain_supported(self) -> bool:
+        return self.dock_type in _WATER_UPDOWN_DRAIN_DOCK_TYPES or self._matches_am_variant(
+            _WATER_UPDOWN_DRAIN_AM_DOCK_TYPES
+        )
+
+    @property
+    def is_hatch_door_dock_cool_fan_supported(self) -> bool:
+        return self.dock_type in _HATCH_DOOR_DOCK_COOL_FAN_DOCK_TYPES
+
+    @property
+    def is_special_support_wash_temp(self) -> bool:
+        return self.dock_type in _SPECIAL_WASH_TEMP_DOCK_TYPES
+
+    @property
+    def is_high_tmp_water_supported(self) -> bool:
+        return self.dock_type in _HIGH_TMP_WATER_DOCK_TYPES
+
+    @property
+    def is_double_serial_communication_supported(self) -> bool:
+        return self.dock_type in _DOUBLE_SERIAL_COMMUNICATION_DOCK_TYPES or self._matches_am_variant(
+            _DOUBLE_SERIAL_COMMUNICATION_AM_DOCK_TYPES
+        )
+
+    @property
+    def is_no_water_flow_carousel(self) -> bool:
+        return self.dock_type in _NO_WATER_FLOW_CAROUSEL_DOCK_TYPES
+
+    @property
+    def is_simple_wash_mode_supported(self) -> bool:
+        return self.dock_type in _SIMPLE_WASH_MODE_DOCK_TYPES
+
+    @property
+    def is_steam_wash_supported(self) -> bool:
+        return self.dock_type in _STEAM_WASH_DOCK_TYPES
+
+
 WASH_N_FILL_DOCK_TYPES = [
-    RoborockDockTypeCode.empty_wash_fill_dock,
-    RoborockDockTypeCode.s8_dock,
-    RoborockDockTypeCode.p10_dock,
-    RoborockDockTypeCode.p10_pro_dock,
-    RoborockDockTypeCode.s8_maxv_ultra_dock,
-    RoborockDockTypeCode.qrevo_s_dock,
-    RoborockDockTypeCode.saros_r10_dock,
-    RoborockDockTypeCode.qrevo_curv_dock,
-    RoborockDockTypeCode.qrevo_s5v_dock,
-    RoborockDockTypeCode.saros_20_dock,
+    dock_type for dock_type in RoborockDockTypeCode if RoborockDockFeatures.from_dock_type(dock_type).is_washable
 ]
 
 
 def is_wash_n_fill_dock(dock_type: RoborockDockTypeCode) -> bool:
     """Check if the dock type is a wash and fill dock."""
-    return dock_type in WASH_N_FILL_DOCK_TYPES
+    return RoborockDockFeatures.from_dock_type(dock_type).is_washable
 
 
 def is_valid_dock(dock_type: RoborockDockTypeCode) -> bool:
     """Check if device supports a dock."""
-    return dock_type != RoborockDockTypeCode.no_dock
+    return RoborockDockFeatures.from_dock_type(dock_type).has_dock

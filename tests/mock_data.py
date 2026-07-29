@@ -6,6 +6,7 @@ import pathlib
 from typing import Any
 
 from roborock.data.containers import HomeDataDevice, HomeDataProduct
+from roborock.data.v1 import RoborockDockTypeCode
 
 # All data is based on a U.S. customer with a Roborock S7 MaxV Ultra
 USER_EMAIL = "user@domain.com"
@@ -159,6 +160,21 @@ DEVICE_PRODUCT_PAIRS: dict[str, tuple[HomeDataDevice, HomeDataProduct]] = {
     filename: (device, product)
     for filename, device in _DEVICES_BY_FILENAME.items()
     if (product := _PRODUCTS_BY_ID.get(device.product_id)) is not None
+}
+
+
+# Map product IDs to their expected dock type code for testing purposes.
+# Roborock devices can be sold in bundles with different dock variants
+# (e.g. S7 MaxV standalone vs S7 MaxV Plus with auto-empty vs S7 MaxV Ultra
+# with empty-wash-fill). During test runs, we map each test product ID
+# to its representative dock setup to ensure granular capability checks.
+PRODUCT_DOCK_TYPE_MAP: dict[str, RoborockDockTypeCode] = {
+    "product-id-s7-maxv": RoborockDockTypeCode.o3_plus_dock,  # Ultra (Wash/Empty)
+    "product-id-a125": RoborockDockTypeCode.o1_dock,  # Q5 Max+ (Auto-Empty)
+    "73EnOOM2NhDujvnvb7hvvv": RoborockDockTypeCode.o0_dock,  # S5 Max (Standard Charging)
+    "product-id-a123": RoborockDockTypeCode.pearl_plus_dock,  # PearlS Lite / Q Revo (Wash/Empty)
+    "product-saros-10": RoborockDockTypeCode.o4_dock,  # Saros 10 / Q Revo Pro (Wash/Empty/Auto Fluid)
+    "product-saros-10r": RoborockDockTypeCode.o6_dock,  # JC / Q Revo Master (Wash/Empty/Hot water)
 }
 
 

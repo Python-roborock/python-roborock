@@ -10,6 +10,7 @@ from roborock.data.v1.v1_code_mappings import (
 from roborock.devices.device import RoborockDevice
 from roborock.devices.traits.v1.smart_wash_params import SmartWashParamsTrait
 from roborock.roborock_typing import RoborockCommand
+from tests.devices.traits.v1.helpers import dock_types_with_capability
 
 SMART_WASH_DATA = [{"smart_wash": 5, "wash_interval": 6}]
 
@@ -26,13 +27,7 @@ def smart_wash_params_trait(
 
 @pytest.mark.parametrize(
     ("dock_type_code"),
-    [
-        (RoborockDockTypeCode.s8_dock),
-        (RoborockDockTypeCode.p10_dock),
-        (RoborockDockTypeCode.qrevo_s_dock),
-        (RoborockDockTypeCode.qrevo_s5v_dock),
-        (RoborockDockTypeCode.saros_20_dock),
-    ],
+    dock_types_with_capability("is_washable"),
 )
 async def test_smart_wash_available(
     smart_wash_params: SmartWashParamsTrait | None,
@@ -64,10 +59,7 @@ async def test_smart_wash_available(
 
 @pytest.mark.parametrize(
     ("dock_type_code"),
-    [
-        (RoborockDockTypeCode.s7_max_ultra_dock),  # Not in WASH_N_FILL_DOCK_TYPES
-        (RoborockDockTypeCode.no_dock),
-    ],
+    dock_types_with_capability("is_washable", expected=False),
 )
 async def test_unsupported_smart_wash_params(
     smart_wash_params: SmartWashParamsTrait | None, dock_type_code: RoborockDockTypeCode

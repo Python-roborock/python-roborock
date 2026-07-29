@@ -281,207 +281,8 @@ class RoborockFanSpeedE2(RoborockFanPowerCode):
     turbo = 100
 
 
-class RoborockFanSpeedS7(RoborockFanPowerCode):
-    off = 105
-    quiet = 101
-    balanced = 102
-    turbo = 103
-    max = 104
-    custom = 106
-
-
-class RoborockFanSpeedS7MaxV(RoborockFanPowerCode):
-    off = 105
-    quiet = 101
-    balanced = 102
-    turbo = 103
-    max = 104
-    custom = 106
-    max_plus = 108
-
-
-class RoborockFanSpeedS6Pure(RoborockFanPowerCode):
-    gentle = 105
-    quiet = 101
-    balanced = 102
-    turbo = 103
-    max = 104
-    custom = 106
-
-
-class RoborockFanSpeedQ7Max(RoborockFanPowerCode):
-    quiet = 101
-    balanced = 102
-    turbo = 103
-    max = 104
-
-
-class RoborockFanSpeedQRevoMaster(RoborockFanPowerCode):
-    off = 105
-    quiet = 101
-    balanced = 102
-    turbo = 103
-    max = 104
-    custom = 106
-    max_plus = 108
-    smart_mode = 110
-
-
-class RoborockFanSpeedQRevoCurv(RoborockFanPowerCode):
-    quiet = 101
-    balanced = 102
-    turbo = 103
-    max = 104
-    off = 105
-    custom = 106
-    max_plus = 108
-    smart_mode = 110
-
-
-class RoborockFanSpeedQRevoMaxV(RoborockFanPowerCode):
-    off = 105
-    quiet = 101
-    balanced = 102
-    turbo = 103
-    max = 104
-    custom = 106
-    max_plus = 108
-    smart_mode = 110
-
-
-class RoborockFanSpeedP10(RoborockFanPowerCode):
-    off = 105
-    quiet = 101
-    balanced = 102
-    turbo = 103
-    max = 104
-    custom = 106
-    max_plus = 108
-    smart_mode = 110
-
-
-class RoborockFanSpeedS8MaxVUltra(RoborockFanPowerCode):
-    off = 105
-    quiet = 101
-    balanced = 102
-    turbo = 103
-    max = 104
-    custom = 106
-    max_plus = 108
-    smart_mode = 110
-
-
-class RoborockFanSpeedSaros10(RoborockFanPowerCode):
-    off = 105
-    quiet = 101
-    balanced = 102
-    turbo = 103
-    max = 104
-    custom = 106
-    max_plus = 108
-    smart_mode = 110
-
-
-class RoborockFanSpeedSaros10R(RoborockFanPowerCode):
-    off = 105
-    quiet = 101
-    balanced = 102
-    turbo = 103
-    max = 104
-    custom = 106
-    max_plus = 108
-    smart_mode = 110
-
-
-class RoborockMopModeCode(RoborockEnum):
-    """Describes the mop mode of the vacuum cleaner."""
-
-
-class RoborockMopModeQRevoCurv(RoborockMopModeCode):
-    standard = 300
-    deep = 301
-    custom = 302
-    deep_plus = 303
-    fast = 304
-    smart_mode = 306
-
-
-class RoborockMopModeS7(RoborockMopModeCode):
-    """Describes the mop mode of the vacuum cleaner."""
-
-    standard = 300
-    deep = 301
-    custom = 302
-    deep_plus = 303
-
-
-class RoborockMopModeS8ProUltra(RoborockMopModeCode):
-    standard = 300
-    deep = 301
-    deep_plus = 303
-    fast = 304
-    custom = 302
-    smart_mode = 306
-
-
-class RoborockMopModeS8MaxVUltra(RoborockMopModeCode):
-    standard = 300
-    deep = 301
-    custom = 302
-    deep_plus = 303
-    fast = 304
-    deep_plus_pearl = 305
-    smart_mode = 306
-
-
-class RoborockMopModeSaros10R(RoborockMopModeCode):
-    standard = 300
-    deep = 301
-    custom = 302
-    deep_plus = 303
-    fast = 304
-    smart_mode = 306
-
-
-class RoborockMopModeQRevoMaster(RoborockMopModeCode):
-    standard = 300
-    deep = 301
-    custom = 302
-    deep_plus = 303
-    fast = 304
-    smart_mode = 306
-
-
-class RoborockMopModeQRevoMaxV(RoborockMopModeCode):
-    standard = 300
-    deep = 301
-    custom = 302
-    deep_plus = 303
-    fast = 304
-    smart_mode = 306
-
-
-class RoborockMopModeSaros10(RoborockMopModeCode):
-    standard = 300
-    deep = 301
-    custom = 302
-    deep_plus = 303
-    fast = 304
-    smart_mode = 306
-
-
 class RoborockMopIntensityCode(RoborockEnum):
     """Describes the mop intensity of the vacuum cleaner."""
-
-
-class RoborockMopIntensityS7(RoborockMopIntensityCode):
-    """Describes the mop intensity of the vacuum cleaner."""
-
-    off = 200
-    mild = 201
-    moderate = 202
-    intense = 203
-    custom = 204
 
 
 class RoborockMopIntensityV2(RoborockMopIntensityCode):
@@ -492,114 +293,6 @@ class RoborockMopIntensityV2(RoborockMopIntensityCode):
     medium = 202
     high = 203
     custom = 207
-
-
-class RoborockMopIntensityQRevoMaster(RoborockMopIntensityCode):
-    """Describes the mop intensity of the vacuum cleaner."""
-
-    off = 200
-    low = 201
-    medium = 202
-    high = 203
-    custom = 204
-    custom_water_flow = 207
-    smart_mode = 209
-
-
-class RoborockMopIntensityQRevoCurv(RoborockMopIntensityCode):
-    off = 200
-    low = 201
-    medium = 202
-    high = 203
-    custom = 204
-    custom_water_flow = 207
-    smart_mode = 209
-
-
-class RoborockMopIntensityQRevoMaxV(RoborockMopIntensityCode):
-    off = 200
-    low = 201
-    medium = 202
-    high = 203
-    custom = 204
-    custom_water_flow = 207
-    smart_mode = 209
-
-
-class RoborockMopIntensityP10(RoborockMopIntensityCode):
-    """Describes the mop intensity of the vacuum cleaner."""
-
-    off = 200
-    low = 201
-    medium = 202
-    high = 203
-    custom = 204
-    custom_water_flow = 207
-    smart_mode = 209
-
-
-class RoborockMopIntensityS8MaxVUltra(RoborockMopIntensityCode):
-    off = 200
-    low = 201
-    medium = 202
-    high = 203
-    custom = 204
-    max = 208
-    smart_mode = 209
-    custom_water_flow = 207
-
-
-class RoborockMopIntensitySaros10(RoborockMopIntensityCode):
-    off = 200
-    mild = 201
-    standard = 202
-    intense = 203
-    extreme = 208
-    custom = 204
-    smart_mode = 209
-
-
-class RoborockMopIntensitySaros10R(RoborockMopIntensityCode):
-    off = 200
-    low = 201
-    medium = 202
-    high = 203
-    custom = 204
-    extreme = 250
-    vac_followed_by_mop = 235
-    smart_mode = 209
-
-
-class RoborockMopIntensityS5Max(RoborockMopIntensityCode):
-    """Describes the mop intensity of the vacuum cleaner."""
-
-    off = 200
-    low = 201
-    medium = 202
-    high = 203
-    custom = 204
-    custom_water_flow = 207
-
-
-class RoborockMopIntensityS6MaxV(RoborockMopIntensityCode):
-    """Describes the mop intensity of the vacuum cleaner."""
-
-    off = 200
-    low = 201
-    medium = 202
-    high = 203
-    custom = 204
-    custom_water_flow = 207
-
-
-class RoborockMopIntensityQ7Max(RoborockMopIntensityCode):
-    """Describes the mop intensity of the vacuum cleaner."""
-
-    off = 200
-    low = 201
-    medium = 202
-    high = 203
-    custom_water_flow = 207
 
 
 class RoborockDockErrorCode(RoborockEnum):
@@ -650,22 +343,49 @@ class RoborockDockErrorCode(RoborockEnum):
 
 class RoborockDockTypeCode(RoborockEnum):
     unknown = -9999
-    no_dock = 0
-    auto_empty_dock = 1
-    empty_wash_fill_dock = 3
-    auto_empty_dock_pure = 5
-    s7_max_ultra_dock = 6
-    s8_dock = 7
-    p10_dock = 8
-    p10_pro_dock = 9
-    s8_maxv_ultra_dock = 10
-    qrevo_master_dock = 14
-    qrevo_s_dock = 15
-    saros_r10_dock = 16
-    qrevo_curv_dock = 17
-    saros_10_dock = 18
-    qrevo_s5v_dock = 22
-    saros_20_dock = 27
+    o0_dock = 0
+    o1_dock = 1
+    o2_dock = 2
+    o3_dock = 3
+    oc_dock = 5
+    o3_plus_dock = 6
+    o4_dock = 7
+    pearl_dock = 8
+    pearl_plus_dock = 9
+    o5_dock = 10
+    shell_2s_dock = 11
+    couple_dock = 13
+    shell_3_dock = 14
+    shell_2c_dock = 15
+    shell_3s_dock = 16
+    k1_dock = 17
+    o6_dock = 18
+    k1c_dock = 19
+    k1s_dock = 20
+    shell_e_dock = 21
+    shell_2e_dock = 22
+    shell_3c_dock = 23
+    hera_dock = 24
+    k1s_pro_dock = 26
+    type_27_dock = 27
+    k1c_lite_dock = 28
+    k1r_dock = 29
+    shell_2e_lite_dock = 30
+    shell_4rc_dock = 31
+    shell_4r_dock = 32
+    shell_4p_dock = 33
+    shell_4s_dock = 34
+    o7_dock = 35
+    k1d_dock = 37
+    shell_3p_dock = 38
+    shell_4d_dock = 39
+    shell_2e_heat_dock = 40
+    f1_dock = 41
+    f1r_dock = 42
+    f2r_dock = 43
+    f1s_dock = 44
+    o7h_dock = 45
+    f1c_dock = 46
 
 
 class RoborockDockDustCollectionModeCode(RoborockEnum):

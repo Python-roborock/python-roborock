@@ -4,10 +4,14 @@ from functools import cached_property
 from typing import Self
 
 from roborock.data import WashTowelMode, WashTowelModes, get_wash_towel_modes
-from roborock.device_features import is_wash_n_fill_dock
+from roborock.device_features import RoborockDockFeatures
 from roborock.devices.traits.v1 import common
 from roborock.devices.traits.v1.device_features import DeviceFeaturesTrait
 from roborock.roborock_typing import RoborockCommand
+
+
+def _supports_wash_towel_mode(dock_features: RoborockDockFeatures) -> bool:
+    return dock_features.is_washable
 
 
 class WashTowelModeTrait(WashTowelMode, common.V1TraitMixin):
@@ -15,7 +19,7 @@ class WashTowelModeTrait(WashTowelMode, common.V1TraitMixin):
 
     command = RoborockCommand.GET_WASH_TOWEL_MODE
     converter = common.DefaultConverter(WashTowelMode)
-    requires_dock_type = is_wash_n_fill_dock
+    requires_dock_features = _supports_wash_towel_mode
 
     def __init__(
         self,

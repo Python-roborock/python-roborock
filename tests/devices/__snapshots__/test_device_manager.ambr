@@ -184,6 +184,8 @@
               125,
             ]),
             'isActivateVideoChargingAndStandbySupported': False,
+            'isAiRecognitionObstacleSupported': True,
+            'isAiRecognitionSettingSupported': True,
             'isAnalysisSupported': True,
             'isAnyStateTransitGotoSupported': False,
             'isAutoCollection2Supported': False,
@@ -382,7 +384,7 @@
             'debugMode': 0,
             'dndEnabled': 0,
             'dockErrorStatus': 0,
-            'dockType': 3,
+            'dockType': 7,
             'dss': 169,
             'dustCollectionStatus': 0,
             'errorCode': 0,
@@ -409,7 +411,7 @@
             'washPhase': 0,
             'washReady': 0,
             'waterBoxCarriageStatus': 1,
-            'waterBoxMode': 203,
+            'waterBoxMode': 200,
             'waterBoxStatus': 1,
             'waterShortageStatus': 0,
           }),
@@ -595,18 +597,6 @@
       'receivedDevices': list([
       ]),
       'rooms': list([
-        dict({
-          'id': 2362048,
-          'name': '**REDACTED**',
-        }),
-        dict({
-          'id': 2362044,
-          'name': '**REDACTED**',
-        }),
-        dict({
-          'id': 2362041,
-          'name': '**REDACTED**',
-        }),
       ]),
     }),
   })

@@ -1,7 +1,8 @@
-"""Tests for the device-agnostic grid->layers decomposition + calibration."""
+"""Tests for the device-agnostic grid-to-layers decomposition."""
 
 import io
 
+import pytest
 from PIL import Image
 
 from roborock.map.b01_grid_layers import (
@@ -11,6 +12,7 @@ from roborock.map.b01_grid_layers import (
     GridCalibration,
     decompose_grid,
     solve_calibration,
+    solve_calibration_with_origin,
 )
 
 
@@ -72,6 +74,12 @@ def test_render_scale_upsamples() -> None:
     assert Image.open(io.BytesIO(png)).size == (6, 3)
 
 
+def test_render_room_unknown_id_raises() -> None:
+    layers = decompose_grid(1, 1, b"\x01", [(1, "Room", 1, 1)], lambda _: LAYER_FLOOR)
+    with pytest.raises(KeyError):
+        layers.render_room(999, (0, 0, 0, 255))
+
+
 def test_calibration_roundtrip() -> None:
     cal = GridCalibration(resolution=2.0, origin_x=3.0, origin_y=8.0, y_sign=1)
     assert cal.world_to_pixel(0, 0) == (3.0, 8.0)
@@ -117,3 +125,27 @@ def test_solve_calibration_returns_none_when_unfittable() -> None:
     # Points so far apart no resolution keeps them on the 6x6 floor block.
     points = [(0.0, 0.0), (1000.0, 0.0), (0.0, 1000.0)]
     assert solve_calibration(layers, points, resolutions=[2.0]) is None
+
+
+def test_solve_calibration_with_origin_fits_resolution_from_short_path() -> None:
+    """With a known origin only resolution is fit, so a tiny path suffices."""
+    layers = _floor_block_layers()
+    true = GridCalibration(2.0, 3.0, 8.0, 1)
+    points = [true.pixel_to_world(px, py) for px, py in [(4, 7), (6, 5)]]  # two points
+    cal = solve_calibration_with_origin(layers, points, (true.origin_x, true.origin_y), resolutions=[1.0, 2.0, 3.0])
+    assert cal is not None
+    assert (cal.resolution, cal.origin_x, cal.origin_y, cal.y_sign) == (2.0, 3.0, 8.0, 1)
+
+
+def test_solve_calibration_with_origin_returns_none_off_floor() -> None:
+    """A wrong origin that lands the path off floor is rejected, not forced."""
+    layers = _floor_block_layers()
+    true = GridCalibration(2.0, 3.0, 8.0, 1)
+    points = [true.pixel_to_world(px, py) for px, py in [(4, 7), (6, 5)]]
+    # Origin shoved into the background corner: every point lands off floor.
+    assert solve_calibration_with_origin(layers, points, (0.0, 0.0), resolutions=[2.0]) is None
+
+
+def test_solve_calibration_with_origin_returns_none_without_points() -> None:
+    layers = _floor_block_layers()
+    assert solve_calibration_with_origin(layers, [], (3.0, 8.0), resolutions=[2.0]) is None

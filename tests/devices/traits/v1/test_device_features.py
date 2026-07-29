@@ -23,6 +23,7 @@ V1_DEVICES = {
 async def test_is_attribute_supported(
     device_info: HomeDataDevice,
     device: RoborockDevice,
+    discover_features_fixture: None,
     snapshot: SnapshotAssertion,
 ) -> None:
     """Test if a field is supported."""
@@ -44,6 +45,7 @@ async def test_is_attribute_supported(
 async def test_is_consumable_field_supported(
     device_info: HomeDataDevice,
     device: RoborockDevice,
+    discover_features_fixture: None,
     snapshot: SnapshotAssertion,
 ) -> None:
     """Test if a field is supported."""

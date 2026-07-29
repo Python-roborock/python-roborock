@@ -23,7 +23,7 @@ import colorsys
 import io
 import math
 import statistics
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from PIL import Image
 from vacuum_map_parser_base.config.image_config import ImageConfig
@@ -31,9 +31,38 @@ from vacuum_map_parser_base.map_data import ImageData, MapData
 
 from roborock.exceptions import RoborockException
 
+from .b01_grid_layers import (
+    LAYER_BACKGROUND,
+    LAYER_FLOOR,
+    LAYER_UNKNOWN,
+    LAYER_WALL,
+    GridLayers,
+    decompose_grid,
+)
 from .map_parser import ParsedMapData
 
 _MAP_FILE_FORMAT = "PNG"
+
+# Semantic raster classes, confirmed against real ss07 captures (rendered and
+# eyeballed): 243 is the background outside the home (~half the grid), 240 is
+# scanned floor not yet assigned to a room, other values >= 240 are walls, and
+# 0 < value < 240 are per-room floor cells (value == room_id * 4).
+_BACKGROUND_VALUE = 243
+_UNSEGMENTED_FLOOR_VALUE = 240
+
+
+def classify_q10_cell(value: int) -> str:
+    """Map a Q10 grid cell value to a canonical layer class."""
+    if value == 0:
+        return LAYER_UNKNOWN
+    if value == _BACKGROUND_VALUE:
+        return LAYER_BACKGROUND
+    if value == _UNSEGMENTED_FLOOR_VALUE:
+        return LAYER_FLOOR
+    if value >= _WALL_THRESHOLD:
+        return LAYER_WALL
+    return LAYER_FLOOR
+
 
 MAP_PACKET_MARKER = b"\x01\x01"
 TRACE_PACKET_MARKER = b"\x02\x01"
@@ -52,6 +81,28 @@ _LAYOUT_COMPRESSED_OFFSET = 29
 _ROOM_RECORD_LENGTH = 47
 _ROOM_NAME_LENGTH_OFFSET = 26
 _MAX_ROOMS = 32
+# Sanity bound for the erase-zone vector section's vertices-per-polygon field.
+_MAX_ERASE_ZONE_VERTICES = 16
+
+# The 01 01 grid-frame header also carries the map's calibration, so a
+# GridCalibration can be derived without fitting a cleaning path (i.e. docked /
+# pre-clean). Absolute byte offsets in the frame, reported and verified by
+# @andrewlyeats across independent ss07 (fw 03.11.24) captures and cross-checked
+# with the ioBroker roborock adapter:
+# - 11-12 x_min, 13-14 y_min (s16be): map origin in 5 mm units. The grid is
+#   50 mm/px, so dividing by 10 yields the origin in grid pixels -- the (ox, oy)
+#   that solve_calibration otherwise recovers by sliding the path.
+# - 15-16 resolution (u16be): reads 5 (= 0.05 m/px = 50 mm/px) universally.
+# - 17-18 charger x, 19-20 charger y (s16be, 5 mm units), 21-22 charger phi.
+_ORIGIN_X_OFFSET = 11
+_ORIGIN_Y_OFFSET = 13
+_HEADER_RESOLUTION_OFFSET = 15
+_CHARGER_X_OFFSET = 17
+_CHARGER_Y_OFFSET = 19
+_CHARGER_PHI_OFFSET = 21
+# The header origin/charger are in 5 mm units and the grid is 50 mm/px, so a
+# header coordinate maps to grid pixels by dividing by this.
+_HEADER_UNITS_PER_PIXEL = 10
 
 # Grid cell values >= this are walls / borders rather than room segments.
 _WALL_THRESHOLD = 240
@@ -73,6 +124,60 @@ class Q10Room:
 
 
 @dataclass
+class Q10EraseZone:
+    """A user-drawn "erase" area (polygon) carried in the map packet.
+
+    These are the app's *Erase* tool rectangles -- regions the user marked to be
+    removed from the map (e.g. phantom floor the lidar mapped through windows).
+    Coordinates are world units (millimetres), same frame as the path/zones.
+
+    Confirmed by a controlled diff: removing the two erase zones on a live device
+    dropped this section's count from 2 to 0 while the grid and the trailing
+    raster were byte-identical. (Earlier revisions misidentified this section as
+    "carpets"; it is the erase-zone list.)
+    """
+
+    vertices: list[tuple[int, int]] = field(default_factory=list)
+
+
+@dataclass
+class Q10HeaderCalibration:
+    """Calibration carried in the ``01 01`` grid-frame header (ss07).
+
+    Lets a :class:`~roborock.map.b01_grid_layers.GridCalibration` origin be read
+    straight from the map packet -- no cleaning path / fit required, so it works
+    docked or pre-clean. See :meth:`origin_pixels`.
+
+    ``origin_x`` / ``origin_y`` and the charger coordinates are in 5 mm units;
+    ``resolution`` is the raw header field (5 == 50 mm/px). ``charger_phi`` is the
+    raw dock heading field. Reported and verified by @andrewlyeats (ss07).
+    """
+
+    origin_x: int
+    origin_y: int
+    resolution: int
+    charger_x: int
+    charger_y: int
+    charger_phi: int
+
+    @property
+    def is_keepalive(self) -> bool:
+        """True for null/keepalive frames (``x_min == y_min == 0``), which carry
+        no usable origin -- callers should fall back to a path-fit calibration."""
+        return self.origin_x == 0 and self.origin_y == 0
+
+    def origin_pixels(self) -> tuple[float, float] | None:
+        """The grid-pixel origin ``(ox, oy)`` for a ``GridCalibration``.
+
+        The header origin is in 5 mm units and the grid is 50 mm/px, so the
+        pixel origin is the header value divided by 10. Returns ``None`` for a
+        keepalive frame (no origin to use)."""
+        if self.is_keepalive:
+            return None
+        return (self.origin_x / _HEADER_UNITS_PER_PIXEL, self.origin_y / _HEADER_UNITS_PER_PIXEL)
+
+
+@dataclass
 class Q10MapPacket:
     """Decoded contents of a Q10 ``01 01`` map packet."""
 
@@ -81,6 +186,21 @@ class Q10MapPacket:
     height: int
     grid: bytes
     rooms: list[Q10Room] = field(default_factory=list)
+    erase_zones: list[Q10EraseZone] = field(default_factory=list)
+    """Erase areas decoded from the packet tail (world coordinates)."""
+    header_calibration: Q10HeaderCalibration | None = None
+    """Calibration read straight from the grid-frame header (ss07), or ``None``."""
+    carpet_mask: bytes | None = None
+    """Carpet mask decoded from the packet tail: a full ``width*height`` grid in
+    the same (top-down) pixel space as :attr:`grid`, where a non-zero cell is
+    carpet (the value is the carpet kind). ``None`` if the packet carried none."""
+
+    @property
+    def layers(self) -> GridLayers:
+        """Split the occupancy grid into separable grid-pixel layers."""
+        rooms = [(room.id, room.name, room.pixel_value, room.pixel_count) for room in self.rooms]
+        # The ss07 grid is stored top-down (row 0 = top), so no display flip is applied.
+        return decompose_grid(self.width, self.height, self.grid, rooms, classify_q10_cell, flip=False)
 
 
 @dataclass
@@ -98,13 +218,14 @@ class Q10TracePacket:
     The robot accumulates the **full path of the current cleaning session** and
     serves it in a single packet: ``points`` holds the whole trajectory so far
     (oldest first), growing as the robot cleans. This was confirmed live -- a
-    corridor run produced packets of 1, then 3, then 15 points, each a strict
-    superset describing the path travelled. Because the robot keeps the path
-    server-side, a client that connects mid-session still receives the complete
-    path (this is how the app shows the trail even after a cold launch).
+    corridor run produced packets of 0 (just a heading, docked), then 3, then 14
+    points, each a strict superset describing the path travelled. Because the
+    robot keeps the path server-side, a client that connects mid-session still
+    receives the complete path (this is how the app shows the trail even after a
+    cold launch).
 
-    The robot only emits these while a session is active, so an idle/docked robot
-    will not produce them. The most recent point is the current robot position.
+    A docked/idle robot can still emit a packet carrying only the ``heading``
+    (zero points). The most recent point is the current robot position.
     """
 
     points: list[Q10Point] = field(default_factory=list)
@@ -112,30 +233,52 @@ class Q10TracePacket:
     """Session counter (byte 3); increments per cleaning session, tracking the
     device clean count. Not a per-packet sequence."""
 
+    heading: int = 0
+    """Robot heading from the 0201 SLAM field (bytes 10-11), in degrees:
+    ``0`` = +x, ``+90`` = +y, ``±180`` = −x, ``−90`` = −y. This is the current
+    orientation; pair it with :attr:`robot_position` to draw a facing robot.
+
+    Convention (incl. the y-sign) ground-truthed on a live R1 clean: across
+    straight segments the reported heading equalled the direction of travel
+    ``atan2(dy, dx)`` -- +x read 0, −x read ±180, a slight −y drift read
+    negative."""
+
     @property
     def robot_position(self) -> Q10Point | None:
         """The current robot position (the most recent point)."""
         return self.points[-1] if self.points else None
 
 
-# Trace packet (``02 01``): a 10-byte header followed by big-endian int16 (x, y)
+# Trace packet (``02 01``): a 14-byte header followed by big-endian int16 (x, y)
 # point pairs forming the accumulated session path. Header layout confirmed
-# against live ss07 captures: byte 3 is a session counter (tracks the device
-# clean count); bytes 8-9 are a u16be point count minus one (verified: a 15-point
-# packet carried 0x000e == 14). The parser reads all 4-byte pairs in the body
-# rather than trusting the count field, so a truncated tail can't desync it.
+# against live ss07 captures and cross-checked by @andrewlyeats:
+# - byte 3: a session counter (tracks the device clean count).
+# - bytes 8-9: a u16be point count -- the exact number of (x, y) pairs from
+#   byte 14 (verified: captures of 1417 / 2462 points carried 0x0589 / 0x099e).
+# - bytes 10-11: the 0201 SLAM heading (s16be degrees; 0 = +x, +90 = +y,
+#   +-180 = -x, -90 = -y) -- the robot's current orientation.
+# - bytes 12-13: a constant (0x0000).
+# - byte 14 onward: the path points.
+# An earlier revision used a 10-byte header, which folded the heading word into
+# a phantom leading point ``(heading, 0)`` -- that is the "stray point" the
+# heuristic below was papering over, and why the count read "one high". The
+# parser reads all 4-byte pairs in the body rather than trusting the count
+# field, so a truncated tail can't desync it.
 # NOTE: the format documented by roborock-qseries-map-bridge (18-byte header)
-# did not match this firmware -- this 10-byte layout is what the device sent.
-_TRACE_HEADER_LENGTH = 10
+# did not match this firmware -- this 14-byte layout is what the device sent.
+_TRACE_HEADER_LENGTH = 14
 _TRACE_SEQUENCE_OFFSET = 3
+_TRACE_HEADING_OFFSET = 10
 
-# Some cleans prepend a single stray point to the path, far outside the map
-# (e.g. ~(0, -1907) when the real path starts near (-3760, -1920)); it skews the
-# rendered start/bounding box and any path-based calibration. We drop points[0]
-# only when its step to points[1] is a gross outlier (this multiple of the
-# median step of the rest of the path), so a genuine first point is never lost.
-# The current position (last point) is unaffected. Trigger and threshold
-# reported and verified by @andrewlyeats across independent B01/Q10 captures.
+# Some cleans still prepend a single near-origin sentinel as the first real
+# point (e.g. ~(5, 76) / (-3, 0) when the path proper starts near (-1700, -800));
+# it skews the rendered start/bounding box and any path-based calibration. (This
+# is distinct from the heading word the old 10-byte header used to surface as a
+# phantom point -- that is now consumed by the header.) We drop points[0] only
+# when its step to points[1] is a gross outlier (this multiple of the median step
+# of the rest of the path), so a genuine first point is never lost. The current
+# position (last point) is unaffected. Trigger and threshold reported and
+# verified by @andrewlyeats across independent B01/Q10 captures.
 _STRAY_POINT_STEP_RATIO = 20
 
 
@@ -159,6 +302,7 @@ def parse_trace_packet(payload: bytes) -> Q10TracePacket:
     if len(body) % 4:
         raise RoborockException("Q10 trace points are not 4-byte (x, y) pairs")
 
+    heading = int.from_bytes(payload[_TRACE_HEADING_OFFSET : _TRACE_HEADING_OFFSET + 2], "big", signed=True)
     points = [
         Q10Point(
             x=int.from_bytes(body[offset : offset + 2], "big", signed=True),
@@ -167,7 +311,7 @@ def parse_trace_packet(payload: bytes) -> Q10TracePacket:
         for offset in range(0, len(body), 4)
     ]
     points = _drop_stray_leading_point(points)
-    return Q10TracePacket(points=points, sequence=payload[_TRACE_SEQUENCE_OFFSET])
+    return Q10TracePacket(points=points, sequence=payload[_TRACE_SEQUENCE_OFFSET], heading=heading)
 
 
 def _drop_stray_leading_point(points: list[Q10Point]) -> list[Q10Point]:
@@ -323,7 +467,132 @@ def parse_map_packet(payload: bytes) -> Q10MapPacket:
     else:
         height, grid, room_data = _infer_layout(decoded, width)
     rooms = _parse_rooms(room_data, grid)
-    return Q10MapPacket(map_id=map_id, width=width, height=height, grid=grid, rooms=rooms)
+    tail = payload[layout_end:]
+    erase_zones = _parse_erase_zones(tail)
+    carpet_mask = _parse_carpet_mask(tail, width, height)
+    header_calibration = _parse_header_calibration(payload)
+    return Q10MapPacket(
+        map_id=map_id,
+        width=width,
+        height=height,
+        grid=grid,
+        rooms=rooms,
+        erase_zones=erase_zones,
+        header_calibration=header_calibration,
+        carpet_mask=carpet_mask,
+    )
+
+
+def _parse_header_calibration(payload: bytes) -> Q10HeaderCalibration | None:
+    """Read the calibration fields from the ``01 01`` grid-frame header.
+
+    All fields sit inside the fixed 29-byte header (already length-checked by
+    the caller). See the offset constants for the byte layout. Returns the
+    decoded :class:`Q10HeaderCalibration` (callers skip keepalive frames via
+    :attr:`Q10HeaderCalibration.is_keepalive`)."""
+
+    def s16(offset: int) -> int:
+        return int.from_bytes(payload[offset : offset + 2], "big", signed=True)
+
+    return Q10HeaderCalibration(
+        origin_x=s16(_ORIGIN_X_OFFSET),
+        origin_y=s16(_ORIGIN_Y_OFFSET),
+        resolution=int.from_bytes(payload[_HEADER_RESOLUTION_OFFSET : _HEADER_RESOLUTION_OFFSET + 2], "big"),
+        charger_x=s16(_CHARGER_X_OFFSET),
+        charger_y=s16(_CHARGER_Y_OFFSET),
+        charger_phi=s16(_CHARGER_PHI_OFFSET),
+    )
+
+
+def _parse_erase_zones(tail: bytes) -> list[Q10EraseZone]:
+    """Decode erase areas from the bytes after the compressed grid block.
+
+    The tail begins with a vector section ``[count: u8][vertices_per: u8]`` then
+    ``count`` polygons of ``vertices_per`` int16-BE (x, y) pairs (axis-aligned
+    rectangles in practice). Identified by a controlled diff on a live ss07
+    device: deleting the two app *Erase* zones dropped ``count`` 2->0 with the
+    rest of the packet byte-identical. The remaining tail (a run-length raster +
+    signature) is unrelated to erase and is not decoded here.
+    """
+    if len(tail) < 2:
+        return []
+    count = tail[0]
+    vertices_per = tail[1]
+    if count == 0 or not 1 <= vertices_per <= _MAX_ERASE_ZONE_VERTICES:
+        return []
+
+    erase_zones: list[Q10EraseZone] = []
+    offset = 2
+    for _ in range(count):
+        end = offset + vertices_per * 4
+        if end > len(tail):
+            break
+        vertices = [
+            (
+                int.from_bytes(tail[offset + j * 4 : offset + j * 4 + 2], "big", signed=True),
+                int.from_bytes(tail[offset + j * 4 + 2 : offset + j * 4 + 4], "big", signed=True),
+            )
+            for j in range(vertices_per)
+        ]
+        erase_zones.append(Q10EraseZone(vertices=vertices))
+        offset = end
+    return erase_zones
+
+
+def _carpet_offset(tail: bytes) -> int:
+    """Byte offset within the post-grid tail where the carpet mask begins.
+
+    The erase section is ``[u8 count][u8 vertices_per]`` then ``count`` polygons
+    of ``vertices_per`` int16 (x, y) pairs, so it always occupies
+    ``2 + count*vertices_per*4`` bytes -- just the 2-byte header when count is 0.
+    """
+    if len(tail) < 2:
+        return len(tail)
+    count, vertices_per = tail[0], tail[1]
+    return 2 + count * vertices_per * 4
+
+
+def _parse_carpet_mask(tail: bytes, width: int, height: int) -> bytes | None:
+    """Decode the carpet mask that follows the erase section in the packet tail.
+
+    Framing matches the main grid block: ``[u32 uncompressed_len]``
+    ``[u16 compressed_len][LZ4 block]``. The decompressed mask is a full
+    ``width*height`` grid in the same (top-down) pixel space as the main grid; a
+    non-zero cell is carpet (the value is the carpet kind). Confirmed byte-exact
+    on live ss07 captures (R1 / RDC), where ``uncompressed_len == width*height``.
+
+    Returns the decompressed mask, or ``None`` if the section is absent or does
+    not line up (the ``uncompressed_len == width*height`` invariant is used as the
+    guard so a mis-located section yields no carpet rather than garbage).
+    """
+    offset = _carpet_offset(tail)
+    if offset + 6 > len(tail):
+        return None
+    uncompressed_len = int.from_bytes(tail[offset : offset + 4], "big")
+    compressed_len = int.from_bytes(tail[offset + 4 : offset + 6], "big")
+    block_end = offset + 6 + compressed_len
+    if uncompressed_len != width * height or compressed_len <= 0 or block_end > len(tail):
+        return None
+    try:
+        mask = lz4_block_decompress(tail[offset + 6 : block_end])
+    except RoborockException:
+        return None
+    return mask if len(mask) == width * height else None
+
+
+def erased_packet(packet: "Q10MapPacket", cells: set[int]) -> "Q10MapPacket":
+    """Return a copy of ``packet`` with ``cells`` (grid indices) set to background.
+
+    Used to apply the app's erase zones: cells inside an erase rectangle are blanked
+    to the background class so they drop out of the rendered map and every layer.
+    """
+    if not cells:
+        return packet
+    grid = bytearray(packet.grid)
+    for cell in cells:
+        if 0 <= cell < len(grid):
+            grid[cell] = _BACKGROUND_VALUE
+    return replace(packet, grid=bytes(grid))
 
 
 @dataclass
@@ -340,16 +609,25 @@ class B01Q10MapParser:
     def __init__(self, config: B01Q10MapParserConfig | None = None) -> None:
         self._config = config or B01Q10MapParserConfig()
 
+    @property
+    def config(self) -> B01Q10MapParserConfig:
+        """The parser configuration (image scale, ...)."""
+        return self._config
+
     def parse(self, payload: bytes) -> ParsedMapData:
         """Parse a raw Q10 map packet into a rendered PNG + ``MapData``."""
-        return self.parse_packet(parse_map_packet(payload))
+        return self.parsed_from_packet(parse_map_packet(payload))
 
     def parse_packet(self, packet: Q10MapPacket) -> ParsedMapData:
-        """Render an already-parsed Q10 map packet into a PNG + ``MapData``.
+        """Render an already-decoded packet.
 
-        The protocol layer parses the wire bytes into a :class:`Q10MapPacket`;
-        this renders that packet without re-parsing it.
+        This preserves the public API used by the existing map trait. Callers
+        rendering a modified packet can use :meth:`parsed_from_packet` directly.
         """
+        return self.parsed_from_packet(packet)
+
+    def parsed_from_packet(self, packet: Q10MapPacket) -> ParsedMapData:
+        """Render a (possibly erase-modified) packet into a PNG + ``MapData``."""
         image = self._render(packet)
 
         map_data = MapData()
@@ -367,6 +645,11 @@ class B01Q10MapParser:
         if room_names:
             map_data.additional_parameters["room_names"] = room_names
 
+        # Carpet cells are flat grid indices (y*width + x) in the same top-down
+        # pixel space as the rendered raster, so they line up with the image.
+        if packet.carpet_mask is not None:
+            map_data.carpet_map = {i for i, value in enumerate(packet.carpet_mask) if value}
+
         image_bytes = io.BytesIO()
         image.save(image_bytes, format=_MAP_FILE_FORMAT)
         return ParsedMapData(image_content=image_bytes.getvalue(), map_data=map_data)
@@ -378,7 +661,8 @@ class B01Q10MapParser:
         for value in packet.grid:
             rgb.extend(palette[value])
         img = Image.frombytes("RGB", (packet.width, packet.height), bytes(rgb))
-        img = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+        # The ss07 grid is stored top-down (row 0 = top of the home), so it is
+        # rendered as-is -- unlike the V1/Q7 convention, no vertical flip.
         scale = self._config.map_scale
         if scale > 1:
             img = img.resize((packet.width * scale, packet.height * scale), resample=Image.Resampling.NEAREST)

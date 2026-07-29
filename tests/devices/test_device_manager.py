@@ -1,120 +1,141 @@
 """Tests for the DeviceManager class."""
 
 import asyncio
-import datetime
-from collections.abc import Generator, Iterator
+from collections.abc import Generator
+from dataclasses import replace
 from typing import Any
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 import syrupy
 
 from roborock.data import HomeData, UserData
+from roborock.data.containers import HomeDataDevice, HomeDataProduct, RoborockCategory
 from roborock.devices.cache import InMemoryCache
 from roborock.devices.device import RoborockDevice
 from roborock.devices.device_manager import UserParams, create_device_manager, create_web_api_wrapper
 from roborock.exceptions import RoborockException, RoborockInvalidCredentials
+from roborock.testing import FakeRoborockCloud, Q10VacuumSimulator, V1VacuumSimulator
 from tests import mock_data
 
 USER_DATA = UserData.from_dict(mock_data.USER_DATA)
 USER_PARAMS = UserParams(username="test_user", user_data=USER_DATA)
+HOME_DATA = HomeData.from_dict(mock_data.HOME_DATA_RAW)
 NETWORK_INFO = mock_data.NETWORK_INFO
 
 
-@pytest.fixture(autouse=True, name="mqtt_session")
-def setup_mqtt_session() -> Generator[Mock, None, None]:
-    """Fixture to set up the MQTT session for the tests."""
-    with patch("roborock.devices.device_manager.create_lazy_mqtt_session") as mock_create_session:
-        yield mock_create_session
+@pytest.fixture(name="cloud")
+def cloud_fixture() -> FakeRoborockCloud:
+    """Fixture to set up FakeRoborockCloud."""
+    return FakeRoborockCloud(user_data=USER_DATA)
 
 
-@pytest.fixture(autouse=True, name="mock_rpc_channel")
-def rpc_channel_fixture() -> AsyncMock:
-    """Fixture to set up the channel for tests."""
-    return AsyncMock()
+@pytest.fixture(name="fake_device")
+def fake_device_fixture(cloud: FakeRoborockCloud) -> V1VacuumSimulator:
+    """Fixture to set up a stateful V1VacuumSimulator registered to the cloud."""
+    device = V1VacuumSimulator(
+        duid="abc123",
+        device_info=HOME_DATA.devices[0],
+        product=HOME_DATA.products[0],
+    )
+    cloud.add_device(device)
+    return device
 
 
-@pytest.fixture(autouse=True)
-async def discover_features_fixture(
-    mock_rpc_channel: AsyncMock,
-) -> None:
-    """Fixture to handle device feature discovery."""
-    mock_rpc_channel.send_command.side_effect = [
-        [mock_data.APP_GET_INIT_STATUS],
-        mock_data.STATUS,
-    ]
-
-
-@pytest.fixture(autouse=True)
-def channel_fixture(mock_rpc_channel: AsyncMock) -> Generator[Mock, None, None]:
-    """Fixture to set up the local session for the tests."""
-    with patch("roborock.devices.device_manager.create_v1_channel") as mock_channel:
-        mock_unsub = Mock()
-        mock_channel.return_value.subscribe = AsyncMock()
-        mock_channel.return_value.subscribe.return_value = mock_unsub
-        mock_channel.return_value.rpc_channel = mock_rpc_channel
-        yield mock_channel
-
-
-@pytest.fixture(autouse=True)
-def mock_sleep() -> Generator[None, None, None]:
-    """Mock sleep logic to speed up tests."""
-    sleep_time = datetime.timedelta(seconds=0.001)
-    with (
-        patch("roborock.devices.device.MIN_BACKOFF_INTERVAL", sleep_time),
-        patch("roborock.devices.device.MAX_BACKOFF_INTERVAL", sleep_time),
-    ):
+@pytest.fixture(name="patch_device_manager")
+def patch_device_manager_fixture(cloud: FakeRoborockCloud) -> Generator[None, None, None]:
+    """Fixture to patch the device manager and HTTP client."""
+    with cloud.patch_device_manager():
         yield
 
 
-@pytest.fixture(name="channel_exception")
-def channel_failure_exception_fixture(mock_rpc_channel: AsyncMock) -> Exception:
-    """Fixture that provides the exception to be raised by the failing channel."""
-    return RoborockException("Connection failed")
-
-
-@pytest.fixture(name="channel_failure")
-def channel_failure_fixture(mock_rpc_channel: AsyncMock, channel_exception: Exception) -> Generator[Mock, None, None]:
-    """Fixture that makes channel subscribe fail."""
-    with patch("roborock.devices.device_manager.create_v1_channel") as mock_channel:
-        mock_channel.return_value.subscribe = AsyncMock(side_effect=channel_exception)
-        mock_channel.return_value.is_connected = False
-        mock_channel.return_value.rpc_channel = mock_rpc_channel
-        yield mock_channel
-
-
-@pytest.fixture(name="home_data_no_devices")
-def home_data_no_devices_fixture() -> Iterator[HomeData]:
-    """Mock home data API that returns no devices."""
-    with patch("roborock.devices.device_manager.UserWebApiClient.get_home_data") as mock_home_data:
-        home_data = HomeData(
-            id=1,
-            name="Test Home",
-            devices=[],
-            products=[],
-        )
-        mock_home_data.return_value = home_data
-        yield home_data
-
-
-@pytest.fixture(name="home_data")
-def home_data_fixture() -> Iterator[HomeData]:
-    """Mock home data API that returns devices."""
-    with patch("roborock.devices.device_manager.UserWebApiClient.get_home_data") as mock_home_data:
-        home_data = HomeData.from_dict(mock_data.HOME_DATA_RAW)
-        mock_home_data.return_value = home_data
-        yield home_data
-
-
-async def test_no_devices(home_data_no_devices: HomeData) -> None:
+async def test_no_devices(cloud: FakeRoborockCloud, patch_device_manager: None) -> None:
     """Test the DeviceManager created with no devices returned from the API."""
-
     device_manager = await create_device_manager(USER_PARAMS)
     devices = await device_manager.get_devices()
     assert devices == []
 
 
-async def test_with_device(home_data: HomeData) -> None:
+async def test_with_q10_device(cloud: FakeRoborockCloud, patch_device_manager: None) -> None:
+    """Test DeviceManager with a Q10 device simulator registered."""
+    product = HomeDataProduct(
+        id="product-id-q10",
+        name="Roborock Q10",
+        model="roborock.vacuum.ss07",
+        category=RoborockCategory.VACUUM,
+    )
+    device_info = HomeDataDevice(
+        duid="q10_duid",
+        name="My Q10",
+        local_key="key123key123key1",
+        product_id=product.id,
+        sn="q10_serial",
+        pv="B01",
+    )
+
+    home_data = cloud.web_api.get_default_home_data()
+    home_data.devices.append(device_info)
+    home_data.products.append(product)
+    cloud.web_api.set_homes_response(home_data)
+
+    q10_sim = Q10VacuumSimulator(
+        duid="q10_duid",
+        device_info=device_info,
+        product=product,
+    )
+    cloud.add_device(q10_sim)
+
+    device_manager = await create_device_manager(USER_PARAMS)
+    devices = await device_manager.get_devices()
+
+    # The setup includes fake_device (V1) by default because of the fake_device fixture
+    # which is not requested here (we only request cloud and patch_device_manager),
+    # but the mock EAPI returns the full home_data layout containing our Q10 device.
+    assert len(devices) == 1
+
+    q10_device = await device_manager.get_device("q10_duid")
+    assert q10_device is not None
+    assert q10_device.name == "My Q10"
+    assert q10_device.product.model == "roborock.vacuum.ss07"
+
+    # Wait for background connect to establish
+    for _ in range(20):
+        if q10_device.is_connected:
+            break
+        await asyncio.sleep(0.05)
+    assert q10_device.is_connected
+
+    assert q10_device.b01_q10_properties is not None
+    assert q10_device.b01_q10_properties.status.status is None
+
+    await q10_device.b01_q10_properties.refresh()
+
+    for _ in range(20):
+        if q10_device.b01_q10_properties.status.battery == 100:
+            break
+        await asyncio.sleep(0.05)
+
+    assert q10_device.b01_q10_properties.status.battery == 100
+    from roborock.data.b01_q10.b01_q10_code_mappings import YXDeviceState
+
+    assert q10_device.b01_q10_properties.status.status == YXDeviceState.CHARGING
+
+    await q10_device.b01_q10_properties.vacuum.start_clean()
+
+    for _ in range(20):
+        if q10_device.b01_q10_properties.status.status == YXDeviceState.CLEANING:
+            break
+        await asyncio.sleep(0.05)
+
+    assert q10_device.b01_q10_properties.status.status == YXDeviceState.CLEANING
+    assert q10_sim.status[121] == 5
+
+    await device_manager.close()
+
+
+async def test_with_device(
+    cloud: FakeRoborockCloud, fake_device: V1VacuumSimulator, patch_device_manager: None
+) -> None:
     """Test the DeviceManager created with devices returned from the API."""
     device_manager = await create_device_manager(USER_PARAMS)
     devices = await device_manager.get_devices()
@@ -130,7 +151,9 @@ async def test_with_device(home_data: HomeData) -> None:
     await device_manager.close()
 
 
-async def test_get_non_existent_device(home_data: HomeData) -> None:
+async def test_get_non_existent_device(
+    cloud: FakeRoborockCloud, fake_device: V1VacuumSimulator, patch_device_manager: None
+) -> None:
     """Test getting a non-existent device."""
     device_manager = await create_device_manager(USER_PARAMS)
     device = await device_manager.get_device("non_existent_duid")
@@ -140,7 +163,6 @@ async def test_get_non_existent_device(home_data: HomeData) -> None:
 
 async def test_create_home_data_api_exception() -> None:
     """Test that exceptions from the home data API are propagated through the wrapper."""
-
     with patch("roborock.devices.device_manager.RoborockApiClient.get_home_data_v3") as mock_get_home_data:
         mock_get_home_data.side_effect = RoborockException("Test exception")
         user_params = UserParams(username="test_user", user_data=USER_DATA)
@@ -164,7 +186,13 @@ async def test_device_manager_unauthorized_hook() -> None:
 
 
 @pytest.mark.parametrize(("prefer_cache", "expected_call_count"), [(True, 1), (False, 2)])
-async def test_cache_logic(prefer_cache: bool, expected_call_count: int) -> None:
+async def test_cache_logic(
+    cloud: FakeRoborockCloud,
+    fake_device: V1VacuumSimulator,
+    patch_device_manager: None,
+    prefer_cache: bool,
+    expected_call_count: int,
+) -> None:
     """Test that the cache logic works correctly."""
     call_count = 0
 
@@ -173,15 +201,15 @@ async def test_cache_logic(prefer_cache: bool, expected_call_count: int) -> None
         call_count += 1
         return HomeData.from_dict(mock_data.HOME_DATA_RAW)
 
-    # First call happens during create_device_manager initialization
     with patch(
         "roborock.devices.device_manager.RoborockApiClient.get_home_data_v3",
         side_effect=mock_home_data_with_counter,
     ):
         device_manager = await create_device_manager(USER_PARAMS, cache=InMemoryCache())
+        # First call happens during create_device_manager initialization
         assert call_count == 1
 
-        # Second call should use cache, not increment call_count
+        # Second call should use cache, not increment call_count if prefer_cache=True
         devices2 = await device_manager.discover_devices(prefer_cache=prefer_cache)
         assert call_count == expected_call_count
         assert len(devices2) == 1
@@ -193,9 +221,10 @@ async def test_cache_logic(prefer_cache: bool, expected_call_count: int) -> None
         await device_manager.close()
 
 
-async def test_home_data_api_fails_with_cache_fallback() -> None:
+async def test_home_data_api_fails_with_cache_fallback(
+    cloud: FakeRoborockCloud, fake_device: V1VacuumSimulator, patch_device_manager: None
+) -> None:
     """Test that home data exceptions may still fall back to use the cache when available."""
-
     cache = InMemoryCache()
     cache_data = await cache.get()
     cache_data.home_data = HomeData.from_dict(mock_data.HOME_DATA_RAW)
@@ -216,10 +245,13 @@ async def test_home_data_api_fails_with_cache_fallback() -> None:
         await device_manager.close()
 
 
-async def test_ready_callback(home_data: HomeData) -> None:
+async def test_ready_callback(
+    cloud: FakeRoborockCloud, fake_device: V1VacuumSimulator, patch_device_manager: None
+) -> None:
     """Test that the ready callback is invoked when a device connects."""
     ready_devices: list[RoborockDevice] = []
     device_manager = await create_device_manager(USER_PARAMS, ready_callback=ready_devices.append)
+    await device_manager.get_devices()
 
     # Callback should be called for the discovered device
     assert len(ready_devices) == 1
@@ -236,41 +268,32 @@ async def test_ready_callback(home_data: HomeData) -> None:
     await device_manager.close()
 
 
-@pytest.mark.parametrize(
-    ("channel_exception"),
-    [
-        RoborockException("Connection failed"),
-    ],
-)
-async def test_start_connect_failure(home_data: HomeData, channel_failure: Mock, mock_sleep: Mock) -> None:
+async def test_start_connect_failure(
+    cloud: FakeRoborockCloud, fake_device: V1VacuumSimulator, patch_device_manager: None
+) -> None:
     """Test that start_connect retries when connection fails."""
+    # Make connection fail initially
+    channel_exception = RoborockException("Connection failed")
+    fake_device.mqtt_channel.inject_error(channel_exception)
+    assert fake_device.local_channel is not None
+    fake_device.local_channel.inject_error(channel_exception)
+
     ready_devices: list[RoborockDevice] = []
     device_manager = await create_device_manager(USER_PARAMS, ready_callback=ready_devices.append)
     devices = await device_manager.get_devices()
-
-    # The device should attempt to connect in the background at least once
-    # by the time this function returns.
-    subscribe_mock = channel_failure.return_value.subscribe
-    assert subscribe_mock.call_count > 0
 
     # Device should exist but not be connected
     assert len(devices) == 1
     assert not devices[0].is_connected
     assert not ready_devices
 
-    # Verify retry attempts
-    assert channel_failure.return_value.subscribe.call_count >= 1
+    # Clear error so connection succeeds on retry
+    fake_device.mqtt_channel.clear_error()
+    fake_device.local_channel.clear_error()
 
-    # Reset the mock channel so that it succeeds on the next attempt
-    mock_unsub = Mock()
-    subscribe_mock = AsyncMock()
-    subscribe_mock.return_value = mock_unsub
-    channel_failure.return_value.subscribe = subscribe_mock
-    channel_failure.return_value.is_connected = True
-
-    # Wait for the device to attempt to connect again
+    # Wait for the device to attempt to connect again and succeed
     attempts = 0
-    while subscribe_mock.call_count < 1:
+    while not devices[0].is_connected:
         await asyncio.sleep(0.01)
         attempts += 1
         assert attempts < 10, "Device did not connect after multiple attempts"
@@ -280,10 +303,11 @@ async def test_start_connect_failure(home_data: HomeData, channel_failure: Mock,
     assert len(ready_devices) == 1
 
     await device_manager.close()
-    assert mock_unsub.call_count == 1
 
 
-async def test_rediscover_devices(mock_rpc_channel: AsyncMock) -> None:
+async def test_rediscover_devices(
+    cloud: FakeRoborockCloud, fake_device: V1VacuumSimulator, patch_device_manager: None
+) -> None:
     """Test that we can discover devices multiple times and discover new devices."""
     raw_devices: list[dict[str, Any]] = mock_data.HOME_DATA_RAW["devices"]
     assert len(raw_devices) > 0
@@ -291,8 +315,7 @@ async def test_rediscover_devices(mock_rpc_channel: AsyncMock) -> None:
 
     home_data_responses = [
         HomeData.from_dict(mock_data.HOME_DATA_RAW),
-        # New device added on second call. We make a copy and updated fields to simulate
-        # a new device.
+        # New device added on second call.
         HomeData.from_dict(
             {
                 **mock_data.HOME_DATA_RAW,
@@ -310,19 +333,31 @@ async def test_rediscover_devices(mock_rpc_channel: AsyncMock) -> None:
         ),
     ]
 
-    mock_rpc_channel.send_command.side_effect = [
-        [mock_data.APP_GET_INIT_STATUS],
-        mock_data.STATUS,
-        # Device #2
-        [mock_data.APP_GET_INIT_STATUS],
-        mock_data.STATUS,
-    ]
-
     async def mock_home_data_with_counter(*args, **kwargs) -> HomeData:
         nonlocal home_data_responses
         return home_data_responses.pop(0)
 
-    # First call happens during create_device_manager initialization
+    # The new device is also a V1 vacuum simulator
+    new_device_product = HomeDataProduct(
+        id="product-id-123",
+        name="New Device",
+        model="roborock.newmodel.v1",
+        category=RoborockCategory.VACUUM,
+    )
+    fake_device2 = V1VacuumSimulator(
+        duid="new_device_duid",
+        device_info=HomeDataDevice(
+            duid="new_device_duid",
+            name="New Device",
+            local_key=mock_data.LOCAL_KEY,
+            product_id="product-id-123",
+            sn="fake_sn_new",
+            pv="1.0",
+        ),
+        product=new_device_product,
+    )
+    cloud.add_device(fake_device2)
+
     with patch(
         "roborock.devices.device_manager.RoborockApiClient.get_home_data_v3",
         side_effect=mock_home_data_with_counter,
@@ -344,26 +379,31 @@ async def test_rediscover_devices(mock_rpc_channel: AsyncMock) -> None:
         assert device_1.name == "Roborock S7 MaxV"
 
         new_device = await device_manager.get_device("new_device_duid")
-        assert new_device
+        assert new_device is not None
         assert new_device.name == "New Device"
 
-        # Ensure closing again works without error
         await device_manager.close()
 
 
-@pytest.mark.parametrize(
-    ("channel_exception"),
-    [
-        Exception("Unexpected error"),
-    ],
-)
-async def test_start_connect_unexpected_error(home_data: HomeData, channel_failure: Mock, mock_sleep: Mock) -> None:
+async def test_start_connect_unexpected_error(
+    cloud: FakeRoborockCloud, fake_device: V1VacuumSimulator, patch_device_manager: None
+) -> None:
     """Test that some unexpected errors from start_connect are propagated."""
+    # Raise generic Exception
+    fake_device.mqtt_channel.inject_error(Exception("Unexpected error"))
+    assert fake_device.local_channel is not None
+    fake_device.local_channel.inject_error(Exception("Unexpected error"))
+
     with pytest.raises(Exception, match="Unexpected error"):
         await create_device_manager(USER_PARAMS)
 
 
-async def test_diagnostics_collection(home_data: HomeData, snapshot: syrupy.SnapshotAssertion) -> None:
+async def test_diagnostics_collection(
+    cloud: FakeRoborockCloud,
+    fake_device: V1VacuumSimulator,
+    patch_device_manager: None,
+    snapshot: syrupy.SnapshotAssertion,
+) -> None:
     """Test that diagnostics are collected correctly in the DeviceManager."""
     device_manager = await create_device_manager(USER_PARAMS)
     devices = await device_manager.get_devices()
@@ -381,107 +421,119 @@ async def test_diagnostics_collection(home_data: HomeData, snapshot: syrupy.Snap
     await device_manager.close()
 
 
-async def test_unsupported_protocol_version() -> None:
+async def test_unsupported_protocol_version(cloud: FakeRoborockCloud, patch_device_manager: None) -> None:
     """Test the DeviceManager with some supported and unsupported product IDs."""
-    with patch("roborock.devices.device_manager.UserWebApiClient.get_home_data") as mock_home_data:
-        home_data = HomeData.from_dict(
-            {
-                "id": 1,
-                "name": "Test Home",
-                "devices": [
-                    {
-                        "duid": "device-uid-1",
-                        "name": "Device 1",
-                        "pv": "1.0",
-                        "productId": "product-id-1",
-                        "localKey": mock_data.LOCAL_KEY,
-                    },
-                    {
-                        "duid": "device-uid-2",
-                        "name": "Device 2",
-                        "pv": "unknown-pv",  # Fake new protocol version we've never seen
-                        "productId": "product-id-2",
-                        "localKey": mock_data.LOCAL_KEY,
-                    },
-                ],
-                "products": [
-                    {
-                        "id": "product-id-1",
-                        "name": "Roborock S7 MaxV",
-                        "model": "roborock.vacuum.a27",
-                        "category": "robot.vacuum.cleaner",
-                    },
-                    {
-                        "id": "product-id-2",
-                        "name": "New Roborock Model",
-                        "model": "roborock.vacuum.newmodel",
-                        "category": "robot.vacuum.cleaner",
-                    },
-                ],
-            }
-        )
-        mock_home_data.return_value = home_data
+    fake_device = V1VacuumSimulator(
+        duid="device-uid-1",
+        device_info=HomeDataDevice(
+            duid="device-uid-1",
+            name="Device 1",
+            local_key=mock_data.LOCAL_KEY,
+            product_id="product-id-1",
+            pv="1.0",
+        ),
+        product=HomeDataProduct(
+            id="product-id-1",
+            name="Roborock S7 MaxV",
+            model="roborock.vacuum.a27",
+            category=RoborockCategory.VACUUM,
+        ),
+    )
+    cloud.add_device(fake_device)
 
-        device_manager = await create_device_manager(USER_PARAMS)
-        # Only the supported device should be created. The other device is ignored
-        devices = await device_manager.get_devices()
-        assert [device.duid for device in devices] == ["device-uid-1"]
+    # Fetch default home data and modify it
+    home_data = cloud.web_api.get_default_home_data()
+    modified_home_data = replace(
+        home_data,
+        devices=list(home_data.devices)
+        + [
+            HomeDataDevice(
+                duid="device-uid-2",
+                name="Device 2",
+                local_key=mock_data.LOCAL_KEY,
+                product_id="product-id-2",
+                pv="unknown-pv",
+            ),
+        ],
+        products=list(home_data.products)
+        + [
+            HomeDataProduct(
+                id="product-id-2",
+                name="New Roborock Model",
+                model="roborock.vacuum.newmodel",
+                category=RoborockCategory.VACUUM,
+            ),
+        ],
+    )
+    cloud.web_api.set_homes_response(modified_home_data)
 
-        # Verify diagnostics
-        diagnostics = device_manager.diagnostic_data()
-        diagnostics_data = diagnostics.get("diagnostics")
-        assert diagnostics_data
-        assert diagnostics_data.get("supported_devices") == {"1.0": 1}
-        assert diagnostics_data.get("unsupported_devices") == {"unknown-pv": 1}
+    device_manager = await create_device_manager(USER_PARAMS)
+    devices = await device_manager.get_devices()
+    assert [device.duid for device in devices] == ["device-uid-1"]
+
+    diagnostics = device_manager.diagnostic_data()
+    diagnostics_data = diagnostics.get("diagnostics")
+    assert diagnostics_data
+    assert diagnostics_data.get("supported_devices") == {"1.0": 1}
+    assert diagnostics_data.get("unsupported_devices") == {"unknown-pv": 1}
+
+    await device_manager.close()
 
 
-async def test_unsupported_v1_category() -> None:
+async def test_unsupported_v1_category(cloud: FakeRoborockCloud, patch_device_manager: None) -> None:
     """Test that non-vacuum V1 devices are skipped as unsupported."""
-    with patch("roborock.devices.device_manager.UserWebApiClient.get_home_data") as mock_home_data:
-        home_data = HomeData.from_dict(
-            {
-                "id": 1,
-                "name": "Test Home",
-                "devices": [
-                    {
-                        "duid": "device-uid-1",
-                        "name": "Device 1",
-                        "pv": "1.0",
-                        "productId": "product-id-1",
-                        "localKey": mock_data.LOCAL_KEY,
-                    },
-                    {
-                        "duid": "device-uid-2",
-                        "name": "Device 2",
-                        "pv": "1.0",
-                        "productId": "product-id-2",
-                        "localKey": mock_data.LOCAL_KEY,
-                    },
-                ],
-                "products": [
-                    {
-                        "id": "product-id-1",
-                        "name": "Roborock S7 MaxV",
-                        "model": "roborock.vacuum.a27",
-                        "category": "robot.vacuum.cleaner",
-                    },
-                    {
-                        "id": "product-id-2",
-                        "name": "Roborock RockNeo",
-                        "model": "roborock.mower.q105",
-                        "category": "roborock.mower",
-                    },
-                ],
-            }
-        )
-        mock_home_data.return_value = home_data
+    fake_device = V1VacuumSimulator(
+        duid="device-uid-1",
+        device_info=HomeDataDevice(
+            duid="device-uid-1",
+            name="Device 1",
+            local_key=mock_data.LOCAL_KEY,
+            product_id="product-id-1",
+            pv="1.0",
+        ),
+        product=HomeDataProduct(
+            id="product-id-1",
+            name="Roborock S7 MaxV",
+            model="roborock.vacuum.a27",
+            category=RoborockCategory.VACUUM,
+        ),
+    )
+    cloud.add_device(fake_device)
 
-        device_manager = await create_device_manager(USER_PARAMS)
-        devices = await device_manager.get_devices()
-        assert [device.duid for device in devices] == ["device-uid-1"]
+    # Fetch default home data and modify it
+    home_data = cloud.web_api.get_default_home_data()
+    modified_home_data = replace(
+        home_data,
+        devices=list(home_data.devices)
+        + [
+            HomeDataDevice(
+                duid="device-uid-2",
+                name="Device 2",
+                local_key=mock_data.LOCAL_KEY,
+                product_id="product-id-2",
+                pv="1.0",
+            ),
+        ],
+        products=list(home_data.products)
+        + [
+            HomeDataProduct(
+                id="product-id-2",
+                name="Roborock RockNeo",
+                model="roborock.mower.q105",
+                category=RoborockCategory.MOWER,
+            ),
+        ],
+    )
+    cloud.web_api.set_homes_response(modified_home_data)
 
-        diagnostics = device_manager.diagnostic_data()
-        diagnostics_data = diagnostics.get("diagnostics")
-        assert diagnostics_data
-        assert diagnostics_data.get("supported_devices") == {"1.0": 1}
-        assert diagnostics_data.get("unsupported_devices") == {"1.0": 1}
+    device_manager = await create_device_manager(USER_PARAMS)
+    devices = await device_manager.get_devices()
+    assert [device.duid for device in devices] == ["device-uid-1"]
+
+    diagnostics = device_manager.diagnostic_data()
+    diagnostics_data = diagnostics.get("diagnostics")
+    assert diagnostics_data
+    assert diagnostics_data.get("supported_devices") == {"1.0": 1}
+    assert diagnostics_data.get("unsupported_devices") == {"1.0": 1}
+
+    await device_manager.close()

@@ -77,7 +77,8 @@ async def test_dyad_api_query_values(dyad_api: DyadApi, fake_channel: FakeChanne
     assert message.protocol == RoborockMessageProtocol.RPC_REQUEST
     assert message.version == b"A01"
     payload_data = json.loads(unpad(message.payload, AES.block_size))
-    assert payload_data == {"dps": {"10000": "[209, 201, 207, 214, 215, 227, 229, 230, 222, 224]"}}
+    assert payload_data["dps"] == {"10000": "[209, 201, 207, 214, 215, 227, 229, 230, 222, 224]"}
+    assert "t" in payload_data
 
 
 @pytest.mark.parametrize(
@@ -174,7 +175,8 @@ async def test_zeo_api_query_values(zeo_api: ZeoApi, fake_channel: FakeChannel):
     assert message.protocol == RoborockMessageProtocol.RPC_REQUEST
     assert message.version == b"A01"
     payload_data = json.loads(unpad(message.payload, AES.block_size))
-    assert payload_data == {"dps": {"10000": "[203, 207, 226, 227, 224, 218]"}}
+    assert payload_data["dps"] == {"10000": "[203, 207, 226, 227, 224, 218]"}
+    assert "t" in payload_data
 
 
 @pytest.mark.parametrize(
@@ -245,7 +247,8 @@ async def test_dyad_api_set_value(dyad_api: DyadApi, fake_channel: FakeChannel):
     # decode the payload to verify contents
     payload_data = json.loads(unpad(message.payload, AES.block_size))
     # A01 protocol expects values to be strings in the dps dict
-    assert payload_data == {"dps": {"209": 1}}
+    assert payload_data["dps"] == {"209": 1}
+    assert "t" in payload_data
 
 
 async def test_zeo_api_set_value(zeo_api: ZeoApi, fake_channel: FakeChannel):
@@ -261,4 +264,5 @@ async def test_zeo_api_set_value(zeo_api: ZeoApi, fake_channel: FakeChannel):
     # decode the payload to verify contents
     payload_data = json.loads(unpad(message.payload, AES.block_size))
     # A01 protocol expects values to be strings in the dps dict
-    assert payload_data == {"dps": {"204": "standard"}}
+    assert payload_data["dps"] == {"204": "standard"}
+    assert "t" in payload_data

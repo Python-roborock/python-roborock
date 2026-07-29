@@ -63,6 +63,10 @@ async def test_start_vacuum_service():
 ```
 """
 
+from roborock.testing.b01_q10_simulator import (
+    DEFAULT_Q10_STATUS,
+    Q10VacuumSimulator,
+)
 from roborock.testing.channel import FakeChannel
 from roborock.testing.cloud import FakeRoborockCloud, FakeWebApiClient
 from roborock.testing.simulator import (
@@ -92,10 +96,12 @@ __all__ = [
     "DEFAULT_LOCAL_KEY",
     "DEFAULT_NETWORK_INFO",
     "DEFAULT_PRODUCT_ID",
+    "DEFAULT_Q10_STATUS",
     "DEFAULT_STATUS",
     "FakeChannel",
     "FakeRoborockCloud",
     "FakeWebApiClient",
+    "Q10VacuumSimulator",
     "RoborockDeviceSimulator",
     "V1VacuumSimulator",
 ]

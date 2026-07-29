@@ -127,11 +127,20 @@ jobs:
       with:
         fetch-depth: 0
         persist-credentials: false
+    - name: Create release GitHub App token
+      id: release-token
+      uses: actions/create-github-app-token@v3
+      with:
+        client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+        private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+        permission-contents: write
     - name: Python Semantic Release
       id: release
       uses: python-semantic-release/python-semantic-release@v10.5.3
       with:
-        github_token: ${{ secrets.GH_TOKEN }}
+        # The release App is allowed to bypass the pull-request requirement so
+        # semantic-release can commit the version and changelog back to main.
+        github_token: ${{ steps.release-token.outputs.token }}
         changelog: true
 
     - name: Publish package distributions to PyPI
@@ -148,5 +157,5 @@ jobs:
       uses: python-semantic-release/publish-action@v10.5.3
       if: steps.release.outputs.released == 'true'
       with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
+        github_token: ${{ steps.release-token.outputs.token }}
         tag: ${{ steps.release.outputs.tag }}

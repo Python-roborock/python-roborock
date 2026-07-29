@@ -1,110 +1,151 @@
-"""Map content trait for B01 Q10 devices.
+"""Push-driven map traits for B01 Q10 devices.
 
-Unlike the v1 / Q7 maps, the Q10 has no synchronous "get map" command, so this
-trait is purely push-driven and mirrors the Q10 ``StatusTrait`` contract:
+Map-related state arrives on three independent streams:
 
-- The device pushes its current map/path as protocol-301 ``MAP_RESPONSE``
-  messages (a ``dpRequestDps`` nudges it to do so). The protocol layer decodes
-  those into :class:`Q10MapPacket` / :class:`Q10TracePacket` objects and the
-  ``Q10PropertiesApi`` subscribe loop routes them to
-  :meth:`MapContentTrait.update_from_map_packet` /
-  :meth:`MapContentTrait.update_from_trace_packet`.
-- Those methods render/cache the content and notify update listeners (register
-  via :meth:`add_update_listener`).
-- ``image_content``, ``map_data``, ``rooms``, ``path`` and ``robot_position``
-  are readable and reflect the most recently pushed map.
+* map packets are decoded from map-protocol responses;
+* trace packets are decoded from trace-protocol responses;
+* restricted zones and virtual walls arrive as ordinary DPS values.
 
-Unlike the Q7, the Q10 map payload is unencrypted, so no map key is required.
+``MapDpsTrait`` owns the low-level DPS read model. ``MapContentTrait`` depends
+on it and combines that state with the latest map/trace packets through the pure
+functions in :mod:`roborock.map.b01_q10_render`. The high-level trait keeps only
+the latest value from each source and one replace-whole rendered image;
+calibration, path placement and overlay placement remain inside the renderer.
 """
 
 import logging
 from dataclasses import dataclass, field
-
-from vacuum_map_parser_base.map_data import MapData
+from typing import Any
 
 from roborock.data import RoborockBase
-from roborock.devices.traits.common import TraitUpdateListener
+from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
+from roborock.devices.traits.common import DpsDataConverter, TraitUpdateListener
+from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
-    B01Q10MapParser,
     B01Q10MapParserConfig,
     Q10MapPacket,
     Q10Point,
     Q10Room,
     Q10TracePacket,
 )
+from roborock.map.b01_q10_overlays import parse_virtual_wall_blob, parse_zone_blob
+from roborock.map.b01_q10_render import Q10MapOverlays, render_q10_map
+
+from .common import UpdatableTrait
 
 _LOGGER = logging.getLogger(__name__)
 
-_TRUNCATE_LENGTH = 20
-
 
 @dataclass
-class MapContent(RoborockBase):
-    """Dataclass representing Q10 map content."""
+class MapDps(RoborockBase):
+    """Low-level map values delivered in the Q10 DPS stream."""
 
-    image_content: bytes | None = None
-    """The rendered image of the map in PNG format."""
-
-    map_data: MapData | None = None
-    """Parsed map data (image metadata + room names)."""
-
-    rooms: list[Q10Room] = field(default_factory=list)
-    """Rooms (segments) reported by the device, with ids and names."""
-
-    path: list[Q10Point] = field(default_factory=list)
-    """Full path of the current cleaning session (oldest point first).
-
-    The robot accumulates this server-side and serves the whole trajectory so
-    far in one packet, so it is complete even if we connect mid-session. Only
-    populated while a cleaning session is active."""
-
-    robot_position: Q10Point | None = None
-    """Current robot position (the most recent path point), if known."""
-
-    def __repr__(self) -> str:
-        img = self.image_content
-        if img and len(img) > _TRUNCATE_LENGTH:
-            img = img[: _TRUNCATE_LENGTH - 3] + b"..."
-        return f"MapContent(image_content={img!r}, rooms={self.rooms!r})"
+    restricted_zone_up: str | None = field(default=None, metadata={"dps": B01_Q10_DP.RESTRICTED_ZONE_UP})
+    virtual_wall_up: str | None = field(default=None, metadata={"dps": B01_Q10_DP.VIRTUAL_WALL_UP})
 
 
-class MapContentTrait(MapContent, TraitUpdateListener):
-    """Trait holding the most recently pushed parsed map content for Q10 devices.
+class MapDpsTrait(MapDps, UpdatableTrait):
+    """Private read model for map-related DPS values and decoded overlays."""
 
-    The Q10 has no synchronous get-map request; the device pushes map and trace
-    packets, which the protocol layer decodes and the ``Q10PropertiesApi``
-    subscribe loop feeds into :meth:`update_from_map_packet` /
-    :meth:`update_from_trace_packet`. Consumers read the cached fields and/or
-    register a callback with :meth:`add_update_listener` to be notified when new
-    map content arrives.
+    _CONVERTER = DpsDataConverter.from_dataclass(MapDps)
+
+    def __init__(self) -> None:
+        MapDps.__init__(self)
+        UpdatableTrait.__init__(self, command=None, logger=_LOGGER)
+        self._overlays = Q10MapOverlays()
+
+    @property
+    def overlays(self) -> Q10MapOverlays:
+        """Overlays decoded once from the latest relevant DPS update."""
+        return self._overlays
+
+    def update_from_dps(self, decoded_dps: dict[B01_Q10_DP, Any]) -> None:
+        """Decode overlay blobs when they arrive, then notify dependents."""
+        if not self._CONVERTER.update_from_dps(self, decoded_dps):
+            return
+        self._overlays = Q10MapOverlays(
+            zones=tuple(parse_zone_blob(self.restricted_zone_up)),
+            virtual_walls=tuple(parse_virtual_wall_blob(self.virtual_wall_up)),
+        )
+        self._notify_update()
+
+
+class MapContentTrait(TraitUpdateListener):
+    """High-level composed Q10 map view.
+
+    The latest map and trace packets are combined with the injected
+    :class:`MapDpsTrait` whenever any of those three sources changes.
     """
 
     def __init__(
         self,
+        map_dps: MapDpsTrait,
         *,
         map_parser_config: B01Q10MapParserConfig | None = None,
     ) -> None:
-        super().__init__()
         TraitUpdateListener.__init__(self, logger=_LOGGER)
-        self._map_parser = B01Q10MapParser(map_parser_config)
+        self._config = map_parser_config or B01Q10MapParserConfig()
+        self._map_dps = map_dps
+        self._map_packet: Q10MapPacket | None = None
+        self._trace_packet: Q10TracePacket | None = None
+        self._image_content: bytes | None = None
+        self._map_dps.add_update_listener(self._map_dps_updated)
+
+    @property
+    def image_content(self) -> bytes | None:
+        """The composed map PNG, if the latest map rendered successfully."""
+        return self._image_content
+
+    @property
+    def rooms(self) -> list[Q10Room]:
+        """Rooms reported by the device."""
+        return self._map_packet.rooms if self._map_packet else []
+
+    @property
+    def path(self) -> list[Q10Point]:
+        """Full path for live status and callers drawing their own map overlay."""
+        return self._trace_packet.points if self._trace_packet else []
+
+    @property
+    def robot_position(self) -> Q10Point | None:
+        """Current position for live status and caller-rendered map overlays."""
+        return self._trace_packet.robot_position if self._trace_packet else None
+
+    @property
+    def robot_heading(self) -> int | None:
+        """Current heading for orienting a robot marker on a caller-rendered map."""
+        return self._trace_packet.heading if self._trace_packet else None
 
     def update_from_map_packet(self, packet: Q10MapPacket) -> None:
-        """Render a pushed full-map packet into the cached image/rooms.
-
-        Rendering failures are logged and skipped (listeners are not notified) so
-        a single bad push cannot tear down the subscribe loop.
-        """
-        parsed = self._map_parser.parse_packet(packet)
-        if parsed.image_content is None:
-            _LOGGER.debug("Failed to render Q10 map image")
-            return
-        self.image_content = parsed.image_content
-        self.map_data = parsed.map_data
-        self.rooms = packet.rooms
+        """Store a map-protocol update and render the latest sources."""
+        self._map_packet = packet
+        self._render()
         self._notify_update()
 
     def update_from_trace_packet(self, packet: Q10TracePacket) -> None:
-        """Cache the path/robot position from a pushed trace packet."""
-        self.path = packet.points
-        self.robot_position = packet.robot_position
+        """Store a trace-protocol update and render the latest sources."""
+        self._trace_packet = packet
+        self._render()
         self._notify_update()
+
+    def _map_dps_updated(self) -> None:
+        """Render after the low-level DPS source changes."""
+        if self._map_packet is None:
+            return
+        self._render()
+        self._notify_update()
+
+    def _render(self) -> None:
+        """Render the required map with the latest optional trace and overlays."""
+        if self._map_packet is None:
+            return
+        try:
+            self._image_content = render_q10_map(
+                self._map_packet,
+                self._trace_packet,
+                self._map_dps.overlays,
+                config=self._config,
+            )
+        except RoborockException as ex:
+            _LOGGER.debug("Failed to render Q10 map packet: %s", ex)
+            self._image_content = None

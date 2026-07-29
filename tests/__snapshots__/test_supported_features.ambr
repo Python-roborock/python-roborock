@@ -2,6 +2,8 @@
 # name: test_device_features_from_home_data[home_data_device_pearls.json]
   dict({
     'is_activate_video_charging_and_standby_supported': False,
+    'is_ai_recognition_obstacle_supported': True,
+    'is_ai_recognition_setting_supported': True,
     'is_analysis_supported': False,
     'is_any_state_transit_goto_supported': True,
     'is_auto_collection_2_supported': True,
@@ -178,6 +180,8 @@
 # name: test_device_features_from_home_data[home_data_device_q10.json]
   dict({
     'is_activate_video_charging_and_standby_supported': False,
+    'is_ai_recognition_obstacle_supported': True,
+    'is_ai_recognition_setting_supported': True,
     'is_analysis_supported': False,
     'is_any_state_transit_goto_supported': False,
     'is_auto_collection_2_supported': False,
@@ -354,6 +358,8 @@
 # name: test_device_features_from_home_data[home_data_device_q5_max.json]
   dict({
     'is_activate_video_charging_and_standby_supported': False,
+    'is_ai_recognition_obstacle_supported': False,
+    'is_ai_recognition_setting_supported': False,
     'is_analysis_supported': False,
     'is_any_state_transit_goto_supported': True,
     'is_auto_collection_2_supported': False,
@@ -530,6 +536,8 @@
 # name: test_device_features_from_home_data[home_data_device_q7.json]
   dict({
     'is_activate_video_charging_and_standby_supported': False,
+    'is_ai_recognition_obstacle_supported': True,
+    'is_ai_recognition_setting_supported': True,
     'is_analysis_supported': False,
     'is_any_state_transit_goto_supported': False,
     'is_auto_collection_2_supported': False,
@@ -706,6 +714,8 @@
 # name: test_device_features_from_home_data[home_data_device_s5e.json]
   dict({
     'is_activate_video_charging_and_standby_supported': False,
+    'is_ai_recognition_obstacle_supported': False,
+    'is_ai_recognition_setting_supported': False,
     'is_analysis_supported': False,
     'is_any_state_transit_goto_supported': False,
     'is_auto_collection_2_supported': False,
@@ -882,6 +892,8 @@
 # name: test_device_features_from_home_data[home_data_device_s7_maxv.json]
   dict({
     'is_activate_video_charging_and_standby_supported': False,
+    'is_ai_recognition_obstacle_supported': True,
+    'is_ai_recognition_setting_supported': True,
     'is_analysis_supported': False,
     'is_any_state_transit_goto_supported': True,
     'is_auto_collection_2_supported': False,
@@ -1058,6 +1070,8 @@
 # name: test_device_features_from_home_data[home_data_device_saros.json]
   dict({
     'is_activate_video_charging_and_standby_supported': False,
+    'is_ai_recognition_obstacle_supported': True,
+    'is_ai_recognition_setting_supported': True,
     'is_analysis_supported': False,
     'is_any_state_transit_goto_supported': True,
     'is_auto_collection_2_supported': True,
@@ -1234,6 +1248,8 @@
 # name: test_device_features_from_home_data[home_data_device_saros_10r.json]
   dict({
     'is_activate_video_charging_and_standby_supported': True,
+    'is_ai_recognition_obstacle_supported': True,
+    'is_ai_recognition_setting_supported': True,
     'is_analysis_supported': False,
     'is_any_state_transit_goto_supported': True,
     'is_auto_collection_2_supported': True,
@@ -1410,6 +1426,8 @@
 # name: test_device_features_from_home_data[home_data_device_zeo_one.json]
   dict({
     'is_activate_video_charging_and_standby_supported': False,
+    'is_ai_recognition_obstacle_supported': True,
+    'is_ai_recognition_setting_supported': True,
     'is_analysis_supported': False,
     'is_any_state_transit_goto_supported': False,
     'is_auto_collection_2_supported': False,

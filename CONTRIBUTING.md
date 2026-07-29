@@ -2,6 +2,12 @@
 
 Thank you for your interest in contributing to `python-roborock`! We welcome contributions from the community.
 
+## Licensing of Contributions
+
+By submitting a contribution to this repository, you agree that your contribution is
+licensed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0),
+and you certify that you have the right to submit it under that license.
+
 ## Getting Started
 
 1.  **Fork the repository** on GitHub.

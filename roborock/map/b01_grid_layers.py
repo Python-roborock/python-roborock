@@ -15,6 +15,7 @@ zones, ...) are placed into this same space by the device's calibration.
 import io
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
+from enum import IntEnum
 from math import ceil
 
 from PIL import Image
@@ -26,6 +27,14 @@ LAYER_FLOOR = "floor"
 LAYER_UNKNOWN = "unknown"
 
 _PNG = "PNG"
+
+
+class _CalibrationCell(IntEnum):
+    """Cell categories used while scoring calibration candidates."""
+
+    OTHER = 0
+    FLOOR = 1
+    BLOCKED = 2
 
 
 @dataclass
@@ -140,6 +149,21 @@ class GridCalibration:
         return ((px - self.origin_x) * self.resolution, self.y_sign * (self.origin_y - py) * self.resolution)
 
 
+def _calibration_cells(layers: GridLayers) -> bytes:
+    """Classify the flat, row-major grid for calibration scoring."""
+    cells = bytearray()
+    for value in layers.grid:
+        layer = layers.cell_class(value)
+        if layer == LAYER_FLOOR:
+            cell = _CalibrationCell.FLOOR
+        elif layer in (LAYER_WALL, LAYER_BACKGROUND):
+            cell = _CalibrationCell.BLOCKED
+        else:
+            cell = _CalibrationCell.OTHER
+        cells.append(cell)
+    return bytes(cells)
+
+
 def solve_calibration(
     layers: GridLayers,
     points: list[tuple[float, float]],
@@ -162,11 +186,7 @@ def solve_calibration(
     if not points:
         return None
     w, h = layers.width, layers.height
-    classify = layers.classifier
-    # 1 = floor, 2 = wall/background (blocked), 0 = other. Index by cell.
-    klass = bytes(
-        1 if (c := classify(v)) == LAYER_FLOOR else 2 if c in (LAYER_WALL, LAYER_BACKGROUND) else 0 for v in layers.grid
-    )
+    cells = _calibration_cells(layers)
 
     best: tuple[float, GridCalibration] | None = None
     for resolution in resolutions:
@@ -186,16 +206,68 @@ def solve_calibration(
                     blocked = 0
                     for px_f, py_f in pts:
                         cell = int(oy - py_f) * w + int(px_f + ox)
-                        k = klass[cell]
-                        if k == 1:
+                        cell_type = cells[cell]
+                        if cell_type == _CalibrationCell.FLOOR:
                             on_floor += 1
-                        elif k == 2:
+                        elif cell_type == _CalibrationCell.BLOCKED:
                             blocked += 1
                     score = on_floor - 1.5 * blocked
                     if best is None or score > best[0]:
                         best = (score, GridCalibration(float(resolution), float(ox), float(oy), y_sign))
 
     if best is None or best[0] < len(points) * 0.5:
+        return None
+    return best[1]
+
+
+def solve_calibration_with_origin(
+    layers: GridLayers,
+    points: list[tuple[float, float]],
+    origin: tuple[float, float],
+    *,
+    resolutions: Iterable[float],
+    y_signs: Iterable[int] = (1, -1),
+    min_on_floor: float = 0.5,
+) -> GridCalibration | None:
+    """Fit resolution + Y orientation around a *known* grid-pixel origin.
+
+    Unlike :func:`solve_calibration`, the pixel origin ``(ox, oy)`` is fixed --
+    e.g. read straight from the Q10 grid-frame header -- so this only sweeps the
+    candidate ``resolutions`` and ``y_signs`` and keeps the placement landing the
+    most ``points`` on floor. With the expensive 2-D offset slide gone, far fewer
+    points are needed to confirm the fit, so it works from a short path rather
+    than a dense clean. Returns ``None`` if no candidate lands a ``min_on_floor``
+    fraction of points on floor (e.g. the origin or points are bogus).
+    """
+    if not points:
+        return None
+    w, h = layers.width, layers.height
+    ox, oy = origin
+    cells = _calibration_cells(layers)
+
+    best: tuple[float, GridCalibration] | None = None
+    for resolution in resolutions:
+        if resolution <= 0:
+            continue
+        for y_sign in y_signs:
+            on_floor = 0
+            blocked = 0
+            for x, y in points:
+                px = int(x / resolution + ox)
+                py = int(oy - y_sign * y / resolution)
+                if not (0 <= px < w and 0 <= py < h):
+                    blocked += 1
+                    continue
+                cell_type = cells[py * w + px]
+                if cell_type == _CalibrationCell.FLOOR:
+                    on_floor += 1
+                elif cell_type == _CalibrationCell.BLOCKED:
+                    blocked += 1
+            score = on_floor - 1.5 * blocked
+            if best is None or score > best[0]:
+                best = (score, GridCalibration(float(resolution), float(ox), float(oy), y_sign))
+
+    if best is None or best[0] < len(points) * min_on_floor:
         return None
     return best[1]
 

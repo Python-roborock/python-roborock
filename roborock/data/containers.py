@@ -60,6 +60,25 @@ def _attr_repr(obj: Any) -> str:
     return f"{type(obj).__name__}({', '.join(parts)})"
 
 
+def field_metadata(**kwargs):
+    """Decorator to attach capability check metadata to a property.
+
+    This attaches a `_field_metadata` dictionary to the underlying getter function,
+    which is then preserved when decorated with `@property`.
+
+    Supported metadata keys:
+    - `feature` (str): Name of a capability property on `DeviceFeaturesTrait`.
+    - `dock_feature` (str): Name of a capability property on `RoborockDockFeatures`.
+    - `dps` (str/int): RoborockDataProtocol ID to check against supported schema IDs.
+    """
+
+    def decorator(func):
+        func._field_metadata = kwargs
+        return func
+
+    return decorator
+
+
 @dataclass(repr=False)
 class RoborockBase:
     """Base class for all Roborock data classes."""

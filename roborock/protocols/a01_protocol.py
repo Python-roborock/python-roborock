@@ -2,6 +2,7 @@
 
 import json
 import logging
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -42,7 +43,10 @@ def encode_mqtt_payload(
     """
     if value_encoder is None:
         value_encoder = _no_encode
-    dps_data = {"dps": {key: value_encoder(value) for key, value in data.items()}}
+    dps_data = {
+        "dps": {key: value_encoder(value) for key, value in data.items()},
+        "t": int(time.time()),
+    }
     payload = pad(json.dumps(dps_data).encode("utf-8"), AES.block_size)
     return RoborockMessage(
         protocol=RoborockMessageProtocol.RPC_REQUEST,

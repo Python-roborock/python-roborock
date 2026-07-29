@@ -52,6 +52,7 @@ def deterministic_message_fixtures() -> Generator[None, None, None]:
 
     with (
         patch("roborock.devices.transport.local_channel.get_next_int", side_effect=get_next_int),
+        patch("roborock.protocols.a01_protocol.time.time", return_value=1755750947.0),
         patch("roborock.protocols.b01_q7_protocol.get_next_int", side_effect=get_next_int),
         patch("roborock.protocols.v1_protocol.get_next_int", side_effect=get_next_int),
         patch("roborock.protocols.v1_protocol.get_timestamp", side_effect=get_timestamp),

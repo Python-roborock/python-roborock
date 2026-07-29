@@ -42,8 +42,8 @@ optional traits:
     - `requires_feature` - The string name of the device feature that must be supported
         for this trait to be enabled. See `DeviceFeaturesTrait` for a list of
         available features.
-    - `requires_dock_type` - If set, this is a function that accepts a `RoborockDockTypeCode`
-        and returns a boolean indicating whether the trait is supported for that dock type.
+    - `requires_dock_features` - If set, this is a function that accepts a `RoborockDockFeatures`
+        and returns a boolean indicating whether the trait is supported for that dock.
 
 Additionally, DeviceFeaturesTrait has a method `is_field_supported` that is used to
 check individual trait field values. This is a more fine grained version to allow
@@ -59,6 +59,7 @@ from typing import Any, get_args
 
 from roborock.data.containers import HomeData, HomeDataProduct, RoborockBase
 from roborock.data.v1.v1_code_mappings import RoborockDockTypeCode
+from roborock.device_features import RoborockDockFeatures
 from roborock.devices.cache import DeviceCache
 from roborock.devices.traits import Trait
 from roborock.exceptions import RoborockException
@@ -82,6 +83,7 @@ from . import (
     map_content,
     maps,
     network_info,
+    obstacle_photos,
     rooms,
     routines,
     smart_wash_params,
@@ -104,6 +106,7 @@ from .led_status import LedStatusTrait
 from .map_content import MapContentTrait
 from .maps import MapsTrait
 from .network_info import NetworkInfoTrait
+from .obstacle_photos import ObstaclePhotoTrait
 from .rooms import RoomsTrait
 from .routines import RoutinesTrait
 from .smart_wash_params import SmartWashParamsTrait
@@ -130,6 +133,7 @@ __all__ = [
     "map_content",
     "maps",
     "network_info",
+    "obstacle_photos",
     "rooms",
     "routines",
     "smart_wash_params",
@@ -170,6 +174,7 @@ class PropertiesApi(Trait):
     dust_collection_mode: DustCollectionModeTrait | None = None
     wash_towel_mode: WashTowelModeTrait | None = None
     smart_wash_params: SmartWashParamsTrait | None = None
+    obstacle_photos: ObstaclePhotoTrait | None = None
 
     def __init__(
         self,
@@ -179,6 +184,7 @@ class PropertiesApi(Trait):
         rpc_channel: V1RpcChannel,
         mqtt_rpc_channel: V1RpcChannel,
         map_rpc_channel: V1RpcChannel,
+        blob_rpc_channel: V1RpcChannel,
         add_dps_listener: Callable[[Callable[[dict[RoborockDataProtocol, Any]], None]], Callable[[], None]],
         web_api: UserWebApiClient,
         device_cache: DeviceCache,
@@ -190,6 +196,7 @@ class PropertiesApi(Trait):
         self._rpc_channel = rpc_channel
         self._mqtt_rpc_channel = mqtt_rpc_channel
         self._map_rpc_channel = map_rpc_channel
+        self._blob_rpc_channel = blob_rpc_channel
         self._web_api = web_api
         self._device_cache = device_cache
         self._region = region
@@ -228,6 +235,8 @@ class PropertiesApi(Trait):
         # to use the mqtt_rpc_channel (cloud only) instead of the rpc_channel (adaptive)
         if hasattr(trait, "mqtt_rpc_channel"):
             return self._mqtt_rpc_channel
+        elif hasattr(trait, "blob_rpc_channel"):
+            return self._blob_rpc_channel
         elif hasattr(trait, "map_rpc_channel"):
             return self._map_rpc_channel
         else:
@@ -262,12 +271,19 @@ class PropertiesApi(Trait):
         await self.device_features.refresh()
         # Dock type also acts like a device feature for some traits.
         dock_type = await self._dock_type()
+        dock_features = RoborockDockFeatures.from_dock_type(dock_type, has_am=self.status.has_am)
+        self.device_features.dock_features = dock_features
 
         # Initialize traits with special arguments before the generic loop
-        if self.wash_towel_mode is None and self._is_supported(WashTowelModeTrait, "wash_towel_mode", dock_type):
+        if self.wash_towel_mode is None and self._is_supported(WashTowelModeTrait, "wash_towel_mode", dock_features):
             wash_towel_mode = WashTowelModeTrait(self.device_features)
             wash_towel_mode._rpc_channel = self._get_rpc_channel(wash_towel_mode)  # type: ignore[assignment]
             self.wash_towel_mode = wash_towel_mode
+
+        if self.obstacle_photos is None and self._is_supported(ObstaclePhotoTrait, "obstacle_photos", dock_features):
+            obstacle_photos = ObstaclePhotoTrait(self._rpc_channel)
+            obstacle_photos._rpc_channel = self._get_rpc_channel(obstacle_photos)
+            self.obstacle_photos = obstacle_photos
 
         # Dynamically create any traits that need to be populated
         for item in fields(self):
@@ -280,7 +296,9 @@ class PropertiesApi(Trait):
 
             # Union args may not be in declared order
             item_type = union_args[0] if union_args[1] is type(None) else union_args[1]
-            if not self._is_supported(item_type, item.name, dock_type):
+            if item_type is ObstaclePhotoTrait:
+                continue
+            if not self._is_supported(item_type, item.name, dock_features):
                 _LOGGER.debug("Trait '%s' not supported, skipping", item.name)
                 continue
             _LOGGER.debug("Trait '%s' is supported, initializing", item.name)
@@ -288,11 +306,11 @@ class PropertiesApi(Trait):
             setattr(self, item.name, trait)
             trait._rpc_channel = self._get_rpc_channel(trait)
 
-    def _is_supported(self, trait_type: type[V1TraitMixin], name: str, dock_type: RoborockDockTypeCode) -> bool:
+    def _is_supported(self, trait_type: type[V1TraitMixin], name: str, dock_features: RoborockDockFeatures) -> bool:
         """Check if a trait is supported by the device."""
 
-        if (requires_dock_type := getattr(trait_type, "requires_dock_type", None)) is not None:
-            return requires_dock_type(dock_type)
+        if (requires_dock_features := getattr(trait_type, "requires_dock_features", None)) is not None:
+            return requires_dock_features(dock_features)
 
         if (feature_name := getattr(trait_type, "requires_feature", None)) is None:
             _LOGGER.debug("Optional trait missing 'requires_feature' attribute %s, skipping", name)
@@ -307,16 +325,23 @@ class PropertiesApi(Trait):
         if dock_type is not None:
             _LOGGER.debug("Using cached dock type: %s", dock_type)
             try:
-                return RoborockDockTypeCode(dock_type)
+                dock_type = RoborockDockTypeCode(dock_type)
             except ValueError:
                 _LOGGER.debug("Cached dock type %s is invalid, refreshing", dock_type)
+            else:
+                if self.status.dss is None:
+                    await self.status.refresh()
+                    if self.status.dock_type is not None:
+                        dock_type = self.status.dock_type
+                        await self._set_cached_trait_data("dock_type", dock_type)
+                return dock_type
 
         _LOGGER.debug("Starting dock type discovery")
         await self.status.refresh()
         _LOGGER.debug("Fetched dock type: %s", self.status.dock_type)
         if self.status.dock_type is None:
             # Explicitly set so we reuse cached value next type
-            dock_type = RoborockDockTypeCode.no_dock
+            dock_type = RoborockDockTypeCode.o0_dock
         else:
             dock_type = self.status.dock_type
         await self._set_cached_trait_data("dock_type", dock_type)
@@ -359,6 +384,7 @@ def create(
     rpc_channel: V1RpcChannel,
     mqtt_rpc_channel: V1RpcChannel,
     map_rpc_channel: V1RpcChannel,
+    blob_rpc_channel: V1RpcChannel,
     add_dps_listener: Callable[[Callable[[dict[RoborockDataProtocol, Any]], None]], Callable[[], None]],
     web_api: UserWebApiClient,
     device_cache: DeviceCache,
@@ -373,6 +399,7 @@ def create(
         rpc_channel,
         mqtt_rpc_channel,
         map_rpc_channel,
+        blob_rpc_channel,
         add_dps_listener,
         web_api,
         device_cache,

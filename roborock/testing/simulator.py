@@ -73,26 +73,20 @@ class RoborockDeviceSimulator:
 
         # MQTT channel is always present — all protocols use it.
         self.mqtt_channel = FakeChannel(is_local=False)
-        self.mqtt_channel.publish.side_effect = self._handle_mqtt_publish
+        self.mqtt_channel.publish_handler = self._handle_mqtt_publish
 
         # Local channel is only used by V1 devices. A01/B01 (MQTT-only)
         # simulators should pass has_local_channel=False.
         self.local_channel: FakeChannel | None = None
         if has_local_channel:
             self.local_channel = FakeChannel(is_local=True)
-            self.local_channel.publish.side_effect = self._handle_local_publish
+            self.local_channel.publish_handler = self._handle_local_publish
 
     async def _handle_local_publish(self, message: RoborockMessage) -> None:
         assert self.local_channel is not None
-        self.local_channel.published_messages.append(message)
-        if self.local_channel.publish_side_effect:
-            raise self.local_channel.publish_side_effect
         await self._handle_publish(message, self.local_channel)
 
     async def _handle_mqtt_publish(self, message: RoborockMessage) -> None:
-        self.mqtt_channel.published_messages.append(message)
-        if self.mqtt_channel.publish_side_effect:
-            raise self.mqtt_channel.publish_side_effect
         await self._handle_publish(message, self.mqtt_channel)
 
     async def _handle_publish(self, message: RoborockMessage, channel: FakeChannel) -> None:

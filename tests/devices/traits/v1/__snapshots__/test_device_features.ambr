@@ -3,66 +3,120 @@
   dict({
     'battery': True,
     'charge_status': True,
+    'clean_fluid_status': True,
+    'clean_percent': True,
+    'clear_water_box_status': True,
+    'dirty_water_box_status': True,
+    'dock_error_status': True,
     'dry_status': True,
     'error_code': True,
     'fan_power': True,
+    'rdt': True,
     'state': True,
+    'water_box_carriage_status': True,
     'water_box_mode': True,
+    'water_box_status': True,
+    'water_shortage_status': True,
   })
 # ---
 # name: test_is_attribute_supported[home_data_device_q5_max.json]
   dict({
     'battery': True,
     'charge_status': True,
+    'clean_fluid_status': False,
+    'clean_percent': True,
+    'clear_water_box_status': False,
+    'dirty_water_box_status': False,
+    'dock_error_status': True,
     'dry_status': True,
     'error_code': True,
     'fan_power': True,
+    'rdt': False,
     'state': True,
+    'water_box_carriage_status': True,
     'water_box_mode': True,
+    'water_box_status': True,
+    'water_shortage_status': True,
   })
 # ---
 # name: test_is_attribute_supported[home_data_device_s5e.json]
   dict({
     'battery': True,
     'charge_status': True,
+    'clean_fluid_status': False,
+    'clean_percent': False,
+    'clear_water_box_status': False,
+    'dirty_water_box_status': False,
+    'dock_error_status': False,
     'dry_status': True,
     'error_code': True,
     'fan_power': True,
+    'rdt': False,
     'state': True,
+    'water_box_carriage_status': True,
     'water_box_mode': True,
+    'water_box_status': True,
+    'water_shortage_status': True,
   })
 # ---
 # name: test_is_attribute_supported[home_data_device_s7_maxv.json]
   dict({
     'battery': True,
     'charge_status': True,
+    'clean_fluid_status': False,
+    'clean_percent': False,
+    'clear_water_box_status': True,
+    'dirty_water_box_status': True,
+    'dock_error_status': True,
     'dry_status': True,
     'error_code': True,
     'fan_power': True,
+    'rdt': False,
     'state': True,
+    'water_box_carriage_status': True,
     'water_box_mode': True,
+    'water_box_status': True,
+    'water_shortage_status': True,
   })
 # ---
 # name: test_is_attribute_supported[home_data_device_saros.json]
   dict({
     'battery': True,
     'charge_status': True,
+    'clean_fluid_status': True,
+    'clean_percent': True,
+    'clear_water_box_status': True,
+    'dirty_water_box_status': True,
+    'dock_error_status': True,
     'dry_status': True,
     'error_code': True,
     'fan_power': True,
+    'rdt': True,
     'state': True,
+    'water_box_carriage_status': True,
     'water_box_mode': True,
+    'water_box_status': True,
+    'water_shortage_status': True,
   })
 # ---
 # name: test_is_attribute_supported[home_data_device_saros_10r.json]
   dict({
     'battery': True,
     'charge_status': True,
+    'clean_fluid_status': True,
+    'clean_percent': True,
+    'clear_water_box_status': True,
+    'dirty_water_box_status': True,
+    'dock_error_status': True,
     'dry_status': True,
     'error_code': True,
     'fan_power': True,
+    'rdt': True,
     'state': True,
+    'water_box_carriage_status': True,
     'water_box_mode': True,
+    'water_box_status': True,
+    'water_shortage_status': True,
   })
 # ---
 # name: test_is_consumable_field_supported[home_data_device_pearls.json]

@@ -54,7 +54,10 @@ def test_decode_message_trace_packet() -> None:
     message = _message(TRACE_FIXTURE.read_bytes(), RoborockMessageProtocol.MAP_RESPONSE)
     decoded = decode_message(message)
     assert isinstance(decoded, Q10TracePacket)
-    assert [(p.x, p.y) for p in decoded.points] == [(169, 0)]
+    # This docked capture carries only a heading (no path points); see the
+    # parser tests for the full byte-level decode.
+    assert decoded.points == []
+    assert decoded.heading == 169
 
 
 def test_decode_message_unknown_map_marker_returns_none() -> None:

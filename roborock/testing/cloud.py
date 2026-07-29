@@ -6,6 +6,7 @@ to simulate physical devices connected to the Roborock Cloud.
 """
 
 import contextlib
+import datetime
 import re
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -15,6 +16,7 @@ from aioresponses import CallbackResult, aioresponses
 from roborock.data import HomeData, Reference, RRiot, UserData
 from roborock.devices.rpc.v1_channel import create_v1_channel as original_create_v1_channel
 from roborock.devices.transport.mqtt_channel import create_mqtt_channel as original_create_mqtt_channel
+from roborock.testing.b01_q10_simulator import Q10VacuumSimulator
 from roborock.testing.simulator import RoborockDeviceSimulator
 from roborock.testing.v1_simulator import V1VacuumSimulator
 
@@ -173,6 +175,44 @@ class FakeWebApiClient:
             callback=get_homes_callback,
         )
 
+    def get_default_home_data(self) -> HomeData:
+        """Construct the default HomeData using simulated devices registered in the cloud."""
+        devices = [d.device_info for d in self.cloud.simulated_devices.values()]
+        products = [d.product for d in self.cloud.simulated_devices.values()]
+        return HomeData(
+            id=self.cloud.home_id,
+            name=self.cloud.home_name,
+            devices=devices,
+            products=products,
+            received_devices=[],
+            rooms=[],
+        )
+
+    def set_homes_response(
+        self,
+        home_data: HomeData | None = None,
+        status: int = 200,
+    ) -> None:
+        """Easily set the faked response payload for the homes endpoint using a HomeData dataclass.
+
+        If home_data is None, it defaults to the active get_default_home_data() state.
+        """
+        self.homes_status = status
+        if status != 200:
+            self.homes_payload_override = None
+            return
+
+        if home_data is None:
+            home_data = self.get_default_home_data()
+
+        self.homes_payload_override = {
+            "api": None,
+            "code": 200,
+            "result": home_data.as_dict(),
+            "status": "ok",
+            "success": True,
+        }
+
 
 class FakeRoborockCloud:
     """A central state object representing the Roborock Cloud environment under test."""
@@ -203,11 +243,6 @@ class FakeRoborockCloud:
 
         # Wrapper function for create_v1_channel
         def mock_create_v1_channel(user_data, mqtt_params, mqtt_session, device, device_cache):
-            if device.pv in ("A01", "B01"):
-                raise NotImplementedError(
-                    f"Simulating protocol {device.pv} is not yet supported. "
-                    "TODO: Implement stateful simulators for B01 (Q7/Q10) and A01 (Zeo/Dyad) devices."
-                )
             server = self.simulated_devices.get(device.duid)
             if server is not None:
                 if not isinstance(server, V1VacuumSimulator):
@@ -216,25 +251,38 @@ class FakeRoborockCloud:
                         f"simulator, but create_v1_channel requires a V1VacuumSimulator."
                     )
                 return server.v1_channel
+            if device.pv in ("A01", "B01"):
+                raise NotImplementedError(
+                    f"Simulating protocol {device.pv} is not yet supported. "
+                    "TODO: Implement stateful simulators for B01 (Q7) and A01 (Zeo/Dyad) devices."
+                )
             return original_create_v1_channel(user_data, mqtt_params, mqtt_session, device, device_cache)
 
         # Wrapper function for create_mqtt_channel
         def mock_create_mqtt_channel(user_data, mqtt_params, mqtt_session, device):
+            server = self.simulated_devices.get(device.duid)
+            if server:
+                if device.pv == "B01" and not isinstance(server, Q10VacuumSimulator):
+                    raise NotImplementedError(
+                        f"Simulating protocol {device.pv} is not yet supported. "
+                        "Only Q10VacuumSimulator is supported for B01 protocols currently."
+                    )
+                server.mqtt_channel._is_connected = True
+                return server.mqtt_channel
             if device.pv in ("A01", "B01"):
                 raise NotImplementedError(
                     f"Simulating protocol {device.pv} is not yet supported. "
-                    "TODO: Implement stateful simulators for B01 (Q7/Q10) and A01 (Zeo/Dyad) devices."
+                    "TODO: Implement stateful simulators for B01 (Q7) and A01 (Zeo/Dyad) devices."
                 )
-            server = self.simulated_devices.get(device.duid)
-            if server:
-                return server.mqtt_channel
             return original_create_mqtt_channel(user_data, mqtt_params, mqtt_session, device)
 
         # Route Web requests using the dynamic FakeWebApiClient
         with aioresponses() as mocked:
             self.web_api.mock_requests(mocked)
 
-            # Patch Channel factories and rate limiters
+            # Mock sleep logic to speed up tests.
+            sleep_time = datetime.timedelta(seconds=0.001)
+            # Patch Channel factories, rate limiters, and backoff sleep intervals
             with (
                 patch(
                     "roborock.web_api.RoborockApiClient._login_limiter.try_acquire_async",
@@ -243,5 +291,7 @@ class FakeRoborockCloud:
                 patch("roborock.web_api.RoborockApiClient._home_data_limiter.try_acquire", return_value=True),
                 patch("roborock.devices.device_manager.create_v1_channel", side_effect=mock_create_v1_channel),
                 patch("roborock.devices.device_manager.create_mqtt_channel", side_effect=mock_create_mqtt_channel),
+                patch("roborock.devices.device.MIN_BACKOFF_INTERVAL", sleep_time),
+                patch("roborock.devices.device.MAX_BACKOFF_INTERVAL", sleep_time),
             ):
                 yield
