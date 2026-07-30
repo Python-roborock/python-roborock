@@ -626,7 +626,7 @@ async def _await_q10_map_push(
 
     unsub = add_source_listener(on_update)
     try:
-        await properties.refresh()
+        await properties.map.refresh()
         await asyncio.wait_for(updated, timeout=timeout)
         return True
     except TimeoutError:

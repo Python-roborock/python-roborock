@@ -13,7 +13,7 @@ import base64
 from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import cast
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -95,14 +95,21 @@ class _FakeQ10Properties:
         self.map = _map_trait()
         self.refresh_count = 0
 
-    async def refresh(self) -> None:
-        self.refresh_count += 1
+        async def refresh_map() -> None:
+            self.refresh_count += 1
+
+        self.map.refresh = refresh_map  # type: ignore[method-assign]
 
 
 class _FakeQ10PropertiesWithTrace(_FakeQ10Properties):
-    async def refresh(self) -> None:
-        await super().refresh()
-        self.map.update_from_trace_packet(parse_trace_packet(TRACE_SESSION_FIXTURE.read_bytes()))
+    def __init__(self) -> None:
+        super().__init__()
+
+        async def refresh_map() -> None:
+            self.refresh_count += 1
+            self.map.update_from_trace_packet(parse_trace_packet(TRACE_SESSION_FIXTURE.read_bytes()))
+
+        self.map.refresh = refresh_map  # type: ignore[method-assign]
 
 
 async def test_await_q10_map_push_waits_for_fresh_update() -> None:
@@ -162,7 +169,7 @@ async def test_await_q10_map_push_ignores_overlay_only_render() -> None:
         properties.refresh_count += 1
         map_dps.update_from_dps({B01_Q10_DP.RESTRICTED_ZONE_UP: _zone_blob()})
 
-    properties.refresh = refresh_overlay_only  # type: ignore[method-assign]
+    properties.map.refresh = refresh_overlay_only  # type: ignore[method-assign]
 
     got_map = await _await_q10_map_push(
         cast(Q10PropertiesApi, properties),
@@ -240,8 +247,8 @@ async def test_map_list_response_requests_first_map(
     mock_channel: FakeB01Q10Channel,
     message_queue: asyncio.Queue[Q10Message],
 ) -> None:
-    """A requested map list is followed by a get for its first map ID."""
-    await q10_api.request_map()
+    """The map trait follows a typed map list with a get for its first ID."""
+    await q10_api.map.refresh()
     assert mock_channel.published_commands == [
         (
             B01_Q10_DP.COMMON,
@@ -274,19 +281,21 @@ async def test_map_list_response_requests_first_map(
             }
         },
     )
+    assert q10_api.map.multi_map is not None
+    assert q10_api.map.multi_map.current_map_id == "12345"
 
 
-async def test_unsolicited_map_list_does_not_request_map(
+async def test_map_list_response_without_map_id_is_ignored(
     q10_api: Q10PropertiesApi,
     mock_channel: FakeB01Q10Channel,
     message_queue: asyncio.Queue[Q10Message],
 ) -> None:
-    """A list response not initiated by this API cannot trigger a map get."""
+    """A typed list response with no entries cannot trigger a map get."""
     message_queue.put_nowait(
         Q10DpsUpdate(
             dps={
                 B01_Q10_DP.MULTI_MAP: {
-                    "data": [{"id": "12345"}],
+                    "data": [],
                     "op": "list",
                     "result": 1,
                 }
@@ -298,85 +307,13 @@ async def test_unsolicited_map_list_does_not_request_map(
     assert mock_channel.published_commands == []
 
 
-async def test_concurrent_map_requests_are_coalesced(q10_api: Q10PropertiesApi) -> None:
-    """Only one list request remains pending when callers refresh together."""
-    started = asyncio.Event()
-    release = asyncio.Event()
+async def test_map_refresh_requests_are_not_rate_limited(q10_api: Q10PropertiesApi) -> None:
+    """The caller controls map cadence; each refresh emits its own list request."""
+    with patch.object(q10_api.command, "send") as send:
+        await q10_api.map.refresh()
+        await q10_api.map.refresh()
 
-    async def send_list(*_args, **_kwargs) -> None:
-        started.set()
-        await release.wait()
-
-    with patch.object(q10_api.command, "send", side_effect=send_list) as send:
-        first = asyncio.create_task(q10_api.request_map())
-        await started.wait()
-        second = asyncio.create_task(q10_api.request_map())
-        await asyncio.sleep(0)
-        release.set()
-        await asyncio.gather(first, second)
-
-    send.assert_awaited_once()
-
-
-async def test_cancelled_map_request_can_be_retried(q10_api: Q10PropertiesApi) -> None:
-    """Cancellation clears only its own pending list request."""
-    started = asyncio.Event()
-    blocked = asyncio.Event()
-
-    async def send_list(*_args, **_kwargs) -> None:
-        started.set()
-        await blocked.wait()
-
-    with patch.object(q10_api.command, "send", side_effect=send_list):
-        request = asyncio.create_task(q10_api.request_map())
-        await started.wait()
-        request.cancel()
-        with pytest.raises(asyncio.CancelledError):
-            await request
-
-    with patch.object(q10_api.command, "send", new=AsyncMock()) as retry:
-        await q10_api.request_map()
-
-    retry.assert_awaited_once()
-
-
-async def test_map_request_stays_coalesced_through_get(
-    q10_api: Q10PropertiesApi,
-    message_queue: asyncio.Queue[Q10Message],
-) -> None:
-    """The pending flow includes the follow-up get publish."""
-    get_started = asyncio.Event()
-    release_get = asyncio.Event()
-    get_finished = asyncio.Event()
-
-    async def send_command(_dp, params) -> None:
-        operation = params[str(B01_Q10_DP.MULTI_MAP.code)]["op"]
-        if operation == "get":
-            get_started.set()
-            await release_get.wait()
-            get_finished.set()
-
-    response = Q10DpsUpdate(
-        dps={
-            B01_Q10_DP.MULTI_MAP: {
-                "data": [{"id": "12345"}],
-                "op": "list",
-                "result": 1,
-            }
-        }
-    )
-    with patch.object(q10_api.command, "send", side_effect=send_command) as send:
-        await q10_api.request_map()
-        message_queue.put_nowait(response)
-        await get_started.wait()
-
-        await q10_api.request_map()
-        assert send.await_count == 2
-
-        release_get.set()
-        await get_finished.wait()
-        await q10_api.request_map()
-        assert send.await_count == 3
+    assert send.await_count == 2
 
 
 async def test_failed_map_get_does_not_stop_subscription(
@@ -390,7 +327,6 @@ async def test_failed_map_get_does_not_stop_subscription(
             raise RoborockException("device rejected map request")
 
     with patch.object(q10_api.command, "send", side_effect=send_command):
-        await q10_api.request_map()
         message_queue.put_nowait(
             Q10DpsUpdate(
                 dps={

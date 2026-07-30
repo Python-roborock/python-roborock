@@ -128,13 +128,7 @@ async def test_status_trait_refresh(
 
     # Send a refresh command
     await q10_api.refresh()
-    assert mock_channel.published_commands == [
-        (B01_Q10_DP.REQUEST_DPS, {}),
-        (
-            B01_Q10_DP.COMMON,
-            {str(B01_Q10_DP.MULTI_MAP.code): {"op": "list"}},
-        ),
-    ]
+    assert mock_channel.published_commands == [(B01_Q10_DP.REQUEST_DPS, {})]
 
     # Push the response message into the queue
     message_queue.put_nowait(message)
