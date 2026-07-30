@@ -19,13 +19,13 @@ documentation that informed this clean-room implementation comes from the
 https://github.com/v1b3c0d3x3r/roborock-qseries-map-bridge
 """
 
-import colorsys
 import io
 import math
 import statistics
 from dataclasses import dataclass, field, replace
 
 from PIL import Image
+from vacuum_map_parser_base.config.color import ColorsPalette, SupportedColor
 from vacuum_map_parser_base.config.image_config import ImageConfig
 from vacuum_map_parser_base.map_data import ImageData, MapData
 
@@ -40,6 +40,7 @@ from .b01_grid_layers import (
     decompose_grid,
 )
 from .map_parser import ParsedMapData
+from .room_colors import adjacency_aware_room_colors
 
 _MAP_FILE_FORMAT = "PNG"
 
@@ -655,12 +656,12 @@ class B01Q10MapParser:
         return ParsedMapData(image_content=image_bytes.getvalue(), map_data=map_data)
 
     def _render(self, packet: Q10MapPacket) -> Image.Image:
-        """Render the Q10 grid: rooms get distinct colors, walls white, rest dark."""
-        palette = _build_palette(packet.grid)
-        rgb = bytearray()
+        """Render the Q10 grid with the V1 map palette."""
+        palette = _build_palette(packet.grid, packet.width)
+        rgba = bytearray()
         for value in packet.grid:
-            rgb.extend(palette[value])
-        img = Image.frombytes("RGB", (packet.width, packet.height), bytes(rgb))
+            rgba.extend(palette[value])
+        img = Image.frombytes("RGBA", (packet.width, packet.height), bytes(rgba))
         # The ss07 grid is stored top-down (row 0 = top of the home), so it is
         # rendered as-is -- unlike the V1/Q7 convention, no vertical flip.
         scale = self._config.map_scale
@@ -669,15 +670,32 @@ class B01Q10MapParser:
         return img
 
 
-def _build_palette(grid: bytes) -> list[tuple[int, int, int]]:
-    """Map each grid value to an RGB color (rooms distinct, walls white)."""
-    palette: list[tuple[int, int, int]] = [(28, 30, 38)] * 256  # default: unknown/outside
-    room_values = sorted({v for v in set(grid) if 0 < v < _WALL_THRESHOLD})
-    for index, value in enumerate(room_values):
-        hue = (index * 0.139) % 1.0
-        r, g, b = colorsys.hsv_to_rgb(hue, 0.5, 0.95)
-        palette[value] = (int(r * 255), int(g * 255), int(b * 255))
+def _opaque(color: tuple[int, ...]) -> tuple[int, int, int, int]:
+    """Return a palette color as RGBA."""
+    return (color[0], color[1], color[2], color[3] if len(color) == 4 else 255)
+
+
+def _build_palette(grid: bytes, width: int) -> list[tuple[int, int, int, int]]:
+    """Map Q10 cells onto the same colors used by the V1 map renderer."""
+
+    def room_id(value: int) -> int | None:
+        return max(1, value // 4) if 0 < value < _WALL_THRESHOLD else None
+
+    colors = ColorsPalette()
+    room_colors = adjacency_aware_room_colors(
+        grid,
+        width,
+        colors,
+        room_id,
+    )
+    outside = (0, 0, 0, 0)
+    palette = [outside] * 256
+    for value in {value for value in grid if 0 < value < _WALL_THRESHOLD}:
+        palette[value] = _opaque(room_colors[max(1, value // 4)])
+    wall = _opaque(colors.get_color(SupportedColor.GREY_WALL))
     for value in range(_WALL_THRESHOLD, 256):
-        palette[value] = (235, 235, 240)  # walls / borders
-    palette[0] = (28, 30, 38)
+        palette[value] = wall
+    palette[_UNSEGMENTED_FLOOR_VALUE] = _opaque(colors.get_color(SupportedColor.MAP_INSIDE))
+    palette[_BACKGROUND_VALUE] = outside
+    palette[0] = outside
     return palette

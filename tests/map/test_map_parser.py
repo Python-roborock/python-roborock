@@ -3,9 +3,15 @@
 from pathlib import Path
 
 import pytest
+from vacuum_map_parser_base.config.color import ColorsPalette
+from vacuum_map_parser_base.config.image_config import ImageConfig
 
 from roborock.exceptions import RoborockException
-from roborock.map.map_parser import MapParser, MapParserConfig
+from roborock.map.map_parser import (
+    MapParser,
+    MapParserConfig,
+    _AdjacencyAwareRoborockImageParser,
+)
 
 MAP_DATA_FILE = Path(__file__).parent / "raw_map_data"
 DEFAULT_MAP_CONFIG = MapParserConfig()
@@ -17,6 +23,41 @@ def test_invalid_map_content(map_content: bytes):
     parser = MapParser(DEFAULT_MAP_CONFIG)
     with pytest.raises(RoborockException, match="Failed to parse map data"):
         parser.parse(map_content)
+
+
+def test_v1_parser_gives_adjacent_rooms_distinct_palette_colors() -> None:
+    """Repeated palette entries do not merge neighboring V1 rooms."""
+    palette = ColorsPalette()
+    original_room_12 = palette.get_room_color(12)
+    image_parser = _AdjacencyAwareRoborockImageParser(palette, ImageConfig())
+    raw_data = bytes([(2 << 3) | 7, (12 << 3) | 7])
+
+    image, _rooms = image_parser.parse(raw_data, 2, 1, None)
+
+    assert image is not None
+    assert image.getpixel((0, 0)) != image.getpixel((1, 0))
+    assert palette.get_room_color(12) == palette.get_room_color("12")
+
+    isolated_image, _rooms = image_parser.parse(bytes([(12 << 3) | 7]), 1, 1, None)
+
+    assert isolated_image is not None
+    assert isolated_image.getpixel((0, 0))[: len(original_room_12)] == original_room_12
+
+
+def test_v1_parser_keeps_adjacent_rooms_hidden_when_rooms_disabled() -> None:
+    """Adjacency conflict handling cannot override intentional transparency."""
+    hidden_rooms = {str(room_id): (0, 0, 0, 0) for room_id in range(1, 32)}
+    parser = _AdjacencyAwareRoborockImageParser(
+        ColorsPalette({}, hidden_rooms),
+        ImageConfig(),
+        recolor_rooms=False,
+    )
+    raw_data = bytes([(2 << 3) | 7, (12 << 3) | 7])
+
+    image, _rooms = parser.parse(raw_data, 2, 1, None)
+
+    assert image is not None
+    assert [image.getpixel((x, 0)) for x in range(2)] == [(0, 0, 0, 0)] * 2
 
 
 # We can add additional tests here in the future that actually parse valid map data
