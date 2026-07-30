@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v6.1.0 (2026-07-30)
+
+### Features
+
+- Use display name to fix duplicate code mappings
+  ([#870](https://github.com/Python-roborock/python-roborock/pull/870),
+  [`d0a99c2`](https://github.com/Python-roborock/python-roborock/commit/d0a99c28e65d6c1bc6bc00852b261d4a82b3feb7))
+
+
 ## v6.0.0 (2026-07-27)
 
 ### Features
