@@ -2,6 +2,20 @@
 
 <!-- version list -->
 
+## v6.2.0 (2026-07-30)
+
+### Features
+
+- Align Q10 map colors with V1 ([#902](https://github.com/Python-roborock/python-roborock/pull/902),
+  [`dbb6c46`](https://github.com/Python-roborock/python-roborock/commit/dbb6c4663bcd5a0560d7438b49272ab53b91c4f4))
+
+### Refactoring
+
+- Clarify room palette cache handling
+  ([#902](https://github.com/Python-roborock/python-roborock/pull/902),
+  [`dbb6c46`](https://github.com/Python-roborock/python-roborock/commit/dbb6c4663bcd5a0560d7438b49272ab53b91c4f4))
+
+
 ## v6.1.0 (2026-07-30)
 
 ### Features
