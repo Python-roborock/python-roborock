@@ -19,15 +19,15 @@ documentation that informed this clean-room implementation comes from the
 https://github.com/v1b3c0d3x3r/roborock-qseries-map-bridge
 """
 
-import colorsys
 import io
 import math
 import statistics
 from dataclasses import dataclass, field, replace
 
 from PIL import Image
+from vacuum_map_parser_base.config.color import ColorsPalette, SupportedColor
 from vacuum_map_parser_base.config.image_config import ImageConfig
-from vacuum_map_parser_base.map_data import ImageData, MapData
+from vacuum_map_parser_base.map_data import ImageData, MapData, Point
 
 from roborock.exceptions import RoborockException
 
@@ -40,6 +40,7 @@ from .b01_grid_layers import (
     decompose_grid,
 )
 from .map_parser import ParsedMapData
+from .room_colors import adjacency_aware_room_colors
 
 _MAP_FILE_FORMAT = "PNG"
 
@@ -93,15 +94,18 @@ _MAX_ERASE_ZONE_VERTICES = 16
 #   50 mm/px, so dividing by 10 yields the origin in grid pixels -- the (ox, oy)
 #   that solve_calibration otherwise recovers by sliding the path.
 # - 15-16 resolution (u16be): reads 5 (= 0.05 m/px = 50 mm/px) universally.
-# - 17-18 charger x, 19-20 charger y (s16be, 5 mm units), 21-22 charger phi.
+# - 17-18 charger x, 19-20 charger y (s16be, absolute map decipixels),
+#   21-22 charger phi. The official app's device-point transform confirms these
+#   coordinates are already in the map-array frame and must not receive x_min /
+#   y_min a second time.
 _ORIGIN_X_OFFSET = 11
 _ORIGIN_Y_OFFSET = 13
 _HEADER_RESOLUTION_OFFSET = 15
 _CHARGER_X_OFFSET = 17
 _CHARGER_Y_OFFSET = 19
 _CHARGER_PHI_OFFSET = 21
-# The header origin/charger are in 5 mm units and the grid is 50 mm/px, so a
-# header coordinate maps to grid pixels by dividing by this.
+# The header origin and charger fields both divide by 10 to reach grid pixels,
+# although they use different coordinate frames as documented above.
 _HEADER_UNITS_PER_PIXEL = 10
 
 # Grid cell values >= this are walls / borders rather than room segments.
@@ -129,7 +133,8 @@ class Q10EraseZone:
 
     These are the app's *Erase* tool rectangles -- regions the user marked to be
     removed from the map (e.g. phantom floor the lidar mapped through windows).
-    Coordinates are world units (millimetres), same frame as the path/zones.
+    Coordinates are 5 mm world units, the same frame as restriction zones.
+    Trace points use a separate 2.5 mm scale.
 
     Confirmed by a controlled diff: removing the two erase zones on a live device
     dropped this section's count from 2 to 0 while the grid and the trailing
@@ -148,9 +153,11 @@ class Q10HeaderCalibration:
     straight from the map packet -- no cleaning path / fit required, so it works
     docked or pre-clean. See :meth:`origin_pixels`.
 
-    ``origin_x`` / ``origin_y`` and the charger coordinates are in 5 mm units;
-    ``resolution`` is the raw header field (5 == 50 mm/px). ``charger_phi`` is the
-    raw dock heading field. Reported and verified by @andrewlyeats (ss07).
+    ``origin_x`` / ``origin_y`` are in 5 mm units and define the world-coordinate
+    origin. The charger coordinates are absolute decipixels in the map-array
+    frame, so they are divided by 10 without applying that origin again.
+    ``resolution`` is the raw header field (5 == 50 mm/px). ``charger_phi`` is
+    the raw dock heading field. Reported and verified by @andrewlyeats (ss07).
     """
 
     origin_x: int
@@ -175,6 +182,15 @@ class Q10HeaderCalibration:
         if self.is_keepalive:
             return None
         return (self.origin_x / _HEADER_UNITS_PER_PIXEL, self.origin_y / _HEADER_UNITS_PER_PIXEL)
+
+    def charger_pixels(self) -> tuple[float, float] | None:
+        """Return the saved dock in absolute map-array pixel coordinates."""
+        if (self.charger_x == 0 and self.charger_y == 0) or self.charger_x == -1 or self.charger_y == -1:
+            return None
+        return (
+            self.charger_x / _HEADER_UNITS_PER_PIXEL,
+            self.charger_y / _HEADER_UNITS_PER_PIXEL,
+        )
 
 
 @dataclass
@@ -639,7 +655,12 @@ class B01Q10MapParser:
             width=packet.width,
             image_config=ImageConfig(scale=self._config.map_scale),
             data=image,
-            img_transformation=lambda p: p,
+            # ImageDimensions uses V1's bottom-up map convention before
+            # projecting into the top-down PNG. Q10 points are already
+            # top-down grid pixels, so this adapter cancels that standard flip
+            # and lets Q10 use the shared V1 ImageGenerator without moving
+            # overlays vertically.
+            img_transformation=lambda p: Point(p.x, packet.height - p.y - 1, p.a),
         )
         room_names = {room.id: room.name for room in packet.rooms}
         if room_names:
@@ -655,12 +676,12 @@ class B01Q10MapParser:
         return ParsedMapData(image_content=image_bytes.getvalue(), map_data=map_data)
 
     def _render(self, packet: Q10MapPacket) -> Image.Image:
-        """Render the Q10 grid: rooms get distinct colors, walls white, rest dark."""
-        palette = _build_palette(packet.grid)
-        rgb = bytearray()
+        """Render the Q10 grid with the V1 map palette."""
+        palette = _build_palette(packet.grid, packet.width)
+        rgba = bytearray()
         for value in packet.grid:
-            rgb.extend(palette[value])
-        img = Image.frombytes("RGB", (packet.width, packet.height), bytes(rgb))
+            rgba.extend(palette[value])
+        img = Image.frombytes("RGBA", (packet.width, packet.height), bytes(rgba))
         # The ss07 grid is stored top-down (row 0 = top of the home), so it is
         # rendered as-is -- unlike the V1/Q7 convention, no vertical flip.
         scale = self._config.map_scale
@@ -669,15 +690,32 @@ class B01Q10MapParser:
         return img
 
 
-def _build_palette(grid: bytes) -> list[tuple[int, int, int]]:
-    """Map each grid value to an RGB color (rooms distinct, walls white)."""
-    palette: list[tuple[int, int, int]] = [(28, 30, 38)] * 256  # default: unknown/outside
-    room_values = sorted({v for v in set(grid) if 0 < v < _WALL_THRESHOLD})
-    for index, value in enumerate(room_values):
-        hue = (index * 0.139) % 1.0
-        r, g, b = colorsys.hsv_to_rgb(hue, 0.5, 0.95)
-        palette[value] = (int(r * 255), int(g * 255), int(b * 255))
+def _opaque(color: tuple[int, ...]) -> tuple[int, int, int, int]:
+    """Return a palette color as RGBA."""
+    return (color[0], color[1], color[2], color[3] if len(color) == 4 else 255)
+
+
+def _build_palette(grid: bytes, width: int) -> list[tuple[int, int, int, int]]:
+    """Map Q10 cells onto the same colors used by the V1 map renderer."""
+
+    def room_id(value: int) -> int | None:
+        return max(1, value // 4) if 0 < value < _WALL_THRESHOLD else None
+
+    colors = ColorsPalette()
+    room_colors = adjacency_aware_room_colors(
+        grid,
+        width,
+        colors,
+        room_id,
+    )
+    outside = (0, 0, 0, 0)
+    palette = [outside] * 256
+    for value in {value for value in grid if 0 < value < _WALL_THRESHOLD}:
+        palette[value] = _opaque(room_colors[max(1, value // 4)])
+    wall = _opaque(colors.get_color(SupportedColor.GREY_WALL))
     for value in range(_WALL_THRESHOLD, 256):
-        palette[value] = (235, 235, 240)  # walls / borders
-    palette[0] = (28, 30, 38)
+        palette[value] = wall
+    palette[_UNSEGMENTED_FLOOR_VALUE] = _opaque(colors.get_color(SupportedColor.MAP_INSIDE))
+    palette[_BACKGROUND_VALUE] = outside
+    palette[0] = outside
     return palette

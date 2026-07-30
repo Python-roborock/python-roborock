@@ -30,7 +30,9 @@ from roborock.map.b01_q10_overlays import (
 from roborock.map.b01_q10_render import (
     _Q10_RESOLUTIONS,
     Q10MapOverlays,
+    _calibration_from_header_metadata,
     _erased_cells,
+    _vector_calibration,
     render_q10_map,
     solve_q10_calibration,
 )
@@ -41,8 +43,9 @@ CONFIG = B01Q10MapParserConfig()
 # identity-ish calibration used across the geometry tests: world (x, y) -> grid
 # pixel (x, 5 - y) over the fixture's 8x6 grid (top-down, no flip).
 IDENTITY = GridCalibration(resolution=1.0, origin_x=0.0, origin_y=5.0, y_sign=1)
-HEADER = Q10HeaderCalibration(origin_x=0, origin_y=50, resolution=5, charger_x=0, charger_y=0, charger_phi=0)
+HEADER = Q10HeaderCalibration(origin_x=0, origin_y=50, resolution=5, charger_x=30, charger_y=30, charger_phi=90)
 TRACE_CALIBRATION = GridCalibration(resolution=20.0, origin_x=0.0, origin_y=5.0, y_sign=1)
+VECTOR_CALIBRATION = GridCalibration(resolution=10.0, origin_x=0.0, origin_y=5.0, y_sign=1)
 
 
 def _packet() -> Q10MapPacket:
@@ -107,19 +110,52 @@ def test_render_draws_path_and_position() -> None:
     image_position = (round(px * CONFIG.map_scale), round(py * CONFIG.map_scale))
     rendered = Image.open(io.BytesIO(image)).convert("RGBA")
     assert rendered.size == (8 * 4, 6 * 4)
-    assert rendered.getpixel(image_position) == (255, 211, 0, 255)
+    # The shared V1 robot glyph has a white body at its center.
+    assert rendered.getpixel(image_position) == (255, 255, 255, 255)
 
 
 def test_render_draws_zones_and_virtual_walls() -> None:
     """Decoded DPS overlays are included in the composed image."""
     packet, trace = _calibrated_inputs()
     zones = [
-        Q10Zone(type=ZONE_TYPE_NO_GO, vertices=[(0, 0), (4, 0), (4, 4), (0, 4)]),
-        Q10Zone(type=ZONE_TYPE_NO_MOP, vertices=[(1, 1), (2, 1), (2, 2), (1, 2)]),
+        Q10Zone(type=ZONE_TYPE_NO_GO, vertices=_world_vertices(VECTOR_CALIBRATION, [(1, 1), (4, 1), (4, 4), (1, 4)])),
+        Q10Zone(type=ZONE_TYPE_NO_MOP, vertices=_world_vertices(VECTOR_CALIBRATION, [(4, 1), (6, 1), (6, 3), (4, 3)])),
     ]
-    walls = [Q10Zone(type=ZONE_TYPE_VIRTUAL_WALL, vertices=[(0, 0), (4, 0)])]
+    walls = [Q10Zone(type=ZONE_TYPE_VIRTUAL_WALL, vertices=_world_vertices(VECTOR_CALIBRATION, [(1, 1), (6, 1)]))]
     base = _render(packet, trace=trace)
     rendered = _render(packet, trace=trace, overlays=Q10MapOverlays(zones=zones, virtual_walls=walls))
+    assert rendered != base
+
+
+def test_render_draws_zones_and_virtual_walls_without_trace() -> None:
+    """Header calibration is sufficient to place restrictions while idle."""
+    packet = replace(_packet(), header_calibration=HEADER)
+    zones = [
+        Q10Zone(
+            type=ZONE_TYPE_NO_GO,
+            vertices=_world_vertices(VECTOR_CALIBRATION, [(1, 1), (4, 1), (4, 4), (1, 4)]),
+        )
+    ]
+    walls = [
+        Q10Zone(
+            type=ZONE_TYPE_VIRTUAL_WALL,
+            vertices=_world_vertices(VECTOR_CALIBRATION, [(1, 1), (6, 1)]),
+        )
+    ]
+
+    base = _render(packet)
+    rendered = _render(packet, overlays=Q10MapOverlays(zones=zones, virtual_walls=walls))
+
+    assert rendered != base
+
+
+def test_render_draws_dock_from_header_without_trace() -> None:
+    """The saved dock remains visible while the robot has no cleaning trace."""
+    packet = _packet()
+
+    base = _render(packet)
+    rendered = _render(replace(packet, header_calibration=HEADER))
+
     assert rendered != base
 
 
@@ -127,8 +163,9 @@ def test_render_applies_erase_zones() -> None:
     """With a calibration, erase-zone cells are blanked from the image."""
     packet, trace = _calibrated_inputs()
     base = _render(packet, trace=trace)
-    calibration = solve_q10_calibration(packet, trace)
-    assert calibration is not None
+    trace_calibration = solve_q10_calibration(packet, trace)
+    calibration = _vector_calibration(packet, trace_calibration)
+    assert calibration == VECTOR_CALIBRATION
 
     # A rectangle covering the whole grid in world coords erases every cell.
     corners = [(-1, -1), (8, -1), (8, 6), (-1, 6)]
@@ -140,12 +177,29 @@ def test_render_applies_erase_zones() -> None:
     assert render != base
 
 
+def test_render_applies_erase_zones_from_header_without_trace() -> None:
+    """The map header is sufficient to erase zones while the robot is idle."""
+    packet = replace(_packet(), header_calibration=HEADER)
+    calibration = _calibration_from_header_metadata(packet)
+    assert calibration == VECTOR_CALIBRATION
+
+    corners = [(-1, -1), (8, -1), (8, 2), (-1, 2)]
+    erase_zone = Q10EraseZone(vertices=_world_vertices(calibration, corners))
+    cells = _erased_cells(packet.layers, [erase_zone], calibration)
+    base = _render(packet)
+    render = _render(replace(packet, erase_zones=[erase_zone]))
+
+    assert 0 < len(cells) < packet.layers.width * packet.layers.height
+    assert render != base
+
+
 def test_render_partial_erase() -> None:
     """An erase rectangle only blanks the cells it covers, leaving the rest."""
     packet, trace = _calibrated_inputs()
     base = _render(packet, trace=trace)
-    calibration = solve_q10_calibration(packet, trace)
-    assert calibration is not None
+    trace_calibration = solve_q10_calibration(packet, trace)
+    calibration = _vector_calibration(packet, trace_calibration)
+    assert calibration == VECTOR_CALIBRATION
 
     # Cover only the top two grid rows.
     corners = [(-1, -1), (8, -1), (8, 2), (-1, 2)]
@@ -157,26 +211,12 @@ def test_render_partial_erase() -> None:
     assert render != base
 
 
-def test_render_draws_heading_indicator() -> None:
-    """A known heading draws a facing tick from the robot marker.
+def test_render_robot_marker_reflects_heading() -> None:
+    """The shared V1 robot glyph rotates its details with the Q10 heading."""
+    packet, trace_right = _calibrated_inputs(heading=0)
+    _, trace_up = _calibrated_inputs(heading=90)
 
-    With heading 0 (= +x world) and the identity-ish calibration, the tick
-    extends to the right of the robot pixel; with the marker at image (12, 12)
-    the tick covers pixels at x > 12 along y == 12.
-    """
-    packet, trace = _calibrated_inputs(heading=0)
-    image = _render(packet, trace=trace)
-    calibration = solve_q10_calibration(packet, trace)
-    assert calibration is not None
-    assert trace.robot_position is not None
-    px, py = calibration.world_to_pixel(trace.robot_position.x, trace.robot_position.y)
-    cx = round(px * CONFIG.map_scale)
-    cy = round(py * CONFIG.map_scale)
-    rendered = Image.open(io.BytesIO(image)).convert("RGBA")
-    # Tick runs +x from the marker (4 * radius = 16 px at scale 4).
-    assert rendered.getpixel((cx + 8, cy)) == (255, 211, 0, 255)
-    # ...and not behind it (the marker is a small disc; sample well to the left)
-    assert rendered.getpixel((cx - 8, cy)) != (255, 211, 0, 255)
+    assert _render(packet, trace=trace_right) != _render(packet, trace=trace_up)
 
 
 def test_solve_q10_calibration_uses_header_origin_with_short_path() -> None:

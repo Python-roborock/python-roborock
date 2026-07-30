@@ -144,11 +144,11 @@ class StatusV2(RoborockBase):
 
     @property
     def error_code_name(self) -> str | None:
-        return self.error_code.name if self.error_code is not None else None
+        return self.error_code.display_name if self.error_code is not None else None
 
     @property
     def state_name(self) -> str | None:
-        return self.state.name if self.state is not None else None
+        return self.state.display_name if self.state is not None else None
 
     @property
     def current_map(self) -> int | None:
