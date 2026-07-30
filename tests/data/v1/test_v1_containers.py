@@ -196,6 +196,20 @@ def test_status_v2() -> None:
     assert s.current_map == 0
 
 
+def test_status_v2_uses_canonical_state_and_error_names() -> None:
+    """Status names should expose canonical user-facing strings."""
+    modified_status = STATUS.copy()
+    modified_status["state"] = RoborockStateCode.washing_the_mop_2.value
+    modified_status["error_code"] = RoborockErrorCode.mopping_roller_2.value
+
+    s = StatusV2.from_dict(modified_status)
+
+    assert s.state == RoborockStateCode.washing_the_mop_2
+    assert s.state_name == "washing_the_mop"
+    assert s.error_code == RoborockErrorCode.mopping_roller_2
+    assert s.error_code_name == "mopping_roller_1"
+
+
 def test_status_v2_current_map() -> None:
     """Test the current map logic based on map status for StatusV2."""
     s = StatusV2.from_dict(STATUS)
