@@ -123,6 +123,11 @@ class MapContentTrait(TraitUpdateListener):
         )
 
     @property
+    def trace_sequence(self) -> int | None:
+        """Current cleaning-session sequence from the trace stream."""
+        return self._trace_packet.sequence if self._trace_packet else None
+
+    @property
     def robot_heading(self) -> int | None:
         """Current heading for orienting a robot marker on a caller-rendered map."""
         return self._trace_packet.heading if self._trace_packet else None
