@@ -162,13 +162,14 @@ class RoborockBase:
 
         return result
 
-    def as_dict(self) -> dict:
+    def as_dict(self, exclude: set[str] | None = None) -> dict:
+        exclude_set = exclude or set()
         return asdict(
             self,
             dict_factory=lambda _fields: {
                 _camelize(key): value.value if isinstance(value, Enum) else value
                 for (key, value) in _fields
-                if value is not None
+                if value is not None and key not in exclude_set
             },
         )
 
