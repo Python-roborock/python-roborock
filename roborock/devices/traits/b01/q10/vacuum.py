@@ -1,5 +1,9 @@
 """Traits for Q10 B01 devices."""
 
+from base64 import b64encode
+from struct import error as StructError
+from struct import pack
+
 from roborock.data.b01_q10.b01_q10_code_mappings import (
     B01_Q10_DP,
     YXCleanType,
@@ -8,6 +12,41 @@ from roborock.data.b01_q10.b01_q10_code_mappings import (
 )
 
 from .command import CommandTrait
+from .coordinates import roborock_to_vector_coordinate
+
+_ZONE_NAME_FIELD_LENGTH = 19
+
+
+def _encode_zone(x1: int, y1: int, x2: int, y2: int, clean_count: int) -> str:
+    """Encode one rectangular Q10 cleaning zone."""
+    if not 1 <= clean_count <= 3:
+        raise ValueError("clean_count must be between 1 and 3")
+
+    min_x, max_x = sorted((x1, x2))
+    min_y, max_y = sorted((y1, y2))
+    points = (
+        (min_x, min_y),
+        (max_x, min_y),
+        (max_x, max_y),
+        (min_x, max_y),
+    )
+    payload = bytearray((1, clean_count, 1, len(points)))
+    try:
+        for point_x, point_y in points:
+            payload.extend(
+                pack(
+                    ">hh",
+                    roborock_to_vector_coordinate(point_x),
+                    roborock_to_vector_coordinate(point_y),
+                )
+            )
+    except StructError as err:
+        raise ValueError("zone coordinates are outside the supported range") from err
+
+    # The app protocol reserves a fixed 19-byte UTF-8 name field per zone.
+    payload.append(0)
+    payload.extend(bytes(_ZONE_NAME_FIELD_LENGTH))
+    return b64encode(payload).decode()
 
 
 class VacuumTrait:
@@ -54,6 +93,25 @@ class VacuumTrait:
             # "clean_paramters" intentionally mirrors the device's misspelling of
             # "parameters" -- the firmware only accepts that exact key.
             params={"cmd": YXDeviceCleanTask.ELECTORAL.code, "clean_paramters": segment_ids},
+        )
+
+    async def clean_zone(
+        self,
+        x1: int,
+        y1: int,
+        x2: int,
+        y2: int,
+        *,
+        clean_count: int = 1,
+    ) -> None:
+        """Clean one rectangular zone in the common Roborock coordinate space."""
+        await self._command.send(
+            command=B01_Q10_DP.START_CLEAN,
+            params={
+                "cmd": YXDeviceCleanTask.DIVIDE_AREAS.code,
+                # "clean_paramters" is the spelling required by the firmware.
+                "clean_paramters": _encode_zone(x1, y1, x2, y2, clean_count),
+            },
         )
 
     async def spot_clean(self) -> None:

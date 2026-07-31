@@ -1,3 +1,4 @@
+from base64 import b64decode
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -49,3 +50,51 @@ async def test_vacuum_commands(
 
     assert command.code == dp_code
     assert params == expected_params
+
+
+async def test_clean_zone(
+    vacuum: VacuumTrait,
+    fake_channel: FakeB01Q10Channel,
+) -> None:
+    """Test the source-verified Q10 zone payload."""
+    await vacuum.clean_zone(25550, 25600, 25650, 25700, clean_count=2)
+
+    command, params = fake_channel.published_commands[0]
+    assert command.code == 201
+    assert params["cmd"] == 3
+    assert b64decode(params["clean_paramters"]) == bytes(
+        (
+            1,
+            2,
+            1,
+            4,
+            0,
+            10,
+            0,
+            20,
+            0,
+            30,
+            0,
+            20,
+            0,
+            30,
+            0,
+            40,
+            0,
+            10,
+            0,
+            40,
+            0,
+            *([0] * 19),
+        )
+    )
+
+
+@pytest.mark.parametrize("clean_count", [0, 4])
+async def test_clean_zone_rejects_invalid_clean_count(
+    vacuum: VacuumTrait,
+    clean_count: int,
+) -> None:
+    """Test that the device clean-count range is validated."""
+    with pytest.raises(ValueError, match="clean_count must be between 1 and 3"):
+        await vacuum.clean_zone(25550, 25600, 25650, 25700, clean_count=clean_count)
