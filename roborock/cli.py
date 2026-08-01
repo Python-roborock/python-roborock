@@ -608,14 +608,11 @@ async def _await_q10_map_push(
     timeout: float = _Q10_MAP_PUSH_TIMEOUT,
     allow_cached_on_timeout: bool = False,
 ) -> bool:
-    """Nudge a Q10 to push its map/trace and wait for a fresh update.
+    """Request Q10 map content and wait for a fresh map or trace packet.
 
-    The Q10 map response remains asynchronous: ``refresh`` starts a
-    ``dpMultiMap`` list/get exchange, after which the device publishes a
-    ``MAP_RESPONSE`` that its subscribe loop feeds into the map trait. Here we
-    register a packet-specific listener, send the request, and wait for a newly
-    pushed update to satisfy ``predicate``. Returns whether it did within
-    ``timeout``.
+    A Q10 needs a saved-map ID before it can request content. The map list and
+    content have independent refresh schedules, so the list is requested only
+    when no ID is stored. The content then arrives as a later ``MAP_RESPONSE``.
     """
     loop = asyncio.get_running_loop()
     updated: asyncio.Future[None] = loop.create_future()
@@ -626,8 +623,23 @@ async def _await_q10_map_push(
 
     unsub = add_source_listener(on_update)
     try:
-        await properties.map.refresh()
-        await asyncio.wait_for(updated, timeout=timeout)
+        async with asyncio.timeout(timeout):
+            if properties.maps.current_map_id is None:
+                map_list_updated: asyncio.Future[None] = loop.create_future()
+
+                def on_map_list_update() -> None:
+                    if properties.maps.current_map_id is not None and not map_list_updated.done():
+                        map_list_updated.set_result(None)
+
+                unsub_maps = properties.maps.add_update_listener(on_map_list_update)
+                try:
+                    await properties.maps.refresh()
+                    if properties.maps.current_map_id is None:
+                        await map_list_updated
+                finally:
+                    unsub_maps()
+            await properties.map.refresh()
+            await updated
         return True
     except TimeoutError:
         return allow_cached_on_timeout and predicate()

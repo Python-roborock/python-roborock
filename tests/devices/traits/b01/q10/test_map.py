@@ -1,11 +1,9 @@
 """Tests for the Q10 B01 map content trait.
 
-The Q10 map API uses an asynchronous ``dpMultiMap`` list/get exchange. The
-device then publishes ``MAP_RESPONSE`` messages which the protocol layer
-decodes into typed map/trace packets; the trait updates its cached state from
-them via ``update_from_map_packet`` / ``update_from_trace_packet``. These tests
-cover that state management; the pixel/geometry work it drives is tested in
-``tests/map/test_b01_q10_render.py``.
+Map list data and map content have independent refresh schedules. Content
+requests use a stored map ID, and the device sends the data later in a
+``MAP_RESPONSE`` packet. These tests cover that state management. The render
+details are tested in ``tests/map/test_b01_q10_render.py``.
 """
 
 import asyncio
@@ -20,7 +18,9 @@ import pytest
 from roborock.cli import _await_q10_map_push, cli
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
 from roborock.devices.traits.b01.q10 import Q10PropertiesApi, create
+from roborock.devices.traits.b01.q10.command import CommandTrait
 from roborock.devices.traits.b01.q10.map import MapContentTrait, MapDpsTrait
+from roborock.devices.traits.b01.q10.maps import MapsTrait
 from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
     Q10Point,
@@ -37,9 +37,20 @@ FIXTURE = Path("tests/map/testdata/b01_q10_map.bin")
 TRACE_SESSION_FIXTURE = Path("tests/map/testdata/b01_q10_trace_session.bin")
 
 
-def _map_trait() -> MapContentTrait:
-    """Create a high-level trait with its required low-level dependency."""
-    return MapContentTrait(MapDpsTrait())
+def _map_trait(map_dps: MapDpsTrait | None = None) -> MapContentTrait:
+    """Create map content with a stored map ID for tests that do not perform I/O."""
+    command = cast(CommandTrait, Mock(spec=CommandTrait))
+    maps = MapsTrait(command)
+    maps.update_from_dps(
+        {
+            B01_Q10_DP.MULTI_MAP: {
+                "data": [{"id": "12345"}],
+                "op": "list",
+                "result": 1,
+            }
+        }
+    )
+    return MapContentTrait(map_dps or MapDpsTrait(), maps, command)
 
 
 def _zone_blob() -> str:
@@ -92,7 +103,18 @@ def test_q10_position_is_available_as_top_level_cli_command() -> None:
 
 class _FakeQ10Properties:
     def __init__(self) -> None:
-        self.map = _map_trait()
+        command = cast(CommandTrait, Mock(spec=CommandTrait))
+        self.maps = MapsTrait(command)
+        self.maps.update_from_dps(
+            {
+                B01_Q10_DP.MULTI_MAP: {
+                    "data": [{"id": "12345"}],
+                    "op": "list",
+                    "result": 1,
+                }
+            }
+        )
+        self.map = MapContentTrait(MapDpsTrait(), self.maps, command)
         self.refresh_count = 0
 
         async def refresh_map() -> None:
@@ -109,6 +131,34 @@ class _FakeQ10PropertiesWithTrace(_FakeQ10Properties):
             self.refresh_count += 1
             self.map.update_from_trace_packet(parse_trace_packet(TRACE_SESSION_FIXTURE.read_bytes()))
 
+        self.map.refresh = refresh_map  # type: ignore[method-assign]
+
+
+class _FakeQ10PropertiesWithoutMapId:
+    def __init__(self) -> None:
+        command = cast(CommandTrait, Mock(spec=CommandTrait))
+        self.maps = MapsTrait(command)
+        self.map = MapContentTrait(MapDpsTrait(), self.maps, command)
+        self.maps_refresh_count = 0
+        self.map_refresh_count = 0
+
+        async def refresh_maps() -> None:
+            self.maps_refresh_count += 1
+            self.maps.update_from_dps(
+                {
+                    B01_Q10_DP.MULTI_MAP: {
+                        "data": [{"id": "12345"}],
+                        "op": "list",
+                        "result": 1,
+                    }
+                }
+            )
+
+        async def refresh_map() -> None:
+            self.map_refresh_count += 1
+            self.map.update_from_trace_packet(parse_trace_packet(TRACE_SESSION_FIXTURE.read_bytes()))
+
+        self.maps.refresh = refresh_maps  # type: ignore[method-assign]
         self.map.refresh = refresh_map  # type: ignore[method-assign]
 
 
@@ -142,6 +192,22 @@ async def test_await_q10_map_push_returns_true_after_update() -> None:
     assert len(properties.map.path) == 14
 
 
+async def test_await_q10_map_push_requests_map_list_only_on_first_use() -> None:
+    """Content gets the list first only when no stored map ID is available."""
+    properties = _FakeQ10PropertiesWithoutMapId()
+
+    got_trace = await _await_q10_map_push(
+        cast(Q10PropertiesApi, properties),
+        lambda: bool(properties.map.path),
+        properties.map._add_trace_packet_listener,
+        timeout=0.01,
+    )
+
+    assert got_trace is True
+    assert properties.maps_refresh_count == 1
+    assert properties.map_refresh_count == 1
+
+
 async def test_await_q10_map_push_can_fall_back_to_cached_map_on_timeout() -> None:
     properties = _FakeQ10Properties()
     properties.map.update_from_map_packet(parse_map_packet(FIXTURE.read_bytes()))
@@ -162,7 +228,7 @@ async def test_await_q10_map_push_ignores_overlay_only_render() -> None:
     """A DPS recomposition cannot masquerade as a fresh map packet."""
     map_dps = MapDpsTrait()
     properties = _FakeQ10Properties()
-    properties.map = MapContentTrait(map_dps)
+    properties.map = _map_trait(map_dps)
     properties.map.update_from_map_packet(parse_map_packet(FIXTURE.read_bytes()))
 
     async def refresh_overlay_only() -> None:
@@ -242,13 +308,13 @@ async def test_subscribe_loop_routes_trace_push(
     assert q10_api.map.robot_position is not None
 
 
-async def test_map_list_response_requests_first_map(
+async def test_map_list_and_content_refresh_are_independent(
     q10_api: Q10PropertiesApi,
     mock_channel: FakeB01Q10Channel,
     message_queue: asyncio.Queue[Q10Message],
 ) -> None:
-    """The map trait follows a typed map list with a get for its first ID."""
-    await q10_api.map.refresh()
+    """A list update stores an ID but does not request map content."""
+    await q10_api.maps.refresh()
     assert mock_channel.published_commands == [
         (
             B01_Q10_DP.COMMON,
@@ -271,7 +337,11 @@ async def test_map_list_response_requests_first_map(
         )
     )
 
-    await _wait_for(lambda: len(mock_channel.published_commands) == 2)
+    await _wait_for(lambda: q10_api.maps.current_map_id == "12345")
+    assert len(mock_channel.published_commands) == 1
+
+    await q10_api.map.refresh()
+
     assert mock_channel.published_commands[1] == (
         B01_Q10_DP.COMMON,
         {
@@ -281,16 +351,15 @@ async def test_map_list_response_requests_first_map(
             }
         },
     )
-    assert q10_api.map.multi_map is not None
-    assert q10_api.map.multi_map.current_map_id == "12345"
+    assert q10_api.maps.current_map_id == "12345"
 
 
-async def test_map_list_response_without_map_id_is_ignored(
+async def test_empty_map_list_does_not_request_content(
     q10_api: Q10PropertiesApi,
     mock_channel: FakeB01Q10Channel,
     message_queue: asyncio.Queue[Q10Message],
 ) -> None:
-    """A typed list response with no entries cannot trigger a map get."""
+    """An empty list leaves map content unavailable."""
     message_queue.put_nowait(
         Q10DpsUpdate(
             dps={
@@ -304,11 +373,27 @@ async def test_map_list_response_without_map_id_is_ignored(
     )
 
     await asyncio.sleep(0.01)
+    assert q10_api.maps.current_map_id is None
     assert mock_channel.published_commands == []
 
 
-async def test_map_refresh_requests_are_not_rate_limited(q10_api: Q10PropertiesApi) -> None:
-    """The caller controls map cadence; each refresh emits its own list request."""
+async def test_map_content_refresh_requires_stored_map_id(q10_api: Q10PropertiesApi) -> None:
+    """Content cannot be requested until the map list supplies an ID."""
+    with pytest.raises(RoborockException, match="map list is available"):
+        await q10_api.map.refresh()
+
+
+async def test_map_content_refresh_requests_are_not_rate_limited(q10_api: Q10PropertiesApi) -> None:
+    """The caller controls content cadence; each refresh sends a get request."""
+    q10_api.maps.update_from_dps(
+        {
+            B01_Q10_DP.MULTI_MAP: {
+                "data": [{"id": "12345"}],
+                "op": "list",
+                "result": 1,
+            }
+        }
+    )
     with patch.object(q10_api.command, "send") as send:
         await q10_api.map.refresh()
         await q10_api.map.refresh()
@@ -316,33 +401,33 @@ async def test_map_refresh_requests_are_not_rate_limited(q10_api: Q10PropertiesA
     assert send.await_count == 2
 
 
-async def test_failed_map_get_does_not_stop_subscription(
-    q10_api: Q10PropertiesApi,
-    message_queue: asyncio.Queue[Q10Message],
-) -> None:
-    """An expected command failure cannot stop later map-protocol updates."""
-
-    async def send_command(_dp, params) -> None:
-        if params[str(B01_Q10_DP.MULTI_MAP.code)]["op"] == "get":
-            raise RoborockException("device rejected map request")
-
-    with patch.object(q10_api.command, "send", side_effect=send_command):
-        message_queue.put_nowait(
-            Q10DpsUpdate(
-                dps={
-                    B01_Q10_DP.MULTI_MAP: {
-                        "data": [{"id": "12345"}],
-                        "op": "list",
-                        "result": 1,
-                    }
+def test_map_get_ack_does_not_replace_saved_map_list(q10_api: Q10PropertiesApi) -> None:
+    """A content acknowledgement cannot remove the stored map ID."""
+    q10_api._handle_message(
+        Q10DpsUpdate(
+            dps={
+                B01_Q10_DP.MULTI_MAP: {
+                    "data": [{"id": "12345"}],
+                    "op": "list",
+                    "result": 1,
                 }
-            )
+            }
         )
-        message_queue.put_nowait(parse_trace_packet(TRACE_SESSION_FIXTURE.read_bytes()))
+    )
 
-        await _wait_for(lambda: bool(q10_api.map.path))
+    q10_api._handle_message(
+        Q10DpsUpdate(
+            dps={
+                B01_Q10_DP.MULTI_MAP: {
+                    "data": [],
+                    "op": "get",
+                    "result": 1,
+                }
+            }
+        )
+    )
 
-    assert q10_api.map.robot_position is not None
+    assert q10_api.maps.current_map_id == "12345"
 
 
 # --- Source composition + rendering ------------------------------------------
@@ -379,7 +464,7 @@ def test_render_failure_clears_stale_image() -> None:
 def test_map_dps_update_renders_decoded_overlays() -> None:
     """A DPS update recomposes an existing map with decoded overlays."""
     map_dps = MapDpsTrait()
-    trait = MapContentTrait(map_dps)
+    trait = _map_trait(map_dps)
     packet = parse_map_packet(FIXTURE.read_bytes())
     notified: list[None] = []
     trait.add_update_listener(lambda: notified.append(None))
@@ -404,7 +489,7 @@ def test_map_dps_update_renders_decoded_overlays() -> None:
 def test_map_dps_blobs_are_decoded_only_when_dps_arrives() -> None:
     """Map and trace renders reuse the overlays decoded by the DPS trait."""
     map_dps = MapDpsTrait()
-    trait = MapContentTrait(map_dps)
+    trait = _map_trait(map_dps)
 
     with (
         patch("roborock.devices.traits.b01.q10.map.parse_zone_blob", return_value=[]) as parse_zones,
@@ -432,7 +517,7 @@ def test_load_overlays_partial_update_keeps_existing_zones() -> None:
 def test_map_dps_update_without_map_does_not_notify_map_content() -> None:
     """A DPS update cannot change high-level content before a map arrives."""
     map_dps = MapDpsTrait()
-    trait = MapContentTrait(map_dps)
+    trait = _map_trait(map_dps)
     notified = []
     trait.add_update_listener(lambda: notified.append(True))
 
@@ -445,7 +530,7 @@ def test_map_dps_update_without_map_does_not_notify_map_content() -> None:
 def test_map_dps_push_without_overlay_data_points_is_noop() -> None:
     """A DPS push carrying neither overlay DP leaves both traits untouched."""
     map_dps = MapDpsTrait()
-    trait = MapContentTrait(map_dps)
+    trait = _map_trait(map_dps)
     notified = []
     trait.add_update_listener(lambda: notified.append(True))
 
