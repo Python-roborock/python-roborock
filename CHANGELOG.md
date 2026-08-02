@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v6.2.1 (2026-08-02)
+
+### Bug Fixes
+
+- Show docked Q10 robot on map ([#904](https://github.com/Python-roborock/python-roborock/pull/904),
+  [`df75659`](https://github.com/Python-roborock/python-roborock/commit/df75659f4ee87d1c04f241bc0b1fa7b6d1f70715))
+
+### Refactoring
+
+- Render Q10 overlays with V1 ([#903](https://github.com/Python-roborock/python-roborock/pull/903),
+  [`347a8f6`](https://github.com/Python-roborock/python-roborock/commit/347a8f6190cb8b7b8b607f3ca561ae025be956b5))
+
+
 ## v6.2.0 (2026-07-30)
 
 ### Features
