@@ -161,7 +161,6 @@ class A01DeviceSimulator(RoborockDeviceSimulator):
 
         updated_dps: dict[int, Any] = {}
 
-        # Check for query (ID_QUERY key = 10000)
         id_query_key = int(RoborockDyadDataProtocol.ID_QUERY)
         if query_raw := decoded_dps.get(id_query_key):
             query_list: list[Any] = []
