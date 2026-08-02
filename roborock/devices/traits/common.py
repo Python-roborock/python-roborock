@@ -105,10 +105,14 @@ class DpsDataConverter(Generic[TDps]):
             decoded_dps: The decoded DPS data to convert.
 
         Returns:
-            True if any values were updated, False otherwise.
+            True if any values changed, False otherwise.
         """
         conversions = RoborockBase.convert_dict(self._dps_type_map, decoded_dps)
+        changed = False
         for dps_id, value in conversions.items():
             field_name = self._dps_field_map[dps_id]
+            if getattr(target, field_name) == value:
+                continue
             setattr(target, field_name, value)
-        return bool(conversions)
+            changed = True
+        return changed

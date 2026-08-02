@@ -8,7 +8,7 @@ details are tested in ``tests/map/test_b01_q10_render.py``.
 
 import asyncio
 import base64
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Generator
 from pathlib import Path
 from typing import cast
 from unittest.mock import Mock, patch
@@ -16,7 +16,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from roborock.cli import _await_q10_map_push, cli
-from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
+from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP, YXDeviceState
 from roborock.devices.traits.b01.q10 import Q10PropertiesApi, create
 from roborock.devices.traits.b01.q10.command import CommandTrait
 from roborock.devices.traits.b01.q10.map import MapContentTrait, MapDpsTrait
@@ -60,6 +60,12 @@ def _zone_blob() -> str:
         int.to_bytes(value & 0xFFFF, 2, "big") for point in vertices for value in point
     )
     return base64.b64encode(bytes([1, 1]) + record).decode()
+
+
+@pytest.fixture(name="render_map")
+def render_map_fixture() -> Generator[Mock, None, None]:
+    with patch("roborock.devices.traits.b01.q10.map.render_q10_map") as render:
+        yield render
 
 
 def test_update_from_map_packet_populates_image_and_rooms() -> None:
@@ -441,18 +447,16 @@ def test_trace_without_map_is_retained_without_rendering() -> None:
     assert trait.image_content is None
 
 
-def test_render_failure_clears_stale_image() -> None:
+def test_render_failure_clears_stale_image(render_map: Mock) -> None:
     """A failed composition cannot leave an image from older source data."""
     packet = parse_map_packet(FIXTURE.read_bytes())
     trace = Q10TracePacket(points=[Q10Point(1, 2)])
     trait = _map_trait()
 
-    with patch(
-        "roborock.devices.traits.b01.q10.map.render_q10_map",
-        side_effect=[b"initial image", RoborockException("invalid map")],
-    ):
-        trait.update_from_map_packet(packet)
-        trait.update_from_trace_packet(trace)
+    render_map.side_effect = [b"initial image", RoborockException("invalid map")]
+
+    trait.update_from_map_packet(packet)
+    trait.update_from_trace_packet(trace)
 
     assert trait.path == trace.points
     assert trait.image_content is None
@@ -461,7 +465,7 @@ def test_render_failure_clears_stale_image() -> None:
 # --- Overlays ----------------------------------------------------------------
 
 
-def test_map_dps_update_renders_decoded_overlays() -> None:
+def test_map_dps_update_renders_decoded_overlays(render_map: Mock) -> None:
     """A DPS update recomposes an existing map with decoded overlays."""
     map_dps = MapDpsTrait()
     trait = _map_trait(map_dps)
@@ -469,21 +473,19 @@ def test_map_dps_update_renders_decoded_overlays() -> None:
     notified: list[None] = []
     trait.add_update_listener(lambda: notified.append(None))
 
-    with patch(
-        "roborock.devices.traits.b01.q10.map.render_q10_map",
-        side_effect=[b"base image", b"image with overlays"],
-    ) as render:
-        trait.update_from_map_packet(packet)
-        notified.clear()
-        map_dps.update_from_dps({B01_Q10_DP.RESTRICTED_ZONE_UP: _zone_blob()})
+    render_map.side_effect = [b"base image", b"image with overlays"]
+
+    trait.update_from_map_packet(packet)
+    notified.clear()
+    map_dps.update_from_dps({B01_Q10_DP.RESTRICTED_ZONE_UP: _zone_blob()})
 
     assert len(map_dps.overlays.zones) == 1
     assert trait.image_content == b"image with overlays"
     assert notified == [None]
-    assert render.call_count == 2
-    assert render.call_args.args[0] is packet
-    assert render.call_args.args[1] is None
-    assert render.call_args.args[2] is map_dps.overlays
+    assert render_map.call_count == 2
+    assert render_map.call_args.args[0] is packet
+    assert render_map.call_args.args[1] is None
+    assert render_map.call_args.args[2] is map_dps.overlays
 
 
 def test_map_dps_blobs_are_decoded_only_when_dps_arrives() -> None:
@@ -538,3 +540,99 @@ def test_map_dps_push_without_overlay_data_points_is_noop() -> None:
 
     assert map_dps.overlays == Q10MapOverlays()
     assert not notified
+
+
+async def test_charging_status_renders_robot_at_dock(render_map: Mock) -> None:
+    """Charging status adds the idle robot marker without inventing a path."""
+    map_dps = MapDpsTrait()
+    trait = _map_trait(map_dps)
+    packet = parse_map_packet(FIXTURE.read_bytes())
+    updated = asyncio.Event()
+    trait.add_update_listener(updated.set)
+    render_map.side_effect = [b"map with dock", b"map with docked robot"]
+
+    trait.update_from_map_packet(packet)
+    updated.clear()
+    map_dps.update_from_dps({B01_Q10_DP.STATUS: YXDeviceState.CHARGING.code})
+    map_dps.update_from_dps({B01_Q10_DP.BATTERY: 50})
+
+    await asyncio.wait_for(updated.wait(), timeout=1)
+
+    assert trait.image_content == b"map with docked robot"
+    assert trait.path == []
+    assert render_map.call_count == 2
+    assert render_map.call_args.kwargs["robot_at_dock"] is True
+
+
+def test_docked_state_hides_trace_only_from_rendering(render_map: Mock) -> None:
+    """A docked render omits the valid trace without deleting source data."""
+    map_dps = MapDpsTrait()
+    trait = _map_trait(map_dps)
+    packet = parse_map_packet(FIXTURE.read_bytes())
+    trace = Q10TracePacket(points=[Q10Point(1, 2), Q10Point(3, 4)])
+    render_map.return_value = b"map"
+
+    trait.update_from_map_packet(packet)
+    trait.update_from_trace_packet(trace)
+    assert render_map.call_args.args[1] is trace
+
+    map_dps.update_from_dps({B01_Q10_DP.STATUS: YXDeviceState.CHARGING.code})
+
+    assert trait.path == trace.points
+    assert render_map.call_args.args[1] is None
+    assert render_map.call_args.kwargs["robot_at_dock"] is True
+
+
+def test_late_trace_is_retained_but_hidden_while_docked(render_map: Mock) -> None:
+    """A late trace stays available but is not part of a docked render."""
+    map_dps = MapDpsTrait()
+    map_dps.update_from_dps({B01_Q10_DP.STATUS: YXDeviceState.CHARGING.code})
+    trait = _map_trait(map_dps)
+    trace = Q10TracePacket(points=[Q10Point(1, 2)])
+    render_map.return_value = b"map"
+
+    trait.update_from_map_packet(parse_map_packet(FIXTURE.read_bytes()))
+    trait.update_from_trace_packet(trace)
+
+    assert trait.path == trace.points
+    assert render_map.call_args.args[1] is None
+
+
+def test_emptying_state_keeps_robot_at_dock(render_map: Mock) -> None:
+    """Dock emptying must not briefly remove the docked robot marker."""
+    map_dps = MapDpsTrait()
+    trait = _map_trait(map_dps)
+    packet = parse_map_packet(FIXTURE.read_bytes())
+
+    render_map.side_effect = [b"map with dock", b"map while emptying"]
+
+    trait.update_from_map_packet(packet)
+    map_dps.update_from_dps({B01_Q10_DP.STATUS: YXDeviceState.EMPTYING_THE_BIN.code})
+
+    assert trait.image_content == b"map while emptying"
+    assert render_map.call_args.kwargs["robot_at_dock"] is True
+
+
+async def test_combined_status_and_overlay_update_renders_once(render_map: Mock) -> None:
+    """One map DPS update publishes the complete new rendering state."""
+    map_dps = MapDpsTrait()
+    trait = _map_trait(map_dps)
+    updated = asyncio.Event()
+    trait.add_update_listener(updated.set)
+    render_map.side_effect = [b"base map", b"combined map"]
+
+    trait.update_from_map_packet(parse_map_packet(FIXTURE.read_bytes()))
+    updated.clear()
+    map_dps.update_from_dps(
+        {
+            B01_Q10_DP.STATUS: YXDeviceState.CHARGING.code,
+            B01_Q10_DP.RESTRICTED_ZONE_UP: _zone_blob(),
+        }
+    )
+
+    await asyncio.wait_for(updated.wait(), timeout=1)
+
+    assert render_map.call_count == 2
+    assert len(render_map.call_args.args[2].zones) == 1
+    assert render_map.call_args.kwargs["robot_at_dock"] is True
+    assert trait.image_content == b"combined map"
