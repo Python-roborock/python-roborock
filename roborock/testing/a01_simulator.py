@@ -35,6 +35,7 @@ from roborock.protocols.a01_protocol import (
 from roborock.roborock_message import (
     RoborockDyadDataProtocol,
     RoborockMessage,
+    RoborockMessageProtocol,
     RoborockZeoProtocol,
 )
 from roborock.testing.simulator import DEFAULT_LOCAL_KEY, RoborockDeviceSimulator
@@ -192,6 +193,7 @@ class A01DeviceSimulator(RoborockDeviceSimulator):
     def push_dps(self, dps_updates: dict[int, Any]) -> None:
         """Push encrypted A01 status datapoint updates to subscribers."""
         msg = encode_mqtt_payload(dps_updates)  # type: ignore[arg-type]
+        msg.protocol = RoborockMessageProtocol.RPC_RESPONSE
         self.mqtt_channel.notify_subscribers(msg)
 
     def trigger_push_update(self) -> None:
