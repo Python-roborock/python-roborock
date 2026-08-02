@@ -11,13 +11,11 @@ from roborock.data.dyad.dyad_code_mappings import (
     RoborockDyadStateCode,
 )
 from roborock.data.zeo.zeo_code_mappings import (
-    ZeoDetergentType,
     ZeoDryingMode,
     ZeoError,
     ZeoMode,
     ZeoProgram,
     ZeoRinse,
-    ZeoSoftenerType,
     ZeoSpin,
     ZeoState,
     ZeoTemperature,
