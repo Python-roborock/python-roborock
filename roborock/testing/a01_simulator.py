@@ -1,10 +1,10 @@
 """Stateful simulator for Roborock A01 (Dyad and Zeo) devices."""
 
 import copy
-from dataclasses import replace
 import enum
 import json
 import logging
+from dataclasses import replace
 from typing import Any
 
 from roborock.data import HomeDataDevice, HomeDataProduct, RoborockCategory
@@ -29,7 +29,6 @@ from roborock.data.zeo.zeo_code_mappings import (
 )
 from roborock.exceptions import RoborockException
 from roborock.protocols.a01_protocol import (
-    A01_VERSION,
     decode_rpc_response,
     encode_mqtt_payload,
 )
@@ -127,13 +126,11 @@ class A01DeviceSimulator(RoborockDeviceSimulator):
         duid: str,
         device_info: HomeDataDevice,
         product: HomeDataProduct,
-        status: dict[int | enum.Enum, Any] | None = None,
+        status: dict[Any, Any] | None = None,
     ):
         super().__init__(duid, device_info, product, has_local_channel=False)
         raw_status = status or {}
-        self.status: dict[int, Any] = {
-            int(_extract_int_value(k)): _extract_int_value(v) for k, v in raw_status.items()
-        }
+        self.status: dict[int, Any] = {int(_extract_int_value(k)): _extract_int_value(v) for k, v in raw_status.items()}
 
     def set_protocol_value(self, protocol: Any, value: Any, push: bool = False) -> None:
         """Set a protocol value in the simulator status.
@@ -194,7 +191,7 @@ class A01DeviceSimulator(RoborockDeviceSimulator):
 
     def push_dps(self, dps_updates: dict[int, Any]) -> None:
         """Push encrypted A01 status datapoint updates to subscribers."""
-        msg = encode_mqtt_payload(dps_updates)
+        msg = encode_mqtt_payload(dps_updates)  # type: ignore[arg-type]
         self.mqtt_channel.notify_subscribers(msg)
 
     def trigger_push_update(self) -> None:
@@ -208,14 +205,14 @@ class DyadSimulator(A01DeviceSimulator):
     def __init__(
         self,
         duid: str = "fake_dyad_duid",
-        status: dict[int | enum.Enum, Any] | None = None,
+        status: dict[Any, Any] | None = None,
         device_info: HomeDataDevice | None = None,
         product: HomeDataProduct | None = None,
     ):
         product = product or DEFAULT_DYAD_PRODUCT
         if device_info is None:
             device_info = replace(DEFAULT_DYAD_DEVICE_INFO, duid=duid, name=f"Dyad {duid}")
-        merged_status = copy.deepcopy(DEFAULT_DYAD_STATUS)
+        merged_status: dict[int, Any] = copy.deepcopy(DEFAULT_DYAD_STATUS)
         if status:
             for k, v in status.items():
                 merged_status[int(_extract_int_value(k))] = _extract_int_value(v)
@@ -249,14 +246,14 @@ class ZeoSimulator(A01DeviceSimulator):
     def __init__(
         self,
         duid: str = "fake_zeo_duid",
-        status: dict[int | enum.Enum, Any] | None = None,
+        status: dict[Any, Any] | None = None,
         device_info: HomeDataDevice | None = None,
         product: HomeDataProduct | None = None,
     ):
         product = product or DEFAULT_ZEO_PRODUCT
         if device_info is None:
             device_info = replace(DEFAULT_ZEO_DEVICE_INFO, duid=duid, name=f"Zeo {duid}")
-        merged_status = copy.deepcopy(DEFAULT_ZEO_STATUS)
+        merged_status: dict[int, Any] = copy.deepcopy(DEFAULT_ZEO_STATUS)
         if status:
             for k, v in status.items():
                 merged_status[int(_extract_int_value(k))] = _extract_int_value(v)
