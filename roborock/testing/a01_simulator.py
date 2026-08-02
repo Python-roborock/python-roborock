@@ -77,37 +77,37 @@ DEFAULT_ZEO_DEVICE_INFO = HomeDataDevice(
 )
 
 # Dyad protocol default values
-DEFAULT_DYAD_STATUS: dict[int, Any] = {
-    int(RoborockDyadDataProtocol.STATUS): RoborockDyadStateCode.charging.value,
-    int(RoborockDyadDataProtocol.POWER): 100,
-    int(RoborockDyadDataProtocol.SUCTION): DyadSuction.l1.value,
-    int(RoborockDyadDataProtocol.WATER_LEVEL): DyadWaterLevel.l1.value,
-    int(RoborockDyadDataProtocol.CLEAN_MODE): DyadCleanMode.auto.value,
-    int(RoborockDyadDataProtocol.AUTO_DRY): 1,
-    int(RoborockDyadDataProtocol.VOLUME_SET): 80,
-    int(RoborockDyadDataProtocol.ERROR): DyadError.none.value,
-    int(RoborockDyadDataProtocol.TOTAL_RUN_TIME): 120,
-    int(RoborockDyadDataProtocol.SILENT_MODE): 0,
+DEFAULT_DYAD_STATUS: dict[enum.Enum, Any] = {
+    RoborockDyadDataProtocol.STATUS: RoborockDyadStateCode.charging,
+    RoborockDyadDataProtocol.POWER: 100,
+    RoborockDyadDataProtocol.SUCTION: DyadSuction.l1,
+    RoborockDyadDataProtocol.WATER_LEVEL: DyadWaterLevel.l1,
+    RoborockDyadDataProtocol.CLEAN_MODE: DyadCleanMode.auto,
+    RoborockDyadDataProtocol.AUTO_DRY: 1,
+    RoborockDyadDataProtocol.VOLUME_SET: 80,
+    RoborockDyadDataProtocol.ERROR: DyadError.none,
+    RoborockDyadDataProtocol.TOTAL_RUN_TIME: 120,
+    RoborockDyadDataProtocol.SILENT_MODE: 0,
 }
 
 # Zeo protocol default values
-DEFAULT_ZEO_STATUS: dict[int, Any] = {
-    int(RoborockZeoProtocol.STATE): ZeoState.standby.value,
-    int(RoborockZeoProtocol.MODE): ZeoMode.wash_and_dry.value,
-    int(RoborockZeoProtocol.PROGRAM): ZeoProgram.standard.value,
-    int(RoborockZeoProtocol.TEMP): ZeoTemperature.medium.value,
-    int(RoborockZeoProtocol.RINSE_TIMES): ZeoRinse.low.value,
-    int(RoborockZeoProtocol.SPIN_LEVEL): ZeoSpin.high.value,
-    int(RoborockZeoProtocol.DRYING_MODE): ZeoDryingMode.store.value,
-    int(RoborockZeoProtocol.DETERGENT_EMPTY): False,
-    int(RoborockZeoProtocol.SOFTENER_EMPTY): False,
-    int(RoborockZeoProtocol.SOUND_SET): True,
-    int(RoborockZeoProtocol.ERROR): ZeoError.none.value,
-    int(RoborockZeoProtocol.WASHING_LEFT): 0,
-    int(RoborockZeoProtocol.COUNTDOWN): 0,
-    int(RoborockZeoProtocol.TIMES_AFTER_CLEAN): 0,
-    int(RoborockZeoProtocol.DETERGENT_TYPE): ZeoDetergentType.low.value,
-    int(RoborockZeoProtocol.SOFTENER_TYPE): ZeoSoftenerType.low.value,
+DEFAULT_ZEO_STATUS: dict[enum.Enum, Any] = {
+    RoborockZeoProtocol.STATE: ZeoState.standby,
+    RoborockZeoProtocol.MODE: ZeoMode.wash_and_dry,
+    RoborockZeoProtocol.PROGRAM: ZeoProgram.standard,
+    RoborockZeoProtocol.TEMP: ZeoTemperature.medium,
+    RoborockZeoProtocol.RINSE_TIMES: ZeoRinse.low,
+    RoborockZeoProtocol.SPIN_LEVEL: ZeoSpin.high,
+    RoborockZeoProtocol.DRYING_MODE: ZeoDryingMode.store,
+    RoborockZeoProtocol.DETERGENT_EMPTY: False,
+    RoborockZeoProtocol.SOFTENER_EMPTY: False,
+    RoborockZeoProtocol.SOUND_SET: True,
+    RoborockZeoProtocol.ERROR: ZeoError.none,
+    RoborockZeoProtocol.WASHING_LEFT: 0,
+    RoborockZeoProtocol.COUNTDOWN: 0,
+    RoborockZeoProtocol.TIMES_AFTER_CLEAN: 0,
+    RoborockZeoProtocol.DETERGENT_TYPE: ZeoDetergentType.low,
+    RoborockZeoProtocol.SOFTENER_TYPE: ZeoSoftenerType.low,
 }
 
 
@@ -126,13 +126,13 @@ class A01DeviceSimulator(RoborockDeviceSimulator):
         duid: str,
         device_info: HomeDataDevice,
         product: HomeDataProduct,
-        status: dict[Any, Any] | None = None,
+        status: dict[enum.Enum, Any] | None = None,
     ):
         super().__init__(duid, device_info, product, has_local_channel=False)
         raw_status = status or {}
         self.status: dict[int, Any] = {int(_extract_int_value(k)): _extract_int_value(v) for k, v in raw_status.items()}
 
-    def set_protocol_value(self, protocol: Any, value: Any, push: bool = False) -> None:
+    def set_protocol_value(self, protocol: enum.Enum | int, value: Any, push: bool = False) -> None:
         """Set a protocol value in the simulator status.
 
         Accepts protocol enums (e.g. RoborockDyadDataProtocol, RoborockZeoProtocol)
@@ -205,17 +205,17 @@ class DyadSimulator(A01DeviceSimulator):
     def __init__(
         self,
         duid: str = "fake_dyad_duid",
-        status: dict[Any, Any] | None = None,
+        status: dict[enum.Enum, Any] | None = None,
         device_info: HomeDataDevice | None = None,
         product: HomeDataProduct | None = None,
     ):
         product = product or DEFAULT_DYAD_PRODUCT
         if device_info is None:
             device_info = replace(DEFAULT_DYAD_DEVICE_INFO, duid=duid, name=f"Dyad {duid}")
-        merged_status: dict[int, Any] = copy.deepcopy(DEFAULT_DYAD_STATUS)
+        merged_status: dict[enum.Enum, Any] = copy.deepcopy(DEFAULT_DYAD_STATUS)
         if status:
             for k, v in status.items():
-                merged_status[int(_extract_int_value(k))] = _extract_int_value(v)
+                merged_status[k] = v
 
         super().__init__(duid, device_info, product, merged_status)
 
@@ -246,17 +246,17 @@ class ZeoSimulator(A01DeviceSimulator):
     def __init__(
         self,
         duid: str = "fake_zeo_duid",
-        status: dict[Any, Any] | None = None,
+        status: dict[enum.Enum, Any] | None = None,
         device_info: HomeDataDevice | None = None,
         product: HomeDataProduct | None = None,
     ):
         product = product or DEFAULT_ZEO_PRODUCT
         if device_info is None:
             device_info = replace(DEFAULT_ZEO_DEVICE_INFO, duid=duid, name=f"Zeo {duid}")
-        merged_status: dict[int, Any] = copy.deepcopy(DEFAULT_ZEO_STATUS)
+        merged_status: dict[enum.Enum, Any] = copy.deepcopy(DEFAULT_ZEO_STATUS)
         if status:
             for k, v in status.items():
-                merged_status[int(_extract_int_value(k))] = _extract_int_value(v)
+                merged_status[k] = v
 
         super().__init__(duid, device_info, product, merged_status)
 
