@@ -14,7 +14,7 @@ from PIL import Image
 from vacuum_map_parser_base.config.color import ColorsPalette, SupportedColor
 from vacuum_map_parser_base.config.drawable import Drawable
 from vacuum_map_parser_base.config.image_config import ImageConfig
-from vacuum_map_parser_base.map_data import ImageData, MapData, Path, Point, Room
+from vacuum_map_parser_base.map_data import Area, ImageData, MapData, Path, Point, Room
 
 from roborock.exceptions import RoborockException
 from roborock.map.proto.b01_scmap_pb2 import RobotMap  # type: ignore[attr-defined]
@@ -29,6 +29,7 @@ _WALL = 128
 
 _B01_DRAWABLES = [
     Drawable.CHARGER,
+    Drawable.NO_GO_AREAS,
     Drawable.PATH,
     Drawable.ROOM_NAMES,
     Drawable.VACUUM_POSITION,
@@ -163,6 +164,17 @@ def _place_poses(map_data: MapData, parsed: RobotMap, projector: _WorldToPixel) 
     elif map_data.charger is not None:
         # A saved map carries no live pose; show the robot at its dock.
         map_data.vacuum_position = Point(map_data.charger.x, map_data.charger.y, map_data.charger.a)
+
+    areas = [
+        Area(*(coord for point in area.points for coord in projector.to_pixel(point.x, point.y)))
+        for area in parsed.areaInfo
+        if len(area.points) == 4
+    ]
+    if areas:
+        # areaInfo type semantics are not yet mapped per zone kind; render all
+        # restricted areas through the no-go drawable for now.
+        map_data.no_go_areas = areas
+        has_drawables = True
 
     if parsed.HasField("historyPose"):
         pixels = [
