@@ -220,3 +220,48 @@ def test_b01_map_parser_extracts_rooms_from_outlines() -> None:
     # Outline grid rows flip top-down: y=1 -> 2, y=2 -> 1.
     assert (kitchen.x0, kitchen.y0, kitchen.x1, kitchen.y1) == (1, 1, 2, 2)
     assert (kitchen.pos_x, kitchen.pos_y) == pytest.approx((2.0, 1.0))
+
+
+def test_b01_map_parser_colors_enclosed_room_pixels() -> None:
+    """Floor pixels inside a room outline are tinted with the room color."""
+    import io
+
+    from PIL import Image
+
+    payload = RobotMap()
+    payload.mapHead.mapHeadId = 1
+    payload.mapHead.sizeX = 6
+    payload.mapHead.sizeY = 6
+    payload.mapHead.minX = 0.0
+    payload.mapHead.minY = 0.0
+    payload.mapHead.maxX = 6.0
+    payload.mapHead.maxY = 6.0
+    payload.mapHead.resolution = 1.0
+    grid = bytearray([128] * 36)
+    for row in range(1, 5):
+        for col in range(1, 5):
+            grid[row * 6 + col] = 127
+    payload.mapData.mapData = bytes(grid)
+
+    room = payload.roomDataInfo.add()
+    room.roomId = 10
+    room.roomName = "Kitchen"
+    room.roomNamePost.x = 3.2
+    room.roomNamePost.y = 3.2
+    outline = payload.roomOutline.add()
+    outline.roomId = 10
+    for row in range(1, 5):
+        for col in range(1, 5):
+            if row in (1, 4) or col in (1, 4):
+                point = outline.points.add()
+                point.x = col
+                point.y = row
+
+    parsed = B01MapParser().parse(payload.SerializeToString())
+    img = Image.open(io.BytesIO(parsed.image_content)).convert("RGB")
+
+    # Raw (3, 3) flips to display row 2; scale 4 puts it at (12..15, 8..11).
+    room_pixel = img.getpixel((13, 9))
+    assert room_pixel != (180, 180, 180)
+    # Wall border stays white.
+    assert img.getpixel((1, 1)) == (255, 255, 255)

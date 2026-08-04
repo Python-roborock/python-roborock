@@ -6,10 +6,12 @@ The inner SCMap blob is parsed with protobuf messages generated from
 
 import io
 import math
+from collections import deque
 from dataclasses import dataclass
 
 from google.protobuf.message import DecodeError
 from PIL import Image
+from vacuum_map_parser_base.config.color import ColorsPalette
 from vacuum_map_parser_base.config.drawable import Drawable
 from vacuum_map_parser_base.config.image_config import ImageConfig
 from vacuum_map_parser_base.map_data import ImageData, MapData, Path, Point, Room
@@ -18,12 +20,17 @@ from roborock.exceptions import RoborockException
 from roborock.map.proto.b01_scmap_pb2 import RobotMap  # type: ignore[attr-defined]
 
 from .map_parser import MapParserConfig, ParsedMapData, _create_image_generator
+from .room_colors import adjacency_aware_room_colors
 
 _MAP_FILE_FORMAT = "PNG"
+
+_FLOOR = 127
+_WALL = 128
 
 _B01_DRAWABLES = [
     Drawable.CHARGER,
     Drawable.PATH,
+    Drawable.ROOM_NAMES,
     Drawable.VACUUM_POSITION,
 ]
 
@@ -48,7 +55,8 @@ class B01MapParser:
         size_x, size_y, grid = _extract_grid(parsed)
         room_names = _extract_room_names(parsed)
 
-        image = _render_occupancy_image(grid, size_x=size_x, size_y=size_y, scale=self._config.map_scale)
+        room_pixels = _assign_room_pixels(parsed, grid, size_x=size_x, size_y=size_y)
+        image = _render_occupancy_image(grid, room_pixels, size_x=size_x, size_y=size_y, scale=self._config.map_scale)
 
         map_data = MapData()
         map_data.image = ImageData(
@@ -70,6 +78,7 @@ class B01MapParser:
         projector = _WorldToPixel(parsed)
         has_drawables = _place_poses(map_data, parsed, projector)
         map_data.rooms = _extract_rooms(parsed, projector, room_names)
+        has_drawables = has_drawables or bool(map_data.rooms)
 
         if has_drawables:
             generator = _create_image_generator(
@@ -208,22 +217,108 @@ def _extract_room_names(parsed: RobotMap) -> dict[int, str]:
     return room_names
 
 
-def _render_occupancy_image(grid: bytes, *, size_x: int, size_y: int, scale: int) -> Image.Image:
-    """Render the B01 occupancy grid into a simple image."""
+def _assign_room_pixels(parsed: RobotMap, grid: bytes, *, size_x: int, size_y: int) -> bytearray:
+    """Assign a room id to each floor pixel by flood-filling from room labels.
+
+    The grid itself carries no room ids; room geometry arrives as boundary
+    pixel chains (``roomOutline``). Each room is filled from its label
+    position, bounded by walls and by any room's outline pixels, all in the
+    raw (bottom-up) grid space.
+    """
+    assignment = bytearray(len(grid))
+    outlines = {outline.roomId: outline for outline in parsed.roomOutline if outline.points}
+    if not outlines:
+        return assignment
+
+    barrier = {
+        point.y * size_x + point.x
+        for outline in outlines.values()
+        for point in outline.points
+        if point.x < size_x and point.y < size_y
+    }
+    floor_count = grid.count(_FLOOR)
+    # ponytail: leak guard — a gapped outline would flood the whole floor, so a
+    # fill larger than half of it is discarded instead of tracing outline gaps.
+    max_fill = floor_count // 2
+
+    head = parsed.mapHead
+    label_positions = {
+        room.roomId: (
+            int((room.roomNamePost.x - head.minX) / head.resolution),
+            int((room.roomNamePost.y - head.minY) / head.resolution),
+        )
+        for room in parsed.roomDataInfo
+        if room.HasField("roomNamePost")
+    }
+
+    for room_id, outline in outlines.items():
+        seed = label_positions.get(room_id)
+        if seed is None:
+            continue
+        col, row = seed
+        start = row * size_x + col
+        if not (0 <= col < size_x and 0 <= row < size_y) or grid[start] != _FLOOR:
+            continue
+        filled = []
+        queue = deque([start])
+        seen = {start}
+        while queue and len(filled) <= max_fill:
+            index = queue.popleft()
+            filled.append(index)
+            for neighbor in (index - 1, index + 1, index - size_x, index + size_x):
+                if (
+                    0 <= neighbor < len(grid)
+                    and neighbor not in seen
+                    and grid[neighbor] == _FLOOR
+                    and assignment[neighbor] == 0
+                    and neighbor not in barrier
+                    # Row-wrap guard for the horizontal neighbors.
+                    and abs(neighbor % size_x - index % size_x) <= 1
+                ):
+                    seen.add(neighbor)
+                    queue.append(neighbor)
+        if len(filled) > max_fill:
+            continue
+        for index in filled:
+            assignment[index] = room_id
+        # Color the room's own boundary ring too where it sits on floor.
+        for point in outline.points:
+            index = point.y * size_x + point.x
+            if index < len(grid) and grid[index] == _FLOOR and assignment[index] == 0:
+                assignment[index] = room_id
+
+    return assignment
+
+
+def _render_occupancy_image(
+    grid: bytes, room_pixels: bytearray, *, size_x: int, size_y: int, scale: int
+) -> Image.Image:
+    """Render the B01 occupancy grid with per-room colors."""
+
+    room_colors = {
+        room_id: tuple(color[:3]) + (255,)
+        for room_id, color in adjacency_aware_room_colors(
+            room_pixels, size_x, ColorsPalette(), lambda value: value or None
+        ).items()
+    }
 
     # The observed occupancy grid contains only:
     # - 0: outside/unknown
     # - 127: floor/free
     # - 128: wall/obstacle
-    table = bytearray(range(256))
-    table[0] = 0
-    table[127] = 180
-    table[128] = 255
+    base_colors = {0: (0, 0, 0, 255), _FLOOR: (180, 180, 180, 255), _WALL: (255, 255, 255, 255)}
+    fallback = (180, 180, 180, 255)
 
-    mapped = grid.translate(bytes(table))
-    img = Image.frombytes("L", (size_x, size_y), mapped)
+    rgba = bytearray()
+    for index, value in enumerate(grid):
+        if value == _FLOOR and (room_id := room_pixels[index]):
+            rgba.extend(room_colors.get(room_id, fallback))
+        else:
+            rgba.extend(base_colors.get(value, fallback))
+
     # RGBA so the shared V1 ImageGenerator can alpha-composite overlay glyphs.
-    img = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM).convert("RGBA")
+    img = Image.frombytes("RGBA", (size_x, size_y), bytes(rgba))
+    img = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
 
     if scale > 1:
         img = img.resize((size_x * scale, size_y * scale), resample=Image.Resampling.NEAREST)
