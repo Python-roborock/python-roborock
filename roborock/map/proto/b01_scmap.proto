@@ -110,6 +110,16 @@ message RoomOutlineInfo {
   repeated RoomBorderInfo borders = 3;
 }
 
+message CarpetDataInfo {
+  optional uint32 carpetId = 1;
+  optional uint32 type = 2;
+  optional uint32 unknown3 = 3;
+  repeated DevicePointInfo points = 4;
+  optional uint32 enabled = 6;
+  optional uint32 unknown7 = 7;
+  optional uint32 unknown8 = 8;
+}
+
 message RoomDataInfo {
   optional uint32 roomId = 1;
   optional string roomName = 2;
@@ -137,4 +147,5 @@ message RobotMap {
   repeated RoomDataInfo roomDataInfo = 12;
   optional RoomMatrixInfo roomMatrix = 13;
   repeated RoomOutlineInfo roomOutline = 14;
+  repeated CarpetDataInfo carpetInfo = 20;
 }

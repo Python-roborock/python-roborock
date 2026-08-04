@@ -57,7 +57,10 @@ class B01MapParser:
         room_names = _extract_room_names(parsed)
 
         room_pixels = _assign_room_pixels(parsed, grid, size_x=size_x, size_y=size_y)
-        image = _render_occupancy_image(grid, room_pixels, size_x=size_x, size_y=size_y, scale=self._config.map_scale)
+        carpet_pixels = _carpet_pixel_indices(parsed, grid, size_x=size_x, size_y=size_y)
+        image = _render_occupancy_image(
+            grid, room_pixels, carpet_pixels, size_x=size_x, size_y=size_y, scale=self._config.map_scale
+        )
 
         map_data = MapData()
         map_data.image = ImageData(
@@ -80,6 +83,9 @@ class B01MapParser:
         has_drawables = _place_poses(map_data, parsed, projector)
         map_data.rooms = _extract_rooms(parsed, projector, room_names)
         has_drawables = has_drawables or bool(map_data.rooms)
+        if carpet_pixels:
+            # Same contract as the Q10 parser: flat top-down grid indices.
+            map_data.carpet_map = {(size_y - 1 - index // size_x) * size_x + index % size_x for index in carpet_pixels}
 
         if has_drawables:
             generator = _create_image_generator(
@@ -302,8 +308,26 @@ def _assign_room_pixels(parsed: RobotMap, grid: bytes, *, size_x: int, size_y: i
     return assignment
 
 
+def _carpet_pixel_indices(parsed: RobotMap, grid: bytes, *, size_x: int, size_y: int) -> set[int]:
+    """Raw-grid indices of floor pixels covered by enabled carpets."""
+    head = parsed.mapHead
+    resolution = head.resolution or 0.05
+    indices: set[int] = set()
+    for carpet in parsed.carpetInfo:
+        if not carpet.points or (carpet.HasField("enabled") and not carpet.enabled):
+            continue
+        cols = [int((point.x - head.minX) / resolution) for point in carpet.points]
+        rows = [int((point.y - head.minY) / resolution) for point in carpet.points]
+        for row in range(max(min(rows), 0), min(max(rows), size_y - 1) + 1):
+            for col in range(max(min(cols), 0), min(max(cols), size_x - 1) + 1):
+                index = row * size_x + col
+                if grid[index] == _FLOOR:
+                    indices.add(index)
+    return indices
+
+
 def _render_occupancy_image(
-    grid: bytes, room_pixels: bytearray, *, size_x: int, size_y: int, scale: int
+    grid: bytes, room_pixels: bytearray, carpet_pixels: set[int], *, size_x: int, size_y: int, scale: int
 ) -> Image.Image:
     """Render the B01 occupancy grid with per-room colors."""
 
@@ -332,9 +356,13 @@ def _render_occupancy_image(
     rgba = bytearray()
     for index, value in enumerate(grid):
         if value == _FLOOR and (room_id := room_pixels[index]):
-            rgba.extend(room_colors.get(room_id, floor))
+            color = room_colors.get(room_id, floor)
         else:
-            rgba.extend(base_colors.get(value, floor))
+            color = base_colors.get(value, floor)
+        if index in carpet_pixels and (index // size_x + index % size_x) % 2 == 0:
+            # Checkerboard stipple, like the V1 carpet texture.
+            color = tuple(min(channel + 60, 255) for channel in color[:3]) + (255,)
+        rgba.extend(color)
 
     # RGBA so the shared V1 ImageGenerator can alpha-composite overlay glyphs.
     img = Image.frombytes("RGBA", (size_x, size_y), bytes(rgba))
