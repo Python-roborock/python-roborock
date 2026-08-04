@@ -130,3 +130,93 @@ def test_b01_map_parser_rejects_invalid_payload() -> None:
     parser = B01MapParser()
     with pytest.raises(RoborockException, match="Failed to parse B01 SCMap"):
         parser.parse(b"not a map")
+
+
+def _pose_map_payload() -> RobotMap:
+    """A minimal 4x4 map with pose, path and room-outline data."""
+    payload = RobotMap()
+    payload.mapType = 0
+    payload.mapHead.mapHeadId = 1
+    payload.mapHead.sizeX = 4
+    payload.mapHead.sizeY = 4
+    payload.mapHead.minX = -0.1
+    payload.mapHead.minY = -0.1
+    payload.mapHead.maxX = 0.1
+    payload.mapHead.maxY = 0.1
+    payload.mapHead.resolution = 0.05
+    payload.mapData.mapData = bytes([127] * 16)
+    return payload
+
+
+def test_b01_map_parser_projects_poses_and_path() -> None:
+    payload = _pose_map_payload()
+    payload.chargeStation.x = 0.0
+    payload.chargeStation.y = 0.0
+    payload.chargeStation.phi = 0.0
+    payload.currentPose.poseId = 2
+    payload.currentPose.update = 6
+    payload.currentPose.x = 0.05
+    payload.currentPose.y = -0.05
+    payload.currentPose.phi = 0.0
+    for x, y in [(0.0, 0.0), (0.05, 0.0)]:
+        point = payload.historyPose.points.add()
+        point.x = x
+        point.y = y
+
+    parsed = B01MapParser().parse(payload.SerializeToString())
+    map_data = parsed.map_data
+
+    # World (0, 0) with min (-0.1, -0.1) at 0.05 m/px is pixel (2, 2),
+    # flipped top-down to row sizeY - 1 - 2 = 1.
+    assert map_data.charger is not None
+    assert (map_data.charger.x, map_data.charger.y) == pytest.approx((2.0, 1.0))
+    assert map_data.vacuum_position is not None
+    assert (map_data.vacuum_position.x, map_data.vacuum_position.y) == pytest.approx((3.0, 2.0))
+    assert map_data.path is not None
+    assert [(p.x, p.y) for p in map_data.path.path[0]] == [
+        pytest.approx((2.0, 1.0)),
+        pytest.approx((3.0, 1.0)),
+    ]
+
+
+def test_b01_map_parser_rejects_placeholder_pose() -> None:
+    """Saved maps carry a placeholder (1100, 1100) pose that must not render."""
+    payload = _pose_map_payload()
+    payload.chargeStation.x = 0.0
+    payload.chargeStation.y = 0.0
+    payload.chargeStation.phi = 0.5
+    payload.currentPose.x = 1100.0
+    payload.currentPose.y = 1100.0
+
+    parsed = B01MapParser().parse(payload.SerializeToString())
+    map_data = parsed.map_data
+
+    # The out-of-bounds pose is ignored; the robot is shown at its dock.
+    assert map_data.vacuum_position is not None
+    assert (map_data.vacuum_position.x, map_data.vacuum_position.y) == pytest.approx((2.0, 1.0))
+
+
+def test_b01_map_parser_extracts_rooms_from_outlines() -> None:
+    payload = _pose_map_payload()
+    room = payload.roomDataInfo.add()
+    room.roomId = 10
+    room.roomName = "Kitchen"
+    room.roomNamePost.x = 0.0
+    room.roomNamePost.y = 0.0
+    outline = payload.roomOutline.add()
+    outline.roomId = 10
+    for x, y in [(1, 1), (2, 2)]:
+        point = outline.points.add()
+        point.x = x
+        point.y = y
+
+    parsed = B01MapParser().parse(payload.SerializeToString())
+    rooms = parsed.map_data.rooms
+
+    assert rooms is not None
+    assert set(rooms) == {10}
+    kitchen = rooms[10]
+    assert kitchen.name == "Kitchen"
+    # Outline grid rows flip top-down: y=1 -> 2, y=2 -> 1.
+    assert (kitchen.x0, kitchen.y0, kitchen.x1, kitchen.y1) == (1, 1, 2, 2)
+    assert (kitchen.pos_x, kitchen.pos_y) == pytest.approx((2.0, 1.0))

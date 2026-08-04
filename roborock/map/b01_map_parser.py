@@ -5,19 +5,27 @@ The inner SCMap blob is parsed with protobuf messages generated from
 """
 
 import io
+import math
 from dataclasses import dataclass
 
 from google.protobuf.message import DecodeError
 from PIL import Image
+from vacuum_map_parser_base.config.drawable import Drawable
 from vacuum_map_parser_base.config.image_config import ImageConfig
-from vacuum_map_parser_base.map_data import ImageData, MapData
+from vacuum_map_parser_base.map_data import ImageData, MapData, Path, Point, Room
 
 from roborock.exceptions import RoborockException
 from roborock.map.proto.b01_scmap_pb2 import RobotMap  # type: ignore[attr-defined]
 
-from .map_parser import ParsedMapData
+from .map_parser import MapParserConfig, ParsedMapData, _create_image_generator
 
 _MAP_FILE_FORMAT = "PNG"
+
+_B01_DRAWABLES = [
+    Drawable.CHARGER,
+    Drawable.PATH,
+    Drawable.VACUUM_POSITION,
+]
 
 
 @dataclass
@@ -51,10 +59,25 @@ class B01MapParser:
             width=size_x,
             image_config=ImageConfig(scale=self._config.map_scale),
             data=image,
-            img_transformation=lambda p: p,
+            # Overlay points are stored in the rendered image's top-down pixel
+            # space. ImageDimensions applies V1's bottom-up flip before drawing,
+            # so this adapter cancels it (same approach as the Q10 renderer).
+            img_transformation=lambda p: Point(p.x, size_y - p.y - 1, p.a),
         )
         if room_names:
             map_data.additional_parameters["room_names"] = room_names
+
+        projector = _WorldToPixel(parsed)
+        has_drawables = _place_poses(map_data, parsed, projector)
+        map_data.rooms = _extract_rooms(parsed, projector, room_names)
+
+        if has_drawables:
+            generator = _create_image_generator(
+                MapParserConfig(map_scale=self._config.map_scale),
+                drawables=_B01_DRAWABLES,
+            )
+            generator.draw_map(map_data)
+            image = map_data.image.data
 
         image_bytes = io.BytesIO()
         image.save(image_bytes, format=_MAP_FILE_FORMAT)
@@ -92,6 +115,89 @@ def _extract_grid(parsed: RobotMap) -> tuple[int, int, bytes]:
     return size_x, size_y, map_data[:expected_len]
 
 
+class _WorldToPixel:
+    """Project SCMap world coordinates (meters) into top-down image pixels."""
+
+    def __init__(self, parsed: RobotMap) -> None:
+        head = parsed.mapHead
+        self._min_x = head.minX
+        self._min_y = head.minY
+        self._max_x = head.maxX
+        self._max_y = head.maxY
+        self._resolution = head.resolution or 0.05
+        self._size_y = head.sizeY
+
+    def in_bounds(self, x: float, y: float) -> bool:
+        """Whether a world point lies inside the map (rejects placeholder poses)."""
+        return self._min_x <= x <= self._max_x and self._min_y <= y <= self._max_y
+
+    def to_pixel(self, x: float, y: float) -> tuple[float, float]:
+        """World meters to top-down image pixel coordinates."""
+        px = (x - self._min_x) / self._resolution
+        py = self._size_y - 1 - (y - self._min_y) / self._resolution
+        return px, py
+
+
+def _place_poses(map_data: MapData, parsed: RobotMap, projector: _WorldToPixel) -> bool:
+    """Populate charger, robot position and path from the decoded SCMap."""
+    has_drawables = False
+
+    if parsed.HasField("chargeStation") and projector.in_bounds(parsed.chargeStation.x, parsed.chargeStation.y):
+        px, py = projector.to_pixel(parsed.chargeStation.x, parsed.chargeStation.y)
+        map_data.charger = Point(px, py, math.degrees(parsed.chargeStation.phi))
+        has_drawables = True
+
+    if parsed.HasField("currentPose") and projector.in_bounds(parsed.currentPose.x, parsed.currentPose.y):
+        px, py = projector.to_pixel(parsed.currentPose.x, parsed.currentPose.y)
+        map_data.vacuum_position = Point(px, py, math.degrees(parsed.currentPose.phi))
+        has_drawables = True
+    elif map_data.charger is not None:
+        # A saved map carries no live pose; show the robot at its dock.
+        map_data.vacuum_position = Point(map_data.charger.x, map_data.charger.y, map_data.charger.a)
+
+    if parsed.HasField("historyPose"):
+        pixels = [
+            Point(*projector.to_pixel(point.x, point.y))
+            for point in parsed.historyPose.points
+            if projector.in_bounds(point.x, point.y)
+        ]
+        if pixels:
+            map_data.path = Path(len(pixels), 1, 0, [pixels])
+            has_drawables = True
+
+    return has_drawables
+
+
+def _extract_rooms(parsed: RobotMap, projector: _WorldToPixel, room_names: dict[int, str]) -> dict[int, Room] | None:
+    """Build room bounding boxes (image-pixel space) from room outlines."""
+    rooms: dict[int, Room] = {}
+    label_positions = {
+        room.roomId: projector.to_pixel(room.roomNamePost.x, room.roomNamePost.y)
+        for room in parsed.roomDataInfo
+        if room.HasField("roomNamePost")
+    }
+    size_y = parsed.mapHead.sizeY
+    for outline in parsed.roomOutline:
+        if not outline.points:
+            continue
+        room_id = outline.roomId
+        # Outline points are top-down after the same vertical flip as the raster.
+        xs = [point.x for point in outline.points]
+        ys = [size_y - 1 - point.y for point in outline.points]
+        pos = label_positions.get(room_id)
+        rooms[room_id] = Room(
+            min(xs),
+            min(ys),
+            max(xs),
+            max(ys),
+            room_id,
+            room_names.get(room_id),
+            pos[0] if pos else None,
+            pos[1] if pos else None,
+        )
+    return rooms or None
+
+
 def _extract_room_names(parsed: RobotMap) -> dict[int, str]:
     # Expose room id/name mapping without inventing room geometry/polygons.
     room_names: dict[int, str] = {}
@@ -107,8 +213,8 @@ def _render_occupancy_image(grid: bytes, *, size_x: int, size_y: int, scale: int
 
     # The observed occupancy grid contains only:
     # - 0: outside/unknown
-    # - 127: wall/obstacle
-    # - 128: floor/free
+    # - 127: floor/free
+    # - 128: wall/obstacle
     table = bytearray(range(256))
     table[0] = 0
     table[127] = 180
@@ -116,7 +222,8 @@ def _render_occupancy_image(grid: bytes, *, size_x: int, size_y: int, scale: int
 
     mapped = grid.translate(bytes(table))
     img = Image.frombytes("L", (size_x, size_y), mapped)
-    img = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM).convert("RGB")
+    # RGBA so the shared V1 ImageGenerator can alpha-composite overlay glyphs.
+    img = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM).convert("RGBA")
 
     if scale > 1:
         img = img.resize((size_x * scale, size_y * scale), resample=Image.Resampling.NEAREST)
