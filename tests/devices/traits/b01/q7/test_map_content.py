@@ -87,3 +87,76 @@ async def test_q7_map_content_refresh_errors_without_map_list(
 
     with pytest.raises(RoborockException, match="Unable to determine current map ID"):
         await q7_api.map_content.refresh()
+
+
+async def test_q7_map_content_updates_from_push(
+    q7_api: Q7PropertiesApi,
+    fake_channel: FakeQ7Channel,
+):
+    """Unsolicited map pushes update the cached map and notify listeners."""
+    await q7_api.start()
+    assert fake_channel.map_push_callback is not None
+
+    updates: list[bool] = []
+    q7_api.map_content.add_update_listener(lambda: updates.append(True))
+
+    dummy_map_data = MapData()
+    parsed_map_data = ParsedMapData(
+        image_content=b"pngbytes",
+        map_data=dummy_map_data,
+    )
+    with patch(
+        "roborock.devices.traits.b01.q7.map_content.B01MapParser.parse",
+        return_value=parsed_map_data,
+    ):
+        fake_channel.map_push_callback(b"pushed-payload")
+
+    assert q7_api.map_content.image_content == b"pngbytes"
+    assert q7_api.map_content.raw_api_response == b"pushed-payload"
+    assert updates == [True]
+
+    await q7_api.close()
+    assert fake_channel.map_push_callback is None
+
+
+async def test_q7_map_content_push_parse_failure_keeps_previous_map(
+    q7_api: Q7PropertiesApi,
+    fake_channel: FakeQ7Channel,
+):
+    """A malformed pushed frame is dropped without clearing cached content."""
+    await q7_api.start()
+    assert fake_channel.map_push_callback is not None
+
+    dummy_map_data = MapData()
+    parsed_map_data = ParsedMapData(
+        image_content=b"pngbytes",
+        map_data=dummy_map_data,
+    )
+    with patch(
+        "roborock.devices.traits.b01.q7.map_content.B01MapParser.parse",
+        return_value=parsed_map_data,
+    ):
+        fake_channel.map_push_callback(b"good-payload")
+
+    updates: list[bool] = []
+    q7_api.map_content.add_update_listener(lambda: updates.append(True))
+
+    fake_channel.map_push_callback(b"not a map")
+
+    assert q7_api.map_content.image_content == b"pngbytes"
+    assert q7_api.map_content.raw_api_response == b"good-payload"
+    assert updates == []
+    await q7_api.close()
+
+
+async def test_q7_start_is_idempotent(
+    q7_api: Q7PropertiesApi,
+    fake_channel: FakeQ7Channel,
+):
+    """Repeated start() calls must not leak additional subscriptions."""
+    await q7_api.start()
+    await q7_api.start()
+
+    assert fake_channel.map_push_subscribe_count == 1
+    await q7_api.close()
+    assert fake_channel.map_push_callback is None
