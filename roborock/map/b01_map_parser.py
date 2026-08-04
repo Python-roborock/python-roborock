@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 from google.protobuf.message import DecodeError
 from PIL import Image
-from vacuum_map_parser_base.config.color import ColorsPalette
+from vacuum_map_parser_base.config.color import ColorsPalette, SupportedColor
 from vacuum_map_parser_base.config.drawable import Drawable
 from vacuum_map_parser_base.config.image_config import ImageConfig
 from vacuum_map_parser_base.map_data import ImageData, MapData, Path, Point, Room
@@ -295,10 +295,11 @@ def _render_occupancy_image(
 ) -> Image.Image:
     """Render the B01 occupancy grid with per-room colors."""
 
+    colors = ColorsPalette()
     room_colors = {
         room_id: tuple(color[:3]) + (255,)
         for room_id, color in adjacency_aware_room_colors(
-            room_pixels, size_x, ColorsPalette(), lambda value: value or None
+            room_pixels, size_x, colors, lambda value: value or None
         ).items()
     }
 
@@ -306,15 +307,22 @@ def _render_occupancy_image(
     # - 0: outside/unknown
     # - 127: floor/free
     # - 128: wall/obstacle
-    base_colors = {0: (0, 0, 0, 255), _FLOOR: (180, 180, 180, 255), _WALL: (255, 255, 255, 255)}
-    fallback = (180, 180, 180, 255)
+    # Same V1 palette roles as the Q10 renderer: transparent outside, grey
+    # walls/obstacles, MAP_INSIDE for floor not assigned to any room.
+    outside = (0, 0, 0, 0)
+    floor = tuple(colors.get_color(SupportedColor.MAP_INSIDE)[:3]) + (255,)
+    base_colors = {
+        0: outside,
+        _FLOOR: floor,
+        _WALL: tuple(colors.get_color(SupportedColor.GREY_WALL)[:3]) + (255,),
+    }
 
     rgba = bytearray()
     for index, value in enumerate(grid):
         if value == _FLOOR and (room_id := room_pixels[index]):
-            rgba.extend(room_colors.get(room_id, fallback))
+            rgba.extend(room_colors.get(room_id, floor))
         else:
-            rgba.extend(base_colors.get(value, fallback))
+            rgba.extend(base_colors.get(value, floor))
 
     # RGBA so the shared V1 ImageGenerator can alpha-composite overlay glyphs.
     img = Image.frombytes("RGBA", (size_x, size_y), bytes(rgba))

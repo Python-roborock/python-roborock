@@ -262,6 +262,6 @@ def test_b01_map_parser_colors_enclosed_room_pixels() -> None:
 
     # Raw (3, 3) flips to display row 2; scale 4 puts it at (12..15, 8..11).
     room_pixel = img.getpixel((13, 9))
-    assert room_pixel != (180, 180, 180)
-    # Wall border stays white.
-    assert img.getpixel((1, 1)) == (255, 255, 255)
+    assert room_pixel != (32, 115, 185)  # not the plain MAP_INSIDE floor color
+    # Walls/obstacles render with the shared V1 grey wall color.
+    assert img.getpixel((1, 1)) == (93, 109, 126)
