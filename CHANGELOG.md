@@ -2,6 +2,42 @@
 
 <!-- version list -->
 
+## v6.2.1 (2026-08-02)
+
+### Bug Fixes
+
+- Show docked Q10 robot on map ([#904](https://github.com/Python-roborock/python-roborock/pull/904),
+  [`df75659`](https://github.com/Python-roborock/python-roborock/commit/df75659f4ee87d1c04f241bc0b1fa7b6d1f70715))
+
+### Refactoring
+
+- Render Q10 overlays with V1 ([#903](https://github.com/Python-roborock/python-roborock/pull/903),
+  [`347a8f6`](https://github.com/Python-roborock/python-roborock/commit/347a8f6190cb8b7b8b607f3ca561ae025be956b5))
+
+
+## v6.2.0 (2026-07-30)
+
+### Features
+
+- Align Q10 map colors with V1 ([#902](https://github.com/Python-roborock/python-roborock/pull/902),
+  [`dbb6c46`](https://github.com/Python-roborock/python-roborock/commit/dbb6c4663bcd5a0560d7438b49272ab53b91c4f4))
+
+### Refactoring
+
+- Clarify room palette cache handling
+  ([#902](https://github.com/Python-roborock/python-roborock/pull/902),
+  [`dbb6c46`](https://github.com/Python-roborock/python-roborock/commit/dbb6c4663bcd5a0560d7438b49272ab53b91c4f4))
+
+
+## v6.1.0 (2026-07-30)
+
+### Features
+
+- Use display name to fix duplicate code mappings
+  ([#870](https://github.com/Python-roborock/python-roborock/pull/870),
+  [`d0a99c2`](https://github.com/Python-roborock/python-roborock/commit/d0a99c28e65d6c1bc6bc00852b261d4a82b3feb7))
+
+
 ## v6.0.0 (2026-07-27)
 
 ### Features

@@ -10,9 +10,21 @@ completed_warnings = set()
 class RoborockEnum(IntEnum):
     """Roborock Enum for codes with int values"""
 
+    _display_name_: str | None
+
+    def __new__(cls, value: int, display_name: str | None = None) -> Self:
+        member = int.__new__(cls, value)
+        member._value_ = value
+        member._display_name_ = display_name
+        return member
+
     @property
     def name(self) -> str:
         return super().name.lower()
+
+    @property
+    def display_name(self) -> str:
+        return self._display_name_ or self.name
 
     @classmethod
     def _missing_(cls: type[Self], key) -> Self:
@@ -30,8 +42,13 @@ class RoborockEnum(IntEnum):
         return default_value
 
     @classmethod
-    def as_dict(cls: type[Self]):
-        return {i.name: i.value for i in cls if i.name != "missing"}
+    def as_dict(cls: type[Self]) -> dict[str, int]:
+        result: dict[str, int] = {}
+        for item in cls:
+            if item.name == "missing":
+                continue
+            result.setdefault(item.display_name, item.value)
+        return result
 
     @classmethod
     def as_enum_dict(cls: type[Self]):

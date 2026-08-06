@@ -19,11 +19,12 @@ the next, a coordinate, as a record count).  The coordinate order matches the
 zones (first wire word = x), confirmed against the app.  Provenance and the
 byte-level breakdown are in PR #850's review thread.
 
-Coordinates are in the device's world units (the same space as the cleaning
-path), so a :class:`~roborock.map.b01_grid_layers.GridCalibration` maps them to
-map pixels. ``type`` distinguishes the restriction kind (2 = no-mop, 3 = door
-threshold, anything else -- incl. 0 -- a no-go zone); it is preserved verbatim
-so callers can route polygons to the right ``MapData`` layer.
+Coordinates are in 5 mm device world units, the same space as erase polygons.
+Cleaning trace points use a separate 2.5 mm scale, so callers must not project
+both through the same resolution. ``type`` distinguishes the restriction kind
+(2 = no-mop, 3 = door threshold, anything else -- incl. 0 -- a no-go zone); it
+is preserved verbatim so callers can route polygons to the right ``MapData``
+layer.
 """
 
 import base64
