@@ -4,12 +4,12 @@ Map-related state arrives on three independent streams:
 
 * map packets are decoded from map-protocol responses;
 * trace packets are decoded from trace-protocol responses;
-* restricted zones and virtual walls arrive as ordinary DPS values.
+* restricted zones, virtual walls and dock state arrive as ordinary DPS values.
 
-``MapDpsTrait`` owns the low-level DPS read model. ``MapContentTrait`` depends
-on it and combines that state with the latest map/trace packets through the pure
-functions in :mod:`roborock.map.b01_q10_render`. The high-level trait keeps only
-the latest value from each source and one replace-whole rendered image;
+``MapDpsTrait`` owns the low-level map-specific DPS read model.
+``MapContentTrait`` combines that state with the latest map/trace packets
+through the pure functions in :mod:`roborock.map.b01_q10_render`. The high-level
+trait keeps only the latest value from each source and one replace-whole image;
 calibration, path placement and overlay placement remain inside the renderer.
 """
 
@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from roborock.data import RoborockBase
-from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
+from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP, YXDeviceState
 from roborock.devices.traits.common import DpsDataConverter, TraitUpdateListener
 from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
@@ -34,12 +34,14 @@ from roborock.map.b01_q10_render import Q10MapOverlays, render_q10_map
 from .common import UpdatableTrait
 
 _LOGGER = logging.getLogger(__name__)
+_DOCKED_STATES = {YXDeviceState.CHARGING, YXDeviceState.EMPTYING_THE_BIN}
 
 
 @dataclass
 class MapDps(RoborockBase):
     """Low-level map values delivered in the Q10 DPS stream."""
 
+    status: YXDeviceState | None = field(default=None, metadata={"dps": B01_Q10_DP.STATUS})
     restricted_zone_up: str | None = field(default=None, metadata={"dps": B01_Q10_DP.RESTRICTED_ZONE_UP})
     virtual_wall_up: str | None = field(default=None, metadata={"dps": B01_Q10_DP.VIRTUAL_WALL_UP})
 
@@ -59,8 +61,13 @@ class MapDpsTrait(MapDps, UpdatableTrait):
         """Overlays decoded once from the latest relevant DPS update."""
         return self._overlays
 
+    @property
+    def robot_at_dock(self) -> bool:
+        """Whether status places the idle robot at the saved dock."""
+        return self.status in _DOCKED_STATES
+
     def update_from_dps(self, decoded_dps: dict[B01_Q10_DP, Any]) -> None:
-        """Decode overlay blobs when they arrive, then notify dependents."""
+        """Update one coherent snapshot of the DPS inputs used by the map."""
         if not self._CONVERTER.update_from_dps(self, decoded_dps):
             return
         self._overlays = Q10MapOverlays(
@@ -73,8 +80,8 @@ class MapDpsTrait(MapDps, UpdatableTrait):
 class MapContentTrait(TraitUpdateListener):
     """High-level composed Q10 map view.
 
-    The latest map and trace packets are combined with the injected
-    :class:`MapDpsTrait` whenever any of those three sources changes.
+    The latest map and trace packets are combined with the injected map DPS
+    whenever any source changes.
     """
 
     def __init__(
@@ -129,7 +136,7 @@ class MapContentTrait(TraitUpdateListener):
         self._notify_update()
 
     def _map_dps_updated(self) -> None:
-        """Render after the low-level DPS source changes."""
+        """Render after the low-level map DPS source changes."""
         if self._map_packet is None:
             return
         self._render()
@@ -142,9 +149,10 @@ class MapContentTrait(TraitUpdateListener):
         try:
             self._image_content = render_q10_map(
                 self._map_packet,
-                self._trace_packet,
+                self._trace_packet if not self._map_dps.robot_at_dock else None,
                 self._map_dps.overlays,
                 config=self._config,
+                robot_at_dock=self._map_dps.robot_at_dock,
             )
         except RoborockException as ex:
             _LOGGER.debug("Failed to render Q10 map packet: %s", ex)

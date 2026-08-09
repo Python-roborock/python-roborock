@@ -9,6 +9,12 @@ import pytest
 from roborock import HomeDataProduct, RoborockCategory
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP, YXCleanType
 from roborock.data.code_mappings import completed_warnings
+from roborock.data.dyad.dyad_code_mappings import DyadError
+from roborock.data.v1.v1_code_mappings import (
+    RoborockErrorCode,
+    RoborockFinishReason,
+    RoborockStateCode,
+)
 
 
 def test_from_code() -> None:
@@ -135,3 +141,22 @@ def test_yx_clean_type_from_value_readable_values(readable_value: str, expected_
 def test_yx_clean_type_from_code_customized() -> None:
     """Test YXCleanType accepts custom mode code used by Q10 status updates."""
     assert YXCleanType.from_code(4) is YXCleanType.CUSTOMIZED
+
+
+def test_roborock_enum_display_names_group_duplicate_protocol_codes() -> None:
+    """Duplicate protocol meanings keep raw codes but expose one user-facing name."""
+    assert RoborockStateCode(25) is RoborockStateCode.washing_the_mop_2
+    assert RoborockStateCode(25).value == 25
+    assert RoborockStateCode(25).display_name == "washing_the_mop"
+    assert RoborockStateCode.keys().count("washing_the_mop") == 1
+    assert "washing_the_mop_2" not in RoborockStateCode.keys()
+
+    assert RoborockErrorCode(45).display_name == "mopping_roller_1"
+    assert RoborockErrorCode.keys().count("mopping_roller_1") == 1
+    assert "mopping_roller_2" not in RoborockErrorCode.keys()
+
+    assert RoborockFinishReason(56).display_name == "finished_cleaning"
+    assert "finished_cleaning_4" not in RoborockFinishReason.keys()
+
+    assert DyadError(20008).display_name == "battery_temperature_protection"
+    assert "battery_temperature_protection_2" not in DyadError.keys()

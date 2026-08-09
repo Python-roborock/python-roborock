@@ -125,45 +125,98 @@ class RoborockDyadDataProtocol(RoborockEnum):
 
 
 class RoborockZeoProtocol(RoborockEnum):
-    START = 200  # rw
+    """Zeo device Data Point protocol IDs (200-266) and meta/RPC commands (10000+).
+
+    Comment tags:
+      ro  — read-only
+      rw  — read-write
+      wo  — write-only
+      [startWith]  — must be bundled with START via start()
+      [independent] — immediate effect, works via set_value()
+    """
+
+    # ── DP 200-266 ─────────────────────────────────────────────────────
+    START = 200  # rw  [action → start()]
     PAUSE = 201  # rw
     SHUTDOWN = 202  # rw
     STATE = 203  # ro
-    MODE = 204  # rw
-    PROGRAM = 205  # rw
-    CHILD_LOCK = 206  # rw
-    TEMP = 207  # rw
-    RINSE_TIMES = 208  # rw
-    SPIN_LEVEL = 209  # rw
-    DRYING_MODE = 210  # rw
-    DETERGENT_SET = 211  # rw
-    SOFTENER_SET = 212  # rw
-    DETERGENT_TYPE = 213  # rw
-    SOFTENER_TYPE = 214  # rw
-    COUNTDOWN = 217  # rw
+    MODE = 204  # rw  [startWith]
+    PROGRAM = 205  # rw  [startWith]
+    CHILD_LOCK = 206  # rw  [independent]
+    TEMP = 207  # rw  [startWith]
+    RINSE_TIMES = 208  # rw  [startWith]
+    SPIN_LEVEL = 209  # rw  [startWith]
+    DRYING_MODE = 210  # rw  [startWith]
+    DETERGENT_SET = 211  # rw  [independent]
+    SOFTENER_SET = 212  # rw  [independent]
+    DETERGENT_TYPE = 213  # rw  [independent]
+    SOFTENER_TYPE = 214  # rw  [independent]
+    DIRT_DETECTION_SWITCH = 215  # rw  [independent]
+    DIRT_DETECTION_STATUS = 216  # ro
+    COUNTDOWN = 217  # rw  [independent]  also used in start_with_preset()
     WASHING_LEFT = 218  # ro
     DOORLOCK_STATE = 219  # ro
     ERROR = 220  # ro
-    CUSTOM_PARAM_SAVE = 221  # rw
-    CUSTOM_PARAM_GET = 222  # ro
-    SOUND_SET = 223  # rw
+    CUSTOM_PARAM_SAVE = 221  # rw  [independent]  see save_cloud_program()
+    CUSTOM_PARAM_GET = 222  # rw  [independent]  read via get_custom_mode(), write via load_cloud_program()
+    SOUND_SET = 223  # rw  [independent]
     TIMES_AFTER_CLEAN = 224  # ro
-    DEFAULT_SETTING = 225  # rw
+    DEFAULT_SETTING = 225  # rw  [independent]
     DETERGENT_EMPTY = 226  # ro
     SOFTENER_EMPTY = 227  # ro
-    LIGHT_SETTING = 229  # rw
-    DETERGENT_VOLUME = 230  # rw
-    SOFTENER_VOLUME = 231  # rw
-    APP_AUTHORIZATION = 232  # rw
-    ID_QUERY = 10000
-    F_C = 10001
-    SND_STATE = 10004
-    PRODUCT_INFO = 10005
-    PRIVACY_INFO = 10006
-    OTA_NFO = 10007
-    WASHING_LOG = 10008
-    RPC_REQ = 10101
-    RPC_RESp = 10102
+    UV_LIGHT = 228  # rw  [independent]
+    LIGHT_SETTING = 229  # rw  [independent]  server schema only, not found in bundle
+    DETERGENT_VOLUME = 230  # rw  [independent]  server schema only, not found in bundle
+    SOFTENER_VOLUME = 231  # rw  [independent]  server schema only, not found in bundle
+    APP_AUTHORIZATION = 232  # ro
+    SOAK = 233  # rw  [startWith]
+    TOTAL_TIME = 234  # ro  used in dryer startWith payload
+    SMART_HOSTING = 235  # rw  [independent]
+    SMART_HOSTING_TIME = 236  # ro
+    FEATURE_BITS = 237  # ro  decoded by ZeoFeatureBits
+    SMART_HOSTING_WAITED_TIME = 238  # ro
+    CUSTOM_PROGRAM_CLEANING_TIME = 239  # ro
+    SILENT_MODE_ON = 240  # rw  [independent]  use set_silent_mode() for bundled set
+    SILENT_MODE_START_TIME = 241  # rw  [independent]  minute-of-day
+    SILENT_MODE_END_TIME = 242  # rw  [independent]  minute-of-day
+    DRY_CARE_MODE = 244  # rw  [startWith]
+    SOFTENER_EXPANSION_TYPE = 245  # rw  [independent]
+    SMILE_LIGHT_STATUS = 247  # rw  [independent]
+    DETERGENT_EXPANSION_TYPE = 248  # rw  [independent]
+    FLUFF_CLEANED = 249  # rw  [independent]
+    IS_NEED_FLUFF_CLEAN = 250  # ro
+    POWER_LIGHT = 251  # rw  [independent]
+    PANEL_PROGRAM_PARAMS_SET = 252  # rw  [independent]
+    PANEL_PROGRAM_PARAMS_SET_RESULT = 253  # ro
+    SAVE_ADAPTED_CLOUD_PROGRAM = 254  # rw  [independent]
+    WASH_DRY_LINKED = 255  # rw  [startWith / feature-gated]
+    DRYING_METHOD = 256  # rw  [startWith]
+    STEAM_VOLUME = 257  # rw  [startWith]
+    ION_DEODORIZATION = 258  # rw  [startWith / feature-gated]
+    PANEL_TIMING_PROGRAM_PARAMS = 260  # ro
+    STEAM_CARE_TIME = 261  # ro
+    DEVICE_BOUND = 262  # ro
+    CLOTH_PUT_IN = 263  # ro
+    CLOTH_READY_TO_DRY_COUNT_DOWN = 264  # ro
+    START_DRYER_ERROR = 265  # ro
+    WIFI_LINKAGE_RESET = 266  # rw  [independent]
+
+    # ── Meta / RPC / Voice (10000+) ────────────────────────────────────
+    ID_QUERY = 10000  # -- multi-DP query request (not a device DP)
+    F_C = 10001  # ro  query via checkFCCState()
+    SET_SOUND_PACKAGE = 10003  # wo  setSoundPackage(JSON)
+    SND_STATE = 10004  # ro  query via updateSoundPackageInfo()
+    PRODUCT_INFO = 10005  # ro  query via loadGeneralInfo() (10s timeout)
+    PRIVACY_INFO = 10006  # wo  syncPrivacyToDevice(agreed)
+    OTA_NFO = 10007  # ro  forceLoad only
+    WASHING_LOG = 10008  # ro  forceLoad only, JSON
+    VOICE_VOLUME = 10009  # wo  [independent]  setVoiceVolume(int) → JSON
+    RPC_REQUEST = 10101  # wo  rpcRequest(method) → JSON
+    RPC_RESPONSE = 10102  # -- MQTT push protocol 102, not a device DP
+    VOICE_SWITCH = 10301  # wo  [independent]  setVoiceSwitchStatus(bool) → JSON
+    VOICE_RECORD_INFO = 10302  # ro  cache-derived, auto JSON decoded
+    VOICE_RECORD = 10303  # ro  query via getVoiceControlRecord(), JSON
+    VOICE_RECORD_DELETE = 10304  # wo  [independent]  deleteVoiceControlRecord(id) → JSON
 
 
 class RoborockB01Protocol(RoborockEnum):

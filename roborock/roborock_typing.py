@@ -117,6 +117,7 @@ class RoborockCommand(str, Enum):
     GET_NETWORK_INFO = "get_network_info"
     GET_OFFLINE_MAP_STATUS = "get_offline_map_status"
     GET_PERSIST = "get_persist_map"
+    GET_PHOTO = "get_photo"
     GET_PROP = "get_prop"
     GET_RANDOM_PKEY = "get_random_pkey"
     GET_RECOVER_MAP = "get_recover_map"

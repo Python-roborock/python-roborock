@@ -8,40 +8,40 @@ class RoborockFinishReason(RoborockEnum):
     manual_interrupt = 21  # Cleaning interrupted by user
     cleanup_interrupted = 24  # Cleanup interrupted
     manual_interrupt_2 = 21
-    manual_interrupt_12 = 29
+    manual_interrupt_12 = (29, "manual_interrupt")
     breakpoint = 32  # Could not continue cleaning
-    breakpoint_2 = 33
-    cleanup_interrupted_2 = 34
-    manual_interrupt_3 = 35
-    manual_interrupt_4 = 36
-    manual_interrupt_5 = 37
-    manual_interrupt_6 = 43
+    breakpoint_2 = (33, "breakpoint")
+    cleanup_interrupted_2 = (34, "cleanup_interrupted")
+    manual_interrupt_3 = (35, "manual_interrupt")
+    manual_interrupt_4 = (36, "manual_interrupt")
+    manual_interrupt_5 = (37, "manual_interrupt")
+    manual_interrupt_6 = (43, "manual_interrupt")
     locate_fail = 45  # Positioning Failed
-    cleanup_interrupted_3 = 64
-    locate_fail_2 = 65
-    manual_interrupt_7 = 48
-    manual_interrupt_8 = 49
-    manual_interrupt_9 = 50
-    cleanup_interrupted_4 = 51
+    cleanup_interrupted_3 = (64, "cleanup_interrupted")
+    locate_fail_2 = (65, "locate_fail")
+    manual_interrupt_7 = (48, "manual_interrupt")
+    manual_interrupt_8 = (49, "manual_interrupt")
+    manual_interrupt_9 = (50, "manual_interrupt")
+    cleanup_interrupted_4 = (51, "cleanup_interrupted")
     finished_cleaning = 52  # Finished cleaning
-    finished_cleaning_2 = 54
-    finished_cleaning_3 = 55
-    finished_cleaning_4 = 56
-    finished_clenaing_5 = 57
-    manual_interrupt_10 = 60
+    finished_cleaning_2 = (54, "finished_cleaning")
+    finished_cleaning_3 = (55, "finished_cleaning")
+    finished_cleaning_4 = (56, "finished_cleaning")
+    finished_clenaing_5 = (57, "finished_cleaning")
+    manual_interrupt_10 = (60, "manual_interrupt")
     area_unreachable = 61  # Area unreachable
-    area_unreachable_2 = 62
+    area_unreachable_2 = (62, "area_unreachable")
     washing_error = 67  # Washing error
     back_to_wash_failure = 68  # Failed to return to the dock
-    cleanup_interrupted_5 = 101
-    breakpoint_4 = 102
-    manual_interrupt_11 = 103
-    cleanup_interrupted_6 = 104
-    cleanup_interrupted_7 = 105
-    cleanup_interrupted_8 = 106
-    cleanup_interrupted_9 = 107
-    cleanup_interrupted_10 = 109
-    cleanup_interrupted_11 = 110
+    cleanup_interrupted_5 = (101, "cleanup_interrupted")
+    breakpoint_4 = (102, "breakpoint")
+    manual_interrupt_11 = (103, "manual_interrupt")
+    cleanup_interrupted_6 = (104, "cleanup_interrupted")
+    cleanup_interrupted_7 = (105, "cleanup_interrupted")
+    cleanup_interrupted_8 = (106, "cleanup_interrupted")
+    cleanup_interrupted_9 = (107, "cleanup_interrupted")
+    cleanup_interrupted_10 = (109, "cleanup_interrupted")
+    cleanup_interrupted_11 = (110, "cleanup_interrupted")
     patrol_success = 114  # Cruise completed
     patrol_fail = 115  # Cruise failed
     pet_patrol_success = 116  # Pet found
@@ -159,7 +159,7 @@ class ClearWaterBoxStatus(RoborockDssCodes):
 
     okay = 0
     out_of_water = 1
-    out_of_water_2 = 38
+    out_of_water_2 = (38, "out_of_water")
     refill_error = 48
 
 
@@ -168,7 +168,7 @@ class DirtyWaterBoxStatus(RoborockDssCodes):
 
     okay = 0
     full_not_installed = 1
-    full_not_installed_2 = 39
+    full_not_installed_2 = (39, "full_not_installed")
     drain_error = 49
 
 
@@ -232,7 +232,7 @@ class RoborockErrorCode(RoborockEnum):
     clear_brush_exception = 42  # Check that the water filter has been correctly installed
     clear_brush_exception_2 = 43  # Positioning button error
     filter_screen_exception = 44  # Clean the dock water filter
-    mopping_roller_2 = 45  # Wash roller may be jammed
+    mopping_roller_2 = (45, "mopping_roller_1")  # Wash roller may be jammed
     up_water_exception = 48
     drain_water_exception = 49
     temperature_protection = 51  # Unit temperature protection
@@ -365,10 +365,27 @@ class RoborockDockTypeCode(RoborockEnum):
     shell_e_dock = 21
     shell_2e_dock = 22
     shell_3c_dock = 23
+    hera_dock = 24
+    k1s_pro_dock = 26
     type_27_dock = 27
     k1c_lite_dock = 28
+    k1r_dock = 29
     shell_2e_lite_dock = 30
+    shell_4rc_dock = 31
+    shell_4r_dock = 32
+    shell_4p_dock = 33
+    shell_4s_dock = 34
+    o7_dock = 35
+    k1d_dock = 37
+    shell_3p_dock = 38
+    shell_4d_dock = 39
     shell_2e_heat_dock = 40
+    f1_dock = 41
+    f1r_dock = 42
+    f2r_dock = 43
+    f1s_dock = 44
+    o7h_dock = 45
+    f1c_dock = 46
 
 
 class RoborockDockDustCollectionModeCode(RoborockEnum):
@@ -404,7 +421,7 @@ class RoborockStateCode(RoborockEnum):
     segment_cleaning = 18
     emptying_the_bin = 22  # on s7+
     washing_the_mop = 23  # on a46
-    washing_the_mop_2 = 25
+    washing_the_mop_2 = (25, "washing_the_mop")
     going_to_wash_the_mop = 26  # on a46
     in_call = 28
     mapping = 29

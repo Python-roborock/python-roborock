@@ -2,6 +2,86 @@
 
 <!-- version list -->
 
+## v6.2.1 (2026-08-02)
+
+### Bug Fixes
+
+- Show docked Q10 robot on map ([#904](https://github.com/Python-roborock/python-roborock/pull/904),
+  [`df75659`](https://github.com/Python-roborock/python-roborock/commit/df75659f4ee87d1c04f241bc0b1fa7b6d1f70715))
+
+### Refactoring
+
+- Render Q10 overlays with V1 ([#903](https://github.com/Python-roborock/python-roborock/pull/903),
+  [`347a8f6`](https://github.com/Python-roborock/python-roborock/commit/347a8f6190cb8b7b8b607f3ca561ae025be956b5))
+
+
+## v6.2.0 (2026-07-30)
+
+### Features
+
+- Align Q10 map colors with V1 ([#902](https://github.com/Python-roborock/python-roborock/pull/902),
+  [`dbb6c46`](https://github.com/Python-roborock/python-roborock/commit/dbb6c4663bcd5a0560d7438b49272ab53b91c4f4))
+
+### Refactoring
+
+- Clarify room palette cache handling
+  ([#902](https://github.com/Python-roborock/python-roborock/pull/902),
+  [`dbb6c46`](https://github.com/Python-roborock/python-roborock/commit/dbb6c4663bcd5a0560d7438b49272ab53b91c4f4))
+
+
+## v6.1.0 (2026-07-30)
+
+### Features
+
+- Use display name to fix duplicate code mappings
+  ([#870](https://github.com/Python-roborock/python-roborock/pull/870),
+  [`d0a99c2`](https://github.com/Python-roborock/python-roborock/commit/d0a99c28e65d6c1bc6bc00852b261d4a82b3feb7))
+
+
+## v6.0.0 (2026-07-27)
+
+### Features
+
+- Audit and complete Zeo protocol DP and enum mappings
+  ([#892](https://github.com/Python-roborock/python-roborock/pull/892),
+  [`dba564d`](https://github.com/Python-roborock/python-roborock/commit/dba564d10b88afcd6195298b90c6d49844e334f5))
+
+- Full Zeo protocol definition — 67 DPs, complete enum mappings, all 56 devices covered
+  ([#892](https://github.com/Python-roborock/python-roborock/pull/892),
+  [`dba564d`](https://github.com/Python-roborock/python-roborock/commit/dba564d10b88afcd6195298b90c6d49844e334f5))
+
+### Refactoring
+
+- **zeo**: Replace raw integer fields with enum types
+  ([#892](https://github.com/Python-roborock/python-roborock/pull/892),
+  [`dba564d`](https://github.com/Python-roborock/python-roborock/commit/dba564d10b88afcd6195298b90c6d49844e334f5))
+
+
+## v5.37.1 (2026-07-25)
+
+### Bug Fixes
+
+- Add missing dock ids
+  ([`f431c5d`](https://github.com/Python-roborock/python-roborock/commit/f431c5dbab2730df73fdaf5b6c42319a0a77a07d))
+
+
+## v5.37.0 (2026-07-25)
+
+### Chores
+
+- Clean up security location ([#880](https://github.com/Python-roborock/python-roborock/pull/880),
+  [`f0579b8`](https://github.com/Python-roborock/python-roborock/commit/f0579b8dcee5be26da0c572d686f3a831d3867a9))
+
+- Mild clean ups ([#880](https://github.com/Python-roborock/python-roborock/pull/880),
+  [`f0579b8`](https://github.com/Python-roborock/python-roborock/commit/f0579b8dcee5be26da0c572d686f3a831d3867a9))
+
+### Features
+
+- Add photo for obstacle avoidance
+  ([#880](https://github.com/Python-roborock/python-roborock/pull/880),
+  [`f0579b8`](https://github.com/Python-roborock/python-roborock/commit/f0579b8dcee5be26da0c572d686f3a831d3867a9))
+
+
 ## v5.36.0 (2026-07-21)
 
 ### Features
