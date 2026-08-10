@@ -162,9 +162,7 @@ class DyadApi(Trait):
         params = {protocol: value}
         return await send_decoded_command(self._channel, params)
 
-    async def add_listener(
-        self, callback: Callable[[dict[RoborockDyadDataProtocol, Any]], None]
-    ) -> Callable[[], None]:
+    async def add_listener(self, callback: Callable[[dict[RoborockDyadDataProtocol, Any]], None]) -> Callable[[], None]:
         """Listen for state the device pushes on its own.
 
         The callback is invoked with decoded values whenever the device sends a
