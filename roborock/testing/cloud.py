@@ -16,6 +16,7 @@ from aioresponses import CallbackResult, aioresponses
 from roborock.data import HomeData, Reference, RRiot, UserData
 from roborock.devices.rpc.v1_channel import create_v1_channel as original_create_v1_channel
 from roborock.devices.transport.mqtt_channel import create_mqtt_channel as original_create_mqtt_channel
+from roborock.testing.a01_simulator import A01DeviceSimulator
 from roborock.testing.b01_q10_simulator import Q10VacuumSimulator
 from roborock.testing.simulator import RoborockDeviceSimulator
 from roborock.testing.v1_simulator import V1VacuumSimulator
@@ -267,12 +268,17 @@ class FakeRoborockCloud:
                         f"Simulating protocol {device.pv} is not yet supported. "
                         "Only Q10VacuumSimulator is supported for B01 protocols currently."
                     )
+                if device.pv == "A01" and not isinstance(server, A01DeviceSimulator):
+                    raise NotImplementedError(
+                        f"Device '{device.duid}' is registered with a {type(server).__name__} "
+                        "simulator, but protocol A01 requires an A01DeviceSimulator."
+                    )
                 server.mqtt_channel._is_connected = True
                 return server.mqtt_channel
             if device.pv in ("A01", "B01"):
                 raise NotImplementedError(
                     f"Simulating protocol {device.pv} is not yet supported. "
-                    "TODO: Implement stateful simulators for B01 (Q7) and A01 (Zeo/Dyad) devices."
+                    "TODO: Implement stateful simulators for B01 (Q7) devices."
                 )
             return original_create_mqtt_channel(user_data, mqtt_params, mqtt_session, device)
 
