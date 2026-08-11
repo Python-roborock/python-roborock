@@ -1,6 +1,9 @@
 """Test cases for the containers module."""
 
 import json
+import logging
+
+import pytest
 
 from roborock.data.b01_q7 import (
     B01Fault,
@@ -12,6 +15,29 @@ from roborock.data.b01_q7 import (
     SCWindMapping,
     WorkStatusMapping,
 )
+from roborock.data.code_mappings import completed_warnings
+
+
+@pytest.mark.parametrize(
+    ("code", "expected"),
+    [
+        (0, WorkStatusMapping.SLEEPING),
+        (1, WorkStatusMapping.WAITING_FOR_ORDERS),
+        (2, WorkStatusMapping.PAUSED),
+        (3, WorkStatusMapping.DOCKING),
+        (4, WorkStatusMapping.CHARGING),
+        (5, WorkStatusMapping.SWEEP_MOPING),
+        (6, WorkStatusMapping.SWEEP_MOPING_2),
+        (7, WorkStatusMapping.MOPING),
+        (8, WorkStatusMapping.UPDATING),
+        (9, WorkStatusMapping.MOP_CLEANING),
+        (10, WorkStatusMapping.MOP_AIRDRYING),
+        (11, WorkStatusMapping.WORKING_SLEEP),
+    ],
+)
+def test_work_status_mapping(code: int, expected: WorkStatusMapping) -> None:
+    """Test every Q7 work status handled by the official app bundle."""
+    assert WorkStatusMapping.from_code(code) is expected
 
 
 def test_b01props_deserialization():
@@ -112,6 +138,45 @@ def test_b01props_deserialization():
     assert deserialized.clean_path_preference == CleanPathPreferenceMapping.DEEP
     assert deserialized.repeat_state_name == "two"
     assert deserialized.clean_path_preference_name == "deep"
+
+
+def test_b01props_deserialization_working_sleep_status():
+    """Test the working-sleep status reported by Q7 devices."""
+    deserialized = B01Props.from_dict(
+        {
+            "status": 11,
+            "quantity": 87,
+            "wind": 2,
+        }
+    )
+
+    assert isinstance(deserialized, B01Props)
+    assert deserialized.status == WorkStatusMapping.WORKING_SLEEP
+    assert deserialized.status_name == "working_sleep"
+    assert deserialized.quantity == 87
+    assert deserialized.wind == SCWindMapping.STANDARD
+
+
+def test_b01props_deserialization_unknown_work_status(caplog: pytest.LogCaptureFixture):
+    """Test that an unrecognized future work status does not break the response."""
+    warning = "999 is not a valid code for WorkStatusMapping"
+    completed_warnings.discard(warning)
+    with caplog.at_level(logging.WARNING):
+        deserialized = B01Props.from_dict(
+            {
+                "status": 999,
+                "quantity": 87,
+                "wind": 2,
+            }
+        )
+
+    assert isinstance(deserialized, B01Props)
+    assert deserialized.status == WorkStatusMapping.UNKNOWN
+    assert deserialized.status_name == "unknown"
+    assert deserialized.quantity == 87
+    assert deserialized.wind == SCWindMapping.STANDARD
+    assert warning in caplog.text
+    assert "Failed to convert status" not in caplog.text
 
 
 def test_b01_q7_clean_record_list_parses_detail_fields():
