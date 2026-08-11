@@ -8,12 +8,14 @@ Using A01 APIs
 A01 devices expose a single API object that handles all device interactions. This API is
 available on the device instance (typically via `device.a01_properties`).
 
-The API provides two main methods:
+The API provides these methods:
 1.  **query_values(protocols)**: Fetches current state for specific data points.
     You must pass a list of protocol enums (e.g. `RoborockDyadDataProtocol` or
     `RoborockZeoProtocol`) to request specific data.
 2.  **set_value(protocol, value)**: Sends a command to the device to change a setting
     or perform an action.
+3.  **add_listener(callback)**: Subscribes to state the device pushes on its own (for
+    example when its state changes), invoking the callback with decoded values.
 
 Note that these APIs fetch data directly from the device upon request and do not
 cache state internally.
@@ -51,7 +53,9 @@ from roborock.data.zeo.zeo_code_mappings import (
 from roborock.devices.rpc.a01_channel import send_decoded_command
 from roborock.devices.traits import Trait
 from roborock.devices.transport.mqtt_channel import MqttChannel
-from roborock.roborock_message import RoborockDyadDataProtocol, RoborockZeoProtocol
+from roborock.exceptions import RoborockException
+from roborock.protocols.a01_protocol import decode_rpc_response
+from roborock.roborock_message import RoborockDyadDataProtocol, RoborockMessage, RoborockZeoProtocol
 
 __init__ = [
     "DyadApi",
@@ -134,6 +138,9 @@ def convert_zeo_value(protocol_value: RoborockZeoProtocol, value: Any) -> Any:
     return None
 
 
+_DYAD_PROTOCOL_VALUES = frozenset(protocol.value for protocol in RoborockDyadDataProtocol)
+
+
 class DyadApi(Trait):
     """API for interacting with Dyad devices."""
 
@@ -154,6 +161,30 @@ class DyadApi(Trait):
         """Set a value for a specific protocol on the device."""
         params = {protocol: value}
         return await send_decoded_command(self._channel, params)
+
+    async def add_listener(self, callback: Callable[[dict[RoborockDyadDataProtocol, Any]], None]) -> Callable[[], None]:
+        """Listen for state the device pushes on its own.
+
+        The callback is invoked with decoded values whenever the device sends a
+        message, including unsolicited pushes when its state changes. Only known
+        protocols are delivered. Returns a callable to remove the listener.
+        """
+
+        def on_message(message: RoborockMessage) -> None:
+            try:
+                datapoints = decode_rpc_response(message)
+            except RoborockException:
+                return
+            values: dict[RoborockDyadDataProtocol, Any] = {}
+            for code, value in datapoints.items():
+                if code not in _DYAD_PROTOCOL_VALUES:
+                    continue
+                protocol = RoborockDyadDataProtocol(code)
+                values[protocol] = convert_dyad_value(protocol, value)
+            if values:
+                callback(values)
+
+        return await self._channel.subscribe(on_message)
 
 
 class ZeoApi(Trait):

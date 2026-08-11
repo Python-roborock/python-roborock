@@ -98,8 +98,10 @@ async def send_decoded_command(
         try:
             await asyncio.wait_for(finished.wait(), timeout=_TIMEOUT)
         except TimeoutError as ex:
+            await mqtt_channel.health_manager.on_timeout()
             raise RoborockException(f"Command timed out after {_TIMEOUT}s") from ex
     finally:
         unsub()
 
+    await mqtt_channel.health_manager.on_success()
     return result  # type: ignore[return-value]
