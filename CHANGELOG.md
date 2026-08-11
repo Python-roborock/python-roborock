@@ -2,6 +2,26 @@
 
 <!-- version list -->
 
+## v6.3.0 (2026-08-11)
+
+### Bug Fixes
+
+- **a01**: Restart stale MQTT session on command timeouts
+  ([#898](https://github.com/Python-roborock/python-roborock/pull/898),
+  [`09422a6`](https://github.com/Python-roborock/python-roborock/commit/09422a6d31ea58abcd611083527b444a16dcc333))
+
+### Chores
+
+- Fix formatting ([#898](https://github.com/Python-roborock/python-roborock/pull/898),
+  [`09422a6`](https://github.com/Python-roborock/python-roborock/commit/09422a6d31ea58abcd611083527b444a16dcc333))
+
+### Features
+
+- **a01**: Add push listener for unsolicited device state
+  ([#898](https://github.com/Python-roborock/python-roborock/pull/898),
+  [`09422a6`](https://github.com/Python-roborock/python-roborock/commit/09422a6d31ea58abcd611083527b444a16dcc333))
+
+
 ## v6.2.1 (2026-08-02)
 
 ### Bug Fixes
