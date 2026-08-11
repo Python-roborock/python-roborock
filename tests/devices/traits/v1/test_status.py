@@ -50,6 +50,7 @@ def _create_cleaning_mode_status_trait(**feature_overrides: bool) -> StatusTrait
     features.is_pure_clean_mop_supported = True
     features.is_customized_clean_supported = True
     features.is_clean_route_setting_supported = True
+    features.is_shake_mop_set_supported = True
     for feature_name, value in feature_overrides.items():
         if not hasattr(features, feature_name):
             raise AttributeError(f"Unknown DeviceFeatures override: {feature_name}")
@@ -110,12 +111,56 @@ def test_none_values(status_trait: StatusTrait) -> None:
 
 def test_options(status_trait: StatusTrait) -> None:
     """Test that fan_speed_options returns a list of options."""
+    status_trait._device_features_trait.is_shake_mop_set_supported = True
     assert isinstance(status_trait.fan_speed_options, list)
     assert len(status_trait.fan_speed_options) > 0
     assert isinstance(status_trait.water_mode_options, list)
     assert len(status_trait.water_mode_options) > 0
     assert isinstance(status_trait.mop_route_options, list)
     assert len(status_trait.mop_route_options) > 0
+
+
+def test_s6_maxv_has_no_mop_route_options() -> None:
+    """Test S6 MaxV does not expose the unsupported mop-route selector."""
+    features = DeviceFeatures.from_feature_flags(
+        new_feature_info=10738169343,
+        new_feature_info_str="",
+        feature_info=[],
+        product_nickname=SHORT_MODEL_TO_ENUM["a10"],
+    )
+    status_trait = StatusTrait(cast(DeviceFeaturesTrait, features), region="us")
+
+    assert not features.is_shake_mop_set_supported
+    assert status_trait.mop_route_options == []
+    assert status_trait.mop_route_mapping == {}
+    assert get_cleaning_mode_parameters(CleaningMode.VAC_AND_MOP, features) == [
+        {
+            "fan_power": VacuumModes.BALANCED.code,
+            "water_box_mode": WaterModes.STANDARD.code,
+        }
+    ]
+
+
+def test_s7_has_mop_route_options() -> None:
+    """Test S7 exposes its supported mop routes."""
+    features = DeviceFeatures.from_feature_flags(
+        new_feature_info=636084721975295,
+        new_feature_info_str="0000000000002000",
+        feature_info=[111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 122, 123, 124, 125],
+        product_nickname=SHORT_MODEL_TO_ENUM["a15"],
+    )
+    status_trait = StatusTrait(cast(DeviceFeaturesTrait, features), region="us")
+
+    assert features.is_shake_mop_set_supported
+    assert CleanRoutes.STANDARD in status_trait.mop_route_options
+    assert CleanRoutes.DEEP in status_trait.mop_route_options
+    assert get_cleaning_mode_parameters(CleaningMode.VAC_AND_MOP, features) == [
+        {
+            "fan_power": VacuumModes.BALANCED.code,
+            "water_box_mode": WaterModes.STANDARD.code,
+            "mop_mode": CleanRoutes.STANDARD.code,
+        }
+    ]
 
 
 def test_cleaning_mode_options() -> None:
@@ -308,6 +353,7 @@ def test_get_cleaning_mode_parameters_without_clean_route_setting() -> None:
     """Test older V1 devices use the 2-field clean motor payload."""
     status_trait = _create_cleaning_mode_status_trait(
         is_clean_route_setting_supported=False,
+        is_shake_mop_set_supported=False,
         is_customized_clean_supported=False,
     )
 

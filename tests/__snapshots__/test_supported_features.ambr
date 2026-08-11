@@ -386,7 +386,7 @@
     'is_clean_history_time_line_supported': False,
     'is_clean_route_deep_slow_plus_supported': False,
     'is_clean_route_fast_mode_supported': True,
-    'is_clean_route_setting_supported': False,
+    'is_clean_route_setting_supported': True,
     'is_clean_then_mop_mode_supported': False,
     'is_clean_time_line_supported': False,
     'is_collect_dust_count_show_supported': False,
