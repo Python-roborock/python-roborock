@@ -131,6 +131,10 @@ def get_clean_modes(features: DeviceFeatures) -> list[VacuumModes]:
 
 def get_clean_routes(features: DeviceFeatures, region: str) -> list[CleanRoutes]:
     """The routes that the vacuum will take while mopping"""
+    # Mop routes are only configurable when the device advertises support for
+    # setting the shake-mop route.
+    if not features.is_shake_mop_set_supported:
+        return []
     if features.is_none_pure_clean_mop_with_max_plus:
         return [CleanRoutes.FAST, CleanRoutes.STANDARD]
     supported = [CleanRoutes.STANDARD, CleanRoutes.DEEP]
@@ -271,7 +275,7 @@ def get_cleaning_mode_parameters(cleaning_mode: CleaningMode, features: DeviceFe
 
     fan_power, water_box_mode, mop_mode = _get_clean_motor_mode_params(cleaning_mode, features)
     params: dict[str, int] = {"fan_power": fan_power.code, "water_box_mode": water_box_mode.code}
-    if features.is_clean_route_setting_supported:
+    if features.is_shake_mop_set_supported:
         params["mop_mode"] = mop_mode.code
     return [params]
 

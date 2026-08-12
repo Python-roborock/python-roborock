@@ -644,6 +644,10 @@ class DeviceFeatures(RoborockBase):
                     if any(feat in available_features for feat in product_features):  # type: ignore
                         kwargs[f.name] = True
 
+        # Clean-route setting support is provided by either the runtime
+        # shake-mop flag or the model's shake/spin mop capability.
+        kwargs["is_clean_route_setting_supported"] |= kwargs["is_shake_mop_set_supported"]
+
         return cls(**kwargs)
 
     def get_supported_features(self) -> list[str]:
