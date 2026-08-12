@@ -54,9 +54,10 @@ from roborock.data.zeo.zeo_code_mappings import (
 )
 from roborock.devices.rpc.a01_channel import send_decoded_command
 from roborock.devices.traits import Trait
+from roborock.devices.traits.a01.device_feature import build_force_load_dp_list
 from roborock.devices.traits.common import TraitUpdateListener
 from roborock.devices.transport.mqtt_channel import MqttChannel
-from roborock.exceptions import RoborockException, RoborockTimeout
+from roborock.exceptions import RoborockException
 from roborock.protocols.a01_protocol import decode_rpc_response
 from roborock.roborock_message import (
     RoborockDyadDataProtocol,
@@ -106,14 +107,6 @@ DYAD_PROTOCOL_ENTRIES: dict[RoborockDyadDataProtocol, Callable] = {
     RoborockDyadDataProtocol.PRODUCT_INFO: lambda val: DyadProductInfo.from_dict(val),
 }
 
-# Devices known to lack FEATURE_BITS (DP 237).
-_UNSUPPORTED_FEATURE_BITS: frozenset[str] = frozenset(
-    {
-        "roborock.wm.a63",  # H1
-        "roborock.wm.a90",  # H1 Lite
-    }
-)
-
 ZEO_PROTOCOL_ENTRIES: dict[RoborockZeoProtocol, Callable] = {
     # read-only
     RoborockZeoProtocol.STATE: lambda val: ZeoState(val).name,
@@ -133,6 +126,7 @@ ZEO_PROTOCOL_ENTRIES: dict[RoborockZeoProtocol, Callable] = {
     RoborockZeoProtocol.DETERGENT_TYPE: lambda val: ZeoDetergentType(val).name,
     RoborockZeoProtocol.SOFTENER_TYPE: lambda val: ZeoSoftenerType(val).name,
     RoborockZeoProtocol.SOUND_SET: lambda val: bool(val),
+    RoborockZeoProtocol.FEATURE_BITS: lambda val: int(val),
 }
 
 
@@ -210,23 +204,25 @@ class ZeoApi(Trait, TraitUpdateListener):
 
     name = "zeo"
 
-    def __init__(self, channel: MqttChannel, product_id: str | None = None) -> None:
+    def __init__(self, channel: MqttChannel, model: str | None = None) -> None:
         """Initialize the Zeo API."""
         TraitUpdateListener.__init__(self, _LOGGER)
         self._channel = channel
         self._dps_cache: dict[int, Any] = {}
         self._dps_unsub: Callable[[], None] | None = None
         self._feature_bits: int = 0
-        self._product_id = product_id
+        self._model = model
 
     async def start(self) -> None:
-        """Subscribe to MQTT push and discover device features.
+        """Subscribe to MQTT push and trigger a full state sync.
 
-        Subscribes to the DPS MQTT topic, then queries FEATURE_BITS
-        (DP 237) to wake the device and cache supported capabilities.
+        Subscribes to the DPS MQTT topic, then sends ID_QUERY with
+        the base DP list (including FEATURE_BITS). The device responds
+        with a complete state dump; subsequent changes arrive
+        via incremental MQTT push.
         """
         await self._ensure_subscribed()
-        await self._discover_features()
+        await self._force_load()
 
     def close(self) -> None:
         """Unsubscribe from MQTT push and release resources."""
@@ -240,21 +236,18 @@ class ZeoApi(Trait, TraitUpdateListener):
             return
         self._dps_unsub = await self._channel.subscribe(self._on_dps_message)
 
-    async def _discover_features(self) -> None:
-        """Query FEATURE_BITS to wake the device and cache capabilities.
+    async def _force_load(self) -> None:
+        """Send ID_QUERY with the base DP list to trigger a full state push.
 
-        Only devices that support the FeatureBits DP will respond;
-        For devices known to lack this DP
-        the query is skipped entirely; for all other devices a
-        timeout propagates as a connection error.
+        Uses ``build_force_load_dp_list()`` which selects the correct
+        base list (washer vs dryer) and appends conditional DPs based
+        on the device's series (softener, soak, smart-clean, etc.).
+        For devices known to lack FEATURE_BITS, the DP is excluded
+        from the query list and ``_feature_bits`` stays at 0.
         """
-        if self._product_id in _UNSUPPORTED_FEATURE_BITS:
-            return
-        try:
-            result = await self.query_values([RoborockZeoProtocol.FEATURE_BITS])
-            self._feature_bits = result.get(RoborockZeoProtocol.FEATURE_BITS, 0)
-        except RoborockTimeout:
-            self._feature_bits = 0
+        dp_list = build_force_load_dp_list(self._model)
+        result = await self.query_values(dp_list)
+        self._feature_bits = result.get(RoborockZeoProtocol.FEATURE_BITS, 0)
 
     def supports(self, feature: ZeoFeatureBits) -> bool:
         """Check whether the device supports a given feature bit."""
@@ -293,6 +286,6 @@ def create(product: HomeDataProduct, mqtt_channel: MqttChannel) -> DyadApi | Zeo
         case RoborockCategory.WET_DRY_VAC:
             return DyadApi(mqtt_channel)
         case RoborockCategory.WASHING_MACHINE:
-            return ZeoApi(mqtt_channel, product_id=product.id)
+            return ZeoApi(mqtt_channel, model=product.model)
         case _:
             raise NotImplementedError(f"Unsupported category {product.category}")
