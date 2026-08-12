@@ -2,6 +2,65 @@
 
 <!-- version list -->
 
+## v6.4.0 (2026-08-11)
+
+### Bug Fixes
+
+- **testing**: Remove unused imports in test_a01_simulator.py
+  ([#910](https://github.com/Python-roborock/python-roborock/pull/910),
+  [`4476a6c`](https://github.com/Python-roborock/python-roborock/commit/4476a6cf521bebb0dadc4dfe10b747cfa2115352))
+
+- **testing**: Resolve mypy type hints and ruff formatting in a01_simulator.py
+  ([#910](https://github.com/Python-roborock/python-roborock/pull/910),
+  [`4476a6c`](https://github.com/Python-roborock/python-roborock/commit/4476a6cf521bebb0dadc4dfe10b747cfa2115352))
+
+- **testing**: Set RPC_RESPONSE protocol on pushed simulator messages in push_dps
+  ([#910](https://github.com/Python-roborock/python-roborock/pull/910),
+  [`4476a6c`](https://github.com/Python-roborock/python-roborock/commit/4476a6cf521bebb0dadc4dfe10b747cfa2115352))
+
+### Chores
+
+- **testing**: Remove redundant comment in a01_simulator.py
+  ([#910](https://github.com/Python-roborock/python-roborock/pull/910),
+  [`4476a6c`](https://github.com/Python-roborock/python-roborock/commit/4476a6cf521bebb0dadc4dfe10b747cfa2115352))
+
+### Features
+
+- Add stateful A01 device simulators (Dyad and Zeo) to roborock.testing
+  ([#910](https://github.com/Python-roborock/python-roborock/pull/910),
+  [`4476a6c`](https://github.com/Python-roborock/python-roborock/commit/4476a6cf521bebb0dadc4dfe10b747cfa2115352))
+
+### Refactoring
+
+- **testing**: Use enum keys/values directly for DEFAULT_DYAD_STATUS, DEFAULT_ZEO_STATUS, and
+  simulator status params ([#910](https://github.com/Python-roborock/python-roborock/pull/910),
+  [`4476a6c`](https://github.com/Python-roborock/python-roborock/commit/4476a6cf521bebb0dadc4dfe10b747cfa2115352))
+
+- **testing**: Use int(RoborockDyadDataProtocol.ID_QUERY) constant
+  ([#910](https://github.com/Python-roborock/python-roborock/pull/910),
+  [`4476a6c`](https://github.com/Python-roborock/python-roborock/commit/4476a6cf521bebb0dadc4dfe10b747cfa2115352))
+
+
+## v6.3.0 (2026-08-11)
+
+### Bug Fixes
+
+- **a01**: Restart stale MQTT session on command timeouts
+  ([#898](https://github.com/Python-roborock/python-roborock/pull/898),
+  [`09422a6`](https://github.com/Python-roborock/python-roborock/commit/09422a6d31ea58abcd611083527b444a16dcc333))
+
+### Chores
+
+- Fix formatting ([#898](https://github.com/Python-roborock/python-roborock/pull/898),
+  [`09422a6`](https://github.com/Python-roborock/python-roborock/commit/09422a6d31ea58abcd611083527b444a16dcc333))
+
+### Features
+
+- **a01**: Add push listener for unsolicited device state
+  ([#898](https://github.com/Python-roborock/python-roborock/pull/898),
+  [`09422a6`](https://github.com/Python-roborock/python-roborock/commit/09422a6d31ea58abcd611083527b444a16dcc333))
+
+
 ## v6.2.1 (2026-08-02)
 
 ### Bug Fixes

@@ -63,6 +63,17 @@ async def test_start_vacuum_service():
 ```
 """
 
+from roborock.testing.a01_simulator import (
+    DEFAULT_DYAD_DEVICE_INFO,
+    DEFAULT_DYAD_PRODUCT,
+    DEFAULT_DYAD_STATUS,
+    DEFAULT_ZEO_DEVICE_INFO,
+    DEFAULT_ZEO_PRODUCT,
+    DEFAULT_ZEO_STATUS,
+    A01DeviceSimulator,
+    DyadSimulator,
+    ZeoSimulator,
+)
 from roborock.testing.b01_q10_simulator import (
     DEFAULT_Q10_STATUS,
     Q10VacuumSimulator,
@@ -91,6 +102,9 @@ __all__ = [
     "DEFAULT_CLEAN_SUMMARY",
     "DEFAULT_CONSUMABLE",
     "DEFAULT_DND_TIMER",
+    "DEFAULT_DYAD_DEVICE_INFO",
+    "DEFAULT_DYAD_PRODUCT",
+    "DEFAULT_DYAD_STATUS",
     "DEFAULT_KEY_T",
     "DEFAULT_LAST_CLEAN_RECORD",
     "DEFAULT_LOCAL_KEY",
@@ -98,10 +112,16 @@ __all__ = [
     "DEFAULT_PRODUCT_ID",
     "DEFAULT_Q10_STATUS",
     "DEFAULT_STATUS",
+    "DEFAULT_ZEO_DEVICE_INFO",
+    "DEFAULT_ZEO_PRODUCT",
+    "DEFAULT_ZEO_STATUS",
+    "A01DeviceSimulator",
+    "DyadSimulator",
     "FakeChannel",
     "FakeRoborockCloud",
     "FakeWebApiClient",
     "Q10VacuumSimulator",
     "RoborockDeviceSimulator",
     "V1VacuumSimulator",
+    "ZeoSimulator",
 ]
