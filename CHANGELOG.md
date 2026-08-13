@@ -2,6 +2,23 @@
 
 <!-- version list -->
 
+## v6.5.1 (2026-08-13)
+
+### Bug Fixes
+
+- Logic around mop being off ([#915](https://github.com/Python-roborock/python-roborock/pull/915),
+  [`394379d`](https://github.com/Python-roborock/python-roborock/commit/394379df22a2b5f4642c3a43d4505f2bf88be1e3))
+
+
+## v6.5.0 (2026-08-13)
+
+### Features
+
+- Add some basic mower code mappings
+  ([#916](https://github.com/Python-roborock/python-roborock/pull/916),
+  [`ff73b49`](https://github.com/Python-roborock/python-roborock/commit/ff73b491a0640bb837607f36551b45a7d2fedcb6))
+
+
 ## v6.4.0 (2026-08-11)
 
 ### Bug Fixes

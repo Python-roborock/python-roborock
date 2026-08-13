@@ -1,10 +1,12 @@
 """Data containers for Roborock mower devices."""
 
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass, field, fields
+from typing import Any, Self
 
 from roborock.data.containers import RoborockBase
 from roborock.roborock_message import RoborockMowerDataProtocol
+
+from .mower_code_mappings import RoborockMowerStateCode
 
 
 @dataclass
@@ -14,7 +16,9 @@ class MowerStatus(RoborockBase):
     error_code: int | None = field(default=None, metadata={"dps": RoborockMowerDataProtocol.ERROR_CODE})
     battery: int | None = field(default=None, metadata={"dps": RoborockMowerDataProtocol.BATTERY})
     mow_type: int | None = field(default=None, metadata={"dps": RoborockMowerDataProtocol.MOW_TYPE})
-    mow_state: int | None = field(default=None, metadata={"dps": RoborockMowerDataProtocol.MOW_STATE})
+    mow_state: RoborockMowerStateCode | None = field(
+        default=None, metadata={"dps": RoborockMowerDataProtocol.MOW_STATE}
+    )
     mapping_type: int | None = field(default=None, metadata={"dps": RoborockMowerDataProtocol.MAPPING_TYPE})
     mapping_state: int | None = field(default=None, metadata={"dps": RoborockMowerDataProtocol.MAPPING_STATE})
     ota_state: int | None = field(default=None, metadata={"dps": RoborockMowerDataProtocol.OTA_STATE})
@@ -41,3 +45,25 @@ class MowerStatus(RoborockBase):
     )
     afs_status: int | None = field(default=None, metadata={"dps": RoborockMowerDataProtocol.AFS_STATUS})
     network_channel: int | None = field(default=None, metadata={"dps": RoborockMowerDataProtocol.NETWORK_CHANNEL})
+
+    @classmethod
+    def from_dps(cls, dps: dict[int | str, Any] | None) -> Self:
+        """Create mower status from raw DPS data.
+
+        Cloud snapshots use string DPS keys while decoded MQTT messages may use
+        integer keys. Unknown and malformed keys are ignored.
+        """
+        field_by_dps = {
+            int(field_info.metadata["dps"]): field_info.name
+            for field_info in fields(cls)
+            if "dps" in field_info.metadata
+        }
+        values: dict[str, Any] = {}
+        for key, value in (dps or {}).items():
+            try:
+                dps_id = int(key)
+            except (TypeError, ValueError):
+                continue
+            if field_name := field_by_dps.get(dps_id):
+                values[field_name] = value
+        return cls.from_dict(values)
