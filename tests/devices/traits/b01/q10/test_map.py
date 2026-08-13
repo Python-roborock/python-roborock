@@ -85,6 +85,9 @@ def test_update_from_trace_packet_populates_path_and_position() -> None:
     assert (trait.path[0].x, trait.path[0].y) == (41, 64)
     assert trait.robot_position is not None
     assert (trait.robot_position.x, trait.robot_position.y) == (276, -1)
+    assert trait.roborock_position is not None
+    assert (trait.roborock_position.x, trait.roborock_position.y) == (26190, 25498)
+    assert trait.trace_sequence == trace.sequence
     assert trait.robot_heading == -34
     assert len(updates) == 1
 

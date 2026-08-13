@@ -32,6 +32,7 @@ from roborock.map.b01_q10_overlays import parse_virtual_wall_blob, parse_zone_bl
 from roborock.map.b01_q10_render import Q10MapOverlays, render_q10_map
 
 from .common import UpdatableTrait
+from .coordinates import trace_to_roborock_coordinate
 
 _LOGGER = logging.getLogger(__name__)
 _DOCKED_STATES = {YXDeviceState.CHARGING, YXDeviceState.EMPTYING_THE_BIN}
@@ -117,6 +118,21 @@ class MapContentTrait(TraitUpdateListener):
     def robot_position(self) -> Q10Point | None:
         """Current position for live status and caller-rendered map overlays."""
         return self._trace_packet.robot_position if self._trace_packet else None
+
+    @property
+    def roborock_position(self) -> Q10Point | None:
+        """Current position in the common Roborock millimetre coordinate space."""
+        if (position := self.robot_position) is None:
+            return None
+        return Q10Point(
+            x=trace_to_roborock_coordinate(position.x),
+            y=trace_to_roborock_coordinate(position.y),
+        )
+
+    @property
+    def trace_sequence(self) -> int | None:
+        """Current cleaning-session sequence from the trace stream."""
+        return self._trace_packet.sequence if self._trace_packet else None
 
     @property
     def robot_heading(self) -> int | None:
