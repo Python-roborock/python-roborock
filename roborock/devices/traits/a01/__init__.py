@@ -8,18 +8,21 @@ Using A01 APIs
 A01 devices expose a single API object that handles all device interactions. This API is
 available on the device instance (typically via `device.a01_properties`).
 
-The API provides two main methods:
+The API provides these methods:
 1.  **query_values(protocols)**: Fetches current state for specific data points.
     You must pass a list of protocol enums (e.g. `RoborockDyadDataProtocol` or
     `RoborockZeoProtocol`) to request specific data.
 2.  **set_value(protocol, value)**: Sends a command to the device to change a setting
     or perform an action.
+3.  **add_listener(callback)**: Subscribes to state the device pushes on its own (for
+    example when its state changes), invoking the callback with decoded values.
 
 Note that these APIs fetch data directly from the device upon request and do not
 cache state internally.
 """
 
 import json
+import logging
 from collections.abc import Callable
 from datetime import time
 from typing import Any
@@ -40,6 +43,7 @@ from roborock.data.zeo.zeo_code_mappings import (
     ZeoDetergentType,
     ZeoDryingMode,
     ZeoError,
+    ZeoFeatureBits,
     ZeoMode,
     ZeoProgram,
     ZeoRinse,
@@ -50,8 +54,23 @@ from roborock.data.zeo.zeo_code_mappings import (
 )
 from roborock.devices.rpc.a01_channel import send_decoded_command
 from roborock.devices.traits import Trait
+from roborock.devices.traits.a01.device_feature import (
+    build_feature_dp_list,
+    build_force_load_dp_list,
+    supports_uv_light,
+)
+from roborock.devices.traits.common import TraitUpdateListener
 from roborock.devices.transport.mqtt_channel import MqttChannel
-from roborock.roborock_message import RoborockDyadDataProtocol, RoborockZeoProtocol
+from roborock.exceptions import RoborockException
+from roborock.protocols.a01_protocol import decode_rpc_response
+from roborock.roborock_message import (
+    RoborockDyadDataProtocol,
+    RoborockMessage,
+    RoborockMessageProtocol,
+    RoborockZeoProtocol,
+)
+
+_LOGGER = logging.getLogger(__name__)
 
 __init__ = [
     "DyadApi",
@@ -111,6 +130,7 @@ ZEO_PROTOCOL_ENTRIES: dict[RoborockZeoProtocol, Callable] = {
     RoborockZeoProtocol.DETERGENT_TYPE: lambda val: ZeoDetergentType(val).name,
     RoborockZeoProtocol.SOFTENER_TYPE: lambda val: ZeoSoftenerType(val).name,
     RoborockZeoProtocol.SOUND_SET: lambda val: bool(val),
+    RoborockZeoProtocol.FEATURE_BITS: lambda val: int(val),
 }
 
 
@@ -134,6 +154,9 @@ def convert_zeo_value(protocol_value: RoborockZeoProtocol, value: Any) -> Any:
     return None
 
 
+_DYAD_PROTOCOL_VALUES = frozenset(protocol.value for protocol in RoborockDyadDataProtocol)
+
+
 class DyadApi(Trait):
     """API for interacting with Dyad devices."""
 
@@ -155,15 +178,118 @@ class DyadApi(Trait):
         params = {protocol: value}
         return await send_decoded_command(self._channel, params)
 
+    async def add_listener(self, callback: Callable[[dict[RoborockDyadDataProtocol, Any]], None]) -> Callable[[], None]:
+        """Listen for state the device pushes on its own.
 
-class ZeoApi(Trait):
+        The callback is invoked with decoded values whenever the device sends a
+        message, including unsolicited pushes when its state changes. Only known
+        protocols are delivered. Returns a callable to remove the listener.
+        """
+
+        def on_message(message: RoborockMessage) -> None:
+            try:
+                datapoints = decode_rpc_response(message)
+            except RoborockException:
+                return
+            values: dict[RoborockDyadDataProtocol, Any] = {}
+            for code, value in datapoints.items():
+                if code not in _DYAD_PROTOCOL_VALUES:
+                    continue
+                protocol = RoborockDyadDataProtocol(code)
+                values[protocol] = convert_dyad_value(protocol, value)
+            if values:
+                callback(values)
+
+        return await self._channel.subscribe(on_message)
+
+
+class ZeoApi(Trait, TraitUpdateListener):
     """API for interacting with Zeo devices."""
 
     name = "zeo"
 
-    def __init__(self, channel: MqttChannel) -> None:
+    def __init__(self, channel: MqttChannel, model: str | None = None) -> None:
         """Initialize the Zeo API."""
+        TraitUpdateListener.__init__(self, _LOGGER)
         self._channel = channel
+        self._dps_cache: dict[int, Any] = {}
+        self._dps_unsub: Callable[[], None] | None = None
+        self._feature_bits: int = 0
+        self._model = model
+
+    async def start(self) -> None:
+        """Subscribe to MQTT push and trigger a full state sync.
+
+        Subscribes to the DPS MQTT topic, then performs a two-stage
+        force-load: first the base DP list (including FEATURE_BITS),
+        then a second query for the DPs gated behind each enabled feature.
+        The device responds with a complete state dump;
+        subsequent changes arrive via incremental MQTT push.
+        """
+        await self._ensure_subscribed()
+        await self._force_load()
+        await self._load_feature_dps()
+
+    def close(self) -> None:
+        """Unsubscribe from MQTT push and release resources."""
+        if self._dps_unsub is not None:
+            self._dps_unsub()
+            self._dps_unsub = None
+
+    async def _ensure_subscribed(self) -> None:
+        """Subscribe to MQTT DPS push (idempotent)."""
+        if self._dps_unsub is not None:
+            return
+        self._dps_unsub = await self._channel.subscribe(self._on_dps_message)
+
+    async def _force_load(self) -> None:
+        """Send ID_QUERY with the base DP list to trigger a full state push.
+
+        For devices known to lack FEATURE_BITS, the DP is excluded
+        from the query list and ``_feature_bits`` stays at 0.
+        """
+        dp_list = build_force_load_dp_list(self._model)
+        result = await self.query_values(dp_list)
+        self._feature_bits = result.get(RoborockZeoProtocol.FEATURE_BITS, 0)
+
+    async def _load_feature_dps(self) -> None:
+        """Second-stage query for feature-gated DPs.
+
+        Called unconditionally after the first force-load; each DP is
+        independently gated:
+
+        - Feature-gated DPs are queried only when their feature bit is set
+          in FEATURE_BITS (DP 237).
+        - UV light (DP 228) is gated by :func:`supports_uv_light` (series
+          whitelist), independent of the feature bits.
+        """
+        feature_dps: list[RoborockZeoProtocol] = []
+        if self._feature_bits:
+            feature_dps.extend(build_feature_dp_list(self._feature_bits))
+        if supports_uv_light(self._model):
+            feature_dps.append(RoborockZeoProtocol.UV_LIGHT)
+        if not feature_dps:
+            return
+        try:
+            await self.query_values(feature_dps)
+        except RoborockException as exc:
+            _LOGGER.warning("Feature DPS load failed (non-fatal): %s", exc)
+
+    def supports(self, feature: ZeoFeatureBits) -> bool:
+        """Check whether the device supports a given feature bit."""
+        return bool(self._feature_bits & (1 << feature.value))
+
+    def _on_dps_message(self, message: RoborockMessage) -> None:
+        """Handle unsolicited MQTT push (protocol 102 — RPC_RESPONSE)."""
+        if message.protocol != RoborockMessageProtocol.RPC_RESPONSE:
+            return
+        try:
+            decoded = decode_rpc_response(message)
+        except RoborockException:
+            _LOGGER.debug("Dropped malformed push message", exc_info=True)
+            return
+        self._dps_cache.update(decoded)
+        self._notify_update()
 
     async def query_values(self, protocols: list[RoborockZeoProtocol]) -> dict[RoborockZeoProtocol, Any]:
         """Query the device for the values of the given protocols."""
@@ -186,6 +312,6 @@ def create(product: HomeDataProduct, mqtt_channel: MqttChannel) -> DyadApi | Zeo
         case RoborockCategory.WET_DRY_VAC:
             return DyadApi(mqtt_channel)
         case RoborockCategory.WASHING_MACHINE:
-            return ZeoApi(mqtt_channel)
+            return ZeoApi(mqtt_channel, model=product.model)
         case _:
             raise NotImplementedError(f"Unsupported category {product.category}")

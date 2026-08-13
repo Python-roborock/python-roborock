@@ -1,8 +1,5 @@
 """Zeo (washing machine) device enums.
 
-Member-level comments show the manufacturer's official identifiers
-extracted from the React Native app plugin bundle.
-
 For enums that map between protocol-level positions and physical units
 (e.g. spin speed, temperature), the comment format is
 ``# L<N>, <physical-value>`` where ``L<N>`` is the protocol position
@@ -18,12 +15,7 @@ from ..code_mappings import RoborockEnum
 
 
 class ZeoFeatureBits(RoborockEnum):
-    """Bit positions in DP 237 (FEATURE_BITS).
-
-    Extracted from the official Roborock Washer app plugin bundle
-    (index.ios.bundle, module 726).  Each member's integer value
-    is the exact bit offset the device reports at DP 237.
-    """
+    """Bit positions in DP 237 (FEATURE_BITS)."""
 
     smart_hosting = 0
     silent_mode = 1
@@ -52,7 +44,7 @@ class ZeoFeatureBits(RoborockEnum):
 
 
 class ZeoMode(RoborockEnum):
-    null = 0  # (not found in app bundle)
+    null = 0
     wash = 1
     wash_and_dry = 2
     dry = 3
@@ -60,6 +52,7 @@ class ZeoMode(RoborockEnum):
 
 
 class ZeoState(RoborockEnum):
+    null = 0
     standby = 1
     weighing = 2  # Checking
     soaking = 3
@@ -83,7 +76,7 @@ class ZeoState(RoborockEnum):
 
 
 class ZeoProgram(RoborockEnum):
-    null = 0  # (not found in app bundle)
+    null = 0
     standard = 1  # Mixed
     quick = 2
     sanitize = 3  # Sterilization
@@ -152,6 +145,7 @@ class ZeoSoak(RoborockEnum):
 
 
 class ZeoTemperature(RoborockEnum):
+    null = 0
     normal = 1  # L1, 0 C
     low = 2  # L2, 30 C
     medium = 3  # L3, 40 C
@@ -203,11 +197,13 @@ class ZeoSoftenerType(RoborockEnum):
 
 
 class ZeoDetergentExpansionType(RoborockEnum):
+    null = 0
     concentrated_detergent = 1
     detergent = 2
 
 
 class ZeoSoftenerExpansionType(RoborockEnum):
+    null = 0
     softener = 1
     softener_expansion = 2
     wool_detergent = 3
@@ -241,6 +237,7 @@ class ZeoError(RoborockEnum):
 
 
 class ZeoDryingMethod(RoborockEnum):
+    null = 0
     l1 = 1  # L1, Saving
     l2 = 2  # L2, Standard
     l3 = 3  # L3, SuperFast
@@ -255,11 +252,13 @@ class ZeoSteamVolume(RoborockEnum):
 
 
 class ZeoDryAndCare(RoborockEnum):
+    null = 0
     soft = 1
     normal = 2
 
 
 class ZeoDryerStartError(RoborockEnum):
+    null = 0
     dryer_running = 1  # Washer-Dryer Pairing cannot start: Dryer is running.
     dryer_error = 2  # Washer-Dryer Pairing cannot start: Dryer has an error.
     dryer_done = 3  # Dryer drying is complete, please remove the clothes first.
@@ -269,7 +268,7 @@ class ZeoDryerStartError(RoborockEnum):
     dryer_network_fail = 7  # Please check the dryer network connection.
 
 
-# The following are App-internal lookup tables extracted from the bundle.
+# The following are App-internal lookup tables.
 # They are NOT DP protocol enums — the device never receives these values.
 # They control how the official app adjusts recommended dosages or UI visibility.
 #

@@ -179,6 +179,9 @@ class RoborockZeoProtocol(RoborockEnum):
     SILENT_MODE_ON = 240  # rw  [independent]  use set_silent_mode() for bundled set
     SILENT_MODE_START_TIME = 241  # rw  [independent]  minute-of-day
     SILENT_MODE_END_TIME = 242  # rw  [independent]  minute-of-day
+    UNKNOWN_243 = (
+        243  # unknown, not found in plugin bundle; present in MQTT push from some devices, increments with each push
+    )
     DRY_CARE_MODE = 244  # rw  [startWith]
     SOFTENER_EXPANSION_TYPE = 245  # rw  [independent]
     SMILE_LIGHT_STATUS = 247  # rw  [independent]

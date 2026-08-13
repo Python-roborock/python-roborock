@@ -202,6 +202,8 @@ class RoborockDevice(ABC, TraitsMixin):
                 await self.v1_properties.start()
             elif self.b01_q10_properties is not None:
                 await self.b01_q10_properties.start()
+            elif self.zeo is not None:
+                await self.zeo.start()
         except RoborockException:
             # Expected: start() can fail transiently. Unsubscribe before propagating
             # so the retry by connect_loop() gets a clean channel.
@@ -230,6 +232,8 @@ class RoborockDevice(ABC, TraitsMixin):
             self.v1_properties.close()
         if self.b01_q10_properties is not None:
             await self.b01_q10_properties.close()
+        if self.zeo is not None:
+            self.zeo.close()
         if self._unsub:
             self._unsub()
             self._unsub = None

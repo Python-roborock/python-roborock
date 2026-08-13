@@ -527,8 +527,10 @@ async def test_a01_device(
     test_topic = TEST_TOPIC_FORMAT.format(duid="zeo_duid")
     mqtt_responses: list[bytes] = [
         *MQTT_DEFAULT_RESPONSES,
-        # ACK the Query state call sent below. id is deterministic based on deterministic_message_fixtures
-        mqtt_packet.gen_publish(test_topic, mid=2, payload=response_builder.build_a01_rpc({"203": 6})),
+        # ACK the FEATURE_BITS query sent by _discover_features()
+        mqtt_packet.gen_publish(test_topic, mid=2, payload=response_builder.build_a01_rpc({"237": 1})),
+        # ACK the Query state call sent below
+        mqtt_packet.gen_publish(test_topic, mid=3, payload=response_builder.build_a01_rpc({"203": 6})),
     ]
     for response in mqtt_responses:
         push_mqtt_response(response)
