@@ -232,6 +232,8 @@ class RoborockDevice(ABC, TraitsMixin):
             self.v1_properties.close()
         if self.b01_q10_properties is not None:
             await self.b01_q10_properties.close()
+        if self.zeo is not None:
+            self.zeo.close()
         if self._unsub:
             self._unsub()
             self._unsub = None

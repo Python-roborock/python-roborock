@@ -54,7 +54,11 @@ from roborock.data.zeo.zeo_code_mappings import (
 )
 from roborock.devices.rpc.a01_channel import send_decoded_command
 from roborock.devices.traits import Trait
-from roborock.devices.traits.a01.device_feature import build_force_load_dp_list
+from roborock.devices.traits.a01.device_feature import (
+    build_feature_dp_list,
+    build_force_load_dp_list,
+    supports_uv_light,
+)
 from roborock.devices.traits.common import TraitUpdateListener
 from roborock.devices.transport.mqtt_channel import MqttChannel
 from roborock.exceptions import RoborockException
@@ -216,13 +220,15 @@ class ZeoApi(Trait, TraitUpdateListener):
     async def start(self) -> None:
         """Subscribe to MQTT push and trigger a full state sync.
 
-        Subscribes to the DPS MQTT topic, then sends ID_QUERY with
-        the base DP list (including FEATURE_BITS). The device responds
-        with a complete state dump; subsequent changes arrive
-        via incremental MQTT push.
+        Subscribes to the DPS MQTT topic, then performs a two-stage
+        force-load: first the base DP list (including FEATURE_BITS),
+        then a second query for the DPs gated behind each enabled feature.
+        The device responds with a complete state dump;
+        subsequent changes arrive via incremental MQTT push.
         """
         await self._ensure_subscribed()
         await self._force_load()
+        await self._load_feature_dps()
 
     def close(self) -> None:
         """Unsubscribe from MQTT push and release resources."""
@@ -239,15 +245,35 @@ class ZeoApi(Trait, TraitUpdateListener):
     async def _force_load(self) -> None:
         """Send ID_QUERY with the base DP list to trigger a full state push.
 
-        Uses ``build_force_load_dp_list()`` which selects the correct
-        base list (washer vs dryer) and appends conditional DPs based
-        on the device's series (softener, soak, smart-clean, etc.).
         For devices known to lack FEATURE_BITS, the DP is excluded
         from the query list and ``_feature_bits`` stays at 0.
         """
         dp_list = build_force_load_dp_list(self._model)
         result = await self.query_values(dp_list)
         self._feature_bits = result.get(RoborockZeoProtocol.FEATURE_BITS, 0)
+
+    async def _load_feature_dps(self) -> None:
+        """Second-stage query for feature-gated DPs.
+
+        Called unconditionally after the first force-load; each DP is
+        independently gated:
+
+        - Feature-gated DPs are queried only when their feature bit is set
+          in FEATURE_BITS (DP 237).
+        - UV light (DP 228) is gated by :func:`supports_uv_light` (series
+          whitelist), independent of the feature bits.
+        """
+        feature_dps: list[RoborockZeoProtocol] = []
+        if self._feature_bits:
+            feature_dps.extend(build_feature_dp_list(self._feature_bits))
+        if supports_uv_light(self._model):
+            feature_dps.append(RoborockZeoProtocol.UV_LIGHT)
+        if not feature_dps:
+            return
+        try:
+            await self.query_values(feature_dps)
+        except RoborockException as exc:
+            _LOGGER.warning("Feature DPS load failed (non-fatal): %s", exc)
 
     def supports(self, feature: ZeoFeatureBits) -> bool:
         """Check whether the device supports a given feature bit."""

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from roborock.data.zeo.zeo_code_mappings import ZeoFeatureBits
 from roborock.roborock_message import RoborockZeoProtocol
 
 # ── Per-series model ID frozensets ──────────────────────────────────────
@@ -142,6 +143,20 @@ _UNSUPPORTED_FEATURE_BITS: frozenset[str] = frozenset(
     }
 )
 
+# Series that support UV light (DP 228).
+_UV_LIGHT_SERIES: frozenset[str] = (
+    _H1_LITE_SERIES  # a90, a91, a237
+    | _M1_SERIES  # a92, a93, a133, a162, a233, a234, a218, a213, a276, a277
+    | _MUSE_SERIES  # a142, a215, a211
+    | _METIS_SERIES  # a154, a214
+    | _HYPERION_SERIES  # a141, a149, a207, a230
+    | _POSEIDON_SERIES  # a180, a181, a201, a255
+    | _APOLLO_SERIES  # cd.a188, cd.a204, cd.a258, cd.a265
+    | _HALIA_SERIES  # a240, a241
+    | _HERA_SERIES  # a227, a261, a268, a269, a273
+    | _PANDORA_SERIES  # a239, a262, a270, a271, a272
+)
+
 # ── Force-load DP lists ─────────────────────────────────────────────────
 
 _FORCE_LOAD_BASE_WASHER: list[RoborockZeoProtocol] = [
@@ -268,12 +283,15 @@ def build_force_load_dp_list(model: str | None) -> list[RoborockZeoProtocol]:
             ]
         )
 
-    # ── Feature-bits-gated DPs (queried immediately, not deferred) ──
+    # ── Smart-hosting DPs (always queried when FEATURE_BITS is supported) ──
     if supports_feature_bits(model):
-        # These are always appended when FEATURE_BITS is supported.
-        # The actual bitmask is checked later in loadFeatureDps() for
-        # feature-gated sub-queries, but Bundle appends these upfront.
-        pass  # DP 237 is already in the base list.
+        base.extend(
+            [
+                RoborockZeoProtocol.SMART_HOSTING,  # 235
+                RoborockZeoProtocol.SMART_HOSTING_TIME,  # 236
+                RoborockZeoProtocol.SMART_HOSTING_WAITED_TIME,  # 238
+            ]
+        )
 
     # ── Soak ──
     if supports_soak(model):
@@ -292,3 +310,87 @@ def build_force_load_dp_list(model: str | None) -> list[RoborockZeoProtocol]:
         base = [dp for dp in base if dp != RoborockZeoProtocol.FEATURE_BITS]
 
     return base
+
+
+# ── Feature-gated DP mapping (matches Bundle's loadFeatureDps()) ─────────
+#
+# Each entry maps a ZeoFeatureBits flag to the DPs that should only be
+# queried when that feature bit is set in DP 237 (FEATURE_BITS).
+
+_FEATURE_DP_MAP: dict[ZeoFeatureBits, list[RoborockZeoProtocol]] = {
+    ZeoFeatureBits.silent_mode: [
+        RoborockZeoProtocol.SILENT_MODE_ON,  # 240
+        RoborockZeoProtocol.SILENT_MODE_START_TIME,  # 241
+        RoborockZeoProtocol.SILENT_MODE_END_TIME,  # 242
+    ],
+    ZeoFeatureBits.dry_care: [
+        RoborockZeoProtocol.DRY_CARE_MODE,  # 244
+    ],
+    ZeoFeatureBits.expand_softener: [
+        RoborockZeoProtocol.SOFTENER_EXPANSION_TYPE,  # 245
+    ],
+    ZeoFeatureBits.wool_detergent: [
+        RoborockZeoProtocol.SOFTENER_EXPANSION_TYPE,  # 245
+    ],
+    ZeoFeatureBits.smile_light: [
+        RoborockZeoProtocol.SMILE_LIGHT_STATUS,  # 247
+    ],
+    ZeoFeatureBits.concentrated_detergent: [
+        RoborockZeoProtocol.DETERGENT_EXPANSION_TYPE,  # 248
+    ],
+    ZeoFeatureBits.voice_assistant: [
+        RoborockZeoProtocol.VOICE_SWITCH,  # 10301
+        RoborockZeoProtocol.VOICE_VOLUME,  # 10009
+        RoborockZeoProtocol.VOICE_RECORD_INFO,  # 10302
+        RoborockZeoProtocol.VOICE_RECORD,  # 10303
+        RoborockZeoProtocol.SND_STATE,  # 10004
+    ],
+    ZeoFeatureBits.fluff_clean_notification: [
+        RoborockZeoProtocol.IS_NEED_FLUFF_CLEAN,  # 250
+    ],
+    ZeoFeatureBits.power_button_indicator_light: [
+        RoborockZeoProtocol.POWER_LIGHT,  # 251
+    ],
+    ZeoFeatureBits.dirt_detection: [
+        RoborockZeoProtocol.DIRT_DETECTION_SWITCH,  # 215
+        RoborockZeoProtocol.DIRT_DETECTION_STATUS,  # 216
+    ],
+    ZeoFeatureBits.steam_care: [
+        RoborockZeoProtocol.STEAM_VOLUME,  # 257
+        RoborockZeoProtocol.STEAM_CARE_TIME,  # 261
+    ],
+    ZeoFeatureBits.wash_dry_linkage: [
+        RoborockZeoProtocol.WASH_DRY_LINKED,  # 255
+        RoborockZeoProtocol.DEVICE_BOUND,  # 262
+        RoborockZeoProtocol.CLOTH_PUT_IN,  # 263
+        RoborockZeoProtocol.CLOTH_READY_TO_DRY_COUNT_DOWN,  # 264
+        RoborockZeoProtocol.START_DRYER_ERROR,  # 265
+    ],
+    ZeoFeatureBits.save_panel_program_params: [
+        RoborockZeoProtocol.WIFI_LINKAGE_RESET,  # 266
+    ],
+}
+
+
+def build_feature_dp_list(feature_bits: int) -> list[RoborockZeoProtocol]:
+    """Return the DPs gated behind feature bits enabled in *feature_bits*."""
+    dps: list[RoborockZeoProtocol] = []
+    for feature, feature_dps in _FEATURE_DP_MAP.items():
+        if feature_bits & (1 << feature.value):
+            dps.extend(feature_dps)
+    # De-duplicate while preserving order (expand_softener and wool_detergent
+    # both map to SOFTENER_EXPANSION_TYPE).
+    seen: set[RoborockZeoProtocol] = set()
+    unique_dps: list[RoborockZeoProtocol] = []
+    for dp in dps:
+        if dp not in seen:
+            seen.add(dp)
+            unique_dps.append(dp)
+    return unique_dps
+
+
+def supports_uv_light(model: str | None) -> bool:
+    """Return True if *model* supports UV light (DP 228)."""
+    if model is None:
+        return False
+    return model in _UV_LIGHT_SERIES
