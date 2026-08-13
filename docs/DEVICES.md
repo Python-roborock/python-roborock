@@ -19,6 +19,7 @@ Cloud and Network.
         *   Use `device.b01_q10_properties.vacuum` to access vacuum commands (start, pause, stop, dock, empty dustbin, set clean mode, set fan level).
         *   Use `device.b01_q10_properties.command.send()` for raw DP commands.
     *   **Vacuums (B01 Q7)**: Use `device.b01_q7_properties` for Q7 series devices.
+        *   The device streams full map frames on its own while cleaning, so the rendered map stays current without polling or a heartbeat. Register `device.b01_q7_properties.map_content.add_update_listener(cb)` and read `image_content` / `map_data` when notified.
 
 ## Background: Understanding Device Protocols
 
