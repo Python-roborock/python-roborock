@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v6.5.0 (2026-08-13)
+
+### Features
+
+- Add some basic mower code mappings
+  ([#916](https://github.com/Python-roborock/python-roborock/pull/916),
+  [`ff73b49`](https://github.com/Python-roborock/python-roborock/commit/ff73b491a0640bb837607f36551b45a7d2fedcb6))
+
+
 ## v6.4.0 (2026-08-11)
 
 ### Bug Fixes
