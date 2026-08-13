@@ -19,13 +19,14 @@ from roborock.devices.rpc.b01_q7_channel import Q7MapRpcChannel
 from roborock.devices.traits import Trait
 from roborock.devices.traits.common import TraitUpdateListener
 from roborock.exceptions import RoborockException
-from roborock.map.b01_map_parser import B01MapParser, B01MapParserConfig
+from roborock.map.b01_map_parser import B01MapParser, B01MapParserConfig, parse_map_type
 from roborock.roborock_typing import RoborockB01Q7Methods
 
 from .map import MapTrait
 
 _LOGGER = logging.getLogger(__name__)
 _TRUNCATE_LENGTH = 20
+_LIVE_MAP_TYPE = 0
 
 
 @dataclass
@@ -92,8 +93,19 @@ class MapContentTrait(MapContent, Trait, TraitUpdateListener):
         """Store an unsolicited SCMap frame pushed by the device during cleaning.
 
         Pushed frames carry the live robot pose and cleaning path, so the
-        rendered image stays current without polling.
+        rendered image stays current without polling. Frames for other maps
+        than the live one are ignored to not overwrite the current map.
         """
+        try:
+            map_type = parse_map_type(raw_payload)
+        except RoborockException as ex:
+            _LOGGER.debug("Failed to parse pushed B01 map frame: %s", ex)
+            return
+
+        if map_type != _LIVE_MAP_TYPE:
+            _LOGGER.debug("Ignoring pushed B01 map frame of type %s", map_type)
+            return
+
         try:
             self._parse_and_store(raw_payload)
         except RoborockException as ex:
