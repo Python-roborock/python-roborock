@@ -6,7 +6,7 @@ import logging
 
 import pytest
 
-from roborock import HomeDataProduct, RoborockCategory
+from roborock import CleanRoutes, HomeDataProduct, RoborockCategory
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP, YXCleanType
 from roborock.data.code_mappings import completed_warnings
 from roborock.data.dyad.dyad_code_mappings import DyadError
@@ -160,3 +160,13 @@ def test_roborock_enum_display_names_group_duplicate_protocol_codes() -> None:
 
     assert DyadError(20008).display_name == "battery_temperature_protection"
     assert "battery_temperature_protection_2" not in DyadError.keys()
+
+
+def test_roborock_mode_enum_display_names_group_duplicate_protocol_codes() -> None:
+    """Mode variants keep distinct codes but expose one translation key."""
+    assert CleanRoutes.DEEP_PLUS.code == 303
+    assert CleanRoutes.DEEP_PLUS_CN.code == 305
+    assert CleanRoutes.DEEP_PLUS_CN.value == "deep_plus_cn"
+    assert CleanRoutes.DEEP_PLUS_CN.display_name == "deep_plus"
+    assert CleanRoutes.keys().count("deep_plus") == 1
+    assert "deep_plus_cn" not in CleanRoutes.keys()
