@@ -2,6 +2,51 @@
 
 <!-- version list -->
 
+## v7.0.0 (2026-08-13)
+
+### Bug Fixes
+
+- **zeo**: Add null=0 to multiple Zeo enums, trim verbose docstrings
+  ([#895](https://github.com/Python-roborock/python-roborock/pull/895),
+  [`7724958`](https://github.com/Python-roborock/python-roborock/commit/77249580b063baadbd559ca09915ac15573de070))
+
+- **zeo**: Narrow exceptions, tighten try/except scope
+  ([#895](https://github.com/Python-roborock/python-roborock/pull/895),
+  [`7724958`](https://github.com/Python-roborock/python-roborock/commit/77249580b063baadbd559ca09915ac15573de070))
+
+### Features
+
+- Add MQTT push subscription and real-time state tracking for Zeo devices
+  ([#895](https://github.com/Python-roborock/python-roborock/pull/895),
+  [`7724958`](https://github.com/Python-roborock/python-roborock/commit/77249580b063baadbd559ca09915ac15573de070))
+
+- Add MQTT QoS support and timestamp to A01 protocol payload
+  ([#895](https://github.com/Python-roborock/python-roborock/pull/895),
+  [`7724958`](https://github.com/Python-roborock/python-roborock/commit/77249580b063baadbd559ca09915ac15573de070))
+
+- Full Zeo protocol definition — 67 DPs, complete enum mappings, all 56 devices covered
+  ([#895](https://github.com/Python-roborock/python-roborock/pull/895),
+  [`7724958`](https://github.com/Python-roborock/python-roborock/commit/77249580b063baadbd559ca09915ac15573de070))
+
+- **zeo**: Add MQTT push subscription with DPS cache and feature discovery
+  ([#895](https://github.com/Python-roborock/python-roborock/pull/895),
+  [`7724958`](https://github.com/Python-roborock/python-roborock/commit/77249580b063baadbd559ca09915ac15573de070))
+
+- **zeo**: Implement two-stage force-load and close() cleanup
+  ([#895](https://github.com/Python-roborock/python-roborock/pull/895),
+  [`7724958`](https://github.com/Python-roborock/python-roborock/commit/77249580b063baadbd559ca09915ac15573de070))
+
+- **zeo**: Replace _discover_features with _force_load matching Bundle's forceLoad()
+  ([#895](https://github.com/Python-roborock/python-roborock/pull/895),
+  [`7724958`](https://github.com/Python-roborock/python-roborock/commit/77249580b063baadbd559ca09915ac15573de070))
+
+### Refactoring
+
+- **zeo**: Replace raw integer fields with enum types
+  ([#895](https://github.com/Python-roborock/python-roborock/pull/895),
+  [`7724958`](https://github.com/Python-roborock/python-roborock/commit/77249580b063baadbd559ca09915ac15573de070))
+
+
 ## v6.5.1 (2026-08-13)
 
 ### Bug Fixes
