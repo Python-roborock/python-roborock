@@ -180,11 +180,14 @@ def test_current_cleaning_mode(
     assert status_trait.current_cleaning_mode_name == expected_mode.value
 
 
-def test_current_cleaning_mode_with_brush_up_mop() -> None:
-    """Test brush-up mop-only classification on supported devices."""
-    status_trait = _create_cleaning_mode_status_trait(is_support_main_brush_up_down_supported=True)
-    status_trait.fan_power = VacuumModes.OFF_RAISE_MAIN_BRUSH.code
-    status_trait.water_box_mode = WaterModes.STANDARD.code
+def test_current_cleaning_mode_with_main_brush_lift() -> None:
+    """Test mop-only classification on a device with main-brush lift."""
+    status_trait = _create_cleaning_mode_status_trait(
+        is_support_main_brush_up_down_supported=True,
+        is_water_slide_mode_supported=True,
+    )
+    status_trait.fan_power = VacuumModes.OFF.code
+    status_trait.water_box_mode = WaterModes.PURE_WATER_FLOW_MIDDLE.code
     status_trait.mop_mode = CleanRoutes.STANDARD.code
 
     assert status_trait.current_cleaning_mode == CleaningMode.MOP
@@ -291,17 +294,22 @@ def test_cleaning_mode_options_with_smart_mode() -> None:
     ]
 
 
-def test_get_cleaning_mode_parameters_with_brush_up_mop() -> None:
-    """Test mop-only uses the brush-up mode when supported."""
-    status_trait = _create_cleaning_mode_status_trait(is_support_main_brush_up_down_supported=True)
+def test_get_cleaning_mode_parameters_qrevo_edge_2() -> None:
+    """Test the app-compatible Qrevo Edge 2 mop-only payload."""
+    status_trait = _create_cleaning_mode_status_trait(
+        is_support_main_brush_up_down_supported=True,
+        is_water_slide_mode_supported=True,
+    )
 
     assert get_cleaning_mode_parameters(CleaningMode.MOP, status_trait._device_features_trait) == [
         {
-            "fan_power": VacuumModes.OFF_RAISE_MAIN_BRUSH.code,
-            "water_box_mode": WaterModes.STANDARD.code,
+            "fan_power": VacuumModes.OFF.code,
+            "water_box_mode": WaterModes.PURE_WATER_FLOW_MIDDLE.code,
             "mop_mode": CleanRoutes.STANDARD.code,
         }
     ]
+    assert VacuumModes.OFF in status_trait.fan_speed_options
+    assert VacuumModes.OFF_RAISE_MAIN_BRUSH not in status_trait.fan_speed_options
 
 
 def test_get_cleaning_mode_parameters_without_clean_route_setting() -> None:

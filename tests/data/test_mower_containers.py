@@ -2,7 +2,7 @@
 
 import dataclasses
 
-from roborock.data import MowerStatus
+from roborock.data import MowerStatus, RoborockMowerStateCode
 from roborock.roborock_message import RoborockMowerDataProtocol
 
 
@@ -20,9 +20,54 @@ def test_mower_status_from_dict() -> None:
 
     assert status.error_code == 0
     assert status.battery == 82
-    assert status.mow_state == 3
+    assert status.mow_state is RoborockMowerStateCode.map_undock_fault
     assert status.mow_height == 70
     assert status.gps_coordinate == {"latitude": 1, "longitude": 2}
+
+
+def test_mower_status_from_dps() -> None:
+    status = MowerStatus.from_dps(
+        {
+            "121": 78,
+            122: 1,
+            "123": 58,
+            "133": 1,
+            "139": 55,
+            "142": "<redacted-gps>",
+            "145": 1,
+            "unknown": "ignored",
+            "999": "ignored",
+        }
+    )
+
+    assert status.battery == 78
+    assert status.mow_type == 1
+    assert status.mow_state is RoborockMowerStateCode.mow_suspend
+    assert status.mow_eff_mode == 1
+    assert status.mow_progress == 55
+    assert status.gps_coordinate == "<redacted-gps>"
+    assert status.network_channel == 1
+    assert status.error_code is None
+    assert status.mow_height is None
+
+
+def test_mower_status_from_empty_dps() -> None:
+    assert MowerStatus.from_dps(None) == MowerStatus()
+
+
+def test_mower_status_unknown_state_uses_unknown() -> None:
+    status = MowerStatus.from_dps({"123": 9999})
+
+    assert status.mow_state is RoborockMowerStateCode.unknown
+
+
+def test_mower_state_code_mappings() -> None:
+    assert RoborockMowerStateCode(0) is RoborockMowerStateCode.idle
+    assert RoborockMowerStateCode(55) is RoborockMowerStateCode.mow_zig_zag
+    assert RoborockMowerStateCode(56) is RoborockMowerStateCode.mow_edge
+    assert RoborockMowerStateCode(71) is RoborockMowerStateCode.mow_to_dock_initializing
+    assert RoborockMowerStateCode(151) is RoborockMowerStateCode.charge_charging
+    assert RoborockMowerStateCode(154) is RoborockMowerStateCode.charge_fault
 
 
 def test_mower_status_dps_metadata() -> None:

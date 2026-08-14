@@ -2,6 +2,127 @@
 
 <!-- version list -->
 
+## v7.0.0 (2026-08-13)
+
+### Bug Fixes
+
+- **zeo**: Add null=0 to multiple Zeo enums, trim verbose docstrings
+  ([#895](https://github.com/Python-roborock/python-roborock/pull/895),
+  [`7724958`](https://github.com/Python-roborock/python-roborock/commit/77249580b063baadbd559ca09915ac15573de070))
+
+- **zeo**: Narrow exceptions, tighten try/except scope
+  ([#895](https://github.com/Python-roborock/python-roborock/pull/895),
+  [`7724958`](https://github.com/Python-roborock/python-roborock/commit/77249580b063baadbd559ca09915ac15573de070))
+
+### Features
+
+- Add MQTT push subscription and real-time state tracking for Zeo devices
+  ([#895](https://github.com/Python-roborock/python-roborock/pull/895),
+  [`7724958`](https://github.com/Python-roborock/python-roborock/commit/77249580b063baadbd559ca09915ac15573de070))
+
+- Add MQTT QoS support and timestamp to A01 protocol payload
+  ([#895](https://github.com/Python-roborock/python-roborock/pull/895),
+  [`7724958`](https://github.com/Python-roborock/python-roborock/commit/77249580b063baadbd559ca09915ac15573de070))
+
+- Full Zeo protocol definition — 67 DPs, complete enum mappings, all 56 devices covered
+  ([#895](https://github.com/Python-roborock/python-roborock/pull/895),
+  [`7724958`](https://github.com/Python-roborock/python-roborock/commit/77249580b063baadbd559ca09915ac15573de070))
+
+- **zeo**: Add MQTT push subscription with DPS cache and feature discovery
+  ([#895](https://github.com/Python-roborock/python-roborock/pull/895),
+  [`7724958`](https://github.com/Python-roborock/python-roborock/commit/77249580b063baadbd559ca09915ac15573de070))
+
+- **zeo**: Implement two-stage force-load and close() cleanup
+  ([#895](https://github.com/Python-roborock/python-roborock/pull/895),
+  [`7724958`](https://github.com/Python-roborock/python-roborock/commit/77249580b063baadbd559ca09915ac15573de070))
+
+- **zeo**: Replace _discover_features with _force_load matching Bundle's forceLoad()
+  ([#895](https://github.com/Python-roborock/python-roborock/pull/895),
+  [`7724958`](https://github.com/Python-roborock/python-roborock/commit/77249580b063baadbd559ca09915ac15573de070))
+
+### Refactoring
+
+- **zeo**: Replace raw integer fields with enum types
+  ([#895](https://github.com/Python-roborock/python-roborock/pull/895),
+  [`7724958`](https://github.com/Python-roborock/python-roborock/commit/77249580b063baadbd559ca09915ac15573de070))
+
+
+## v6.5.1 (2026-08-13)
+
+### Bug Fixes
+
+- Logic around mop being off ([#915](https://github.com/Python-roborock/python-roborock/pull/915),
+  [`394379d`](https://github.com/Python-roborock/python-roborock/commit/394379df22a2b5f4642c3a43d4505f2bf88be1e3))
+
+
+## v6.5.0 (2026-08-13)
+
+### Features
+
+- Add some basic mower code mappings
+  ([#916](https://github.com/Python-roborock/python-roborock/pull/916),
+  [`ff73b49`](https://github.com/Python-roborock/python-roborock/commit/ff73b491a0640bb837607f36551b45a7d2fedcb6))
+
+
+## v6.4.0 (2026-08-11)
+
+### Bug Fixes
+
+- **testing**: Remove unused imports in test_a01_simulator.py
+  ([#910](https://github.com/Python-roborock/python-roborock/pull/910),
+  [`4476a6c`](https://github.com/Python-roborock/python-roborock/commit/4476a6cf521bebb0dadc4dfe10b747cfa2115352))
+
+- **testing**: Resolve mypy type hints and ruff formatting in a01_simulator.py
+  ([#910](https://github.com/Python-roborock/python-roborock/pull/910),
+  [`4476a6c`](https://github.com/Python-roborock/python-roborock/commit/4476a6cf521bebb0dadc4dfe10b747cfa2115352))
+
+- **testing**: Set RPC_RESPONSE protocol on pushed simulator messages in push_dps
+  ([#910](https://github.com/Python-roborock/python-roborock/pull/910),
+  [`4476a6c`](https://github.com/Python-roborock/python-roborock/commit/4476a6cf521bebb0dadc4dfe10b747cfa2115352))
+
+### Chores
+
+- **testing**: Remove redundant comment in a01_simulator.py
+  ([#910](https://github.com/Python-roborock/python-roborock/pull/910),
+  [`4476a6c`](https://github.com/Python-roborock/python-roborock/commit/4476a6cf521bebb0dadc4dfe10b747cfa2115352))
+
+### Features
+
+- Add stateful A01 device simulators (Dyad and Zeo) to roborock.testing
+  ([#910](https://github.com/Python-roborock/python-roborock/pull/910),
+  [`4476a6c`](https://github.com/Python-roborock/python-roborock/commit/4476a6cf521bebb0dadc4dfe10b747cfa2115352))
+
+### Refactoring
+
+- **testing**: Use enum keys/values directly for DEFAULT_DYAD_STATUS, DEFAULT_ZEO_STATUS, and
+  simulator status params ([#910](https://github.com/Python-roborock/python-roborock/pull/910),
+  [`4476a6c`](https://github.com/Python-roborock/python-roborock/commit/4476a6cf521bebb0dadc4dfe10b747cfa2115352))
+
+- **testing**: Use int(RoborockDyadDataProtocol.ID_QUERY) constant
+  ([#910](https://github.com/Python-roborock/python-roborock/pull/910),
+  [`4476a6c`](https://github.com/Python-roborock/python-roborock/commit/4476a6cf521bebb0dadc4dfe10b747cfa2115352))
+
+
+## v6.3.0 (2026-08-11)
+
+### Bug Fixes
+
+- **a01**: Restart stale MQTT session on command timeouts
+  ([#898](https://github.com/Python-roborock/python-roborock/pull/898),
+  [`09422a6`](https://github.com/Python-roborock/python-roborock/commit/09422a6d31ea58abcd611083527b444a16dcc333))
+
+### Chores
+
+- Fix formatting ([#898](https://github.com/Python-roborock/python-roborock/pull/898),
+  [`09422a6`](https://github.com/Python-roborock/python-roborock/commit/09422a6d31ea58abcd611083527b444a16dcc333))
+
+### Features
+
+- **a01**: Add push listener for unsolicited device state
+  ([#898](https://github.com/Python-roborock/python-roborock/pull/898),
+  [`09422a6`](https://github.com/Python-roborock/python-roborock/commit/09422a6d31ea58abcd611083527b444a16dcc333))
+
+
 ## v6.2.1 (2026-08-02)
 
 ### Bug Fixes
