@@ -14,11 +14,9 @@ updates do not refresh content.
 """
 
 import logging
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from roborock.callbacks import CallbackList
 from roborock.data import RoborockBase
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP, YXDeviceState
 from roborock.devices.traits.common import DpsDataConverter, TraitUpdateListener
@@ -106,8 +104,6 @@ class MapContentTrait(TraitUpdateListener):
         self._map_packet: Q10MapPacket | None = None
         self._trace_packet: Q10TracePacket | None = None
         self._image_content: bytes | None = None
-        self._map_packet_callbacks: CallbackList[None] = CallbackList(_LOGGER)
-        self._trace_packet_callbacks: CallbackList[None] = CallbackList(_LOGGER)
         self._map_dps.add_update_listener(self._map_dps_updated)
 
     async def refresh(self) -> None:
@@ -156,22 +152,12 @@ class MapContentTrait(TraitUpdateListener):
         self._map_packet = packet
         self._render()
         self._notify_update()
-        self._map_packet_callbacks(None)
 
     def update_from_trace_packet(self, packet: Q10TracePacket) -> None:
         """Store a trace-protocol update and render the latest sources."""
         self._trace_packet = packet
         self._render()
         self._notify_update()
-        self._trace_packet_callbacks(None)
-
-    def _add_map_packet_listener(self, callback: Callable[[], None]) -> Callable[[], None]:
-        """Register an internal callback for decoded map packets."""
-        return self._map_packet_callbacks.add_callback(lambda _: callback())
-
-    def _add_trace_packet_listener(self, callback: Callable[[], None]) -> Callable[[], None]:
-        """Register an internal callback for decoded trace packets."""
-        return self._trace_packet_callbacks.add_callback(lambda _: callback())
 
     def _map_dps_updated(self) -> None:
         """Render after the low-level map DPS source changes."""

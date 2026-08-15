@@ -107,7 +107,7 @@ class dpMultiMap(RoborockBase):
     @property
     def current_map_id(self) -> str | None:
         """Return the first saved-map identifier, if one was reported."""
-        first = next((map_info for map_info in self.data if isinstance(map_info, Q10MapInfo) and map_info.id), None)
+        first = next((map_info for map_info in self.data if map_info.id), None)
         return first.id if first else None
 
 

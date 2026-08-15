@@ -603,16 +603,16 @@ _Q10_MAP_PUSH_TIMEOUT = 30.0
 async def _await_q10_map_push(
     properties: Q10PropertiesApi,
     predicate: Callable[[], bool],
-    add_source_listener: Callable[[Callable[[], None]], Callable[[], None]],
     *,
     timeout: float = _Q10_MAP_PUSH_TIMEOUT,
     allow_cached_on_timeout: bool = False,
 ) -> bool:
-    """Request Q10 map content and wait for a fresh map or trace packet.
+    """Request Q10 map content and wait for usable map-trait state.
 
     A Q10 needs a saved-map ID before it can request content. The map list and
     content have independent refresh schedules, so the list is requested only
-    when no ID is stored. The content then arrives as a later ``MAP_RESPONSE``.
+    when no ID is stored. The content then arrives as a later ``MAP_RESPONSE``
+    and is published through the standard trait update interface.
     """
     loop = asyncio.get_running_loop()
     updated: asyncio.Future[None] = loop.create_future()
@@ -621,7 +621,7 @@ async def _await_q10_map_push(
         if predicate() and not updated.done():
             updated.set_result(None)
 
-    unsub = add_source_listener(on_update)
+    unsub = properties.map.add_update_listener(on_update)
     try:
         async with asyncio.timeout(timeout):
             if properties.maps.current_map_id is None:
@@ -662,7 +662,6 @@ async def map_image(ctx, device_id: str, output_file: str):
         await _await_q10_map_push(
             properties,
             lambda: properties.map.image_content is not None,
-            properties.map._add_map_packet_listener,
             allow_cached_on_timeout=True,
         )
         image_content = properties.map.image_content
@@ -724,7 +723,6 @@ async def q10_position(ctx, device_id: str, include_path: bool):
     got_trace = await _await_q10_map_push(
         properties,
         lambda: bool(properties.map.path),
-        properties.map._add_trace_packet_listener,
     )
     if not got_trace:
         click.echo("No live trace available (the robot only reports position while cleaning).")
@@ -890,7 +888,6 @@ async def rooms(ctx, device_id: str):
         await _await_q10_map_push(
             properties,
             lambda: properties.map.image_content is not None,
-            properties.map._add_map_packet_listener,
             allow_cached_on_timeout=True,
         )
         click.echo(dump_json({room.id: room.name for room in properties.map.rooms}))

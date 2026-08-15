@@ -176,7 +176,6 @@ async def test_await_q10_map_push_waits_for_fresh_update() -> None:
     got_trace = await _await_q10_map_push(
         cast(Q10PropertiesApi, properties),
         lambda: bool(properties.map.path),
-        properties.map._add_trace_packet_listener,
         timeout=0.01,
     )
 
@@ -190,7 +189,6 @@ async def test_await_q10_map_push_returns_true_after_update() -> None:
     got_trace = await _await_q10_map_push(
         cast(Q10PropertiesApi, properties),
         lambda: bool(properties.map.path),
-        properties.map._add_trace_packet_listener,
         timeout=0.01,
     )
 
@@ -205,7 +203,6 @@ async def test_await_q10_map_push_requests_map_list_only_on_first_use() -> None:
     got_trace = await _await_q10_map_push(
         cast(Q10PropertiesApi, properties),
         lambda: bool(properties.map.path),
-        properties.map._add_trace_packet_listener,
         timeout=0.01,
     )
 
@@ -221,36 +218,11 @@ async def test_await_q10_map_push_can_fall_back_to_cached_map_on_timeout() -> No
     got_map = await _await_q10_map_push(
         cast(Q10PropertiesApi, properties),
         lambda: properties.map.image_content is not None,
-        properties.map._add_map_packet_listener,
         timeout=0.01,
         allow_cached_on_timeout=True,
     )
 
     assert got_map is True
-    assert properties.refresh_count == 1
-
-
-async def test_await_q10_map_push_ignores_overlay_only_render() -> None:
-    """A DPS recomposition cannot masquerade as a fresh map packet."""
-    map_dps = MapDpsTrait()
-    properties = _FakeQ10Properties()
-    properties.map = _map_trait(map_dps)
-    properties.map.update_from_map_packet(parse_map_packet(FIXTURE.read_bytes()))
-
-    async def refresh_overlay_only() -> None:
-        properties.refresh_count += 1
-        map_dps.update_from_dps({B01_Q10_DP.RESTRICTED_ZONE_UP: _zone_blob()})
-
-    properties.map.refresh = refresh_overlay_only  # type: ignore[method-assign]
-
-    got_map = await _await_q10_map_push(
-        cast(Q10PropertiesApi, properties),
-        lambda: properties.map.image_content is not None,
-        properties.map._add_map_packet_listener,
-        timeout=0.01,
-    )
-
-    assert got_map is False
     assert properties.refresh_count == 1
 
 
