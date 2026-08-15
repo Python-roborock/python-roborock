@@ -117,6 +117,16 @@ class Q7PropertiesApi(Trait):
         """Enable or disable the child lock."""
         await self.set_prop(RoborockB01Props.CHILD_LOCK, int(enabled))
 
+    async def set_dust_collection(self, enabled: bool) -> None:
+        """Enable or disable automatic dust collection at the dock."""
+        await self.set_prop(RoborockB01Props.DUST_AUTO_STATE, int(enabled))
+
+    async def set_dust_collection_frequency(self, frequency: int) -> None:
+        """Set how often the dock auto-empties, in cleans per emptying (1 = every clean)."""
+        if frequency < 1:
+            raise ValueError(f"frequency must be a positive number of cleans, got {frequency}")
+        await self.set_prop(RoborockB01Props.DUST_FREQUENCY, frequency)
+
     async def set_do_not_disturb(self, enabled: bool, begin_time: int, end_time: int) -> None:
         """Configure do-not-disturb.
 
