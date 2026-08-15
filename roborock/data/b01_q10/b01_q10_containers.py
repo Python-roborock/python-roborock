@@ -84,10 +84,31 @@ class Q10CleanRecord(RoborockBase):
 
 
 @dataclass
+class Q10MapInfo(RoborockBase):
+    """A saved map reported by ``dpMultiMap``.
+
+    Q10 firmware represents the map identifier as a string on the wire. The
+    value is sent back unchanged in a subsequent ``{"op": "get"}`` request.
+    """
+
+    id: str
+    name: str | None = None
+    timestamp: int | None = None
+
+
+@dataclass
 class dpMultiMap(RoborockBase):
+    """Response envelope for the Q10 ``dpMultiMap`` data point."""
+
     op: str
     result: int
-    data: list
+    data: list[Q10MapInfo] = field(default_factory=list)
+
+    @property
+    def current_map_id(self) -> str | None:
+        """Return the first saved-map identifier, if one was reported."""
+        first = next((map_info for map_info in self.data if map_info.id), None)
+        return first.id if first else None
 
 
 @dataclass

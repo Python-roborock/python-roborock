@@ -17,6 +17,7 @@ from .consumable import ConsumableTrait
 from .do_not_disturb import DoNotDisturbTrait
 from .dust_collection import DustCollectionTrait
 from .map import MapContentTrait, MapDpsTrait
+from .maps import MapsTrait
 from .network_info import NetworkInfoTrait
 from .remote import RemoteTrait
 from .status import StatusTrait
@@ -32,6 +33,7 @@ __all__ = [
     "DoNotDisturbTrait",
     "DustCollectionTrait",
     "MapContentTrait",
+    "MapsTrait",
     "NetworkInfoTrait",
     "SoundVolumeTrait",
     "StatusTrait",
@@ -79,6 +81,9 @@ class Q10PropertiesApi(Trait):
     map: MapContentTrait
     """Composed map image plus caller-facing map and trace data."""
 
+    maps: MapsTrait
+    """Saved-map list metadata."""
+
     _map_dps: MapDpsTrait
     """Private source of restricted zones and virtual walls received through DPS."""
 
@@ -100,7 +105,8 @@ class Q10PropertiesApi(Trait):
         self.network_info = NetworkInfoTrait()
         self.consumable = ConsumableTrait()
         self._map_dps = MapDpsTrait()
-        self.map = MapContentTrait(self._map_dps)
+        self.maps = MapsTrait(self.command)
+        self.map = MapContentTrait(self._map_dps, self.maps, self.command)
         self.clean_history = CleanHistoryTrait(self.command)
         # Read-model traits updated from the device's DPS push stream.
         self._updatable_traits = [
@@ -113,6 +119,7 @@ class Q10PropertiesApi(Trait):
             self.consumable,
             self.clean_history,
             self._map_dps,
+            self.maps,
         ]
         self._subscribe_task: asyncio.Task[None] | None = None
 
@@ -132,8 +139,8 @@ class Q10PropertiesApi(Trait):
 
     async def refresh(self) -> None:
         """Refresh all traits."""
-        # Sending the REQUEST_DPS will cause the device to send all DPS values
-        # to the device. Updates will be received by the subscribe loop below.
+        # Sending REQUEST_DPS causes the device to publish its ordinary status
+        # values. Map-list and map-content refreshes have separate schedules.
         await self.command.send(B01_Q10_DP.REQUEST_DPS, params={})
 
     async def _subscribe_loop(self) -> None:
@@ -144,10 +151,8 @@ class Q10PropertiesApi(Trait):
     def _handle_message(self, message: Q10Message) -> None:
         """Route a single decoded message to the trait responsible for it.
 
-        Map and trace packets arrive as protocol-301 ``MAP_RESPONSE`` pushes (the
-        Q10 is entirely push-driven: there is no synchronous get-map request, a
-        ``dpRequestDps`` just nudges the device to publish its current map). DPS
-        updates feed the read-model traits. More traits can be dispatched here below.
+        Map and trace packets arrive as protocol-301 ``MAP_RESPONSE`` pushes.
+        Map-list DPS responses and other DPS updates feed the read-model traits.
         """
         if isinstance(message, Q10MapPacket):
             self.map.update_from_map_packet(message)
