@@ -1,6 +1,7 @@
 """Data containers for Zeo (washing machine / dryer) devices."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 
 from ..containers import RoborockBase
 from .zeo_code_mappings import (
@@ -18,26 +19,90 @@ from .zeo_code_mappings import (
 
 
 @dataclass
-class ZeoStartParams(RoborockBase):
-    """Parameters that must be bundled with a START command.
+class ZeoWashRecord(RoborockBase):
+    """A single entry in the device's wash-history log (DP 10008)."""
 
-    All Zeo devices require ``mode`` and ``program`` to be sent together
-    with the start signal. The remaining fields are optional and only
-    included when the device reports a non-None value.
+    ctrl_type: int = 0
+    """Control type of the programme (2 = app, 1 = panel)."""
+
+    prog_type: ZeoProgram | None = None
+
+    category: ZeoMode | None = None
+
+    end_type: int = 0
+    """End type (1 = completed, 2 = cancelled/failed)."""
+
+    duration: int = 0
+    """Programme duration in minutes (0 for entries that never ran)."""
+
+    t: int = 0
+    """Start timestamp (Unix seconds)."""
+
+    end_t: int = 0
+    """End timestamp (Unix seconds)."""
+
+
+@dataclass
+class ZeoWashLog(RoborockBase):
+    """Wash-history log reported at DP 10008 (JSON string)."""
+
+    cnt: int = 0
+    """Total number of log entries."""
+
+    wash_cnt: int = 0
+    """Total wash count."""
+
+    dry_cnt: int = 0
+    """Total dry count."""
+
+    wash_dry_cnt: int = 0
+    """Total wash-and-dry count."""
+
+    washes: list[ZeoWashRecord] = field(default_factory=list)
+    """The individual wash records (oldest → newest)."""
+
+
+@dataclass
+class ZeoStartParams(RoborockBase):
+    """All parameters that may be bundled with a START command.
+
+    ``mode`` and ``program`` are mandatory for every device.  Every other
+    field is optional — when ``None`` it is simply omitted from the MQTT
+    payload, so the same superset works for washers and dryers alike.
     """
 
     mode: ZeoMode
     program: ZeoProgram
+
+    # Washer
     temperature: ZeoTemperature | None = None
     rinse: ZeoRinse | None = None
     spin: ZeoSpin | None = None
     drying_mode: ZeoDryingMode | None = None
 
+    # Dryer
+    drying_method: ZeoDryingMethod | None = None
+    steam_volume: ZeoSteamVolume | None = None
+    # Timed-program running duration in minutes (DP 234).
+    # This is a fixed parameter of the programme config.
+    # TODO(program-config): once a programme table exists, this should be
+    # auto-populated from the programme config instead of passed by the caller.
+    total_time: int | None = None  # depends on programme configs
+
+    # Optional across both device families
+    soak: ZeoSoak | None = None
+    dry_and_care: ZeoDryAndCare | None = None
+
+    # Feature-gated start options (DP 258 / DP 255). In the Bundle these are
+    # the programme's config ``defaultIonStatus`` and the UI's
+    # ``wash_dry_linked`` state
+    ion_deodorization: bool | None = None
+    wash_dry_linked: bool | None = None
+
 
 # ── DP 222 (LoadCloudProgram) bitfield decoder ──────────────────────────
-# The official app packs all custom-program parameters into a single
-# 32-bit integer at DP 222.  This mirrors WasherDpsCache.customMode in
-# module 725 of the React Native plugin bundle.
+# All custom-program parameters are packed into a single
+# 32-bit integer at DP 222.
 
 
 @dataclass
@@ -101,8 +166,7 @@ class ZeoDryerCustomMode(RoborockBase):
     """Decoded custom programme from DP 222 for a standalone dryer.
 
     Dryers pack a different (shorter) bitfield than washers — only 5
-    fields after program/mode.  Mirrors ``WasherDpsCache.dryerCustomMode``
-    in module 725 of the plugin bundle.
+    fields after program/mode.
     """
 
     program: ZeoProgram

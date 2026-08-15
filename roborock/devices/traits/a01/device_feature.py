@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass, fields
+
 from roborock.data.zeo.zeo_code_mappings import ZeoFeatureBits
 from roborock.roborock_message import RoborockZeoProtocol
 
@@ -143,6 +145,55 @@ _UNSUPPORTED_FEATURE_BITS: frozenset[str] = frozenset(
     }
 )
 
+
+@dataclass
+class ZeoFeatures:
+    """Device capability flags parsed from DP 237 (FEATURE_BITS).
+
+    Field names match :class:`ZeoFeatureBits` members one-to-one, so
+    :meth:`from_feature_bits` derives the mapping by name reflection
+    instead of a hardcoded lookup table.
+    """
+
+    adapted_custom_program: bool = False
+    concentrated_detergent: bool = False
+    deep_self_clean: bool = False
+    detect_door_status: bool = False
+    dirt_detection: bool = False
+    dry_care: bool = False
+    expand_softener: bool = False
+    fluff_clean_notification: bool = False
+    ion_deodorization: bool = False
+    new_custom_program: bool = False
+    power_button_indicator_light: bool = False
+    save_panel_program_params: bool = False
+    set_params_in_working: bool = False
+    set_uvc_in_appointment: bool = False
+    set_uvc_in_pause: bool = False
+    silent_mode: bool = False
+    smart_hosting: bool = False
+    smile_light: bool = False
+    steam_care: bool = False
+    thirty_min_soak: bool = False
+    voice_assistant: bool = False
+    voice_assistant_record: bool = False
+    wash_dry_linkage: bool = False
+    wool_detergent: bool = False
+
+    @classmethod
+    def from_feature_bits(cls, raw: int) -> ZeoFeatures:
+        """Parse a raw FEATURE_BITS integer into a :class:`ZeoFeatures`."""
+        kwargs: dict[str, bool] = {}
+        for f in fields(cls):
+            bit_pos = getattr(ZeoFeatureBits, f.name)
+            kwargs[f.name] = bool(raw & (1 << int(bit_pos)))
+        return cls(**kwargs)
+
+    def get_supported_features(self) -> list[str]:
+        """Return the names of all feature bits enabled on this device."""
+        return [name for name, value in vars(self).items() if value]
+
+
 # Series that support UV light (DP 228).
 _UV_LIGHT_SERIES: frozenset[str] = (
     _H1_LITE_SERIES  # a90, a91, a237
@@ -265,6 +316,29 @@ def supports_smart_clean(model: str | None) -> bool:
     return model in (_M1_SERIES | _MUSE_SERIES | _HYPERION_SERIES | _APOLLO_SERIES | _HALIA_SERIES | _HERA_SERIES)
 
 
+def is_addition_type_control_auto_addition(model: str | None) -> bool:
+    """True when the DetergentType DP itself controls auto-addition."""
+    if model is None:
+        return False
+    excluded = (
+        _H1_SERIES
+        | _H1_LITE_SERIES
+        | _HYPERION_SERIES
+        | _POSEIDON_SERIES
+        | _HALIA_SERIES
+        | _HERA_SERIES
+        | _PANDORA_SERIES
+    )
+    return model not in excluded
+
+
+def is_hyperion_halia_hera(model: str | None) -> bool:
+    """True for Hyperion / Halia / Hera series."""
+    if model is None:
+        return False
+    return model in (_HYPERION_SERIES | _HALIA_SERIES | _HERA_SERIES)
+
+
 def build_force_load_dp_list(model: str | None) -> list[RoborockZeoProtocol]:
     """Return the complete DP list for ``_force_load()``."""
     if is_dryer(model):
@@ -343,7 +417,7 @@ _FEATURE_DP_MAP: dict[ZeoFeatureBits, list[RoborockZeoProtocol]] = {
         RoborockZeoProtocol.VOICE_VOLUME,  # 10009
         RoborockZeoProtocol.VOICE_RECORD_INFO,  # 10302
         RoborockZeoProtocol.VOICE_RECORD,  # 10303
-        RoborockZeoProtocol.SND_STATE,  # 10004
+        RoborockZeoProtocol.SOUND_PACKAGE_INFO,  # 10004
     ],
     ZeoFeatureBits.fluff_clean_notification: [
         RoborockZeoProtocol.IS_NEED_FLUFF_CLEAN,  # 250
