@@ -13,6 +13,7 @@ trait keeps only the latest value from each source and one replace-whole image;
 calibration, path placement and overlay placement remain inside the renderer.
 """
 
+import dataclasses
 import logging
 from dataclasses import dataclass, field
 from typing import Any
@@ -160,8 +161,6 @@ class MapContentTrait(TraitUpdateListener):
 
     def as_dict(self, exclude: set[str] | None = None) -> dict[str, Any]:
         """Return the trait data as a dictionary, excluding large binary data."""
-        import dataclasses
-
         exclude_set = exclude or set()
         data = {
             "rooms": [dataclasses.asdict(room) for room in self.rooms],

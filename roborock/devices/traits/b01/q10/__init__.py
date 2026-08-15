@@ -166,7 +166,7 @@ class Q10PropertiesApi(Trait):
         """Return the trait data as a dictionary."""
         result: dict[str, Any] = {}
         for name, value in self.__dict__.items():
-            if isinstance(value, RoborockBase):
+            if isinstance(value, RoborockBase) and not name.startswith("_"):
                 result[name] = value.as_dict()
         if hasattr(self, "map") and hasattr(self.map, "as_dict"):
             result["map"] = self.map.as_dict()

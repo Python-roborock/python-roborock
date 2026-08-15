@@ -1,8 +1,6 @@
 # serializer version: 1
 # name: test_q10_properties_as_dict_and_diagnostic_data
   dict({
-    '_map_dps': dict({
-    }),
     'child_lock': dict({
       'childLock': False,
     }),
@@ -124,7 +122,7 @@
           }),
           '80': 0,
           '81': dict({
-            'ipAdress': '192.168.1.52',
+            'ipAdress': '**REDACTED**',
             'mac': '**REDACTED**',
             'signal': -42,
             'wifiName': '**REDACTED**',
@@ -381,8 +379,6 @@
       ]),
     }),
     'traits': dict({
-      '_map_dps': dict({
-      }),
       'child_lock': dict({
         'childLock': False,
       }),
@@ -415,7 +411,7 @@
       }),
       'network_info': dict({
         'netInfo': dict({
-          'ipAdress': '1.1.1.2',
+          'ipAdress': '**REDACTED**',
           'mac': '**REDACTED**',
           'signal': -50,
           'wifiName': '**REDACTED**',
@@ -471,8 +467,6 @@
 # ---
 # name: test_q10_properties_as_dict_empty
   dict({
-    '_map_dps': dict({
-    }),
     'child_lock': dict({
     }),
     'consumable': dict({
