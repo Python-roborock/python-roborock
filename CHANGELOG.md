@@ -2,6 +2,68 @@
 
 <!-- version list -->
 
+## v7.0.0 (2026-08-13)
+
+### Bug Fixes
+
+- **zeo**: Add null=0 to multiple Zeo enums, trim verbose docstrings
+  ([#895](https://github.com/Python-roborock/python-roborock/pull/895),
+  [`7724958`](https://github.com/Python-roborock/python-roborock/commit/77249580b063baadbd559ca09915ac15573de070))
+
+- **zeo**: Narrow exceptions, tighten try/except scope
+  ([#895](https://github.com/Python-roborock/python-roborock/pull/895),
+  [`7724958`](https://github.com/Python-roborock/python-roborock/commit/77249580b063baadbd559ca09915ac15573de070))
+
+### Features
+
+- Add MQTT push subscription and real-time state tracking for Zeo devices
+  ([#895](https://github.com/Python-roborock/python-roborock/pull/895),
+  [`7724958`](https://github.com/Python-roborock/python-roborock/commit/77249580b063baadbd559ca09915ac15573de070))
+
+- Add MQTT QoS support and timestamp to A01 protocol payload
+  ([#895](https://github.com/Python-roborock/python-roborock/pull/895),
+  [`7724958`](https://github.com/Python-roborock/python-roborock/commit/77249580b063baadbd559ca09915ac15573de070))
+
+- Full Zeo protocol definition — 67 DPs, complete enum mappings, all 56 devices covered
+  ([#895](https://github.com/Python-roborock/python-roborock/pull/895),
+  [`7724958`](https://github.com/Python-roborock/python-roborock/commit/77249580b063baadbd559ca09915ac15573de070))
+
+- **zeo**: Add MQTT push subscription with DPS cache and feature discovery
+  ([#895](https://github.com/Python-roborock/python-roborock/pull/895),
+  [`7724958`](https://github.com/Python-roborock/python-roborock/commit/77249580b063baadbd559ca09915ac15573de070))
+
+- **zeo**: Implement two-stage force-load and close() cleanup
+  ([#895](https://github.com/Python-roborock/python-roborock/pull/895),
+  [`7724958`](https://github.com/Python-roborock/python-roborock/commit/77249580b063baadbd559ca09915ac15573de070))
+
+- **zeo**: Replace _discover_features with _force_load matching Bundle's forceLoad()
+  ([#895](https://github.com/Python-roborock/python-roborock/pull/895),
+  [`7724958`](https://github.com/Python-roborock/python-roborock/commit/77249580b063baadbd559ca09915ac15573de070))
+
+### Refactoring
+
+- **zeo**: Replace raw integer fields with enum types
+  ([#895](https://github.com/Python-roborock/python-roborock/pull/895),
+  [`7724958`](https://github.com/Python-roborock/python-roborock/commit/77249580b063baadbd559ca09915ac15573de070))
+
+
+## v6.5.1 (2026-08-13)
+
+### Bug Fixes
+
+- Logic around mop being off ([#915](https://github.com/Python-roborock/python-roborock/pull/915),
+  [`394379d`](https://github.com/Python-roborock/python-roborock/commit/394379df22a2b5f4642c3a43d4505f2bf88be1e3))
+
+
+## v6.5.0 (2026-08-13)
+
+### Features
+
+- Add some basic mower code mappings
+  ([#916](https://github.com/Python-roborock/python-roborock/pull/916),
+  [`ff73b49`](https://github.com/Python-roborock/python-roborock/commit/ff73b491a0640bb837607f36551b45a7d2fedcb6))
+
+
 ## v6.4.0 (2026-08-11)
 
 ### Bug Fixes

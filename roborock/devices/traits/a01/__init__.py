@@ -48,6 +48,7 @@ from roborock.data.zeo.zeo_code_mappings import (
     ZeoDryingMethod,
     ZeoDryingMode,
     ZeoError,
+    ZeoFeatureBits,
     ZeoMode,
     ZeoProgram,
     ZeoRinse,
