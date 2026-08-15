@@ -53,7 +53,7 @@ from roborock.devices.traits import Trait
 from roborock.devices.transport.mqtt_channel import MqttChannel
 from roborock.roborock_message import RoborockDyadDataProtocol, RoborockZeoProtocol
 
-__init__ = [
+__all__ = [
     "DyadApi",
     "ZeoApi",
 ]
