@@ -16,10 +16,12 @@ calibration, path placement and overlay placement remain inside the renderer.
 import dataclasses
 import logging
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any
 
 from roborock.data import RoborockBase
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP, YXDeviceState
+from roborock.data.containers import _camelize
 from roborock.devices.traits.common import DpsDataConverter, TraitUpdateListener
 from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
@@ -161,9 +163,6 @@ class MapContentTrait(TraitUpdateListener):
 
     def as_dict(self, exclude: set[str] | None = None) -> dict[str, Any]:
         """Return the trait data as a dictionary, excluding large binary data."""
-        from enum import Enum
-
-        from roborock.data.containers import _camelize
 
         def _to_camel_dict(obj: Any) -> Any:
             return dataclasses.asdict(
