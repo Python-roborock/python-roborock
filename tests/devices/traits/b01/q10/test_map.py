@@ -24,6 +24,7 @@ from roborock.devices.traits.b01.q10.map import MapContentTrait, MapDpsTrait
 from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
     Q10Point,
+    Q10Room,
     Q10TracePacket,
     parse_map_packet,
     parse_trace_packet,
@@ -410,3 +411,26 @@ async def test_combined_status_and_overlay_update_renders_once(render_map: Mock)
     assert len(render_map.call_args.args[2].zones) == 1
     assert render_map.call_args.kwargs["robot_at_dock"] is True
     assert trait.image_content == b"combined map"
+
+
+def test_map_content_trait_as_dict_camelizes_child_keys() -> None:
+    """MapContentTrait.as_dict() camelizes nested child keys (e.g. rawName, pixelValue)."""
+    from roborock.map.b01_q10_map_parser import Q10MapPacket
+
+    trait = _map_trait()
+    trait._map_packet = Q10MapPacket(
+        map_id=1,
+        width=100,
+        height=100,
+        grid=b"",
+        rooms=[Q10Room(id=1, raw_name="living_room", pixel_value=12, pixel_count=400)],
+    )
+    trait._trace_packet = Q10TracePacket(
+        points=[Q10Point(x=100, y=200), Q10Point(x=150, y=250)],
+        sequence=0,
+    )
+
+    data = trait.as_dict()
+    assert data["rooms"] == [{"id": 1, "rawName": "living_room", "pixelValue": 12, "pixelCount": 400}]
+    assert data["path"] == [{"x": 100, "y": 200}, {"x": 150, "y": 250}]
+    assert data["robotPosition"] == {"x": 150, "y": 250}
