@@ -13,15 +13,12 @@ trait keeps only the latest value from each source and one replace-whole image;
 calibration, path placement and overlay placement remain inside the renderer.
 """
 
-import dataclasses
 import logging
 from dataclasses import dataclass, field
-from enum import Enum
 from typing import Any
 
 from roborock.data import RoborockBase
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP, YXDeviceState
-from roborock.data.containers import _camelize
 from roborock.devices.traits.common import DpsDataConverter, TraitUpdateListener
 from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
@@ -163,22 +160,11 @@ class MapContentTrait(TraitUpdateListener):
 
     def as_dict(self, exclude: set[str] | None = None) -> dict[str, Any]:
         """Return the trait data as a dictionary, excluding large binary data."""
-
-        def _to_camel_dict(obj: Any) -> Any:
-            return dataclasses.asdict(
-                obj,
-                dict_factory=lambda _fields: {
-                    _camelize(key): value.value if isinstance(value, Enum) else value
-                    for (key, value) in _fields
-                    if value is not None
-                },
-            )
-
         exclude_set = exclude or set()
         data = {
-            "rooms": [_to_camel_dict(room) for room in self.rooms],
-            "path": [_to_camel_dict(point) for point in self.path],
-            "robotPosition": _to_camel_dict(self.robot_position) if self.robot_position is not None else None,
+            "rooms": [room.as_dict() for room in self.rooms],
+            "path": [point.as_dict() for point in self.path],
+            "robotPosition": self.robot_position.as_dict() if self.robot_position is not None else None,
             "robotHeading": self.robot_heading,
         }
         for key in exclude_set:
