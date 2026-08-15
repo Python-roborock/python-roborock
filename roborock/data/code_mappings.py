@@ -72,13 +72,20 @@ class RoborockModeEnum(StrEnum):
 
     code: int
     """The integer code associated with the enum member."""
+    _display_name_: str | None
 
-    def __new__(cls, value: str, code: int) -> Self:
+    def __new__(cls, value: str, code: int, display_name: str | None = None) -> Self:
         """Creates a new enum member."""
         member = str.__new__(cls, value)
         member._value_ = value
         member.code = code
+        member._display_name_ = display_name
         return member
+
+    @property
+    def display_name(self) -> str:
+        """Return the canonical user-facing name for the mode."""
+        return self._display_name_ or self.value
 
     @classmethod
     def from_code(cls, code: int) -> Self:
@@ -149,8 +156,8 @@ class RoborockModeEnum(StrEnum):
 
     @classmethod
     def keys(cls) -> list[str]:
-        """Returns a list of all member values."""
-        return [member.value for member in cls]
+        """Returns a de-duplicated list of canonical member names."""
+        return list(dict.fromkeys(member.display_name for member in cls))
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, str):
