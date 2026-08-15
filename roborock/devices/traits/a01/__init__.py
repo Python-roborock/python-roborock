@@ -461,9 +461,7 @@ class ZeoApi(Trait, TraitUpdateListener):
 
     async def get_custom_mode(self) -> ZeoCustomMode | ZeoDryerCustomMode | None:
         """Query and decode the current custom programme (DP 222)."""
-        await self.query_values(
-            [RoborockZeoProtocol.CUSTOM_PARAM_GET, RoborockZeoProtocol.TOTAL_TIME]
-        )
+        await self.query_values([RoborockZeoProtocol.CUSTOM_PARAM_GET, RoborockZeoProtocol.TOTAL_TIME])
         raw = self._dps_cache.get(int(RoborockZeoProtocol.CUSTOM_PARAM_GET))
         if raw is None:
             return None

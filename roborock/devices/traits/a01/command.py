@@ -24,6 +24,7 @@ _FEATURE_GATED_DPS: dict[RoborockZeoProtocol, tuple[str, str]] = {
     RoborockZeoProtocol.WASH_DRY_LINKED: ("wash_dry_linkage", "wash_dry_linked"),
 }
 
+
 class ZeoCommandTrait:
     """Trait for sending commands to Zeo devices."""
 
@@ -52,7 +53,7 @@ class ZeoCommandTrait:
     async def start_with(self, params: ZeoStartParams) -> dict[RoborockZeoProtocol, Any]:
         """Start the device with the given programme parameters.
 
-        This is the primary start API: the caller needs to provide the 
+        This is the primary start API: the caller needs to provide the
         parameters like mode/program/options/etc.
 
         Returns the DPs that were actually sent.
@@ -110,7 +111,7 @@ class ZeoCommandTrait:
         """Start the device using its saved custom programme.
 
         Reads the device's custom programme (DP 222, see
-        :meth:`ZeoApi.get_custom_mode`) and starts with those parameters. 
+        :meth:`ZeoApi.get_custom_mode`) and starts with those parameters.
 
         Raises :class:`ValueError` when the device has no saved custom
         programme.
@@ -138,14 +139,14 @@ class ZeoCommandTrait:
         Returns the DPs that were sent.
         """
         if minutes <= 0:
-            dps: dict[RoborockZeoProtocol, Any] = {RoborockZeoProtocol.COUNTDOWN: 0}
+            cancel_dps: dict[RoborockZeoProtocol, Any] = {RoborockZeoProtocol.COUNTDOWN: 0}
             await send_decoded_command(
                 self._channel,
-                dps,
+                cancel_dps,
                 qos=MqttQos.AT_LEAST_ONCE,
                 value_encoder=lambda x: x,
             )
-            return dps
+            return cancel_dps
         dps: dict[RoborockZeoProtocol, Any] = {RoborockZeoProtocol.START: 1}
         dps.update(build_param_dps(params))
         dps.update(self._build_auto_dosing_dps())

@@ -1,7 +1,6 @@
 """Data containers for Zeo (washing machine / dryer) devices."""
 
 from dataclasses import dataclass, field
-from typing import Any
 
 from ..containers import RoborockBase
 from .zeo_code_mappings import (

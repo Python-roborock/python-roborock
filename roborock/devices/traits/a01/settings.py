@@ -182,9 +182,7 @@ class ZeoSettingTrait(RoborockBase, TraitUpdateListener):
             return self.softener_type is not None and self.softener_type != ZeoSoftenerType.empty
         return self.softener_set
 
-    async def _set_enum(
-        self, dp: RoborockZeoProtocol, enum_cls: type[_T], value: _T
-    ) -> dict[RoborockZeoProtocol, Any]:
+    async def _set_enum(self, dp: RoborockZeoProtocol, enum_cls: type[_T], value: _T) -> dict[RoborockZeoProtocol, Any]:
         """Validate *value* against *enum_cls* and send it to the device."""
         if not isinstance(value, enum_cls):
             raise TypeError(f"Expected {enum_cls.__name__}, got {type(value).__name__}")
@@ -289,16 +287,12 @@ class ZeoSettingTrait(RoborockBase, TraitUpdateListener):
             }
         return await self._send(dps)
 
-    async def set_detergent_box_type(
-        self, expansion_type: ZeoDetergentExpansionType
-    ) -> dict[RoborockZeoProtocol, Any]:
+    async def set_detergent_box_type(self, expansion_type: ZeoDetergentExpansionType) -> dict[RoborockZeoProtocol, Any]:
         """Set the detergent expansion type (DP 248)."""
         dps = {RoborockZeoProtocol.DETERGENT_EXPANSION_TYPE: int(expansion_type)}
         return await self._send(dps)
 
-    async def set_softener_box_type(
-        self, expansion_type: ZeoSoftenerExpansionType
-    ) -> dict[RoborockZeoProtocol, Any]:
+    async def set_softener_box_type(self, expansion_type: ZeoSoftenerExpansionType) -> dict[RoborockZeoProtocol, Any]:
         """Set the softener expansion type (DP 245)."""
         dps = {RoborockZeoProtocol.SOFTENER_EXPANSION_TYPE: int(expansion_type)}
         return await self._send(dps)
@@ -326,20 +320,12 @@ class ZeoSettingTrait(RoborockBase, TraitUpdateListener):
 
     async def set_voice_switch(self, enabled: bool) -> dict[RoborockZeoProtocol, Any]:
         """Enable/disable voice assistant (DP 10301)."""
-        dps = {
-            RoborockZeoProtocol.VOICE_SWITCH: json.dumps(
-                {"speech_switch": 1 if enabled else 0}
-            )
-        }
+        dps = {RoborockZeoProtocol.VOICE_SWITCH: json.dumps({"speech_switch": 1 if enabled else 0})}
         return await self._send(dps)
 
     async def delete_voice_record(self, record_id: str) -> dict[RoborockZeoProtocol, Any]:
         """Delete a voice record by id (DP 10304)."""
-        dps = {
-            RoborockZeoProtocol.VOICE_RECORD_DELETE: json.dumps(
-                {"dialog_delete": record_id}
-            )
-        }
+        dps = {RoborockZeoProtocol.VOICE_RECORD_DELETE: json.dumps({"dialog_delete": record_id})}
         return await self._send(dps)
 
     async def set_sound_package(self, package: dict[str, Any]) -> dict[RoborockZeoProtocol, Any]:
