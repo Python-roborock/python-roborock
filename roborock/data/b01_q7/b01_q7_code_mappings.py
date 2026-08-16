@@ -293,9 +293,8 @@ class B01Fault(RoborockModeEnum):
     F_2103 = (
         "cleaning_complete_docked",
         2103,
-    )  # Task finished; robot docked (follows 2102 once docking and any auto-empty complete). hw-confirmed
-    # (Q7 M5+): appears immediately after a completed clean's dock + dust collection and persists while
-    # docked-idle; not an error.
+    )  # Task finished and robot docked. Follows 2102 once docking and any auto-empty complete; persists
+    # while docked-idle. Not an error (hw-confirmed on a Q7 M5+).
     F_2104 = ("fault_2104", 2104)
     F_2105 = ("fault_2105", 2105)
     F_2108 = ("fault_2108", 2108)
