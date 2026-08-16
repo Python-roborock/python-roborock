@@ -2,6 +2,23 @@
 
 <!-- version list -->
 
+## v7.0.1 (2026-08-15)
+
+### Bug Fixes
+
+- Align mop routes with device capabilities
+  ([#918](https://github.com/Python-roborock/python-roborock/pull/918),
+  [`5120fbd`](https://github.com/Python-roborock/python-roborock/commit/5120fbd673486badf4295ad8438bd324f0382bc5))
+
+- Fix Q7 code mapping issue for workmode
+  ([#917](https://github.com/Python-roborock/python-roborock/pull/917),
+  [`3e0ffbd`](https://github.com/Python-roborock/python-roborock/commit/3e0ffbdc8d498ef368f9da17478542dc85604f48))
+
+- Fix support gap for the clean route logic
+  ([#918](https://github.com/Python-roborock/python-roborock/pull/918),
+  [`5120fbd`](https://github.com/Python-roborock/python-roborock/commit/5120fbd673486badf4295ad8438bd324f0382bc5))
+
+
 ## v7.0.0 (2026-08-13)
 
 ### Bug Fixes

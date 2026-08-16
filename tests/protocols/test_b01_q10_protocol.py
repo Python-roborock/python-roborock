@@ -41,6 +41,26 @@ def test_decode_message_dps_update() -> None:
     assert decoded == Q10DpsUpdate(dps={B01_Q10_DP.BATTERY: 100})
 
 
+def test_decode_message_common_multi_map_list() -> None:
+    """A nested dpCommon map-list response is flattened into dpMultiMap."""
+    message = _message(
+        b'{"dps":{"101":{"61":{"data":[{"id":"12345","name":"Map","timestamp":1}],"op":"list","result":1}}}}',
+        RoborockMessageProtocol.RPC_RESPONSE,
+    )
+
+    decoded = decode_message(message)
+
+    assert decoded == Q10DpsUpdate(
+        dps={
+            B01_Q10_DP.MULTI_MAP: {
+                "data": [{"id": "12345", "name": "Map", "timestamp": 1}],
+                "op": "list",
+                "result": 1,
+            }
+        }
+    )
+
+
 def test_decode_message_map_packet() -> None:
     """A MAP_RESPONSE 01 01 payload decodes into a Q10MapPacket."""
     message = _message(MAP_FIXTURE.read_bytes(), RoborockMessageProtocol.MAP_RESPONSE)

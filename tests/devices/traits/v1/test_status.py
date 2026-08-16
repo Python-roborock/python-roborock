@@ -15,7 +15,7 @@ from roborock import (
     get_current_cleaning_mode,
     resolve_cleaning_mode,
 )
-from roborock.data import SHORT_MODEL_TO_ENUM
+from roborock.data import SHORT_MODEL_TO_ENUM, RoborockProductNickname
 from roborock.data.v1 import (
     RoborockStateCode,
 )
@@ -110,12 +110,122 @@ def test_none_values(status_trait: StatusTrait) -> None:
 
 def test_options(status_trait: StatusTrait) -> None:
     """Test that fan_speed_options returns a list of options."""
+    status_trait._device_features_trait.is_clean_route_setting_supported = True
     assert isinstance(status_trait.fan_speed_options, list)
     assert len(status_trait.fan_speed_options) > 0
     assert isinstance(status_trait.water_mode_options, list)
     assert len(status_trait.water_mode_options) > 0
     assert isinstance(status_trait.mop_route_options, list)
     assert len(status_trait.mop_route_options) > 0
+
+
+def test_s6_maxv_has_no_mop_route_options() -> None:
+    """Test S6 MaxV does not expose the unsupported mop-route selector."""
+    features = DeviceFeatures.from_feature_flags(
+        new_feature_info=10738169343,
+        new_feature_info_str="",
+        feature_info=[],
+        product_nickname=SHORT_MODEL_TO_ENUM["a10"],
+    )
+    status_trait = StatusTrait(cast(DeviceFeaturesTrait, features), region="us")
+
+    assert not features.is_shake_mop_set_supported
+    assert status_trait.mop_route_options == []
+    assert status_trait.mop_route_mapping == {}
+    assert get_cleaning_mode_parameters(CleaningMode.VAC_AND_MOP, features) == [
+        {
+            "fan_power": VacuumModes.BALANCED.code,
+            "water_box_mode": WaterModes.STANDARD.code,
+        }
+    ]
+
+
+def test_s7_has_mop_route_options() -> None:
+    """Test S7 exposes its supported mop routes."""
+    features = DeviceFeatures.from_feature_flags(
+        new_feature_info=636084721975295,
+        new_feature_info_str="0000000000002000",
+        feature_info=[111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 122, 123, 124, 125],
+        product_nickname=SHORT_MODEL_TO_ENUM["a15"],
+    )
+    status_trait = StatusTrait(cast(DeviceFeaturesTrait, features), region="us")
+
+    assert features.is_shake_mop_set_supported
+    assert CleanRoutes.STANDARD in status_trait.mop_route_options
+    assert CleanRoutes.DEEP in status_trait.mop_route_options
+    assert get_cleaning_mode_parameters(CleaningMode.VAC_AND_MOP, features) == [
+        {
+            "fan_power": VacuumModes.BALANCED.code,
+            "water_box_mode": WaterModes.STANDARD.code,
+            "mop_mode": CleanRoutes.STANDARD.code,
+        }
+    ]
+
+
+def test_spin_mop_without_runtime_shake_has_mop_route_options() -> None:
+    """Test spin-mop models retain routes without the runtime shake bit."""
+    features = DeviceFeatures.from_feature_flags(
+        new_feature_info=0,
+        new_feature_info_str="42BA8D587EDAFFFE",
+        feature_info=[],
+        product_nickname=SHORT_MODEL_TO_ENUM["a123"],
+    )
+    status_trait = StatusTrait(cast(DeviceFeaturesTrait, features), region="us")
+
+    assert not features.is_shake_mop_set_supported
+    assert features.is_clean_route_setting_supported
+    assert CleanRoutes.STANDARD in status_trait.mop_route_options
+    assert CleanRoutes.DEEP in status_trait.mop_route_options
+    assert get_cleaning_mode_parameters(CleaningMode.VAC_AND_MOP, features)[0]["mop_mode"] == 300
+
+
+def test_clean_efficiency_device_omits_deep_route() -> None:
+    """Test Saros 20-style clean-efficiency devices do not expose route 301."""
+    features = DeviceFeatures.from_feature_flags(
+        new_feature_info=4499197267967999,
+        new_feature_info_str="0000000000099518CCFF7EFDA8E93EDDDBFF8F7F7EFEFFFF",
+        feature_info=[111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125],
+        product_nickname=RoborockProductNickname.PEARLPLUS,
+    )
+    status_trait = StatusTrait(cast(DeviceFeaturesTrait, features), region="us")
+
+    assert features.is_clean_efficiency_supported
+    assert features.is_clean_route_setting_supported
+    assert CleanRoutes.STANDARD in status_trait.mop_route_options
+    assert CleanRoutes.DEEP not in status_trait.mop_route_options
+    assert CleanRoutes.DEEP_PLUS in status_trait.mop_route_options
+    assert CleanRoutes.FAST in status_trait.mop_route_options
+
+
+@pytest.mark.parametrize(
+    ("is_corner_clean_mode_supported", "is_clean_route_deep_slow_plus_supported", "region", "expected_code"),
+    [
+        (False, False, "us", 303),
+        (False, True, "us", 303),
+        (True, True, "us", 303),
+        (False, False, "cn", 303),
+        (True, True, "cn", 303),
+        (False, True, "cn", 305),
+    ],
+)
+def test_deep_plus_route_matches_rr_api(
+    is_corner_clean_mode_supported: bool,
+    is_clean_route_deep_slow_plus_supported: bool,
+    region: str,
+    expected_code: int,
+) -> None:
+    """Test route 305 is limited to its RR_API China-only feature combination."""
+    status_trait = _create_cleaning_mode_status_trait(
+        is_careful_slow_mop_supported=True,
+        is_corner_clean_mode_supported=is_corner_clean_mode_supported,
+        is_clean_route_deep_slow_plus_supported=is_clean_route_deep_slow_plus_supported,
+    )
+    status_trait._region = region
+
+    route_codes = [route.code for route in status_trait.mop_route_options]
+    assert expected_code in route_codes
+    assert ({303, 305} - {expected_code}).isdisjoint(route_codes)
+    assert status_trait.mop_route_mapping[expected_code] == "deep_plus"
 
 
 def test_cleaning_mode_options() -> None:
