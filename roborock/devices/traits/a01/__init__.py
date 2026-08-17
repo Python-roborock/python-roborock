@@ -89,7 +89,7 @@ from roborock.roborock_message import (
 
 _LOGGER = logging.getLogger(__name__)
 
-__init__ = [
+__all__ = [
     "DyadApi",
     "ZeoApi",
     "ZeoCommandTrait",
@@ -139,7 +139,9 @@ def _try_json(val: Any) -> Any:
         try:
             return json.loads(val)
         except ValueError:
-            pass
+            _LOGGER.debug(
+                "Failed to parse JSON for value %r, returning as-is", val
+            )
     return val
 
 
@@ -207,6 +209,9 @@ ZEO_PROTOCOL_ENTRIES: dict[RoborockZeoProtocol, Callable] = {
     RoborockZeoProtocol.DETERGENT_SET: lambda val: bool(val),
     RoborockZeoProtocol.SOFTENER_SET: lambda val: bool(val),
     RoborockZeoProtocol.FLUFF_CLEANED: lambda val: bool(val),
+    # read-write (JSON objects — bundle reads via JSON.parse)
+    RoborockZeoProtocol.VOICE_VOLUME: lambda val: _try_json(val),  # {"snd_volume": int}
+    RoborockZeoProtocol.VOICE_SWITCH: lambda val: _try_json(val),  # {"speech_switch": 1/0}
     # read-write (int-valued)
     RoborockZeoProtocol.CUSTOM_PARAM_SAVE: lambda val: int(val),
     RoborockZeoProtocol.CUSTOM_PARAM_GET: lambda val: int(val),
@@ -214,11 +219,6 @@ ZEO_PROTOCOL_ENTRIES: dict[RoborockZeoProtocol, Callable] = {
     # NOTE: LIGHT_SETTING(229) / DETERGENT_VOLUME(230) / SOFTENER_VOLUME(231)
     # are "server schema only" and do NOT exist in the device bundle — they
     # have no device-side implementation, so no converters are registered.
-    # meta — write-only (JSON payloads; echo back as JSON strings)
-    RoborockZeoProtocol.SET_SOUND_PACKAGE: lambda val: _try_json(val),
-    RoborockZeoProtocol.VOICE_VOLUME: lambda val: _try_json(val),
-    RoborockZeoProtocol.VOICE_SWITCH: lambda val: _try_json(val),
-    RoborockZeoProtocol.VOICE_RECORD_DELETE: lambda val: _try_json(val),
 }
 
 
