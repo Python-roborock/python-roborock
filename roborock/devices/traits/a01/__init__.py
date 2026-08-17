@@ -139,9 +139,7 @@ def _try_json(val: Any) -> Any:
         try:
             return json.loads(val)
         except ValueError:
-            _LOGGER.debug(
-                "Failed to parse JSON for value %r, returning as-is", val
-            )
+            _LOGGER.debug("Failed to parse JSON for value %r, returning as-is", val)
     return val
 
 

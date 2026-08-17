@@ -213,10 +213,12 @@ class RoborockZeoProtocol(RoborockEnum):
     PRIVACY_INFO = 10006  # wo
     OTA_NFO = 10007  # ro  forceLoad only
     WASHING_LOG = 10008  # ro  forceLoad only, JSON
-    VOICE_VOLUME = 10009  # rw  [independent]  setVoiceVolume(int) → JSON.stringify({snd_volume: int}); readable via voiceVolume getter (FeatureBit.VoiceAssistant gated)
+    VOICE_VOLUME = 10009  # rw  [independent]  setVoiceVolume(int) → JSON.stringify({snd_volume: int}); readable
+    # via voiceVolume getter (FeatureBit.VoiceAssistant gated)
     RPC_REQUEST = 10101  # wo  rpcRequest(method) → JSON
     RPC_RESPONSE = 10102  # -- MQTT push protocol 102, not a device DP
-    VOICE_SWITCH = 10301  # rw  [independent]  setVoiceSwitchStatus(bool) → JSON.stringify({speech_switch: 1/0}); readable via isVoiceSwitchOn getter (FeatureBit.VoiceAssistant gated)
+    VOICE_SWITCH = 10301  # rw  [independent]  setVoiceSwitchStatus(bool) → JSON.stringify({speech_switch: 1/0});
+    # readable via isVoiceSwitchOn getter (FeatureBit.VoiceAssistant gated)
     VOICE_RECORD_INFO = 10302  # ro  cache-derived, auto JSON decoded
     VOICE_RECORD = 10303  # ro  query via getVoiceControlRecord(), JSON {result:{history:[{id,ts,...}]}}
     VOICE_RECORD_DELETE = 10304  # wo  [independent]  deleteVoiceControlRecord(id) → JSON.stringify({dialog_delete: id})
