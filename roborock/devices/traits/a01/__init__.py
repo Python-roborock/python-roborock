@@ -342,6 +342,9 @@ class ZeoApi(Trait, TraitUpdateListener):
                 is_dryer=is_dryer(self._model),
                 features=lambda: self._features,
             )
+            # Backfill from the raw DPS cache so state pushed before this
+            # trait was first accessed is not lost.
+            self._settings.update_from_dps(self._dps_cache)
         return self._settings
 
     @property
@@ -354,6 +357,9 @@ class ZeoApi(Trait, TraitUpdateListener):
         """
         if self._status is None:
             self._status = ZeoStatusTrait()
+            # Backfill from the raw DPS cache so state pushed before this
+            # trait was first accessed is not lost.
+            self._status.update_from_dps(self._dps_cache)
         return self._status
 
     def _update_settings_from_dps(self, decoded_dps: dict[int, Any]) -> None:
