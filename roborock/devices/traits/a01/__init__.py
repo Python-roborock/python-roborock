@@ -465,11 +465,11 @@ class ZeoApi(Trait, TraitUpdateListener):
 
     async def get_custom_mode(self) -> ZeoCustomMode | ZeoDryerCustomMode | None:
         """Query and decode the current custom programme (DP 222)."""
-        await self.query_values([RoborockZeoProtocol.CUSTOM_PARAM_GET, RoborockZeoProtocol.TOTAL_TIME])
-        raw = self._dps_cache.get(int(RoborockZeoProtocol.CUSTOM_PARAM_GET))
+        result = await self.query_values([RoborockZeoProtocol.CUSTOM_PARAM_GET, RoborockZeoProtocol.TOTAL_TIME])
+        raw = result.get(RoborockZeoProtocol.CUSTOM_PARAM_GET)
         if raw is None:
             return None
-        total_time = self._dps_cache.get(int(RoborockZeoProtocol.TOTAL_TIME))
+        total_time = result.get(RoborockZeoProtocol.TOTAL_TIME)
         try:
             raw_int = int(raw)
         except (TypeError, ValueError):
@@ -478,10 +478,13 @@ class ZeoApi(Trait, TraitUpdateListener):
             return ZeoDryerCustomMode.from_raw(raw_int, total_time)
         return ZeoCustomMode.from_raw(raw_int, total_time)
 
-    async def update_sound_package_info(self) -> Any:
+    async def update_sound_package_info(self) -> dict[str, Any] | None:
         """Query the sound-package info (DP 10004)."""
         result = await self.query_values([RoborockZeoProtocol.SOUND_PACKAGE_INFO])
-        return result.get(RoborockZeoProtocol.SOUND_PACKAGE_INFO)
+        raw = result.get(RoborockZeoProtocol.SOUND_PACKAGE_INFO)
+        if isinstance(raw, dict):
+            return raw
+        return None
 
 
 def create(product: HomeDataProduct, mqtt_channel: MqttChannel) -> DyadApi | ZeoApi:
