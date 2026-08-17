@@ -1,6 +1,7 @@
 """Trait for device network information."""
 
 import logging
+from dataclasses import fields
 
 from roborock.data import NetworkInfo
 from roborock.devices.cache import DeviceCache
@@ -54,5 +55,9 @@ class NetworkInfoTrait(NetworkInfo, common.V1TraitMixin):
 
         # Update the cache with the new network info
         device_cache_data = await self._device_cache.get()
-        device_cache_data.network_info = self
+        # Create a pure NetworkInfo instance without runtime objects
+        network_info_data = NetworkInfo(ip="")
+        for field in fields(NetworkInfo):
+            setattr(network_info_data, field.name, getattr(self, field.name))
+        device_cache_data.network_info = network_info_data
         await self._device_cache.set(device_cache_data)
