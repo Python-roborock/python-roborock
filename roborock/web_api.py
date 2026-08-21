@@ -15,7 +15,7 @@ from aiohttp import ContentTypeError, FormData
 from pyrate_limiter import Duration, Limiter, Rate
 
 from roborock import HomeDataSchedule
-from roborock.data import HomeData, HomeDataRoom, HomeDataScene, ProductResponse, RRiot, UserData
+from roborock.data import FirmwareInfo, HomeData, HomeDataRoom, HomeDataScene, ProductResponse, RRiot, UserData
 from roborock.exceptions import (
     RoborockAccountDoesNotExist,
     RoborockException,
@@ -607,6 +607,81 @@ class RoborockApiClient:
             return [HomeDataScene.from_dict(scene) for scene in scenes]
         else:
             raise RoborockException("scene_response result was an unexpected type")
+
+    async def get_firmware_info(self, user_data: UserData, device_id: str) -> FirmwareInfo:
+        """Get firmware/OTA info for a device (latest version + updatable flag).
+
+        Uses the rriot API host (``user_data.rriot.r.a``, e.g. ``api-eu.roborock.com``)
+        with Hawk-signed authentication, identical to the home-data endpoints. The
+        IoT host (``usiot.roborock.com``) returns an empty body for this path.
+        """
+        rriot = user_data.rriot
+        if rriot is None:
+            raise RoborockException("rriot is none")
+        if rriot.r.a is None:
+            raise RoborockException("Missing field 'a' in rriot reference")
+        path = f"/ota/firmware/{device_id}/updatev2"
+        params = {"lang": "en"}
+        firmware_request = PreparedRequest(
+            rriot.r.a,
+            self.session,
+            {
+                "Authorization": _get_hawk_authentication(rriot, path, params=params),
+            },
+        )
+        firmware_response = await firmware_request.request("get", path, params=params)
+        if not firmware_response or not firmware_response.get("success"):
+            raise RoborockException(firmware_response)
+        return FirmwareInfo.from_dict(firmware_response.get("result") or {})
+
+    async def start_firmware_update(self, user_data: UserData, device_id: str) -> None:
+        """Trigger the (irreversible) firmware update for a device.
+
+        Empty-body POST to the rriot API host with Hawk auth. The device then
+        downloads and flashes the latest firmware reported by
+        :meth:`get_firmware_info`.
+        """
+        rriot = user_data.rriot
+        if rriot is None:
+            raise RoborockException("rriot is none")
+        if rriot.r.a is None:
+            raise RoborockException("Missing field 'a' in rriot reference")
+        path = f"/ota/device/{device_id}/upgrade"
+        upgrade_request = PreparedRequest(
+            rriot.r.a,
+            self.session,
+            {
+                "Authorization": _get_hawk_authentication(rriot, path),
+            },
+        )
+        upgrade_response = await upgrade_request.request("post", path)
+        if not upgrade_response or not upgrade_response.get("success"):
+            raise RoborockException(upgrade_response)
+
+    async def set_silent_ota(self, user_data: UserData, device_id: str, enabled: bool) -> None:
+        """Enable/disable automatic (silent) firmware updates for a device.
+
+        Form-encoded PUT to the rriot API host with Hawk auth (the form field is
+        part of the signed MAC). The current value is reported as
+        ``silent_ota_switch`` on the home-data device.
+        """
+        rriot = user_data.rriot
+        if rriot is None:
+            raise RoborockException("rriot is none")
+        if rriot.r.a is None:
+            raise RoborockException("Missing field 'a' in rriot reference")
+        path = f"/user/devices/{device_id}"
+        formdata = {"silentOtaSwitch": "true" if enabled else "false"}
+        silent_ota_request = PreparedRequest(
+            rriot.r.a,
+            self.session,
+            {
+                "Authorization": _get_hawk_authentication(rriot, path, formdata=formdata),
+            },
+        )
+        silent_ota_response = await silent_ota_request.request("put", path, data=formdata)
+        if not silent_ota_response or not silent_ota_response.get("success"):
+            raise RoborockException(silent_ota_response)
 
     async def execute_scene(self, user_data: UserData, scene_id: int) -> None:
         rriot = user_data.rriot

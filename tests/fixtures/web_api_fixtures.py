@@ -132,10 +132,39 @@ def mock_rest_fixture(skip_rate_limit: Any, home_data: dict[str, Any]) -> aiores
             status=200,
             payload={"api": None, "code": 200, "result": HOME_DATA_SCENES_RAW, "status": "ok", "success": True},
         )
+        mocked.get(
+            re.compile(r"https://.*roborock\.com/ota/firmware/.*/updatev2"),
+            status=200,
+            payload={
+                "api": None,
+                "code": 200,
+                "result": {
+                    "version": "1.2.3",
+                    "currentVersion": "1.2.0",
+                    "updatable": True,
+                    "desc": "Bug fixes and improvements",
+                    "releaseTime": "2026-05-01",
+                    "forceUpdate": False,
+                },
+                "status": "ok",
+                "success": True,
+            },
+        )
         mocked.post(
             re.compile(r"https://api-.*\.roborock\.com/user/scene/.*/execute"),
             status=200,
             payload={"api": None, "code": 200, "result": None, "status": "ok", "success": True},
+        )
+        mocked.post(
+            re.compile(r"https://.*roborock\.com/ota/device/.*/upgrade"),
+            status=200,
+            payload={"api": None, "result": None, "status": "ok", "success": True},
+        )
+        mocked.put(
+            re.compile(r"https://.*roborock\.com/user/devices/[^/]+$"),
+            status=200,
+            payload={"api": "修改设备信息", "result": None, "status": "ok", "success": True},
+            repeat=True,
         )
         mocked.post(
             re.compile(r"https://.*iot\.roborock\.com/api/v4/email/code/send.*"),
