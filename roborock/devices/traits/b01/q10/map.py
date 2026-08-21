@@ -181,3 +181,16 @@ class MapContentTrait(TraitUpdateListener):
         except RoborockException as ex:
             _LOGGER.debug("Failed to render Q10 map packet: %s", ex)
             self._image_content = None
+
+    def as_dict(self, exclude: set[str] | None = None) -> dict[str, Any]:
+        """Return the trait data as a dictionary, excluding large binary data."""
+        exclude_set = exclude or set()
+        data = {
+            "rooms": [room.as_dict() for room in self.rooms],
+            "path": [point.as_dict() for point in self.path],
+            "robotPosition": self.robot_position.as_dict() if self.robot_position is not None else None,
+            "robotHeading": self.robot_heading,
+        }
+        for key in exclude_set:
+            data.pop(key, None)
+        return data

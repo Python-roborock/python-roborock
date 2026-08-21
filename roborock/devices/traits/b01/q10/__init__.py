@@ -2,8 +2,10 @@
 
 import asyncio
 import logging
+from typing import Any
 
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
+from roborock.data.containers import RoborockBase
 from roborock.devices.rpc.b01_q10_channel import B01Q10Channel
 from roborock.devices.traits import Trait
 from roborock.map.b01_q10_map_parser import Q10MapPacket, Q10TracePacket
@@ -164,6 +166,16 @@ class Q10PropertiesApi(Trait):
             # only updates the fields that it is responsible for.
             for trait in self._updatable_traits:
                 trait.update_from_dps(message.dps)
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return the trait data as a dictionary."""
+        result: dict[str, Any] = {}
+        for name, value in self.__dict__.items():
+            if isinstance(value, RoborockBase) and not name.startswith("_"):
+                result[name] = value.as_dict()
+        if hasattr(self, "map") and hasattr(self.map, "as_dict"):
+            result["map"] = self.map.as_dict()
+        return result
 
 
 def create(channel: B01Q10Channel) -> Q10PropertiesApi:

@@ -608,3 +608,27 @@ async def test_combined_status_and_overlay_update_renders_once(render_map: Mock)
     assert len(render_map.call_args.args[2].zones) == 1
     assert render_map.call_args.kwargs["robot_at_dock"] is True
     assert trait.image_content == b"combined map"
+
+
+def test_map_content_trait_as_dict_camelizes_child_keys() -> None:
+    """MapContentTrait.as_dict() camelizes nested child keys (e.g. rawName, pixelValue)."""
+    trait = _map_trait()
+    packet = parse_map_packet(FIXTURE.read_bytes())
+    trait.update_from_map_packet(packet)
+    trait.update_from_trace_packet(
+        Q10TracePacket(
+            points=[Q10Point(x=100, y=200), Q10Point(x=150, y=250)],
+            sequence=0,
+        )
+    )
+
+    data = trait.as_dict()
+    assert len(data["rooms"]) == 2
+    assert data["rooms"][0] == {
+        "id": 2,
+        "pixelCount": 9,
+        "pixelValue": 8,
+        "rawName": "rr_living_room",
+    }
+    assert data["path"] == [{"x": 100, "y": 200}, {"x": 150, "y": 250}]
+    assert data["robotPosition"] == {"x": 150, "y": 250}

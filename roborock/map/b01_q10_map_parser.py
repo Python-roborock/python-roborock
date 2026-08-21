@@ -29,6 +29,7 @@ from vacuum_map_parser_base.config.color import ColorsPalette, SupportedColor
 from vacuum_map_parser_base.config.image_config import ImageConfig
 from vacuum_map_parser_base.map_data import ImageData, MapData, Point
 
+from roborock.data.containers import RoborockBase
 from roborock.exceptions import RoborockException
 
 from .b01_grid_layers import (
@@ -113,7 +114,7 @@ _WALL_THRESHOLD = 240
 
 
 @dataclass
-class Q10Room:
+class Q10Room(RoborockBase):
     """A room (segment) described in a Q10 map packet."""
 
     id: int
@@ -220,7 +221,7 @@ class Q10MapPacket:
 
 
 @dataclass
-class Q10Point:
+class Q10Point(RoborockBase):
     """A single point in Q10 map/trace coordinate space."""
 
     x: int
