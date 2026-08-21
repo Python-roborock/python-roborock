@@ -4,10 +4,11 @@ import asyncio
 import pathlib
 from collections.abc import AsyncGenerator
 from typing import Any
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
+from roborock.data import HomeDataDevice, HomeDataProduct
 from roborock.data.b01_q10.b01_q10_code_mappings import (
     B01_Q10_DP,
     YXAreaUnit,
@@ -22,9 +23,11 @@ from roborock.data.b01_q10.b01_q10_code_mappings import (
     YXWaterLevel,
 )
 from roborock.data.b01_q10.b01_q10_containers import dpNetInfo, dpNotDisturbExpand, dpTimeZone
+from roborock.devices.device import RoborockDevice
 from roborock.devices.traits.b01.q10 import Q10PropertiesApi, create
 from roborock.protocols.b01_q10_protocol import Q10Message, decode_message
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
+from tests import mock_data
 
 from .conftest import FakeB01Q10Channel
 
@@ -128,10 +131,7 @@ async def test_status_trait_refresh(
 
     # Send a refresh command
     await q10_api.refresh()
-    assert len(mock_channel.published_commands) == 1
-    command, params = mock_channel.published_commands[0]
-    assert command == B01_Q10_DP.REQUEST_DPS
-    assert params == {}
+    assert mock_channel.published_commands == [(B01_Q10_DP.REQUEST_DPS, {})]
 
     # Push the response message into the queue
     message_queue.put_nowait(message)
@@ -238,3 +238,46 @@ def test_status_trait_update_listener_ignores_value(q10_api: Q10PropertiesApi) -
     assert not event.is_set()
 
     unsubscribe()
+
+
+async def test_q10_properties_as_dict_empty(
+    q10_api: Q10PropertiesApi,
+    snapshot: Any,
+) -> None:
+    """Test Q10PropertiesApi.as_dict() when traits are empty."""
+    assert q10_api.as_dict() == snapshot
+
+
+async def test_q10_properties_as_dict_and_diagnostic_data(
+    q10_api: Q10PropertiesApi,
+    message_queue: asyncio.Queue[Q10Message],
+    snapshot: Any,
+) -> None:
+    """Test Q10PropertiesApi.as_dict() and diagnostic_data()."""
+    # Mock the response to refresh
+    message = build_q10_message(TESTDATA_DP_REQUEST_DPS)
+    message_queue.put_nowait(message)
+
+    # Wait for the update (e.g. wait for battery to be 100)
+    await wait_for_attribute_value(q10_api.status, "battery", 100)
+
+    # Now as_dict() should return traits data
+    data = q10_api.as_dict()
+    assert data == snapshot
+    assert "map" in data
+    assert "imageContent" not in data["map"]
+    assert "mapData" not in data["map"]
+
+    # Instantiate RoborockDevice with this Q10 trait using mock fixtures
+    device_info = HomeDataDevice.from_dict(mock_data.Q10_DEVICE_DATA)
+    product = HomeDataProduct.from_dict(mock_data.SS07_PRODUCT_DATA)
+    device = RoborockDevice(
+        device_info=device_info,
+        product=product,
+        channel=AsyncMock(),
+        trait=q10_api,
+    )
+
+    # Verify diagnostic_data extracts the properties correctly
+    diagnostics = device.diagnostic_data()
+    assert diagnostics == snapshot

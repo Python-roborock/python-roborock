@@ -29,7 +29,7 @@ class CleanRoutes(RoborockModeEnum):
     DEEP = ("deep", 301)
     DEEP_PLUS = ("deep_plus", 303)
     FAST = ("fast", 304)
-    DEEP_PLUS_CN = ("deep_plus", 305)
+    DEEP_PLUS_CN = ("deep_plus_cn", 305, "deep_plus")
     SMART_MODE = ("smart_mode", 306)
     CUSTOMIZED = ("custom", 302)
 
@@ -118,10 +118,7 @@ def get_clean_modes(features: DeviceFeatures) -> list[VacuumModes]:
         modes.append(VacuumModes.MAX_PLUS)
     if features.is_pure_clean_mop_supported:
         # If the vacuum is capable of 'pure mop clean' aka no vacuum
-        if features.is_support_main_brush_up_down_supported:
-            modes.append(VacuumModes.OFF_RAISE_MAIN_BRUSH)
-        else:
-            modes.append(VacuumModes.OFF)
+        modes.append(VacuumModes.OFF)
     else:
         # If not, we can add gentle
         modes.append(VacuumModes.GENTLE)
@@ -134,16 +131,19 @@ def get_clean_modes(features: DeviceFeatures) -> list[VacuumModes]:
 
 def get_clean_routes(features: DeviceFeatures, region: str) -> list[CleanRoutes]:
     """The routes that the vacuum will take while mopping"""
+    if not features.is_clean_route_setting_supported:
+        return []
     if features.is_none_pure_clean_mop_with_max_plus:
         return [CleanRoutes.FAST, CleanRoutes.STANDARD]
-    supported = [CleanRoutes.STANDARD, CleanRoutes.DEEP]
+    supported = [CleanRoutes.STANDARD]
+    if not features.is_clean_efficiency_supported:
+        supported.append(CleanRoutes.DEEP)
     if features.is_careful_slow_mop_supported:
-        if not (
-            features.is_corner_clean_mode_supported
+        if (
+            not features.is_corner_clean_mode_supported
             and features.is_clean_route_deep_slow_plus_supported
             and region == "cn"
         ):
-            # for some reason there is a china specific deep plus mode
             supported.append(CleanRoutes.DEEP_PLUS_CN)
         else:
             supported.append(CleanRoutes.DEEP_PLUS)
@@ -218,17 +218,11 @@ def get_cleaning_mode_options(features: DeviceFeatures) -> list[CleaningMode]:
 
 
 def get_mop_only_vacuum_mode(features: DeviceFeatures) -> VacuumModes:
-    """Determine the vacuum mode to use when you just want to mop.
-
-    There are three cases that must be handled:
-    1. The device does not support only mopping.
-    2. The device supports raising the vacuum brush while mopping
-    3. All other cases.
-    """
+    """Return the vacuum mode used by the app for mop-only cleaning."""
     if not features.is_pure_clean_mop_supported:
         raise RoborockUnsupportedFeature("Mop-only cleaning is not supported")
-    if features.is_support_main_brush_up_down_supported:
-        return VacuumModes.OFF_RAISE_MAIN_BRUSH
+    # Main-brush lift is a device capability, not an alternate fan-power
+    # command. The app still sends CleanModeZero (105) for mop-only cleaning.
     return VacuumModes.OFF
 
 

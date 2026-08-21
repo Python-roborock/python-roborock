@@ -1,3 +1,5 @@
+from typing import Self, cast
+
 from ..code_mappings import RoborockModeEnum
 
 
@@ -15,6 +17,16 @@ class WorkStatusMapping(RoborockModeEnum):
     UPDATING = ("updating", 8)
     MOP_CLEANING = ("mop_cleaning", 9)
     MOP_AIRDRYING = ("mop_airdrying", 10)
+    WORKING_SLEEP = ("working_sleep", 11)
+    UNKNOWN = ("unknown", -1)
+
+    @classmethod
+    def from_code(cls, code: int) -> Self:
+        """Map unrecognized Q7 statuses to UNKNOWN without failing the response."""
+        try:
+            return super().from_code(code)
+        except ValueError:
+            return cast(Self, cls.UNKNOWN)
 
 
 class SCWindMapping(RoborockModeEnum):
