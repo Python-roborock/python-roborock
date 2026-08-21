@@ -75,6 +75,8 @@ def test_supported_features_qrevo_maxv():
     assert num_true != 0
     assert device_features.is_dust_collection_setting_supported
     assert device_features.is_led_status_switch_supported
+    assert device_features.is_shake_mop_set_supported
+    assert device_features.is_clean_route_setting_supported
     assert not device_features.is_matter_supported
     print(device_features)
 
@@ -95,6 +97,8 @@ def test_supported_features_s7():
     assert device_features
     assert device_features.is_custom_mode_supported
     assert device_features.is_led_status_switch_supported
+    assert device_features.is_shake_mop_set_supported
+    assert device_features.is_clean_route_setting_supported
     assert not device_features.is_hot_wash_towel_supported
     num_true = sum(v for v in vars(device_features).values() if isinstance(v, bool))
     assert num_true != 0
@@ -125,6 +129,77 @@ def test_new_feature_str_missing():
     assert not device_features.is_dust_collection_setting_supported
     assert not device_features.is_hot_wash_towel_supported
     assert not device_features.is_show_clean_finish_reason_supported
+
+
+def test_clean_route_setting_support_from_shake_mop_flag() -> None:
+    """Test clean-route capability includes the runtime shake-mop flag."""
+    device_features = DeviceFeatures.from_feature_flags(
+        new_feature_info=262144,
+        new_feature_info_str="",
+        feature_info=[],
+        product_nickname=None,
+    )
+
+    assert device_features.is_shake_mop_set_supported
+    assert device_features.is_clean_route_setting_supported
+
+
+def test_clean_route_setting_support_from_spin_mop_model() -> None:
+    """Test clean-route capability includes model-level spin-mop support."""
+    device_features = DeviceFeatures.from_feature_flags(
+        new_feature_info=0,
+        new_feature_info_str="",
+        feature_info=[],
+        product_nickname=RoborockProductNickname.PEARLSLITE,
+    )
+
+    assert not device_features.is_shake_mop_set_supported
+    assert not device_features.is_roller_mop_supported
+    assert device_features.is_clean_route_setting_supported
+
+
+@pytest.mark.parametrize(
+    ("feature_bit", "expected"),
+    [
+        (127, False),
+        (128, True),
+        (129, False),
+    ],
+)
+def test_clean_route_setting_support_from_roller_mop_bit(feature_bit: int, expected: bool) -> None:
+    """Test only the RR_API roller-mop bit adds roller route support."""
+    device_features = DeviceFeatures.from_feature_flags(
+        new_feature_info=0,
+        new_feature_info_str=f"{1 << feature_bit:X}",
+        feature_info=[],
+        product_nickname=None,
+    )
+
+    assert device_features.is_roller_mop_supported is expected
+    assert device_features.is_clean_route_setting_supported is expected
+
+
+@pytest.mark.parametrize(
+    ("new_feature_info", "expected"),
+    [
+        (0, False),
+        (262143, False),
+        (262144, True),
+        (262145, True),
+        (1 << 60, False),
+    ],
+)
+def test_shake_mop_feature_bit_boundary(new_feature_info: int, expected: bool) -> None:
+    """Test only feature values containing the shake-mop bit enable it."""
+    device_features = DeviceFeatures.from_feature_flags(
+        new_feature_info=new_feature_info,
+        new_feature_info_str="",
+        feature_info=[],
+        product_nickname=None,
+    )
+
+    assert device_features.is_shake_mop_set_supported is expected
+    assert device_features.is_clean_route_setting_supported is expected
 
 
 @pytest.mark.parametrize(
