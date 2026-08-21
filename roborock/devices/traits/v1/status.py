@@ -5,6 +5,7 @@ from typing import Any
 from roborock import (
     CleaningMode,
     CleanRoutes,
+    RoborockDockState,
     StatusV2,
     VacuumModes,
     WaterModes,
@@ -64,6 +65,13 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
         TraitUpdateListener.__init__(self, logger=_LOGGER)
         self._device_features_trait = device_feature_trait
         self._region = region
+
+    @property
+    def dock_state(self) -> RoborockDockState:
+        """Return the feature-aware dock state used by the Roborock app."""
+        return self.get_dock_state(
+            is_supported_valley_electricity=self._device_features_trait.is_supported_valley_electricity
+        )
 
     @cached_property
     def fan_speed_options(self) -> list[VacuumModes]:
