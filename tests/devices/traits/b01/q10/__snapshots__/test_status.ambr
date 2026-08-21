@@ -31,6 +31,8 @@
       'rooms': list([
       ]),
     }),
+    'maps': dict({
+    }),
     'network_info': dict({
       'netInfo': dict({
         'ipAdress': '1.1.1.2',
@@ -409,6 +411,8 @@
         'rooms': list([
         ]),
       }),
+      'maps': dict({
+      }),
       'network_info': dict({
         'netInfo': dict({
           'ipAdress': '**REDACTED**',
@@ -482,6 +486,8 @@
       'robotPosition': None,
       'rooms': list([
       ]),
+    }),
+    'maps': dict({
     }),
     'network_info': dict({
     }),
