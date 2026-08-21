@@ -53,6 +53,10 @@ class Q7MapRpcChannel(Protocol):
         """Send a map command and get decoded bytes."""
         ...
 
+    async def subscribe_map_pushes(self, callback: Callable[[bytes], None]) -> Callable[[], None]:
+        """Subscribe to unsolicited map pushes, invoking callback with decoded SCMap bytes."""
+        ...
+
 
 def _matches_map_response(response_message: RoborockMessage, *, version: bytes | None) -> bytes | None:
     """Return raw map payload bytes for matching MAP_RESPONSE messages."""
@@ -207,6 +211,25 @@ class B01Q7Channel(Channel, Q7RpcChannel, Q7MapRpcChannel):
             raise RoborockException(f"B01 map command timed out after {_TIMEOUT}s ({request_message})") from ex
 
         return decode_map_payload(raw_payload, map_key=self._map_key)
+
+    async def subscribe_map_pushes(self, callback: Callable[[bytes], None]) -> Callable[[], None]:
+        """Subscribe to unsolicited ``MAP_RESPONSE`` pushes.
+
+        The device streams full SCMap frames on its own during cleaning; the
+        callback receives the decoded (inflated) SCMap bytes for each frame.
+        """
+
+        def on_message(message: RoborockMessage) -> None:
+            if (raw_payload := _matches_map_response(message, version=B01_VERSION)) is None:
+                return
+            try:
+                decoded = decode_map_payload(raw_payload, map_key=self._map_key)
+            except RoborockException as ex:
+                _LOGGER.debug("Failed to decode pushed B01 map payload: %s", ex)
+                return
+            callback(decoded)
+
+        return await self._mqtt_channel.subscribe(on_message)
 
 
 def create_b01_q7_channel(

@@ -65,6 +65,15 @@ class B01MapParser:
         )
 
 
+def parse_map_type(payload: bytes) -> int:
+    """Return the SCMap frame's map type without rendering the image.
+
+    Type 0 is the live map of the current cleaning run, other types are
+    historic or saved maps.
+    """
+    return _parse_scmap_payload(payload).mapType
+
+
 def _parse_scmap_payload(payload: bytes) -> RobotMap:
     """Parse inflated SCMap bytes into a generated protobuf message."""
     parsed = RobotMap()
