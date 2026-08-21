@@ -72,7 +72,7 @@ from roborock.roborock_message import (
 
 _LOGGER = logging.getLogger(__name__)
 
-__init__ = [
+__all__ = [
     "DyadApi",
     "ZeoApi",
 ]
