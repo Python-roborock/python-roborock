@@ -172,6 +172,26 @@ async def test_q7_api_set_do_not_disturb_invalid_time(
 
 
 @pytest.mark.parametrize(
+    ("enabled", "expected_code"),
+    [(True, 1), (False, 0)],
+)
+async def test_q7_api_set_button_light(
+    enabled: bool,
+    expected_code: int,
+    q7_api: Q7PropertiesApi,
+    fake_channel: FakeQ7Channel,
+):
+    """Test toggling the button/panel lights."""
+    fake_channel.response_queue.append({"result": "ok"})
+    await q7_api.set_button_light(enabled)
+
+    assert len(fake_channel.published_commands) == 1
+    command, params = fake_channel.published_commands[0]
+    assert command == RoborockB01Q7Methods.SET_PROP
+    assert params == {RoborockB01Props.LIGHT_MODE: expected_code}
+
+
+@pytest.mark.parametrize(
     ("mode", "expected_code"),
     [
         (CleanTypeMapping.VACUUM, 0),
