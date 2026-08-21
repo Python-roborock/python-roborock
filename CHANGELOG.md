@@ -2,6 +2,54 @@
 
 <!-- version list -->
 
+## v7.1.0 (2026-08-21)
+
+### Bug Fixes
+
+- Address PR review comments from Lash-L
+  ([#909](https://github.com/Python-roborock/python-roborock/pull/909),
+  [`d96ce5c`](https://github.com/Python-roborock/python-roborock/commit/d96ce5c880eb526f5a39394571e6fe840cef2438))
+
+- Camelize nested child keys in map trait serialization
+  ([#909](https://github.com/Python-roborock/python-roborock/pull/909),
+  [`d96ce5c`](https://github.com/Python-roborock/python-roborock/commit/d96ce5c880eb526f5a39394571e6fe840cef2438))
+
+- Only apply live map pushes to Q7 map content
+  ([#912](https://github.com/Python-roborock/python-roborock/pull/912),
+  [`8133747`](https://github.com/Python-roborock/python-roborock/commit/8133747480f2b79a46fe560292b573898adcb38c))
+
+- Replace __init__ with __all__ in a01 traits
+  ([#920](https://github.com/Python-roborock/python-roborock/pull/920),
+  [`5761844`](https://github.com/Python-roborock/python-roborock/commit/57618441e023de9172dbd821fe1a065a310e4c23))
+
+- Stale snapshot ([#923](https://github.com/Python-roborock/python-roborock/pull/923),
+  [`9b59172`](https://github.com/Python-roborock/python-roborock/commit/9b5917201dfdb1cd06b7e28b7ea9ded1a5ebb1d1))
+
+- Subclass Q10Room and Q10Point from RoborockBase
+  ([#909](https://github.com/Python-roborock/python-roborock/pull/909),
+  [`d96ce5c`](https://github.com/Python-roborock/python-roborock/commit/d96ce5c880eb526f5a39394571e6fe840cef2438))
+
+- Support Q10 diagnostics display
+  ([#909](https://github.com/Python-roborock/python-roborock/pull/909),
+  [`d96ce5c`](https://github.com/Python-roborock/python-roborock/commit/d96ce5c880eb526f5a39394571e6fe840cef2438))
+
+### Chores
+
+- Move Enum and _camelize imports to top of file
+  ([#909](https://github.com/Python-roborock/python-roborock/pull/909),
+  [`d96ce5c`](https://github.com/Python-roborock/python-roborock/commit/d96ce5c880eb526f5a39394571e6fe840cef2438))
+
+### Features
+
+- Add support for Q10 diagnostics data
+  ([#909](https://github.com/Python-roborock/python-roborock/pull/909),
+  [`d96ce5c`](https://github.com/Python-roborock/python-roborock/commit/d96ce5c880eb526f5a39394571e6fe840cef2438))
+
+- Live Q7 (B01) map updates from unsolicited map pushes
+  ([#912](https://github.com/Python-roborock/python-roborock/pull/912),
+  [`8133747`](https://github.com/Python-roborock/python-roborock/commit/8133747480f2b79a46fe560292b573898adcb38c))
+
+
 ## v7.0.1 (2026-08-15)
 
 ### Bug Fixes
