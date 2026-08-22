@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v7.1.1 (2026-08-22)
+
+### Bug Fixes
+
+- Update pypi-publish so that it will properly build to pypi
+  ([#925](https://github.com/Python-roborock/python-roborock/pull/925),
+  [`ae59910`](https://github.com/Python-roborock/python-roborock/commit/ae59910fd6ef47d1d2ab4d5a0277d97bc038188f))
+
+
 ## v7.1.0 (2026-08-21)
 
 ### Bug Fixes
