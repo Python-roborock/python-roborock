@@ -91,7 +91,7 @@ class MqttSession(ABC):
     async def subscribe(self, device_id: str, callback: Callable[[bytes], None]) -> Callable[[], None]:
         """Invoke the callback when messages are received on the topic.
 
-        The returned callable unsubscribes from the topic when called.
+        The returned callable stops invoking this callback.
         """
 
     @abstractmethod
@@ -112,7 +112,7 @@ class MqttSession(ABC):
 
     @abstractmethod
     async def close(self) -> None:
-        """Cancels the mqtt loop"""
+        """Close subscriptions and the MQTT connection."""
 
 
 class MqttSessionException(RoborockException):

@@ -13,10 +13,16 @@ import datetime
 import logging
 import ssl
 from collections.abc import Callable
-from contextlib import asynccontextmanager
 
-import aiomqtt
-from aiomqtt import MqttCodeError, MqttError, TLSParameters
+from zmqtt import (
+    MQTTClientV5,
+    MQTTConnectError,
+    MQTTError,
+    QoS,
+    ReconnectConfig,
+    Subscription,
+    create_client,
+)
 
 from roborock.callbacks import CallbackMap
 from roborock.diagnostics import Diagnostics, redact_topic_name
@@ -25,25 +31,14 @@ from .health_manager import HealthManager
 from .session import MqttParams, MqttQos, MqttSession, MqttSessionException, MqttSessionUnauthorized
 
 _LOGGER = logging.getLogger(__name__)
-_MQTT_LOGGER = logging.getLogger(f"{__name__}.aiomqtt")
 
 CLIENT_KEEPALIVE = datetime.timedelta(seconds=45)
-TOPIC_KEEPALIVE = datetime.timedelta(seconds=60)
 
 # Exponential backoff parameters
 MIN_BACKOFF_INTERVAL = datetime.timedelta(seconds=10)
 MAX_BACKOFF_INTERVAL = datetime.timedelta(hours=6)
 BACKOFF_MULTIPLIER = 1.5
-
-
-class MqttReasonCode:
-    """MQTT Reason Codes used by Roborock devices.
-
-    This is a subset of paho.mqtt.reasoncodes.ReasonCode where we would like
-    different error handling behavior.
-    """
-
-    RC_ERROR_UNAUTHORIZED = 135
+_RC_NOT_AUTHORIZED = 0x87
 
 
 class RoborockMqttSession(MqttSession):
@@ -53,34 +48,19 @@ class RoborockMqttSession(MqttSession):
     the MQTT broker. A caller may subscribe to a topic, and the session keeps
     track of which callbacks to invoke for each topic.
 
-    The client is run as a background task that will run until shutdown. Once
-    connected, the client will wait for messages to be received in a loop. If
-    the connection is lost, the client will be re-created and reconnected. There
-    is backoff to avoid spamming the broker with connection attempts.
-
-    Reconnect attempts are deferred while there are no active subscriptions,
-    which avoids unnecessary reconnect churn for idle sessions. Reconnects
-    resume as soon as a subscription is added again. The client automatically
-    re-establishes any existing subscriptions when the connection returns.
+    zmqtt owns connection recovery, exponential backoff, and restoration of
+    active subscriptions. This wrapper owns callback dispatch and the explicit
+    administrative restart used by the health manager.
     """
 
-    def __init__(
-        self,
-        params: MqttParams,
-        topic_idle_timeout: datetime.timedelta = TOPIC_KEEPALIVE,
-    ):
+    def __init__(self, params: MqttParams):
         self._params = params
-        self._reconnect_task: asyncio.Task[None] | None = None
         self._healthy = False
-        self._stop = False
-        self._backoff = MIN_BACKOFF_INTERVAL
-        self._client: aiomqtt.Client | None = None
-        self._client_subscribed_topics: set[str] = set()
-        self._client_lock = asyncio.Lock()
+        self._client: MQTTClientV5 | None = None
+        self._subscriptions: dict[str, tuple[Subscription, asyncio.Task[None]]] = {}
+        self._terminal_failure_handled = False
+        self._lifecycle_lock = asyncio.Lock()
         self._listeners: CallbackMap[str, bytes] = CallbackMap(_LOGGER)
-        self._connection_task: asyncio.Task[None] | None = None
-        self._topic_idle_timeout = topic_idle_timeout
-        self._idle_timers: dict[str, asyncio.Task[None]] = {}
         self._diagnostics = params.diagnostics
         self._health_manager = HealthManager(self.restart)
         self._unauthorized_hook = params.unauthorized_hook
@@ -98,190 +78,224 @@ class RoborockMqttSession(MqttSession):
     async def start(self) -> None:
         """Start the MQTT session.
 
-        This has special behavior for the first connection attempt where any
-        failures are raised immediately. This is to allow the caller to
-        handle the failure and retry if desired itself. Once connected,
-        the session will retry connecting in the background.
+        The initial attempt is bounded by the session timeout so failures can
+        be returned to the caller. After it succeeds, zmqtt retries connection
+        loss in the background according to its reconnect configuration.
         """
         self._diagnostics.increment("start_attempt")
-        start_future: asyncio.Future[None] = asyncio.Future()
-        loop = asyncio.get_event_loop()
-        self._reconnect_task = loop.create_task(self._run_reconnect_loop(start_future))
         try:
-            await start_future
-        except MqttCodeError as err:
-            self._diagnostics.increment(f"start_failure:{err.rc}")
-            if err.rc == MqttReasonCode.RC_ERROR_UNAUTHORIZED:
+            client = self._create_client()
+            with self._diagnostics.timer("connection"):
+                async with asyncio.timeout(self._params.timeout):
+                    await client.connect()
+        except MQTTConnectError as err:
+            self._diagnostics.increment(f"start_failure:{err.return_code}")
+            if err.return_code == _RC_NOT_AUTHORIZED:
+                if self._unauthorized_hook:
+                    self._unauthorized_hook()
                 raise MqttSessionUnauthorized(f"Authorization error starting MQTT session: {err}") from err
             raise MqttSessionException(f"Error starting MQTT session: {err}") from err
-        except MqttError as err:
+        except (MQTTError, OSError, TimeoutError) as err:
             self._diagnostics.increment("start_failure:unknown")
             raise MqttSessionException(f"Error starting MQTT session: {err}") from err
         except Exception as err:
             self._diagnostics.increment("start_failure:uncaught")
             raise MqttSessionException(f"Unexpected error starting session: {err}") from err
         else:
+            self._client = client
+            self._healthy = True
+            self._terminal_failure_handled = False
             self._diagnostics.increment("start_success")
             _LOGGER.debug("MQTT session started successfully")
 
     async def close(self) -> None:
-        """Cancels the MQTT loop and shutdown the client library."""
+        """Stop subscriptions and shut down the client library."""
         self._diagnostics.increment("close")
-        self._stop = True
-        tasks = [task for task in [self._connection_task, self._reconnect_task, *self._idle_timers.values()] if task]
-        self._connection_task = None
-        self._reconnect_task = None
-        self._idle_timers.clear()
-
-        for task in tasks:
-            task.cancel()
-        try:
-            await asyncio.gather(*tasks, return_exceptions=True)
-        except asyncio.CancelledError:
-            pass
-
         self._healthy = False
+        async with self._lifecycle_lock:
+            client = self._client
+            if client is None:
+                return
+            try:
+                close_task = asyncio.create_task(self._close_client(client))
+                await self._wait_for_lifecycle_task(close_task, "close")
+            finally:
+                self._client = None
+
+    async def _close_client(self, client: MQTTClientV5) -> None:
+        """Stop subscriptions before disconnecting the client."""
+        try:
+            # zmqtt must finish UNSUBSCRIBE before its run task is cancelled.
+            await self._stop_subscriptions()
+        finally:
+            await client.disconnect()
 
     async def restart(self) -> None:
         """Force the session to disconnect and reconnect.
 
-        The active connection task will be cancelled and restarted in the background, retried by
-        the reconnect loop. This is a no-op if there is no active connection.
+        This explicit health-manager operation is separate from unexpected
+        connection loss, which zmqtt recovers automatically.
+
+        Once the restart begins, cancellation is deferred until the client and
+        its subscriptions reach a consistent state.
         """
         _LOGGER.info("Forcing MQTT session restart")
         self._diagnostics.increment("restart")
-        if self._connection_task:
-            self._connection_task.cancel()
-        else:
-            _LOGGER.debug("No message loop task to cancel")
-
-    async def _run_reconnect_loop(self, start_future: asyncio.Future[None] | None) -> None:
-        """Run the MQTT loop."""
-        _LOGGER.info("Starting MQTT session")
-        self._diagnostics.increment("start_loop")
-        while True:
-            try:
-                self._connection_task = asyncio.create_task(self._run_connection(start_future))
-                await self._connection_task
-            except asyncio.CancelledError:
-                _LOGGER.debug("MQTT connection task cancelled")
-            except Exception:
-                # Exceptions are logged and handled in _run_connection.
-                # There is a special case for exceptions on startup where we return
-                # immediately. Otherwise, we let the reconnect loop retry with
-                # backoff when the reconnect loop is active.
-                if start_future and start_future.done() and start_future.exception():
-                    return
-
-            self._healthy = False
-            start_future = None
-            if self._stop:
-                _LOGGER.debug("MQTT session closed, stopping retry loop")
+        async with self._lifecycle_lock:
+            client = self._client
+            if client is None:
+                _LOGGER.debug("No MQTT client to restart")
                 return
-            if not self._client_subscribed_topics and not self._listeners.keys():
-                _LOGGER.debug("MQTT session disconnected with no active subscriptions, deferring reconnect")
-                self._diagnostics.increment("reconnect_deferred")
-                while not self._stop and not self._client_subscribed_topics and not self._listeners.keys():
-                    await asyncio.sleep(0.1)
-                if self._stop:
-                    _LOGGER.debug("MQTT session closed while waiting for active subscriptions")
-                    return
-                self._backoff = MIN_BACKOFF_INTERVAL
-                continue
-            _LOGGER.info("MQTT session disconnected, retrying in %s seconds", self._backoff.total_seconds())
-            self._diagnostics.increment("reconnect_wait")
-            await asyncio.sleep(self._backoff.total_seconds())
-            self._backoff = min(self._backoff * BACKOFF_MULTIPLIER, MAX_BACKOFF_INTERVAL)
 
-    async def _run_connection(self, start_future: asyncio.Future[None] | None) -> None:
-        """Connect to the MQTT broker and listen for messages.
+            restart_task = asyncio.create_task(self._restart_client(client))
+            await self._wait_for_lifecycle_task(restart_task, "restart")
 
-        This is the primary connection loop for the MQTT session that is
-        long running and processes incoming messages. If the connection
-        is lost, this method will exit.
-        """
+    @staticmethod
+    async def _wait_for_lifecycle_task(task: asyncio.Task[None], operation: str) -> None:
+        """Defer caller cancellation until an MQTT lifecycle operation finishes."""
+        cancellation: asyncio.CancelledError | None = None
+        while not task.done():
+            try:
+                await asyncio.wait((task,))
+            except asyncio.CancelledError as err:
+                cancellation = err
+
+        if cancellation is not None:
+            try:
+                task.result()
+            except asyncio.CancelledError:
+                pass
+            except Exception as err:
+                _LOGGER.warning("MQTT %s failed while handling cancellation: %s", operation, err)
+            raise cancellation
+        task.result()
+
+    async def _restart_client(self, client: MQTTClientV5) -> None:
+        """Restart a client without exposing partially updated subscription state."""
+        self._healthy = False
+        topics = list(self._subscriptions)
+        topics.extend(topic for topic in self._listeners.keys() if topic not in self._subscriptions)
         try:
-            with self._diagnostics.timer("connection"):
-                async with self._mqtt_client(self._params) as client:
-                    self._backoff = MIN_BACKOFF_INTERVAL
-                    self._healthy = True
-                    _LOGGER.info("MQTT Session connected.")
-                    if start_future and not start_future.done():
-                        start_future.set_result(None)
+            await self._stop_subscriptions()
+            await client.disconnect()
+            async with asyncio.timeout(self._params.timeout):
+                await client.connect()
+            for topic in topics:
+                self._diagnostics.increment("resubscribe")
+                _LOGGER.debug("Re-establishing subscription to topic %s", redact_topic_name(topic))
+                await self._start_subscription(topic, client)
+        except (MQTTError, OSError, TimeoutError) as err:
+            await self._stop_subscriptions()
+            await client.disconnect()
+            raise MqttSessionException(f"Error restarting MQTT session: {err}") from err
+        self._healthy = True
+        self._terminal_failure_handled = False
 
-                    _LOGGER.debug("Processing MQTT messages")
-                    async for message in client.messages:
-                        _LOGGER.debug("Received message: %s", message)
-                        with self._diagnostics.timer("dispatch_message"):
-                            self._listeners(message.topic.value, message.payload)
-        except MqttCodeError as err:
-            self._diagnostics.increment(f"connect_failure:{err.rc}")
-            if start_future and not start_future.done():
-                _LOGGER.debug("MQTT error starting session: %s", err)
-                start_future.set_exception(err)
-            else:
-                _LOGGER.debug("MQTT error: %s", err)
-            if err.rc == MqttReasonCode.RC_ERROR_UNAUTHORIZED and self._unauthorized_hook:
-                _LOGGER.info("MQTT unauthorized/rate-limit error received, setting backoff to maximum")
-                self._unauthorized_hook()
-                self._backoff = MAX_BACKOFF_INTERVAL
+    def _create_client(self) -> MQTTClientV5:
+        """Create a zmqtt client configured to own connection recovery."""
+        params = self._params
+        _LOGGER.debug("Connecting to %s:%s for %s", params.host, params.port, params.username)
+        tls: ssl.SSLContext | bool = params.tls
+        if params.tls and not params.verify_tls:
+            tls = ssl.create_default_context()
+            tls.check_hostname = False
+            tls.verify_mode = ssl.CERT_NONE
+
+        return create_client(
+            params.host,
+            port=params.port,
+            username=params.username,
+            password=params.password,
+            keepalive=int(CLIENT_KEEPALIVE.total_seconds()),
+            version="5.0",
+            tls=tls,
+            reconnect=ReconnectConfig(
+                enabled=True,
+                initial_delay=MIN_BACKOFF_INTERVAL.total_seconds(),
+                max_delay=MAX_BACKOFF_INTERVAL.total_seconds(),
+                backoff_factor=BACKOFF_MULTIPLIER,
+                max_attempts=None,
+            ),
+            on_connection_recovery_failed=self._connection_recovery_failed,
+            mqtt_connect_timeout=params.timeout,
+        )
+
+    async def _connection_recovery_failed(self) -> None:
+        """Mark the session unhealthy after zmqtt exhausts recovery."""
+        self._healthy = False
+        self._diagnostics.increment("connection_recovery_failed")
+        _LOGGER.error("MQTT connection recovery failed")
+
+    async def _start_subscription(self, topic: str, client: MQTTClientV5) -> None:
+        """Start a zmqtt subscription and its message consumer."""
+        subscription = client.subscribe(topic)
+        try:
+            async with asyncio.timeout(self._params.timeout):
+                await subscription.start()
+        except BaseException:
+            try:
+                async with asyncio.timeout(self._params.timeout):
+                    await subscription.stop()
+            except Exception as err:
+                _LOGGER.warning("Error cleaning up subscription to topic %s: %s", redact_topic_name(topic), err)
             raise
-        except MqttError as err:
-            self._diagnostics.increment("connect_failure:unknown")
-            if start_future and not start_future.done():
-                _LOGGER.info("MQTT error starting session: %s", err)
-                start_future.set_exception(err)
-            else:
-                _LOGGER.info("MQTT error: %s", err)
+        consumer = asyncio.create_task(self._consume_messages(topic, subscription))
+        self._subscriptions[topic] = (subscription, consumer)
+
+    async def _consume_messages(self, topic: str, subscription: Subscription) -> None:
+        """Dispatch messages from a zmqtt subscription to topic listeners."""
+        try:
+            async for message in subscription:
+                _LOGGER.debug(
+                    "Received MQTT message on topic %s (%d bytes)",
+                    redact_topic_name(topic),
+                    len(message.payload),
+                )
+                with self._diagnostics.timer("dispatch_message"):
+                    self._listeners(topic, message.payload)
+        except asyncio.CancelledError:
             raise
         except Exception as err:
+            self._handle_terminal_failure(err)
+
+    def _handle_terminal_failure(self, err: BaseException) -> None:
+        """Handle the shared zmqtt terminal failure exactly once."""
+        if self._terminal_failure_handled:
+            return
+        self._terminal_failure_handled = True
+        self._healthy = False
+        if isinstance(err, MQTTConnectError):
+            self._diagnostics.increment(f"connect_failure:{err.return_code}")
+            if err.return_code == _RC_NOT_AUTHORIZED and self._unauthorized_hook:
+                self._unauthorized_hook()
+            _LOGGER.error("MQTT connection recovery failed: %s", err)
+        elif isinstance(err, (MQTTError, OSError, TimeoutError)):
+            self._diagnostics.increment("connect_failure:unknown")
+            _LOGGER.error("MQTT connection recovery failed: %s", err)
+        else:
             self._diagnostics.increment("connect_failure:uncaught")
-            # This error is thrown when the MQTT loop is cancelled
-            # and the generator is not stopped.
-            if "generator didn't stop" in str(err) or "generator didn't yield" in str(err):
-                _LOGGER.debug("MQTT loop was cancelled")
-                return
-            if start_future and not start_future.done():
-                _LOGGER.error("Uncaught error starting MQTT session: %s", err)
-                start_future.set_exception(err)
-            else:
-                _LOGGER.exception("Uncaught error during MQTT session: %s", err)
-            raise
+            _LOGGER.exception("Uncaught error consuming MQTT messages: %s", err, exc_info=err)
 
-    @asynccontextmanager
-    async def _mqtt_client(self, params: MqttParams) -> aiomqtt.Client:
-        """Connect to the MQTT broker and listen for messages."""
-        _LOGGER.debug("Connecting to %s:%s for %s", params.host, params.port, params.username)
-        tls_params = None
-        if params.tls:
-            tls_params = TLSParameters(cert_reqs=ssl.CERT_REQUIRED if params.verify_tls else ssl.CERT_NONE)
+    async def _stop_subscription(self, topic: str) -> None:
+        """Stop a subscription before cancelling its consumer task."""
+        active = self._subscriptions.pop(topic, None)
+        if active is None:
+            return
+        subscription, consumer = active
         try:
-            async with aiomqtt.Client(
-                hostname=params.host,
-                port=params.port,
-                username=params.username,
-                password=params.password,
-                keepalive=int(CLIENT_KEEPALIVE.total_seconds()),
-                protocol=aiomqtt.ProtocolVersion.V5,
-                tls_params=tls_params,
-                timeout=params.timeout,
-                logger=_MQTT_LOGGER,
-            ) as client:
-                _LOGGER.debug("Connected to MQTT broker")
-                # Re-establish any existing subscriptions
-                async with self._client_lock:
-                    self._client = client
-                    for topic in self._client_subscribed_topics:
-                        self._diagnostics.increment("resubscribe")
-                        _LOGGER.debug("Re-establishing subscription to topic %s", redact_topic_name(topic))
-                        # TODO: If this fails it will break the whole connection. Make
-                        # this retry again in the background with backoff.
-                        await client.subscribe(topic)
-
-                yield client
+            async with asyncio.timeout(self._params.timeout):
+                await subscription.stop()
         finally:
-            async with self._client_lock:
-                self._client = None
+            consumer.cancel()
+            await asyncio.gather(consumer, return_exceptions=True)
+
+    async def _stop_subscriptions(self) -> None:
+        """Stop all active subscriptions for the current connection."""
+        for topic in list(self._subscriptions):
+            try:
+                await self._stop_subscription(topic)
+            except Exception as err:
+                _LOGGER.warning("Error stopping subscription to topic %s: %s", redact_topic_name(topic), err)
 
     async def subscribe(self, topic: str, callback: Callable[[bytes], None]) -> Callable[[], None]:
         """Subscribe to messages on the specified topic and invoke the callback for new messages.
@@ -289,77 +303,33 @@ class RoborockMqttSession(MqttSession):
         The callback will be called with the message payload as a bytes object. The callback
         should not block since it runs in the async loop. It should not raise any exceptions.
 
-        The returned callable unsubscribes from the topic when called, but will delay actual
-        unsubscription for the idle timeout period. If a new subscription comes in during the
-        timeout, the timer is cancelled and the subscription is reused.
+        The returned callable stops invoking this callback. The broker subscription
+        is shared by all callbacks for the topic and remains active until the session
+        closes, avoiding repeated SUBSCRIBE/UNSUBSCRIBE traffic between RPCs.
         """
         _LOGGER.debug("Subscribing to topic %s", redact_topic_name(topic))
 
-        # If there is an idle timer for this topic, cancel it (reuse subscription)
-        if idle_timer := self._idle_timers.pop(topic, None):
-            self._diagnostics.increment("unsubscribe_idle_cancel")
-            idle_timer.cancel()
-            _LOGGER.debug("Cancelled idle timer for topic %s (reused subscription)", redact_topic_name(topic))
-
-        unsub = self._listeners.add_callback(topic, callback)
-
-        async with self._client_lock:
-            if topic not in self._client_subscribed_topics:
-                self._client_subscribed_topics.add(topic)
-                if self._client:
-                    _LOGGER.debug("Establishing subscription to topic %s", topic)
-                    try:
-                        with self._diagnostics.timer("subscribe"):
-                            await self._client.subscribe(topic)
-                    except MqttError as err:
-                        # Clean up the callback if subscription fails
-                        unsub()
-                        self._client_subscribed_topics.discard(topic)
-                        raise MqttSessionException(f"Error subscribing to topic: {err}") from err
-                else:
-                    self._diagnostics.increment("subscribe_pending")
-                    _LOGGER.debug("Client not connected, will establish subscription later")
-
-        def schedule_unsubscribe() -> None:
-            async def idle_unsubscribe():
+        async with self._lifecycle_lock:
+            unsub = self._listeners.add_callback(topic, callback)
+            if topic not in self._subscriptions:
+                if self._client is None:
+                    unsub()
+                    raise MqttSessionException("Could not subscribe to topic, MQTT client not connected")
+                _LOGGER.debug("Establishing subscription to topic %s", redact_topic_name(topic))
                 try:
-                    await asyncio.sleep(self._topic_idle_timeout.total_seconds())
-                    # Only unsubscribe if there are no callbacks left for this topic
-                    if not self._listeners.get_callbacks(topic):
-                        async with self._client_lock:
-                            # Check again if we have listeners, in case a subscribe happened
-                            # while we were waiting for the lock or after we popped the timer.
-                            if self._listeners.get_callbacks(topic):
-                                _LOGGER.debug("Skipping unsubscribe for %s, new listeners added", topic)
-                                return
+                    with self._diagnostics.timer("subscribe"):
+                        await self._start_subscription(topic, self._client)
+                except BaseException as err:
+                    unsub()
+                    if isinstance(err, (MQTTError, OSError, TimeoutError)):
+                        raise MqttSessionException(f"Error subscribing to topic: {err}") from err
+                    raise
 
-                            self._idle_timers.pop(topic, None)
-                            self._client_subscribed_topics.discard(topic)
-
-                            if self._client:
-                                _LOGGER.debug("Idle timeout expired, unsubscribing from topic %s", topic)
-                                try:
-                                    await self._client.unsubscribe(topic)
-                                except MqttError as err:
-                                    _LOGGER.warning("Error unsubscribing from topic %s: %s", topic, err)
-                except asyncio.CancelledError:
-                    _LOGGER.debug("Idle unsubscribe for topic %s cancelled", topic)
-
-            # Start the idle timer task
-            task = asyncio.create_task(idle_unsubscribe())
-            self._idle_timers[topic] = task
-
-        def delayed_unsub():
+        def unsubscribe() -> None:
             self._diagnostics.increment("unsubscribe")
-            unsub()  # Remove the callback from CallbackMap
-            # If no more callbacks for this topic, start idle timer
-            if not self._listeners.get_callbacks(topic):
-                self._diagnostics.increment("unsubscribe_idle_start")
-                schedule_unsubscribe()
-            else:
-                _LOGGER.debug("Unsubscribing topic %s, still have active callbacks", topic)
+            unsub()
 
-        return delayed_unsub
+        return unsubscribe
 
     async def publish(self, topic: str, message: bytes, qos: MqttQos = MqttQos.AT_MOST_ONCE) -> None:
         """Publish a message on the topic.
@@ -369,16 +339,15 @@ class RoborockMqttSession(MqttSession):
             message: The message payload.
             qos: The MQTT QoS level. Defaults to AT_MOST_ONCE.
         """
-        _LOGGER.debug("Sending message to topic %s: %s", topic, message)
-        client: aiomqtt.Client
-        async with self._client_lock:
-            if self._client is None:
-                raise MqttSessionException("Could not publish message, MQTT client not connected")
-            client = self._client
+        _LOGGER.debug("Sending MQTT message to topic %s (%d bytes)", redact_topic_name(topic), len(message))
+        client = self._client
+        if client is None:
+            raise MqttSessionException("Could not publish message, MQTT client not connected")
         try:
             with self._diagnostics.timer("publish"):
-                await client.publish(topic, message, qos=qos)
-        except MqttError as err:
+                async with asyncio.timeout(self._params.timeout):
+                    await client.publish(topic, message, qos=QoS(qos))
+        except (MQTTError, OSError, TimeoutError) as err:
             raise MqttSessionException(f"Error publishing message: {err}") from err
 
 
@@ -418,7 +387,7 @@ class LazyMqttSession(MqttSession):
     async def subscribe(self, device_id: str, callback: Callable[[bytes], None]) -> Callable[[], None]:
         """Invoke the callback when messages are received on the topic.
 
-        The returned callable unsubscribes from the topic when called.
+        The returned callable stops invoking this callback.
         """
         await self._maybe_start()
         return await self._session.subscribe(device_id, callback)
@@ -432,7 +401,7 @@ class LazyMqttSession(MqttSession):
         return await self._session.publish(topic, message, qos=qos)
 
     async def close(self) -> None:
-        """Cancels the mqtt loop.
+        """Close the underlying MQTT session.
 
         This will close the underlying session and will not allow it to be
         restarted again.

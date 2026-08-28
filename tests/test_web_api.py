@@ -32,10 +32,13 @@ def auto_mock_rest_fixture(mock_rest: Any) -> None:
 async def test_pass_login_flow() -> None:
     """Test that we can login with a password and we get back the correct userdata object."""
     my_session = aiohttp.ClientSession()
-    api = RoborockApiClient(username="test_user@gmail.com", session=my_session)
-    ud = await api.pass_login("password")
-    assert ud == UserData.from_dict(USER_DATA)
-    assert not my_session.closed
+    try:
+        api = RoborockApiClient(username="test_user@gmail.com", session=my_session)
+        ud = await api.pass_login("password")
+        assert ud == UserData.from_dict(USER_DATA)
+        assert not my_session.closed
+    finally:
+        await my_session.close()
 
 
 async def test_code_login_flow() -> None:

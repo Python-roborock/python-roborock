@@ -46,7 +46,7 @@ repos:
         hooks:
             -   id: mypy
                 exclude: cli.py
-                additional_dependencies: [ "types-paho-mqtt", "types-protobuf" ]
+                additional_dependencies: [ "types-protobuf" ]
     -   repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
         rev: v9.23.0
         hooks:

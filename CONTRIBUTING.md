@@ -53,10 +53,19 @@ pre-commit run --all-files
 
 We use `pytest` for testing. Please ensure all tests pass and add new tests for your changes.
 
+The MQTT end-to-end tests use EMQX. Start it before running the suite:
+
 ```bash
-# Run tests
-pytest
+docker compose up -d --wait
+uv run pytest
+docker compose down
 ```
+
+The broker listens on `localhost:1888` and the EMQX dashboard on
+`http://localhost:18083`. Set `ROBOROCK_TEST_MQTT_HOST` and
+`ROBOROCK_TEST_MQTT_PORT` to run the tests against another broker. The port
+variable also overrides the local Compose MQTT port;
+`ROBOROCK_TEST_EMQX_DASHBOARD_PORT` overrides the dashboard port.
 
 ## Pull Requests
 

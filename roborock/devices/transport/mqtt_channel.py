@@ -69,7 +69,7 @@ class MqttChannel(Channel):
 
         The callback will be called with the message payload when a message is received.
 
-        Returns a callable that can be used to unsubscribe from the topic.
+        Returns a callable that stops invoking this callback.
         """
         dispatch = decoder_callback(self._decoder, callback, _LOGGER)
         return await self._mqtt_session.subscribe(self._subscribe_topic, dispatch)

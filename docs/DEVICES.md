@@ -70,7 +70,7 @@ graph TB
     end
 
     subgraph "Session Layer"
-        MS[MqttSession<br/>SHARED by all devices<br/>Idle timeout]
+        MS[MqttSession<br/>SHARED by all devices<br/>Pooled subscriptions]
         LS[LocalSession<br/>Factory]
     end
 
@@ -143,7 +143,7 @@ graph TB
 
 **Important:** All `MqttChannel` instances share the same `MqttSession`, which maintains a single MQTT connection to the broker. This means:
 - Only one TCP connection to the MQTT broker regardless of device count
-- Subscription management is centralized with idle timeout optimization
+- Subscription management is centralized and shared between callbacks for the same topic
 - All devices communicate through device-specific MQTT topics on the shared connection
 
 ### Protocol-Specific Architecture
@@ -355,7 +355,7 @@ graph LR
 **Key Design Points:**
 
 1. **Temporary Subscriptions**: Each RPC creates a temporary subscription that matches the request ID
-2. **Subscription Reuse**: `MqttSession` keeps subscriptions alive for 60 seconds (or idle timeout) to enable reuse during command bursts
+2. **Subscription Reuse**: `MqttSession` keeps one broker subscription per topic until the shared session closes, while individual RPCs only add and remove callbacks
 3. **Timeout Handling**: Commands timeout after 10 seconds if no response is received
 4. **Multiple Strategies**: `V1Channel` tries connect to both Local faster local commands and MQTT for streaming updates.
 
@@ -416,7 +416,7 @@ classDiagram
     class MqttSession {
         -Client client
         -dict listeners
-        -dict idle_timers
+        -dict subscriptions
         +subscribe(topic, callback)
         +publish(topic, payload)
         +close()
@@ -452,9 +452,9 @@ The `MqttSession` manages a **single shared MQTT connection** for all devices:
 - **Single Connection**: Only one TCP connection to the MQTT broker, regardless of device count
 - **Per-Device Topics**: Each device communicates via its own MQTT topics (e.g., `rr/m/i/{user}/{username}/{duid}`)
 - **Subscription Pooling**: Multiple callbacks can subscribe to the same topic
-- **Idle Timeout**: Keeps subscriptions alive for 10 seconds after the last callback unsubscribes (enables reuse during command bursts)
+- **Subscription Lifetime**: The broker subscription stays active until the shared session closes; removing a listener only removes its callback
 - **Reconnection**: Automatically reconnects and re-establishes all subscriptions on connection loss
-- **Thread-Safe**: Uses asyncio primitives for safe concurrent access
+- **Concurrency-Safe**: Uses asyncio primitives for safe concurrent access from one event loop
 
 **Efficiency**: Creating 5 devices means 5 `MqttChannel` instances but only 1 `MqttSession` and 1 MQTT broker connection.
 
@@ -591,7 +591,7 @@ roborock/
 │           └── q7/             # Q7 series
 ├── mqtt/                      # MQTT session management
 │   ├── session.py             # Base session interface
-│   └── roborock_session.py    # MQTT session with idle timeout
+│   └── roborock_session.py    # Shared MQTT connection and subscription pooling
 ├── protocols/                 # Low level protocol encoders/decoders
 │   ├── v1_protocol.py         # V1 JSON RPC protocol
 │   ├── a01_protocol.py        # A01 protocol
@@ -650,7 +650,7 @@ To reduce API calls and improve reliability:
 1. **Home Data**: Cached on disk, refreshed periodically
 2. **Network Info**: Cached for 12 hours
 3. **Device Capabilities**: Detected once and cached
-4. **MQTT Subscriptions**: Kept alive for 60 seconds (idle timeout)
+4. **MQTT Subscriptions**: One broker subscription per topic is kept alive until the shared session closes
 
 ### Testing
 
@@ -659,10 +659,10 @@ the module `roborock.devices.traits.v1.maps` is tested in the file
 `tests/devices/traits/v1/test_maps.py`. Each test file corresponds to a python
 module.
 
-The test suite uses mocking extensively to avoid real devices:
+The test suite uses mocks for device behavior and a real broker for MQTT integration:
 
 - `Mock` and `AsyncMock` for channels and sessions
-- Fake message generators (`mqtt_packet.gen_publish()`)
+- A real EMQX broker for MQTT session and device-manager E2E tests
 - Snapshot testing for complex data structures
 - Time-based tests use small timeouts (10-50ms) for speed
 
