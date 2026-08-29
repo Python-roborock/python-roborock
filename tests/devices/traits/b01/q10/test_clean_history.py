@@ -1,3 +1,4 @@
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -13,7 +14,7 @@ from roborock.data.b01_q10.b01_q10_containers import Q10CleanRecord
 from roborock.devices.traits.b01.q10 import Q10PropertiesApi
 from roborock.devices.traits.b01.q10.clean_history import CleanHistoryTrait, CleanRecordConverter
 from roborock.exceptions import RoborockException
-from roborock.map.b01_q10_map_parser import parse_map_packet
+from roborock.map.b01_q10_map_parser import Q10Obstacle, parse_map_packet
 
 from .conftest import FakeB01Q10Channel
 
@@ -228,3 +229,18 @@ async def test_detail_response_is_associated_with_pending_record(
 
     assert clean_history.detail_record is record
     assert clean_history.detail_packet is packet
+
+
+def test_clean_record_detail_exposes_obstacles(clean_history: CleanHistoryTrait) -> None:
+    fixture = Path("tests/map/testdata/b01_q10_map.bin").read_bytes()
+    packet = replace(
+        parse_map_packet(b"\x03\x01" + fixture[2:]),
+        obstacles=[Q10Obstacle(100, -200), Q10Obstacle(-300, 400)],
+    )
+
+    clean_history.update_from_map_packet(packet)
+
+    assert clean_history.detail_obstacles == packet.obstacles
+    exposed = clean_history.detail_obstacles
+    exposed.clear()
+    assert clean_history.detail_obstacles == packet.obstacles

@@ -9,7 +9,12 @@ from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
 from roborock.data.b01_q10.b01_q10_containers import Q10MapInfo, dpMultiMap
 from roborock.devices.traits.common import DpsDataConverter
 from roborock.exceptions import RoborockException
-from roborock.map.b01_q10_map_parser import B01Q10MapParserConfig, Q10MapPacket, Q10MapPacketKind
+from roborock.map.b01_q10_map_parser import (
+    B01Q10MapParserConfig,
+    Q10MapPacket,
+    Q10MapPacketKind,
+    Q10Obstacle,
+)
 from roborock.map.b01_q10_render import Q10MapOverlays, render_q10_map
 
 from .command import CommandTrait
@@ -63,6 +68,11 @@ class MapsTrait(Maps, UpdatableTrait):
         self.detail_image_content: bytes | None = None
         """Rendered saved-map detail image, if decoding succeeded."""
         self._pending_detail_map_id: str | None = None
+
+    @property
+    def detail_obstacles(self) -> list[Q10Obstacle]:
+        """Obstacle markers embedded in the selected saved-map preview."""
+        return list(self.detail_packet.obstacles) if self.detail_packet else []
 
     async def refresh(self) -> None:
         """Request a new saved-map list from the device."""

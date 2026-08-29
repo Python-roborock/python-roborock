@@ -25,6 +25,7 @@ from roborock.map.b01_q10_map_parser import (
     B01Q10MapParserConfig,
     Q10MapPacket,
     Q10MapPacketKind,
+    Q10Obstacle,
     Q10Point,
     Q10Room,
     Q10TracePacket,
@@ -140,6 +141,11 @@ class MapContentTrait(TraitUpdateListener):
         return self._trace_packet.points if self._trace_packet else []
 
     @property
+    def obstacles(self) -> list[Q10Obstacle]:
+        """Position-only obstacle markers reported by the current map."""
+        return list(self._map_packet.obstacles) if self._map_packet else []
+
+    @property
     def robot_position(self) -> Q10Point | None:
         """Current position for live status and caller-rendered map overlays."""
         return self._trace_packet.robot_position if self._trace_packet else None
@@ -199,6 +205,7 @@ class MapContentTrait(TraitUpdateListener):
         exclude_set = exclude or set()
         data = {
             "rooms": [room.as_dict() for room in self.rooms],
+            "obstacles": [obstacle.as_dict() for obstacle in self.obstacles],
             "path": [point.as_dict() for point in self.path],
             "robotPosition": self.robot_position.as_dict() if self.robot_position is not None else None,
             "robotHeading": self.robot_heading,
