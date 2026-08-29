@@ -8,6 +8,7 @@ that state management; rendering is tested separately.
 import asyncio
 import base64
 from collections.abc import AsyncGenerator, Generator
+from dataclasses import replace
 from pathlib import Path
 from typing import cast
 from unittest.mock import Mock, patch
@@ -24,6 +25,7 @@ from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
     B01Q10MapParserConfig,
     Q10MapPacketKind,
+    Q10Obstacle,
     Q10Point,
     Q10TracePacket,
     parse_map_packet,
@@ -72,6 +74,26 @@ def test_update_from_map_packet_populates_image_and_rooms() -> None:
     assert trait.image_content[:8] == b"\x89PNG\r\n\x1a\n"
     assert {room.id: room.name for room in trait.rooms} == {2: "Living Room", 3: "Bedroom"}
     assert len(updates) == 1
+
+
+def test_update_from_map_packet_exposes_obstacles() -> None:
+    """Live callers receive the same decoded obstacles used by rendering."""
+    packet = replace(
+        parse_map_packet(FIXTURE.read_bytes()),
+        obstacles=[Q10Obstacle(250, -300), Q10Obstacle(-50, 100)],
+    )
+    trait = _map_trait()
+
+    trait.update_from_map_packet(packet)
+
+    assert trait.obstacles == packet.obstacles
+    assert trait.as_dict()["obstacles"] == [
+        {"x": 250, "y": -300},
+        {"x": -50, "y": 100},
+    ]
+    exposed = trait.obstacles
+    exposed.clear()
+    assert trait.obstacles == packet.obstacles
 
 
 def test_live_map_trait_rejects_archived_packet() -> None:
@@ -287,6 +309,21 @@ def test_archive_owners_reject_wrong_packet_kinds(q10_api: Q10PropertiesApi) -> 
         q10_api.clean_history.update_from_map_packet(current)
     with pytest.raises(ValueError, match="saved-map detail"):
         q10_api.maps.update_from_map_packet(current)
+
+
+def test_saved_map_detail_exposes_obstacles(q10_api: Q10PropertiesApi) -> None:
+    payload = FIXTURE.read_bytes()
+    packet = replace(
+        parse_map_packet(b"\x04\x01" + payload[2:]),
+        obstacles=[Q10Obstacle(100, -200)],
+    )
+
+    q10_api.maps.update_from_map_packet(packet)
+
+    assert q10_api.maps.detail_obstacles == packet.obstacles
+    exposed = q10_api.maps.detail_obstacles
+    exposed.clear()
+    assert q10_api.maps.detail_obstacles == packet.obstacles
 
 
 def test_all_q10_map_views_share_the_injected_render_config(

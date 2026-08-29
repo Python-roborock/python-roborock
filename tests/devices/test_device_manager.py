@@ -8,13 +8,16 @@ from unittest.mock import Mock, patch
 
 import pytest
 import syrupy
+from vacuum_map_parser_base.config.drawable import Drawable
 
 from roborock.data import HomeData, UserData
 from roborock.data.containers import HomeDataDevice, HomeDataProduct, RoborockCategory
 from roborock.devices.cache import InMemoryCache
 from roborock.devices.device import RoborockDevice
 from roborock.devices.device_manager import UserParams, create_device_manager, create_web_api_wrapper
+from roborock.devices.traits.b01.q10 import create as create_q10
 from roborock.exceptions import RoborockException, RoborockInvalidCredentials
+from roborock.map.map_parser import MapParserConfig
 from roborock.testing import FakeRoborockCloud, Q10VacuumSimulator, V1VacuumSimulator
 from tests import mock_data
 
@@ -85,7 +88,12 @@ async def test_with_q10_device(cloud: FakeRoborockCloud, patch_device_manager: N
     )
     cloud.add_device(q10_sim)
 
-    device_manager = await create_device_manager(USER_PARAMS)
+    map_parser_config = MapParserConfig(drawables=[Drawable.OBSTACLES], map_scale=2)
+    with patch("roborock.devices.device_manager.b01.q10.create", wraps=create_q10) as q10_create:
+        device_manager = await create_device_manager(USER_PARAMS, map_parser_config=map_parser_config)
+    q10_config = q10_create.call_args.kwargs["map_parser_config"]
+    assert q10_config.map_scale == 2
+    assert q10_config.drawables == [Drawable.OBSTACLES]
     devices = await device_manager.get_devices()
 
     # The setup includes fake_device (V1) by default because of the fake_device fixture

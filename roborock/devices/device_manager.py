@@ -266,7 +266,12 @@ async def create_device_manager(
                     trait = b01.q10.create(
                         channel,
                         map_parser_config=(
-                            B01Q10MapParserConfig(map_scale=map_parser_config.map_scale) if map_parser_config else None
+                            B01Q10MapParserConfig(
+                                map_scale=map_parser_config.map_scale,
+                                drawables=map_parser_config.drawables,
+                            )
+                            if map_parser_config
+                            else None
                         ),
                     )
                 elif "sc" in model_part:

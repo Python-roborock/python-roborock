@@ -28,6 +28,7 @@ from roborock.map.b01_q10_map_parser import (
     Q10HistoricalTracePacket,
     Q10MapPacket,
     Q10MapPacketKind,
+    Q10Obstacle,
     Q10Point,
 )
 from roborock.map.b01_q10_render import Q10MapOverlays, render_q10_map
@@ -199,6 +200,11 @@ class CleanHistoryTrait(UpdatableTrait):
     def detail_path(self) -> list[Q10Point]:
         """Historical path points for the selected clean record."""
         return self.detail_trace.points if self.detail_trace else []
+
+    @property
+    def detail_obstacles(self) -> list[Q10Obstacle]:
+        """Obstacle markers embedded in the selected clean-record map."""
+        return list(self.detail_packet.obstacles) if self.detail_packet else []
 
     def update_from_dps(self, decoded_dps: dict[B01_Q10_DP, Any]) -> None:
         """Apply a ``dpCleanRecord`` push (a full list reply or a single notify)."""
