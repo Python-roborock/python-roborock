@@ -24,6 +24,7 @@ from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
     B01Q10MapParserConfig,
     Q10MapPacket,
+    Q10MapPacketKind,
     Q10Point,
     Q10Room,
     Q10TracePacket,
@@ -149,6 +150,8 @@ class MapContentTrait(TraitUpdateListener):
 
     def update_from_map_packet(self, packet: Q10MapPacket) -> None:
         """Store a map-protocol update and render the latest sources."""
+        if packet.kind is not Q10MapPacketKind.CURRENT:
+            raise ValueError(f"Expected a current Q10 map packet, got {packet.kind.value}")
         self._map_packet = packet
         self._render()
         self._notify_update()

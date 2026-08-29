@@ -8,7 +8,7 @@ from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
 from roborock.data.containers import RoborockBase
 from roborock.devices.rpc.b01_q10_channel import B01Q10Channel
 from roborock.devices.traits import Trait
-from roborock.map.b01_q10_map_parser import Q10MapPacket, Q10TracePacket
+from roborock.map.b01_q10_map_parser import Q10MapPacket, Q10MapPacketKind, Q10TracePacket
 from roborock.protocols.b01_q10_protocol import Q10DpsUpdate, Q10Message
 
 from .button_light import ButtonLightTrait
@@ -157,7 +157,12 @@ class Q10PropertiesApi(Trait):
         Map-list DPS responses and other DPS updates feed the read-model traits.
         """
         if isinstance(message, Q10MapPacket):
-            self.map.update_from_map_packet(message)
+            if message.kind is Q10MapPacketKind.CURRENT:
+                self.map.update_from_map_packet(message)
+            elif message.kind is Q10MapPacketKind.CLEAN_RECORD_DETAIL:
+                self.clean_history.update_from_map_packet(message)
+            elif message.kind is Q10MapPacketKind.SAVED_MAP_DETAIL:
+                self.maps.update_from_map_packet(message)
         elif isinstance(message, Q10TracePacket):
             self.map.update_from_trace_packet(message)
         elif isinstance(message, Q10DpsUpdate):

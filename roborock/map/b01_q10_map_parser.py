@@ -1,8 +1,9 @@
 """Parser for Roborock Q10 (B01/ss07) map packets.
 
-Q10 devices deliver map data as a protocol-301 ``MAP_RESPONSE`` message after a
-``dpMultiMap`` list/get request. Unlike the Q7 ``SCMap`` protobuf
-format, the Q10 uses a custom, unencrypted binary packet:
+Q10 devices deliver map data as protocol-301 ``MAP_RESPONSE`` pushes. Current
+maps follow a read-only status request, while saved-map and clean-record detail
+packets follow their respective ``select`` requests. Unlike the Q7 ``SCMap``
+protobuf format, the Q10 uses a custom, unencrypted binary packet:
 
 - ``01 01`` marker, then a ``u32be`` map id (bytes 2-5) and two consecutive
   ``u16be`` dimensions: grid width (bytes 7-8) and grid height (bytes 9-10).
@@ -22,7 +23,9 @@ https://github.com/v1b3c0d3x3r/roborock-qseries-map-bridge
 import io
 import math
 import statistics
+import struct
 from dataclasses import dataclass, field, replace
+from enum import Enum
 
 from PIL import Image
 from vacuum_map_parser_base.config.color import ColorsPalette, SupportedColor
@@ -68,6 +71,8 @@ def classify_q10_cell(value: int) -> str:
 
 MAP_PACKET_MARKER = b"\x01\x01"
 TRACE_PACKET_MARKER = b"\x02\x01"
+CLEAN_RECORD_MAP_PACKET_MARKER = b"\x03\x01"
+SAVED_MAP_PACKET_MARKER = b"\x04\x01"
 
 _MAP_ID_OFFSET = 2
 # Width and height are two consecutive u16be fields. An earlier revision read the
@@ -83,6 +88,7 @@ _LAYOUT_COMPRESSED_OFFSET = 29
 _ROOM_RECORD_LENGTH = 47
 _ROOM_NAME_LENGTH_OFFSET = 26
 _MAX_ROOMS = 32
+_MAX_GRID_CELLS = 16_000_000
 # Sanity bound for the erase-zone vector section's vertices-per-polygon field.
 _MAX_ERASE_ZONE_VERTICES = 16
 
@@ -194,9 +200,17 @@ class Q10HeaderCalibration:
         )
 
 
+class Q10MapPacketKind(Enum):
+    """Semantic kind identified by a Q10 map packet's two-byte marker."""
+
+    CURRENT = "current"
+    CLEAN_RECORD_DETAIL = "clean_record_detail"
+    SAVED_MAP_DETAIL = "saved_map_detail"
+
+
 @dataclass
 class Q10MapPacket:
-    """Decoded contents of a Q10 ``01 01`` map packet."""
+    """Decoded contents of a Q10 current or archived map packet."""
 
     map_id: int
     width: int
@@ -211,6 +225,11 @@ class Q10MapPacket:
     """Carpet mask decoded from the packet tail: a full ``width*height`` grid in
     the same (top-down) pixel space as :attr:`grid`, where a non-zero cell is
     carpet (the value is the carpet kind). ``None`` if the packet carried none."""
+    kind: Q10MapPacketKind = Q10MapPacketKind.CURRENT
+    historical_trace: "Q10HistoricalTracePacket | None" = None
+    """Cleaning path embedded in a clean-record detail packet, if present."""
+    trailing_bytes: bytes = b""
+    """Bytes following all sections this parser can validate and decode."""
 
     @property
     def layers(self) -> GridLayers:
@@ -266,6 +285,27 @@ class Q10TracePacket:
         return self.points[-1] if self.points else None
 
 
+@dataclass
+class Q10HistoricalTracePacket:
+    """Cleaning path embedded in a Q10 ``03 01`` clean-record detail packet.
+
+    This is a different wire layout from the live ``02 01`` trace. Its header
+    carries a 16-bit format version, a 32-bit opaque value, a 32-bit
+    point count, a signed heading, and a zero reserved word. Points use the same
+    signed big-endian ``(x, y)`` coordinate pairs as the live trace.
+    """
+
+    points: list[Q10Point] = field(default_factory=list)
+    version: int = 0
+    opaque_value: int = 0
+    heading: int = 0
+
+    @property
+    def robot_position(self) -> Q10Point | None:
+        """The final recorded position, if the historical path is non-empty."""
+        return self.points[-1] if self.points else None
+
+
 # Trace packet (``02 01``): a 14-byte header followed by big-endian int16 (x, y)
 # point pairs forming the accumulated session path. Header layout confirmed
 # against live ss07 captures and cross-checked by @andrewlyeats:
@@ -275,17 +315,26 @@ class Q10TracePacket:
 # - bytes 10-11: the 0201 SLAM heading (s16be degrees; 0 = +x, +90 = +y,
 #   +-180 = -x, -90 = -y) -- the robot's current orientation.
 # - bytes 12-13: a constant (0x0000).
-# - byte 14 onward: the path points.
+# - byte 14 onward: exactly ``point_count`` path points.
 # An earlier revision used a 10-byte header, which folded the heading word into
 # a phantom leading point ``(heading, 0)`` -- that is the "stray point" the
 # heuristic below was papering over, and why the count read "one high". The
-# parser reads all 4-byte pairs in the body rather than trusting the count
-# field, so a truncated tail can't desync it.
+# parser requires the declared point count to match the complete body, so a
+# truncated or extended tail cannot be silently interpreted as path data.
 # NOTE: the format documented by roborock-qseries-map-bridge (18-byte header)
 # did not match this firmware -- this 14-byte layout is what the device sent.
 _TRACE_HEADER_LENGTH = 14
 _TRACE_SEQUENCE_OFFSET = 3
+_TRACE_POINT_COUNT_OFFSET = 8
 _TRACE_HEADING_OFFSET = 10
+
+_HISTORICAL_TRACE_HEADER_LENGTH = 14
+_HISTORICAL_TRACE_PREFIX_LENGTH = 1
+_HISTORICAL_TRACE_VERSION = 1
+_HISTORICAL_TRACE_OPAQUE_VALUE_OFFSET = 2
+_HISTORICAL_TRACE_POINT_COUNT_OFFSET = 6
+_HISTORICAL_TRACE_HEADING_OFFSET = 10
+_HISTORICAL_TRACE_RESERVED_OFFSET = 12
 
 # Some cleans still prepend a single near-origin sentinel as the first real
 # point (e.g. ~(5, 76) / (-3, 0) when the path proper starts near (-1700, -800));
@@ -304,6 +353,25 @@ def is_map_packet(payload: bytes) -> bool:
     return payload[:2] == MAP_PACKET_MARKER
 
 
+def is_clean_record_map_packet(payload: bytes) -> bool:
+    """Return True for a Q10 clean-record detail (``03 01``) packet."""
+    return payload[:2] == CLEAN_RECORD_MAP_PACKET_MARKER
+
+
+def is_saved_map_packet(payload: bytes) -> bool:
+    """Return True for a Q10 saved-map detail (``04 01``) packet."""
+    return payload[:2] == SAVED_MAP_PACKET_MARKER
+
+
+def map_packet_kind(payload: bytes) -> Q10MapPacketKind | None:
+    """Classify a Q10 map marker without parsing the packet body."""
+    return {
+        MAP_PACKET_MARKER: Q10MapPacketKind.CURRENT,
+        CLEAN_RECORD_MAP_PACKET_MARKER: Q10MapPacketKind.CLEAN_RECORD_DETAIL,
+        SAVED_MAP_PACKET_MARKER: Q10MapPacketKind.SAVED_MAP_DETAIL,
+    }.get(payload[:2])
+
+
 def is_trace_packet(payload: bytes) -> bool:
     """Return True if the payload is a Q10 live trace (``02 01``) packet."""
     return payload[:2] == TRACE_PACKET_MARKER
@@ -318,6 +386,9 @@ def parse_trace_packet(payload: bytes) -> Q10TracePacket:
     body = payload[_TRACE_HEADER_LENGTH:]
     if len(body) % 4:
         raise RoborockException("Q10 trace points are not 4-byte (x, y) pairs")
+    declared_point_count = int.from_bytes(payload[_TRACE_POINT_COUNT_OFFSET : _TRACE_POINT_COUNT_OFFSET + 2], "big")
+    if declared_point_count != len(body) // 4:
+        raise RoborockException("Q10 trace point count does not match its payload")
 
     heading = int.from_bytes(payload[_TRACE_HEADING_OFFSET : _TRACE_HEADING_OFFSET + 2], "big", signed=True)
     points = [
@@ -348,11 +419,13 @@ def _drop_stray_leading_point(points: list[Q10Point]) -> list[Q10Point]:
     return points
 
 
-def lz4_block_decompress(data: bytes) -> bytes:
+def lz4_block_decompress(data: bytes, max_output_size: int | None = None) -> bytes:
     """Decompress a raw LZ4 *block* (no frame header).
 
     The Q10 map grid is stored as a single LZ4 block. This implements the
-    standard LZ4 block format so we don't add a native dependency.
+    standard LZ4 block format so we don't add a native dependency. When
+    ``max_output_size`` is supplied, expansion beyond it is rejected before
+    allocating the excess output.
     """
     index = 0
     output = bytearray()
@@ -380,6 +453,8 @@ def lz4_block_decompress(data: bytes) -> bytes:
         end = index + literal_length
         if end > len(data):
             raise RoborockException("Truncated LZ4 block while reading literals")
+        if max_output_size is not None and len(output) + literal_length > max_output_size:
+            raise RoborockException("LZ4 block exceeds maximum output size")
         output.extend(data[index:end])
         index = end
 
@@ -394,6 +469,8 @@ def lz4_block_decompress(data: bytes) -> bytes:
             raise RoborockException("Invalid LZ4 back-reference offset")
 
         match_length = read_length(token & 0x0F) + 4
+        if max_output_size is not None and len(output) + match_length > max_output_size:
+            raise RoborockException("LZ4 block exceeds maximum output size")
         for _ in range(match_length):
             output.append(output[-offset])
 
@@ -458,8 +535,9 @@ def _parse_rooms(room_data: bytes, grid: bytes) -> list[Q10Room]:
 
 
 def parse_map_packet(payload: bytes) -> Q10MapPacket:
-    """Parse a Q10 ``01 01`` map packet into grid + room metadata."""
-    if len(payload) < _LAYOUT_COMPRESSED_OFFSET or not is_map_packet(payload):
+    """Parse a Q10 current or archived map into typed source data."""
+    kind = map_packet_kind(payload)
+    if len(payload) < _LAYOUT_COMPRESSED_OFFSET or kind is None:
         raise RoborockException("Payload is not a Q10 map packet")
 
     map_id = int.from_bytes(payload[_MAP_ID_OFFSET : _MAP_ID_OFFSET + 4], "big")
@@ -467,6 +545,8 @@ def parse_map_packet(payload: bytes) -> Q10MapPacket:
     height = int.from_bytes(payload[_HEIGHT_OFFSET : _HEIGHT_OFFSET + 2], "big")
     if width <= 0:
         raise RoborockException("Q10 map packet has invalid width")
+    if height > 0 and width * height > _MAX_GRID_CELLS:
+        raise RoborockException("Q10 map packet dimensions exceed the supported grid size")
 
     compressed_length = int.from_bytes(
         payload[_COMPRESSED_LAYOUT_LENGTH_OFFSET : _COMPRESSED_LAYOUT_LENGTH_OFFSET + 2], "big"
@@ -475,7 +555,10 @@ def parse_map_packet(payload: bytes) -> Q10MapPacket:
     if compressed_length <= 0 or layout_end > len(payload):
         raise RoborockException("Q10 map packet has invalid layout block length")
 
-    decoded = lz4_block_decompress(payload[_LAYOUT_COMPRESSED_OFFSET:layout_end])
+    decoded = lz4_block_decompress(
+        payload[_LAYOUT_COMPRESSED_OFFSET:layout_end],
+        max_output_size=_MAX_GRID_CELLS + 2 + _MAX_ROOMS * _ROOM_RECORD_LENGTH,
+    )
     # Prefer the header height; fall back to inference if it doesn't line up
     # (e.g. older captures/fixtures that don't populate the height field).
     split = _split_with_dims(decoded, width, height) if height > 0 else None
@@ -486,17 +569,27 @@ def parse_map_packet(payload: bytes) -> Q10MapPacket:
     rooms = _parse_rooms(room_data, grid)
     tail = payload[layout_end:]
     erase_zones = _parse_erase_zones(tail)
-    carpet_mask = _parse_carpet_mask(tail, width, height)
+    carpet_mask, carpet_end = _parse_carpet_block(tail, width, height)
+    trailing_offset = carpet_end if carpet_end is not None else _erase_section_end(tail)
+    if kind is Q10MapPacketKind.CLEAN_RECORD_DETAIL and carpet_end is not None:
+        historical_trace, historical_trace_end = _parse_clean_record_trace(tail, carpet_end)
+        if historical_trace_end is not None:
+            trailing_offset = historical_trace_end
+    else:
+        historical_trace = None
     header_calibration = _parse_header_calibration(payload)
     return Q10MapPacket(
         map_id=map_id,
         width=width,
         height=height,
         grid=grid,
+        kind=kind,
         rooms=rooms,
         erase_zones=erase_zones,
         header_calibration=header_calibration,
         carpet_mask=carpet_mask,
+        historical_trace=historical_trace,
+        trailing_bytes=tail[trailing_offset:],
     )
 
 
@@ -569,7 +662,18 @@ def _carpet_offset(tail: bytes) -> int:
     return 2 + count * vertices_per * 4
 
 
-def _parse_carpet_mask(tail: bytes, width: int, height: int) -> bytes | None:
+def _erase_section_end(tail: bytes) -> int:
+    """Return the end of a complete, structurally valid erase section."""
+    if len(tail) < 2:
+        return 0
+    count, vertices_per = tail[0], tail[1]
+    if count and not 1 <= vertices_per <= _MAX_ERASE_ZONE_VERTICES:
+        return 0
+    end = _carpet_offset(tail)
+    return end if end <= len(tail) else 0
+
+
+def _parse_carpet_block(tail: bytes, width: int, height: int) -> tuple[bytes | None, int | None]:
     """Decode the carpet mask that follows the erase section in the packet tail.
 
     Framing matches the main grid block: ``[u32 uncompressed_len]``
@@ -578,23 +682,88 @@ def _parse_carpet_mask(tail: bytes, width: int, height: int) -> bytes | None:
     non-zero cell is carpet (the value is the carpet kind). Confirmed byte-exact
     on live ss07 captures (R1 / RDC), where ``uncompressed_len == width*height``.
 
-    Returns the decompressed mask, or ``None`` if the section is absent or does
-    not line up (the ``uncompressed_len == width*height`` invariant is used as the
-    guard so a mis-located section yields no carpet rather than garbage).
+    Returns the decompressed mask and its end offset. Both are ``None`` if the
+    section is absent or does not line up. The end offset is used to anchor
+    optional later sections without scanning arbitrary trailing bytes.
     """
-    offset = _carpet_offset(tail)
+    offset = _erase_section_end(tail)
+    if offset == 0:
+        return None, None
     if offset + 6 > len(tail):
-        return None
+        return None, None
     uncompressed_len = int.from_bytes(tail[offset : offset + 4], "big")
     compressed_len = int.from_bytes(tail[offset + 4 : offset + 6], "big")
     block_end = offset + 6 + compressed_len
     if uncompressed_len != width * height or compressed_len <= 0 or block_end > len(tail):
-        return None
+        return None, None
     try:
-        mask = lz4_block_decompress(tail[offset + 6 : block_end])
+        mask = lz4_block_decompress(tail[offset + 6 : block_end], max_output_size=width * height)
     except RoborockException:
-        return None
-    return mask if len(mask) == width * height else None
+        return None, None
+    if len(mask) != width * height:
+        return None, None
+    return mask, block_end
+
+
+def _parse_carpet_mask(tail: bytes, width: int, height: int) -> bytes | None:
+    """Decode only the optional carpet mask (compatibility helper)."""
+    return _parse_carpet_block(tail, width, height)[0]
+
+
+def _parse_clean_record_trace(
+    tail: bytes,
+    offset: int,
+) -> tuple[Q10HistoricalTracePacket | None, int | None]:
+    """Decode the bounded historical path following a ``03 01`` carpet block.
+
+    The header and declared point count were validated against a physical ss07
+    clean-record response and its point bytes match captured prefixes of the
+    corresponding live trace exactly. One observed zero byte precedes the path;
+    its meaning is unknown, so a non-zero value makes the entire section opaque.
+    Any unsupported version, non-zero reserved word, or truncated point table is
+    likewise left completely opaque. Bytes after the declared points are
+    deliberately not consumed: the observed 12-byte suffix appears structured,
+    but there is not enough controlled evidence to name or decode it safely.
+    """
+    if offset >= len(tail) or tail[offset] != 0:
+        return None, None
+    offset += _HISTORICAL_TRACE_PREFIX_LENGTH
+    header_end = offset + _HISTORICAL_TRACE_HEADER_LENGTH
+    if header_end > len(tail):
+        return None, None
+    version = int.from_bytes(tail[offset : offset + 2], "big")
+    reserved = int.from_bytes(
+        tail[offset + _HISTORICAL_TRACE_RESERVED_OFFSET : offset + _HISTORICAL_TRACE_RESERVED_OFFSET + 2],
+        "big",
+    )
+    if version != _HISTORICAL_TRACE_VERSION or reserved != 0:
+        return None, None
+    point_count = int.from_bytes(
+        tail[offset + _HISTORICAL_TRACE_POINT_COUNT_OFFSET : offset + _HISTORICAL_TRACE_POINT_COUNT_OFFSET + 4],
+        "big",
+    )
+    points_end = header_end + point_count * 4
+    if points_end > len(tail):
+        return None, None
+    coordinates = struct.iter_unpack(">hh", memoryview(tail)[header_end:points_end])
+    return (
+        Q10HistoricalTracePacket(
+            points=[Q10Point(x=x, y=y) for x, y in coordinates],
+            version=version,
+            opaque_value=int.from_bytes(
+                tail[
+                    offset + _HISTORICAL_TRACE_OPAQUE_VALUE_OFFSET : offset + _HISTORICAL_TRACE_OPAQUE_VALUE_OFFSET + 4
+                ],
+                "big",
+            ),
+            heading=int.from_bytes(
+                tail[offset + _HISTORICAL_TRACE_HEADING_OFFSET : offset + _HISTORICAL_TRACE_HEADING_OFFSET + 2],
+                "big",
+                signed=True,
+            ),
+        ),
+        points_end,
+    )
 
 
 def erased_packet(packet: "Q10MapPacket", cells: set[int]) -> "Q10MapPacket":

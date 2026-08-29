@@ -22,6 +22,9 @@ from roborock.data.b01_q10.b01_q10_code_mappings import (
     YXStartMethod,
 )
 from roborock.data.b01_q10.b01_q10_containers import Q10CleanRecord
+from roborock.exceptions import RoborockException
+from roborock.map.b01_q10_map_parser import B01Q10MapParserConfig, Q10MapPacket, Q10MapPacketKind
+from roborock.map.b01_q10_render import Q10MapOverlays, render_q10_map
 
 from .command import CommandTrait
 from .common import UpdatableTrait
@@ -121,6 +124,10 @@ class CleanHistoryTrait(UpdatableTrait):
         self._converter = CleanRecordConverter()
         self.records: list[Q10CleanRecord] = []
         """Decoded clean records, most recent first."""
+        self.detail_packet: Q10MapPacket | None = None
+        """Most recently pushed ``03 01`` clean-record map detail."""
+        self.detail_image_content: bytes | None = None
+        """Rendered clean-record detail image, if decoding succeeded."""
 
     @property
     def last_record(self) -> Q10CleanRecord | None:
@@ -150,6 +157,23 @@ class CleanHistoryTrait(UpdatableTrait):
         if push is None:
             return
         self._apply(push)
+
+    def update_from_map_packet(self, packet: Q10MapPacket) -> None:
+        """Store and render a pushed clean-record detail map."""
+        if packet.kind is not Q10MapPacketKind.CLEAN_RECORD_DETAIL:
+            raise ValueError(f"Expected a Q10 clean-record detail packet, got {packet.kind.value}")
+        self.detail_packet = packet
+        try:
+            self.detail_image_content = render_q10_map(
+                packet,
+                None,
+                Q10MapOverlays(),
+                config=B01Q10MapParserConfig(),
+            )
+        except RoborockException as ex:
+            _LOGGER.debug("Failed to render Q10 clean-record detail: %s", ex)
+            self.detail_image_content = None
+        self._notify_update()
 
     def _apply(self, push: CleanRecordPush) -> None:
         """Merge or replace the records from ``push``, then sort newest-first and notify."""

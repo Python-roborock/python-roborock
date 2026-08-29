@@ -23,6 +23,7 @@ from roborock.devices.traits.b01.q10.map import MapContentTrait, MapDpsTrait
 from roborock.devices.traits.b01.q10.maps import MapsTrait
 from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
+    Q10MapPacketKind,
     Q10Point,
     Q10TracePacket,
     parse_map_packet,
@@ -81,6 +82,15 @@ def test_update_from_map_packet_populates_image_and_rooms() -> None:
     assert trait.image_content[:8] == b"\x89PNG\r\n\x1a\n"
     assert {room.id: room.name for room in trait.rooms} == {2: "Living Room", 3: "Bedroom"}
     assert len(updates) == 1
+
+
+def test_live_map_trait_rejects_archived_packet() -> None:
+    """Direct callers cannot bypass API routing and replace live map state."""
+    payload = FIXTURE.read_bytes()
+    archived = parse_map_packet(b"\x03\x01" + payload[2:])
+
+    with pytest.raises(ValueError, match="Expected a current Q10 map packet"):
+        _map_trait().update_from_map_packet(archived)
 
 
 def test_update_from_trace_packet_populates_path_and_position() -> None:
@@ -273,6 +283,62 @@ async def test_subscribe_loop_routes_map_push(
     assert {room.id: room.name for room in q10_api.map.rooms} == {2: "Living Room", 3: "Bedroom"}
 
 
+async def test_archived_map_pushes_cannot_overwrite_live_map(
+    q10_api: Q10PropertiesApi,
+    message_queue: asyncio.Queue[Q10Message],
+) -> None:
+    """03/04 detail packets are isolated from the current live-map trait."""
+    current_bytes = FIXTURE.read_bytes()
+    current = parse_map_packet(current_bytes)
+    trace = parse_trace_packet(TRACE_SESSION_FIXTURE.read_bytes())
+    clean_record = parse_map_packet(b"\x03\x01" + current_bytes[2:])
+    saved_map = parse_map_packet(b"\x04\x01" + current_bytes[2:])
+
+    message_queue.put_nowait(current)
+    message_queue.put_nowait(trace)
+    await _wait_for(lambda: q10_api.map.image_content is not None and bool(q10_api.map.path))
+    live_image = q10_api.map.image_content
+    live_rooms = list(q10_api.map.rooms)
+    live_path = list(q10_api.map.path)
+    live_position = q10_api.map.robot_position
+    live_heading = q10_api.map.robot_heading
+    live_updates: list[None] = []
+    clean_record_updates: list[None] = []
+    saved_map_updates: list[None] = []
+    q10_api.map.add_update_listener(lambda: live_updates.append(None))
+    q10_api.clean_history.add_update_listener(lambda: clean_record_updates.append(None))
+    q10_api.maps.add_update_listener(lambda: saved_map_updates.append(None))
+
+    message_queue.put_nowait(clean_record)
+    message_queue.put_nowait(saved_map)
+    await _wait_for(lambda: q10_api.maps.detail_packet is not None)
+
+    assert q10_api.map.image_content == live_image
+    assert q10_api.map.rooms == live_rooms
+    assert q10_api.map.path == live_path
+    assert q10_api.map.robot_position == live_position
+    assert q10_api.map.robot_heading == live_heading
+    assert live_updates == []
+    assert q10_api.clean_history.detail_packet is not None
+    assert q10_api.clean_history.detail_packet.kind is Q10MapPacketKind.CLEAN_RECORD_DETAIL
+    assert q10_api.clean_history.detail_image_content is not None
+    assert q10_api.maps.detail_packet is not None
+    assert q10_api.maps.detail_packet.kind is Q10MapPacketKind.SAVED_MAP_DETAIL
+    assert q10_api.maps.detail_image_content is not None
+    assert clean_record_updates == [None]
+    assert saved_map_updates == [None]
+
+
+def test_archive_owners_reject_wrong_packet_kinds(q10_api: Q10PropertiesApi) -> None:
+    """Semantic archive traits reject packets owned by another map stream."""
+    current = parse_map_packet(FIXTURE.read_bytes())
+
+    with pytest.raises(ValueError, match="clean-record detail"):
+        q10_api.clean_history.update_from_map_packet(current)
+    with pytest.raises(ValueError, match="saved-map detail"):
+        q10_api.maps.update_from_map_packet(current)
+
+
 async def test_subscribe_loop_routes_trace_push(
     q10_api: Q10PropertiesApi,
     message_queue: asyncio.Queue[Q10Message],
@@ -377,6 +443,32 @@ async def test_map_content_refresh_requests_are_not_rate_limited(q10_api: Q10Pro
         await q10_api.map.refresh()
 
     assert send.await_count == 2
+
+
+async def test_saved_map_detail_refresh_uses_current_map_id(q10_api: Q10PropertiesApi) -> None:
+    """Saved-map detail uses the independently validated select request."""
+    q10_api.maps.update_from_dps(
+        {
+            B01_Q10_DP.MULTI_MAP: {
+                "data": [{"id": "12345"}],
+                "op": "list",
+                "result": 1,
+            }
+        }
+    )
+    with patch.object(q10_api.command, "send") as send:
+        await q10_api.maps.refresh_detail()
+
+    send.assert_awaited_once_with(
+        B01_Q10_DP.COMMON,
+        {str(B01_Q10_DP.MULTI_MAP.code): {"op": "select", "id": "12345"}},
+    )
+
+
+async def test_saved_map_detail_refresh_requires_stored_map_id(q10_api: Q10PropertiesApi) -> None:
+    """Detail cannot be requested until the saved-map list supplies an ID."""
+    with pytest.raises(RoborockException, match="map list is available"):
+        await q10_api.maps.refresh_detail()
 
 
 def test_map_get_ack_does_not_replace_saved_map_list(q10_api: Q10PropertiesApi) -> None:
