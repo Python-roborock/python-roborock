@@ -17,6 +17,7 @@ import pytest
 
 from roborock.cli import _await_q10_map_push, cli
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP, YXDeviceState
+from roborock.data.b01_q10.b01_q10_containers import Q10RoborockPoint
 from roborock.devices.traits.b01.q10 import Q10PropertiesApi, create
 from roborock.devices.traits.b01.q10.command import CommandTrait
 from roborock.devices.traits.b01.q10.map import MapContentTrait, MapDpsTrait
@@ -30,6 +31,11 @@ from roborock.map.b01_q10_map_parser import (
     Q10TracePacket,
     parse_map_packet,
     parse_trace_packet,
+)
+from roborock.map.b01_q10_overlays import (
+    Q10RestrictedZone,
+    Q10RestrictionType,
+    Q10VirtualWall,
 )
 from roborock.map.b01_q10_render import Q10MapOverlays
 from roborock.protocols.b01_q10_protocol import Q10DpsUpdate, Q10Message
@@ -692,6 +698,49 @@ async def test_saved_map_detail_refresh_accepts_any_listed_map_id(q10_api: Q10Pr
     )
 
 
+async def test_set_current_map_uses_apply_for_listed_string_id(q10_api: Q10PropertiesApi) -> None:
+    q10_api.maps.update_from_dps(
+        {
+            B01_Q10_DP.MULTI_MAP: {
+                "data": [{"id": "12345"}, {"id": "67890"}],
+                "op": "list",
+                "result": 1,
+            }
+        }
+    )
+
+    with patch.object(q10_api.command, "send") as send:
+        await q10_api.maps.set_current_map("67890")
+
+    send.assert_awaited_once_with(
+        B01_Q10_DP.COMMON,
+        {str(B01_Q10_DP.MULTI_MAP.code): {"op": "apply", "id": "67890"}},
+    )
+    assert q10_api.maps.current_map_id == "12345"
+
+
+@pytest.mark.parametrize("map_id", ["999", 12345])
+async def test_set_current_map_rejects_unknown_or_non_string_id(
+    q10_api: Q10PropertiesApi,
+    map_id: object,
+) -> None:
+    q10_api.maps.update_from_dps(
+        {
+            B01_Q10_DP.MULTI_MAP: {
+                "data": [{"id": "12345"}],
+                "op": "list",
+                "result": 1,
+            }
+        }
+    )
+
+    with patch.object(q10_api.command, "send") as send:
+        with pytest.raises(RoborockException, match="Unknown Q10 saved-map ID"):
+            await q10_api.maps.set_current_map(map_id)  # type: ignore[arg-type]
+
+    send.assert_not_awaited()
+
+
 async def test_saved_map_detail_refresh_rejects_unknown_or_parallel_request(
     q10_api: Q10PropertiesApi,
 ) -> None:
@@ -830,6 +879,143 @@ def test_map_dps_update_renders_decoded_overlays(render_map: Mock) -> None:
     assert render_map.call_args.args[0] is packet
     assert render_map.call_args.args[1] is None
     assert render_map.call_args.args[2] is map_dps.overlays
+
+
+def test_map_content_exposes_restrictions_in_common_coordinates() -> None:
+    map_dps = MapDpsTrait()
+    trait = _map_trait(map_dps)
+
+    map_dps.update_from_dps(
+        {
+            B01_Q10_DP.RESTRICTED_ZONE_UP: _zone_blob(),
+            B01_Q10_DP.VIRTUAL_WALL_UP: "AQAAAAAACgAU",
+        }
+    )
+
+    assert trait.restricted_zones == (
+        Q10RestrictedZone(
+            Q10RestrictionType.NO_GO,
+            (
+                Q10RoborockPoint(25500, 25500),
+                Q10RoborockPoint(25700, 25500),
+                Q10RoborockPoint(25700, 25700),
+                Q10RoborockPoint(25500, 25700),
+            ),
+        ),
+    )
+    assert trait.virtual_walls == (
+        Q10VirtualWall(
+            start=Q10RoborockPoint(25500, 25500),
+            end=Q10RoborockPoint(25550, 25600),
+        ),
+    )
+
+
+def test_map_content_preserves_unknown_restriction_type() -> None:
+    map_dps = MapDpsTrait()
+    trait = _map_trait(map_dps)
+    raw = bytearray(base64.b64decode(_zone_blob()))
+    raw[2] = 42
+
+    map_dps.update_from_dps({B01_Q10_DP.RESTRICTED_ZONE_UP: base64.b64encode(raw).decode()})
+
+    assert trait.restricted_zones[0].type == 42
+
+
+async def test_set_restricted_zones_sends_atomic_common_write(q10_api: Q10PropertiesApi) -> None:
+    q10_api._map_dps.update_from_dps({B01_Q10_DP.RESTRICTED_ZONE_UP: "AQA="})
+    zone = Q10RestrictedZone(
+        Q10RestrictionType.NO_MOP,
+        (
+            Q10RoborockPoint(25500, 25500),
+            Q10RoborockPoint(25550, 25500),
+            Q10RoborockPoint(25550, 25550),
+            Q10RoborockPoint(25500, 25550),
+        ),
+    )
+
+    with patch.object(q10_api.command, "send") as send:
+        await q10_api.map.set_restricted_zones([zone])
+
+    send.assert_awaited_once_with(
+        B01_Q10_DP.COMMON,
+        {str(B01_Q10_DP.RESTRICTED_ZONE.code): "AQECBAAAAAAACgAAAAoACgAAAAoAAAAAAAAAAAAAAAAAAAAAAAAAAA=="},
+    )
+    assert q10_api.map.restricted_zones == ()
+
+
+async def test_set_virtual_walls_sends_atomic_common_write(q10_api: Q10PropertiesApi) -> None:
+    wall = Q10VirtualWall(
+        start=Q10RoborockPoint(25450, 25500),
+        end=Q10RoborockPoint(25550, 25600),
+    )
+
+    with patch.object(q10_api.command, "send") as send:
+        await q10_api.map.set_virtual_walls((wall,))
+
+    send.assert_awaited_once_with(
+        B01_Q10_DP.COMMON,
+        {str(B01_Q10_DP.VIRTUAL_WALL.code): "Af/2AAAACgAU"},
+    )
+    assert q10_api.map.virtual_walls == ()
+
+
+async def test_invalid_map_control_does_not_publish(q10_api: Q10PropertiesApi) -> None:
+    invalid = Q10VirtualWall(
+        start=Q10RoborockPoint(25501, 25500),
+        end=Q10RoborockPoint(25550, 25600),
+    )
+
+    with patch.object(q10_api.command, "send") as send:
+        with pytest.raises(ValueError, match="5 mm grid"):
+            await q10_api.map.set_virtual_walls([invalid])
+
+    send.assert_not_awaited()
+
+
+async def test_restriction_write_refuses_unrepresentable_device_polygon(q10_api: Q10PropertiesApi) -> None:
+    vertices = ((0, 0), (10, 0), (15, 5), (10, 10), (0, 10))
+    record = bytes((0, len(vertices))) + b"".join(
+        value.to_bytes(2, "big", signed=True) for point in vertices for value in point
+    )
+    q10_api._map_dps.update_from_dps({B01_Q10_DP.RESTRICTED_ZONE_UP: base64.b64encode(bytes((1, 1)) + record).decode()})
+
+    with patch.object(q10_api.command, "send") as send:
+        with pytest.raises(RoborockException, match="fully supported device snapshot"):
+            await q10_api.map.set_restricted_zones([])
+
+    send.assert_not_awaited()
+
+
+async def test_restriction_write_requires_device_snapshot(q10_api: Q10PropertiesApi) -> None:
+    with patch.object(q10_api.command, "send") as send:
+        with pytest.raises(RoborockException, match="fully supported device snapshot"):
+            await q10_api.map.set_restricted_zones([])
+
+    send.assert_not_awaited()
+
+
+async def test_set_room_name_sends_validated_common_write(q10_api: Q10PropertiesApi) -> None:
+    q10_api.map.update_from_map_packet(parse_map_packet(FIXTURE.read_bytes()))
+
+    with patch.object(q10_api.command, "send") as send:
+        await q10_api.map.set_room_name(2, "Study")
+
+    send.assert_awaited_once_with(
+        B01_Q10_DP.COMMON,
+        {str(B01_Q10_DP.RESET_ROOM_NAME.code): "AQIABVN0dWR5AAAAAAAAAAAAAAAAAAA="},
+    )
+    assert q10_api.map.rooms[0].raw_name == "rr_living_room"
+
+
+async def test_set_room_name_rejects_unknown_room_before_publish(q10_api: Q10PropertiesApi) -> None:
+    q10_api.map.update_from_map_packet(parse_map_packet(FIXTURE.read_bytes()))
+
+    with patch.object(q10_api.command, "send") as send:
+        with pytest.raises(RoborockException, match="Unknown Q10 room ID"):
+            await q10_api.map.set_room_name(99, "Study")
+
+    send.assert_not_awaited()
 
 
 def test_map_dps_blobs_are_decoded_only_when_dps_arrives() -> None:

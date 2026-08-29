@@ -81,6 +81,20 @@ class MapsTrait(Maps, UpdatableTrait):
             {str(B01_Q10_DP.MULTI_MAP.code): {"op": "list"}},
         )
 
+    async def set_current_map(self, map_id: str) -> None:
+        """Request a saved map without optimistically changing cached state."""
+        if not isinstance(map_id, str) or map_id not in {map_info.id for map_info in self.map_list}:
+            raise RoborockException(f"Unknown Q10 saved-map ID: {map_id}")
+        await self._command.send(
+            B01_Q10_DP.COMMON,
+            {
+                str(B01_Q10_DP.MULTI_MAP.code): {
+                    "op": "apply",
+                    "id": map_id,
+                }
+            },
+        )
+
     async def refresh_detail(self, map_id: str | None = None) -> None:
         """Request a read-only preview for one saved map.
 

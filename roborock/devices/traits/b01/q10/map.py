@@ -14,11 +14,13 @@ operations remain on ``MapsTrait``.
 """
 
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
 from roborock.data import RoborockBase
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP, YXDeviceState
+from roborock.data.b01_q10.b01_q10_containers import Q10RoborockPoint
 from roborock.devices.traits.common import DpsDataConverter, TraitUpdateListener
 from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
@@ -30,8 +32,20 @@ from roborock.map.b01_q10_map_parser import (
     Q10Room,
     Q10TracePacket,
 )
-from roborock.map.b01_q10_overlays import parse_virtual_wall_blob, parse_zone_blob
+from roborock.map.b01_q10_overlays import (
+    Q10RestrictedZone,
+    Q10RestrictionType,
+    Q10VirtualWall,
+    is_replaceable_zone_blob,
+    parse_virtual_wall_blob,
+    parse_zone_blob,
+)
 from roborock.map.b01_q10_render import Q10MapOverlays, render_q10_map, resolve_q10_current_room
+from roborock.protocols.b01_q10_protocol import (
+    encode_restricted_zones,
+    encode_room_name,
+    encode_virtual_walls,
+)
 
 from .command import CommandTrait
 from .common import UpdatableTrait
@@ -46,6 +60,10 @@ _CURRENT_ROOM_STATES = {
     YXDeviceState.SWEEP_AND_MOP,
     YXDeviceState.TRANSITIONING,
 }
+
+
+def _to_roborock_point(point: tuple[int, int]) -> Q10RoborockPoint:
+    return Q10RoborockPoint.from_vector(*point)
 
 
 @dataclass
@@ -153,6 +171,70 @@ class MapContentTrait(TraitUpdateListener):
     def obstacles(self) -> list[Q10Obstacle]:
         """Position-only obstacle markers reported by the current map."""
         return list(self._map_packet.obstacles) if self._map_packet else []
+
+    @property
+    def restricted_zones(self) -> tuple[Q10RestrictedZone, ...]:
+        """Restrictions reported by the device in common Roborock coordinates."""
+        restrictions: list[Q10RestrictedZone] = []
+        for zone in self._map_dps.overlays.zones:
+            if len(zone.vertices) != 4:
+                continue
+            vertices = (
+                _to_roborock_point(zone.vertices[0]),
+                _to_roborock_point(zone.vertices[1]),
+                _to_roborock_point(zone.vertices[2]),
+                _to_roborock_point(zone.vertices[3]),
+            )
+            restriction_type: int
+            try:
+                restriction_type = Q10RestrictionType(zone.type)
+            except ValueError:
+                restriction_type = zone.type
+            restrictions.append(Q10RestrictedZone(restriction_type, vertices))
+        return tuple(restrictions)
+
+    @property
+    def virtual_walls(self) -> tuple[Q10VirtualWall, ...]:
+        """Virtual walls reported by the device in common Roborock coordinates."""
+        walls: list[Q10VirtualWall] = []
+        for wall in self._map_dps.overlays.virtual_walls:
+            if len(wall.vertices) != 2:
+                continue
+            walls.append(
+                Q10VirtualWall(
+                    start=_to_roborock_point(wall.vertices[0]),
+                    end=_to_roborock_point(wall.vertices[1]),
+                )
+            )
+        return tuple(walls)
+
+    async def set_restricted_zones(self, zones: Sequence[Q10RestrictedZone]) -> None:
+        """Replace the complete restricted-zone collection."""
+        if not is_replaceable_zone_blob(self._map_dps.restricted_zone_up):
+            raise RoborockException("Cannot replace Q10 restrictions without a fully supported device snapshot")
+        payload = encode_restricted_zones(zones)
+        await self._command.send(
+            B01_Q10_DP.COMMON,
+            {str(B01_Q10_DP.RESTRICTED_ZONE.code): payload},
+        )
+
+    async def set_virtual_walls(self, walls: Sequence[Q10VirtualWall]) -> None:
+        """Replace the complete virtual-wall collection."""
+        payload = encode_virtual_walls(walls)
+        await self._command.send(
+            B01_Q10_DP.COMMON,
+            {str(B01_Q10_DP.VIRTUAL_WALL.code): payload},
+        )
+
+    async def set_room_name(self, room_id: int, name: str) -> None:
+        """Set the name of a room in the current map."""
+        if room_id not in {room.id for room in self.rooms}:
+            raise RoborockException(f"Unknown Q10 room ID: {room_id}")
+        payload = encode_room_name(room_id, name)
+        await self._command.send(
+            B01_Q10_DP.COMMON,
+            {str(B01_Q10_DP.RESET_ROOM_NAME.code): payload},
+        )
 
     @property
     def robot_position(self) -> Q10Point | None:

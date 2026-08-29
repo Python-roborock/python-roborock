@@ -28,6 +28,45 @@ from .b01_q10_code_mappings import (
     YXWaterLevel,
 )
 
+_ROBOROCK_COORDINATE_OFFSET_MM = 25_500
+_Q10_VECTOR_UNIT_MM = 5
+
+
+@dataclass(frozen=True)
+class Q10RoborockPoint:
+    """A point in the common Roborock millimetre coordinate space."""
+
+    x: int
+    y: int
+
+    @classmethod
+    def from_vector(cls, x: int, y: int) -> "Q10RoborockPoint":
+        """Convert Q10 vector coordinates to common Roborock coordinates."""
+        for value in (x, y):
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ValueError("vector coordinates must be integers")
+            if not -(2**15) <= value < 2**15:
+                raise ValueError("vector coordinates are outside the Q10 map range")
+        return cls(
+            x=_ROBOROCK_COORDINATE_OFFSET_MM + x * _Q10_VECTOR_UNIT_MM,
+            y=_ROBOROCK_COORDINATE_OFFSET_MM + y * _Q10_VECTOR_UNIT_MM,
+        )
+
+    def to_vector(self) -> tuple[int, int]:
+        """Convert common Roborock coordinates to the Q10 vector grid."""
+        coordinates: list[int] = []
+        for value in (self.x, self.y):
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ValueError("coordinates must be integers")
+            relative_mm = value - _ROBOROCK_COORDINATE_OFFSET_MM
+            if relative_mm % _Q10_VECTOR_UNIT_MM:
+                raise ValueError("coordinates must align to the Q10 5 mm grid")
+            coordinate = relative_mm // _Q10_VECTOR_UNIT_MM
+            if not -(2**15) <= coordinate < 2**15:
+                raise ValueError("coordinates are outside the Q10 map range")
+            coordinates.append(coordinate)
+        return coordinates[0], coordinates[1]
+
 
 @dataclass
 class dpCleanRecord(RoborockBase):
