@@ -34,7 +34,6 @@ from roborock.map.b01_q10_render import Q10MapOverlays, render_q10_map
 
 from .command import CommandTrait
 from .common import UpdatableTrait
-from .maps import MapsTrait
 
 _LOGGER = logging.getLogger(__name__)
 _DOCKED_STATES = {YXDeviceState.CHARGING, YXDeviceState.EMPTYING_THE_BIN}
@@ -84,15 +83,13 @@ class MapContentTrait(TraitUpdateListener):
     """High-level composed Q10 map view.
 
     The latest map and trace packets are combined with the injected
-    :class:`MapDpsTrait` whenever a source changes. The
-    :class:`MapsTrait` supplies a stored ID only when this trait requests
-    content.
+    :class:`MapDpsTrait` whenever a source changes. Current-map acquisition is
+    independent of the saved-map list.
     """
 
     def __init__(
         self,
         map_dps: MapDpsTrait,
-        maps: MapsTrait,
         command: CommandTrait,
         *,
         map_parser_config: B01Q10MapParserConfig | None = None,
@@ -100,11 +97,12 @@ class MapContentTrait(TraitUpdateListener):
         TraitUpdateListener.__init__(self, logger=_LOGGER)
         self._config = map_parser_config or B01Q10MapParserConfig()
         self._map_dps = map_dps
-        self._maps = maps
         self._command = command
         self._map_packet: Q10MapPacket | None = None
         self._trace_packet: Q10TracePacket | None = None
         self._image_content: bytes | None = None
+        self._map_revision = 0
+        self._trace_revision = 0
         self._map_dps.add_update_listener(self._map_dps_updated)
 
     async def refresh(self) -> None:
@@ -120,6 +118,16 @@ class MapContentTrait(TraitUpdateListener):
     def image_content(self) -> bytes | None:
         """The composed map PNG, if the latest map rendered successfully."""
         return self._image_content
+
+    @property
+    def map_revision(self) -> int:
+        """Monotonic revision incremented only by current-map packets."""
+        return self._map_revision
+
+    @property
+    def trace_revision(self) -> int:
+        """Monotonic revision incremented only by live-trace state changes."""
+        return self._trace_revision
 
     @property
     def rooms(self) -> list[Q10Room]:
@@ -146,17 +154,25 @@ class MapContentTrait(TraitUpdateListener):
         if packet.kind is not Q10MapPacketKind.CURRENT:
             raise ValueError(f"Expected a current Q10 map packet, got {packet.kind.value}")
         self._map_packet = packet
+        self._map_revision += 1
         self._render()
         self._notify_update()
 
     def update_from_trace_packet(self, packet: Q10TracePacket) -> None:
         """Store a trace-protocol update and render the latest sources."""
-        self._trace_packet = packet
+        self._trace_packet = None if self._map_dps.robot_at_dock else packet
+        self._trace_revision += 1
         self._render()
         self._notify_update()
 
     def _map_dps_updated(self) -> None:
         """Render after the low-level map DPS source changes."""
+        if self._map_dps.robot_at_dock and self._trace_packet is not None:
+            # A completed cleaning trace is not the current robot position once
+            # the device is docked. Clear the public live-path state even if the
+            # firmware does not send its usual zero-point trace.
+            self._trace_packet = None
+            self._trace_revision += 1
         if self._map_packet is None:
             return
         self._render()

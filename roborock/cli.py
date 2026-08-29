@@ -597,12 +597,13 @@ async def maps(ctx, device_id: str):
 # The Q10 publishes its current map asynchronously after a REQUEST_DPS. Firmware
 # throttles pushes to ~once per 60-70s, so rapid re-requests may not be answered
 # immediately. This bounds how long a one-shot CLI command waits.
-_Q10_MAP_PUSH_TIMEOUT = 30.0
+_Q10_MAP_PUSH_TIMEOUT = 75.0
 
 
 async def _await_q10_map_push(
     properties: Q10PropertiesApi,
     predicate: Callable[[], bool],
+    revision: Callable[[], int],
     *,
     timeout: float = _Q10_MAP_PUSH_TIMEOUT,
     allow_cached_on_timeout: bool = False,
@@ -615,9 +616,10 @@ async def _await_q10_map_push(
     """
     loop = asyncio.get_running_loop()
     updated: asyncio.Future[None] = loop.create_future()
+    initial_revision = revision()
 
     def on_update() -> None:
-        if predicate() and not updated.done():
+        if revision() > initial_revision and predicate() and not updated.done():
             updated.set_result(None)
 
     unsub = properties.map.add_update_listener(on_update)
@@ -647,6 +649,7 @@ async def map_image(ctx, device_id: str, output_file: str):
         await _await_q10_map_push(
             properties,
             lambda: properties.map.image_content is not None,
+            lambda: properties.map.map_revision,
             allow_cached_on_timeout=True,
         )
         image_content = properties.map.image_content
@@ -695,8 +698,8 @@ async def map_data(ctx, device_id: str, include_path: bool):
 async def q10_position(ctx, device_id: str, include_path: bool):
     """Get the current Q10 robot position and live cleaning path.
 
-    The Q10 only streams its position/path while it is actively cleaning, so this
-    will report that no live trace is available for an idle/docked robot.
+    The Q10 normally streams position/path while it is actively cleaning, so an
+    idle device may report that no fresh live trace is available.
     """
     context: RoborockContext = ctx.obj
     device_manager = await context.get_device_manager()
@@ -708,9 +711,10 @@ async def q10_position(ctx, device_id: str, include_path: bool):
     got_trace = await _await_q10_map_push(
         properties,
         lambda: bool(properties.map.path),
+        lambda: properties.map.trace_revision,
     )
     if not got_trace:
-        click.echo("No live trace available (the robot only reports position while cleaning).")
+        click.echo("No fresh live trace available.")
         return
     map_trait = properties.map
     position = map_trait.robot_position
@@ -873,6 +877,7 @@ async def rooms(ctx, device_id: str):
         await _await_q10_map_push(
             properties,
             lambda: properties.map.image_content is not None,
+            lambda: properties.map.map_revision,
             allow_cached_on_timeout=True,
         )
         click.echo(dump_json({room.id: room.name for room in properties.map.rooms}))
