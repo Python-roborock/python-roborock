@@ -155,7 +155,7 @@ def test_packet_layers_decompose_q10_fixture() -> None:
     """The Q10 synthetic fixture splits into floor + per-room layers."""
     layers = parse_map_packet(_payload()).layers
     assert layers.class_counts.get(LAYER_FLOOR) == 26
-    assert {room.id: room.name for room in layers.rooms} == {2: "Living Room", 3: "Bedroom"}
+    assert {room.id: room.name for room in layers.rooms} == {2: "Living Room", 3: "bedroom"}
 
     living = layers.render_room(2, (255, 0, 0, 255))
     image = Image.open(io.BytesIO(living))
@@ -235,9 +235,9 @@ def test_parse_map_packet_dimensions_straddling_256() -> None:
 
 
 def test_room_name_normalization() -> None:
-    """Firmware ``rr_`` default names are normalized; custom names are titled."""
+    """Firmware ``rr_`` defaults are normalized; custom names stay verbatim."""
     assert Q10Room(id=2, raw_name="rr_living_room", pixel_value=8, pixel_count=9).name == "Living Room"
-    assert Q10Room(id=3, raw_name="bedroom", pixel_value=12, pixel_count=9).name == "Bedroom"
+    assert Q10Room(id=3, raw_name="Owner’s bedroom", pixel_value=12, pixel_count=9).name == "Owner’s bedroom"
 
 
 def test_room_pixel_count_matches_grid() -> None:
@@ -252,7 +252,7 @@ def test_parser_renders_png_and_room_names() -> None:
     assert parsed.image_content is not None
     assert parsed.image_content[:8] == b"\x89PNG\r\n\x1a\n"  # PNG magic
     assert parsed.map_data is not None
-    assert parsed.map_data.additional_parameters["room_names"] == {2: "Living Room", 3: "Bedroom"}
+    assert parsed.map_data.additional_parameters["room_names"] == {2: "Living Room", 3: "bedroom"}
 
 
 def test_parse_packet_preserves_decoded_packet_api() -> None:
