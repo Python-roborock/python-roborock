@@ -185,8 +185,10 @@ def _vector_calibration(
     trace_calibration: GridCalibration | None,
 ) -> GridCalibration | None:
     """Derive the 5 mm erase/restriction-vector transform."""
-    y_sign = trace_calibration.y_sign if trace_calibration is not None else 1
-    if calibration := _calibration_from_header_metadata(packet, y_sign=y_sign):
+    # Header vectors share the map packet's fixed top-down coordinate frame.
+    # A trace fit may choose either Y orientation, but that must not move saved
+    # erase/restriction geometry when a cleaning trace appears or disappears.
+    if calibration := _calibration_from_header_metadata(packet):
         return calibration
     if trace_calibration is None:
         return None
