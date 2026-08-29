@@ -24,6 +24,7 @@
       'dustSwitch': True,
     }),
     'map': dict({
+      'currentRoom': None,
       'obstacles': list([
       ]),
       'path': list([
@@ -406,6 +407,7 @@
         'dustSwitch': True,
       }),
       'map': dict({
+        'currentRoom': None,
         'obstacles': list([
         ]),
         'path': list([
@@ -484,6 +486,7 @@
     'dust_collection': dict({
     }),
     'map': dict({
+      'currentRoom': None,
       'obstacles': list([
       ]),
       'path': list([

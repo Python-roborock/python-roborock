@@ -128,6 +128,8 @@ class Q10Room(RoborockBase):
     @property
     def name(self) -> str:
         """User friendly room name (firmware ``rr_`` defaults are normalized)."""
+        if not self.raw_name.startswith("rr_"):
+            return self.raw_name
         return self.raw_name.removeprefix("rr_").replace("_", " ").strip().title()
 
 

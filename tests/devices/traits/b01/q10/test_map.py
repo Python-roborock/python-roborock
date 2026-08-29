@@ -72,7 +72,7 @@ def test_update_from_map_packet_populates_image_and_rooms() -> None:
 
     assert trait.image_content is not None
     assert trait.image_content[:8] == b"\x89PNG\r\n\x1a\n"
-    assert {room.id: room.name for room in trait.rooms} == {2: "Living Room", 3: "Bedroom"}
+    assert {room.id: room.name for room in trait.rooms} == {2: "Living Room", 3: "bedroom"}
     assert len(updates) == 1
 
 
@@ -120,6 +120,184 @@ def test_update_from_trace_packet_populates_path_and_position() -> None:
     assert (trait.robot_position.x, trait.robot_position.y) == (276, -1)
     assert trait.robot_heading == -34
     assert len(updates) == 1
+
+
+@pytest.mark.parametrize(
+    "status",
+    [
+        YXDeviceState.CLEANING,
+        YXDeviceState.SWEEPING,
+        YXDeviceState.MOPPING,
+        YXDeviceState.SWEEP_AND_MOP,
+        YXDeviceState.PAUSED,
+        YXDeviceState.TRANSITIONING,
+    ],
+)
+def test_current_room_is_available_during_active_cleaning_states(status: YXDeviceState) -> None:
+    map_dps = MapDpsTrait()
+    trait = _map_trait(map_dps)
+    packet = parse_map_packet(FIXTURE.read_bytes())
+    trace = parse_trace_packet(TRACE_SESSION_FIXTURE.read_bytes())
+    map_dps.update_from_dps({B01_Q10_DP.STATUS: status.code})
+    trait.update_from_map_packet(packet)
+    trait.update_from_trace_packet(trace)
+
+    with patch(
+        "roborock.devices.traits.b01.q10.map.resolve_q10_current_room",
+        return_value=packet.rooms[0],
+    ) as resolve:
+        assert trait.current_room == packet.rooms[0]
+        resolve.assert_called_once_with(packet, trace)
+
+
+@pytest.mark.parametrize(
+    "status",
+    [
+        None,
+        YXDeviceState.UNKNOWN,
+        YXDeviceState.IDLE,
+        YXDeviceState.RETURNING_HOME,
+        YXDeviceState.RELOCATING,
+        YXDeviceState.CHARGING,
+        YXDeviceState.EMPTYING_THE_BIN,
+    ],
+)
+def test_current_room_is_unavailable_outside_active_cleaning(
+    status: YXDeviceState | None,
+) -> None:
+    map_dps = MapDpsTrait()
+    trait = _map_trait(map_dps)
+    packet = parse_map_packet(FIXTURE.read_bytes())
+    if status is not None:
+        map_dps.update_from_dps({B01_Q10_DP.STATUS: status.code})
+    trait.update_from_map_packet(packet)
+    trait.update_from_trace_packet(parse_trace_packet(TRACE_SESSION_FIXTURE.read_bytes()))
+
+    with patch("roborock.devices.traits.b01.q10.map.resolve_q10_current_room") as resolve:
+        assert trait.current_room is None
+        resolve.assert_not_called()
+
+
+def test_current_room_handles_status_arriving_after_map_and_trace() -> None:
+    map_dps = MapDpsTrait()
+    trait = _map_trait(map_dps)
+    packet = parse_map_packet(FIXTURE.read_bytes())
+    trace = parse_trace_packet(TRACE_SESSION_FIXTURE.read_bytes())
+    trait.update_from_map_packet(packet)
+    trait.update_from_trace_packet(trace)
+
+    with patch(
+        "roborock.devices.traits.b01.q10.map.resolve_q10_current_room",
+        side_effect=lambda *_: replace(packet.rooms[0]),
+    ):
+        assert trait.current_room is None
+        map_dps.update_from_dps({B01_Q10_DP.STATUS: YXDeviceState.CLEANING.code})
+        assert trait.current_room == packet.rooms[0]
+
+
+def test_current_room_handles_map_arriving_after_status_and_trace() -> None:
+    map_dps = MapDpsTrait()
+    trait = _map_trait(map_dps)
+    packet = parse_map_packet(FIXTURE.read_bytes())
+    trace = parse_trace_packet(TRACE_SESSION_FIXTURE.read_bytes())
+    map_dps.update_from_dps({B01_Q10_DP.STATUS: YXDeviceState.CLEANING.code})
+    trait.update_from_trace_packet(trace)
+
+    with patch(
+        "roborock.devices.traits.b01.q10.map.resolve_q10_current_room",
+        side_effect=lambda *_: replace(packet.rooms[0]),
+    ):
+        assert trait.current_room is None
+        trait.update_from_map_packet(packet)
+        assert trait.current_room == packet.rooms[0]
+
+
+@pytest.mark.parametrize(
+    "ending_status",
+    [YXDeviceState.UNKNOWN, YXDeviceState.IDLE, YXDeviceState.RETURNING_HOME],
+)
+def test_leaving_cleaning_clears_current_room_without_reusing_stale_trace(
+    ending_status: YXDeviceState,
+) -> None:
+    map_dps = MapDpsTrait()
+    trait = _map_trait(map_dps)
+    packet = parse_map_packet(FIXTURE.read_bytes())
+    trace = parse_trace_packet(TRACE_SESSION_FIXTURE.read_bytes())
+    map_dps.update_from_dps({B01_Q10_DP.STATUS: YXDeviceState.CLEANING.code})
+    trait.update_from_map_packet(packet)
+    trait.update_from_trace_packet(trace)
+
+    with patch(
+        "roborock.devices.traits.b01.q10.map.resolve_q10_current_room",
+        side_effect=lambda *_: replace(packet.rooms[0]),
+    ) as resolve:
+        assert trait.current_room == packet.rooms[0]
+        map_dps.update_from_dps({B01_Q10_DP.STATUS: ending_status.code})
+        assert trait.current_room is None
+        assert trait.path == trace.points
+        assert resolve.call_count == 1
+
+
+def test_new_cleaning_session_waits_for_a_fresh_trace() -> None:
+    """A status-first new session cannot reuse the prior session's position."""
+    map_dps = MapDpsTrait()
+    trait = _map_trait(map_dps)
+    packet = parse_map_packet(FIXTURE.read_bytes())
+    old_trace = parse_trace_packet(TRACE_SESSION_FIXTURE.read_bytes())
+    new_trace = replace(old_trace, heading=old_trace.heading + 1)
+    map_dps.update_from_dps({B01_Q10_DP.STATUS: YXDeviceState.CLEANING.code})
+    trait.update_from_map_packet(packet)
+    trait.update_from_trace_packet(old_trace)
+
+    with patch(
+        "roborock.devices.traits.b01.q10.map.resolve_q10_current_room",
+        side_effect=lambda *_: replace(packet.rooms[0]),
+    ) as resolve:
+        assert trait.current_room == packet.rooms[0]
+        map_dps.update_from_dps({B01_Q10_DP.STATUS: YXDeviceState.IDLE.code})
+        map_dps.update_from_dps({B01_Q10_DP.STATUS: YXDeviceState.CLEANING.code})
+        assert trait.current_room is None
+        trait.update_from_trace_packet(new_trace)
+        assert trait.current_room == packet.rooms[0]
+        assert resolve.call_count == 2
+
+
+def test_current_room_requires_both_map_and_trace() -> None:
+    map_dps = MapDpsTrait()
+    trait = _map_trait(map_dps)
+    map_dps.update_from_dps({B01_Q10_DP.STATUS: YXDeviceState.CLEANING.code})
+
+    assert trait.current_room is None
+    trait.update_from_map_packet(parse_map_packet(FIXTURE.read_bytes()))
+    assert trait.current_room is None
+
+
+def test_current_room_is_a_defensive_copy_and_serializes_for_consumers() -> None:
+    map_dps = MapDpsTrait()
+    trait = _map_trait(map_dps)
+    packet = parse_map_packet(FIXTURE.read_bytes())
+    trace = parse_trace_packet(TRACE_SESSION_FIXTURE.read_bytes())
+    map_dps.update_from_dps({B01_Q10_DP.STATUS: YXDeviceState.CLEANING.code})
+    trait.update_from_map_packet(packet)
+    trait.update_from_trace_packet(trace)
+
+    with patch(
+        "roborock.devices.traits.b01.q10.map.resolve_q10_current_room",
+        side_effect=lambda *_: replace(packet.rooms[0]),
+    ):
+        exposed = trait.current_room
+        assert exposed is not None
+        assert exposed is not packet.rooms[0]
+        exposed.raw_name = "mutated"
+        assert trait.current_room is not None
+        assert trait.current_room.raw_name == "rr_living_room"
+        assert trait.current_room.name == "Living Room"
+        assert trait.as_dict()["currentRoom"] == packet.rooms[0].as_dict()
+        assert "currentRoom" not in trait.as_dict({"currentRoom"})
+
+
+def test_current_room_serializes_none_when_unknown() -> None:
+    assert _map_trait().as_dict()["currentRoom"] is None
 
 
 def test_q10_position_is_available_as_top_level_cli_command() -> None:
@@ -252,7 +430,7 @@ async def test_subscribe_loop_routes_map_push(
     message_queue.put_nowait(parse_map_packet(FIXTURE.read_bytes()))
 
     await _wait_for(lambda: q10_api.map.image_content is not None)
-    assert {room.id: room.name for room in q10_api.map.rooms} == {2: "Living Room", 3: "Bedroom"}
+    assert {room.id: room.name for room in q10_api.map.rooms} == {2: "Living Room", 3: "bedroom"}
 
 
 async def test_archived_map_pushes_cannot_overwrite_live_map(
@@ -324,6 +502,27 @@ def test_saved_map_detail_exposes_obstacles(q10_api: Q10PropertiesApi) -> None:
     exposed = q10_api.maps.detail_obstacles
     exposed.clear()
     assert q10_api.maps.detail_obstacles == packet.obstacles
+
+
+def test_archived_map_details_do_not_expose_or_replace_current_room(q10_api: Q10PropertiesApi) -> None:
+    payload = FIXTURE.read_bytes()
+    current = parse_map_packet(payload)
+    trace = parse_trace_packet(TRACE_SESSION_FIXTURE.read_bytes())
+    q10_api._map_dps.update_from_dps({B01_Q10_DP.STATUS: YXDeviceState.CLEANING.code})
+    q10_api.map.update_from_map_packet(current)
+    q10_api.map.update_from_trace_packet(trace)
+
+    with patch(
+        "roborock.devices.traits.b01.q10.map.resolve_q10_current_room",
+        return_value=current.rooms[0],
+    ):
+        assert q10_api.map.current_room == current.rooms[0]
+        q10_api._handle_message(parse_map_packet(b"\x03\x01" + payload[2:]))
+        q10_api._handle_message(parse_map_packet(b"\x04\x01" + payload[2:]))
+        assert q10_api.map.current_room == current.rooms[0]
+
+    assert not hasattr(q10_api.clean_history, "current_room")
+    assert not hasattr(q10_api.maps, "current_room")
 
 
 def test_all_q10_map_views_share_the_injected_render_config(
@@ -726,6 +925,28 @@ def test_docked_state_clears_stale_live_trace(render_map: Mock) -> None:
     assert trait.path == []
     assert render_map.call_args.args[1] is None
     assert render_map.call_args.kwargs["robot_at_dock"] is True
+
+
+def test_docked_state_clears_current_room_and_ignores_late_trace() -> None:
+    map_dps = MapDpsTrait()
+    trait = _map_trait(map_dps)
+    packet = parse_map_packet(FIXTURE.read_bytes())
+    trace = parse_trace_packet(TRACE_SESSION_FIXTURE.read_bytes())
+    map_dps.update_from_dps({B01_Q10_DP.STATUS: YXDeviceState.CLEANING.code})
+    trait.update_from_map_packet(packet)
+    trait.update_from_trace_packet(trace)
+
+    with patch(
+        "roborock.devices.traits.b01.q10.map.resolve_q10_current_room",
+        return_value=packet.rooms[0],
+    ) as resolve:
+        assert trait.current_room == packet.rooms[0]
+        map_dps.update_from_dps({B01_Q10_DP.STATUS: YXDeviceState.CHARGING.code})
+        assert trait.current_room is None
+        trait.update_from_trace_packet(trace)
+        assert trait.current_room is None
+        assert trait.path == []
+        assert resolve.call_count == 1
 
 
 def test_late_trace_is_ignored_while_docked(render_map: Mock) -> None:

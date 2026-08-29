@@ -66,7 +66,7 @@ def test_decode_message_map_packet() -> None:
     message = _message(MAP_FIXTURE.read_bytes(), RoborockMessageProtocol.MAP_RESPONSE)
     decoded = decode_message(message)
     assert isinstance(decoded, Q10MapPacket)
-    assert {room.id: room.name for room in decoded.rooms} == {2: "Living Room", 3: "Bedroom"}
+    assert {room.id: room.name for room in decoded.rooms} == {2: "Living Room", 3: "bedroom"}
 
 
 @pytest.mark.parametrize(
