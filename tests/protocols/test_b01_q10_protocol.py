@@ -5,14 +5,25 @@ import json
 import logging
 import pathlib
 from collections.abc import Generator
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from freezegun import freeze_time
 from syrupy import SnapshotAssertion
 
-from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP, YXWaterLevel
-from roborock.data.b01_q10.b01_q10_containers import Q10RoborockPoint
+from roborock.data.b01_q10.b01_q10_code_mappings import (
+    B01_Q10_DP,
+    Q10CleanCount,
+    Q10RoomCleanType,
+    Q10RoomFanLevel,
+    YXCleanLine,
+    YXWaterLevel,
+)
+from roborock.data.b01_q10.b01_q10_containers import (
+    Q10ReportedRoomCleanSettings,
+    Q10RoborockPoint,
+    Q10RoomCleanSettings,
+)
 from roborock.data.code_mappings import completed_warnings
 from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import Q10MapPacket, Q10MapPacketKind, Q10TracePacket
@@ -20,9 +31,11 @@ from roborock.map.b01_q10_overlays import Q10RestrictedZone, Q10RestrictionType,
 from roborock.protocols.b01_q10_protocol import (
     Q10DpsUpdate,
     decode_message,
+    decode_room_clean_settings,
     decode_rpc_response,
     encode_mqtt_payload,
     encode_restricted_zones,
+    encode_room_clean_settings,
     encode_room_name,
     encode_virtual_walls,
 )
@@ -239,6 +252,249 @@ def test_encode_room_name_rejects_invalid_room_id(room_id: Any) -> None:
 def test_encode_room_name_rejects_invalid_name(name: Any) -> None:
     with pytest.raises(ValueError, match="name"):
         encode_room_name(7, name)
+
+
+def _room_settings(
+    room_id: int = 3,
+    *,
+    fan: Q10RoomFanLevel = Q10RoomFanLevel.TURBO,
+    water: YXWaterLevel = YXWaterLevel.HIGH,
+    clean_type: Q10RoomCleanType = Q10RoomCleanType.VAC_AND_MOP,
+    count: Q10CleanCount = Q10CleanCount.TWICE,
+    line: YXCleanLine = YXCleanLine.FINE,
+) -> Q10RoomCleanSettings:
+    return Q10RoomCleanSettings(room_id, fan, water, clean_type, count, line)
+
+
+def _full_room_record(settings: Q10RoomCleanSettings, name: str = "Example") -> bytes:
+    properties = bytearray(26)
+    properties[0:2] = settings.room_id.to_bytes(2, "big")
+    properties[2] = 1
+    properties[3:5] = b"\xff\xff"
+    properties[5:7] = settings.clean_count.code.to_bytes(2, "big")
+    properties[7] = settings.clean_type.code
+    properties[8] = settings.fan_level.code
+    properties[9] = settings.water_level.code
+    properties[10] = 0xFF
+    properties[11] = settings.clean_line.code
+    encoded_name = name.encode()
+    name_block = bytes((len(encoded_name),)) + encoded_name + bytes(19 - len(encoded_name))
+    return bytes(properties) + name_block + b"\x00"
+
+
+def test_encode_room_clean_settings_uses_compact_format() -> None:
+    settings = [_room_settings(), _room_settings(9, fan=Q10RoomFanLevel.MAX_PLUS, water=YXWaterLevel.LOW)]
+
+    encoded = encode_room_clean_settings(settings)
+
+    assert base64.b64decode(encoded) == bytes((2, 3, 3, 3, 1, 2, 2, 9, 5, 1, 1, 2, 2))
+    assert settings == [
+        _room_settings(),
+        _room_settings(9, fan=Q10RoomFanLevel.MAX_PLUS, water=YXWaterLevel.LOW),
+    ]
+
+
+def test_decode_room_clean_settings_distinguishes_echo_and_complete_response() -> None:
+    first = _room_settings()
+    second = _room_settings(9, fan=Q10RoomFanLevel.MAX_PLUS, water=YXWaterLevel.LOW)
+    echo = decode_room_clean_settings(encode_room_clean_settings((first, second)))
+    complete = decode_room_clean_settings(
+        base64.b64encode(b"\x02" + _full_room_record(first) + _full_room_record(second)).decode()
+    )
+
+    assert echo.settings == (
+        Q10ReportedRoomCleanSettings(**first.__dict__),
+        Q10ReportedRoomCleanSettings(**second.__dict__),
+    )
+    assert echo.complete is False
+    assert complete.settings == (
+        Q10ReportedRoomCleanSettings(**first.__dict__),
+        Q10ReportedRoomCleanSettings(**second.__dict__),
+    )
+    assert complete.complete is True
+
+
+def test_decode_room_clean_settings_preserves_unknown_values() -> None:
+    record = bytearray(_full_room_record(_room_settings()))
+    record[8] = 42
+    record[11] = 99
+
+    decoded = decode_room_clean_settings(base64.b64encode(b"\x01" + record).decode())
+
+    assert decoded.settings[0].fan_level == 42
+    assert decoded.settings[0].clean_line == 99
+
+
+def test_decode_room_clean_settings_empty_complete_response() -> None:
+    decoded = decode_room_clean_settings("AA==")
+
+    assert decoded.settings == ()
+    assert decoded.complete is True
+
+
+@pytest.mark.parametrize(
+    ("settings", "message"),
+    [
+        ([], "between 1 and 255"),
+        ("not-settings", "between 1 and 255"),
+        ([object()], "Q10RoomCleanSettings"),
+        ([_room_settings(True)], "room_id"),
+        ([_room_settings(-1)], "room_id"),
+        ([_room_settings(256)], "room_id"),
+        ([_room_settings(), _room_settings()], "duplicate"),
+        ([_room_settings(fan=Q10RoomFanLevel.UNKNOWN)], "fan_level"),
+        (
+            [
+                Q10RoomCleanSettings(
+                    3,
+                    cast(Any, 3),
+                    YXWaterLevel.HIGH,
+                    Q10RoomCleanType.VAC_AND_MOP,
+                    Q10CleanCount.TWICE,
+                    YXCleanLine.FINE,
+                )
+            ],
+            "fan_level",
+        ),
+        (
+            [
+                Q10RoomCleanSettings(
+                    3,
+                    Q10RoomFanLevel.TURBO,
+                    YXWaterLevel.HIGH,
+                    Q10RoomCleanType.VAC_AND_MOP,
+                    cast(Any, 3),
+                    YXCleanLine.FINE,
+                )
+            ],
+            "clean_count",
+        ),
+    ],
+)
+def test_encode_room_clean_settings_rejects_invalid_values(settings: Any, message: str) -> None:
+    with pytest.raises(ValueError, match=message):
+        encode_room_clean_settings(settings)
+
+
+def test_encode_room_clean_settings_rejects_more_than_wire_count() -> None:
+    with pytest.raises(ValueError, match="between 1 and 255"):
+        encode_room_clean_settings([_room_settings(room_id) for room_id in range(256)])
+
+
+def test_decode_sanitized_physical_six_room_capture() -> None:
+    payload = (TESTDATA_PATH / "customer_clean_full_sanitized.b64").read_text().strip()
+
+    decoded = decode_room_clean_settings(payload)
+
+    assert decoded.complete is True
+    assert len(base64.b64decode(payload)) == 283
+    assert list(decoded.settings) == [
+        Q10ReportedRoomCleanSettings(
+            1,
+            Q10RoomFanLevel.QUIET,
+            YXWaterLevel.HIGH,
+            Q10RoomCleanType.VAC_AND_MOP,
+            Q10CleanCount.TWICE,
+            YXCleanLine.FINE,
+        ),
+        Q10ReportedRoomCleanSettings(
+            2,
+            Q10RoomFanLevel.MAX_PLUS,
+            YXWaterLevel.HIGH,
+            Q10RoomCleanType.VAC_AND_MOP,
+            Q10CleanCount.TWICE,
+            YXCleanLine.FINE,
+        ),
+        Q10ReportedRoomCleanSettings(
+            3,
+            Q10RoomFanLevel.MAX_PLUS,
+            YXWaterLevel.MEDIUM,
+            Q10RoomCleanType.VACUUM,
+            Q10CleanCount.TWICE,
+            YXCleanLine.FINE,
+        ),
+        Q10ReportedRoomCleanSettings(
+            4,
+            Q10RoomFanLevel.MAX_PLUS,
+            YXWaterLevel.MEDIUM,
+            Q10RoomCleanType.VACUUM,
+            Q10CleanCount.TWICE,
+            YXCleanLine.FINE,
+        ),
+        Q10ReportedRoomCleanSettings(
+            5,
+            Q10RoomFanLevel.QUIET,
+            YXWaterLevel.HIGH,
+            Q10RoomCleanType.VAC_AND_MOP,
+            Q10CleanCount.TWICE,
+            YXCleanLine.FINE,
+        ),
+        Q10ReportedRoomCleanSettings(
+            6,
+            Q10RoomFanLevel.MAX_PLUS,
+            YXWaterLevel.HIGH,
+            Q10RoomCleanType.VAC_AND_MOP,
+            Q10CleanCount.TWICE,
+            YXCleanLine.FINE,
+        ),
+    ]
+
+
+def test_encode_room_clean_settings_matches_physical_echoes() -> None:
+    candidate = Q10RoomCleanSettings(
+        1,
+        Q10RoomFanLevel.TURBO,
+        YXWaterLevel.MEDIUM,
+        Q10RoomCleanType.VAC_AND_MOP,
+        Q10CleanCount.ONCE,
+        YXCleanLine.DAILY,
+    )
+    restored = Q10RoomCleanSettings(
+        1,
+        Q10RoomFanLevel.QUIET,
+        YXWaterLevel.HIGH,
+        Q10RoomCleanType.VAC_AND_MOP,
+        Q10CleanCount.TWICE,
+        YXCleanLine.FINE,
+    )
+
+    assert encode_room_clean_settings((candidate,)) == "AQEDAgEBAQ=="
+    assert encode_room_clean_settings((restored,)) == "AQEBAwECAg=="
+    assert decode_room_clean_settings("AQEDAgEBAQ==").settings == (Q10ReportedRoomCleanSettings(**candidate.__dict__),)
+    assert decode_room_clean_settings("AQEBAwECAg==").settings == (Q10ReportedRoomCleanSettings(**restored.__dict__),)
+
+
+def test_encode_room_clean_settings_supports_three_pass_protocol_value() -> None:
+    settings = _room_settings(count=Q10CleanCount.THREE_TIMES)
+
+    assert base64.b64decode(encode_room_clean_settings((settings,)))[5] == 3
+
+
+def test_encode_room_clean_settings_snapshots_input_sequence() -> None:
+    class MisleadingSequence(list[Q10RoomCleanSettings]):
+        def __len__(self) -> int:
+            return 0
+
+    settings = MisleadingSequence([_room_settings(3)])
+
+    assert base64.b64decode(encode_room_clean_settings(settings))[0] == 1
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "not-base64",
+        "",
+        base64.b64encode(b"\x01\x00").decode(),
+        base64.b64encode(b"\x01" + _full_room_record(_room_settings())[:-1]).decode(),
+        base64.b64encode(b"\x01" + _full_room_record(_room_settings()) + b"extra").decode(),
+        base64.b64encode(b"\x02" + bytes((3, 3, 3, 1, 2, 2)) * 2).decode(),
+        base64.b64encode(b"\x02" + _full_room_record(_room_settings()) * 2).decode(),
+    ],
+)
+def test_decode_room_clean_settings_rejects_malformed_payload(payload: str) -> None:
+    with pytest.raises(RoborockException, match="customized-room"):
+        decode_room_clean_settings(payload)
 
 
 def _message(payload: bytes, protocol: RoborockMessageProtocol) -> RoborockMessage:

@@ -12,6 +12,9 @@ from dataclasses import dataclass, field
 from ..containers import RoborockBase
 from .b01_q10_code_mappings import (
     B01_Q10_DP,
+    Q10CleanCount,
+    Q10RoomCleanType,
+    Q10RoomFanLevel,
     YXAreaUnit,
     YXBackType,
     YXCarpetCleanType,
@@ -66,6 +69,30 @@ class Q10RoborockPoint:
                 raise ValueError("coordinates are outside the Q10 map range")
             coordinates.append(coordinate)
         return coordinates[0], coordinates[1]
+
+
+@dataclass(frozen=True)
+class Q10RoomCleanSettings:
+    """Writable cleaning settings for one Q10 room."""
+
+    room_id: int
+    fan_level: Q10RoomFanLevel
+    water_level: YXWaterLevel
+    clean_type: Q10RoomCleanType
+    clean_count: Q10CleanCount
+    clean_line: YXCleanLine
+
+
+@dataclass(frozen=True)
+class Q10ReportedRoomCleanSettings:
+    """Cleaning settings reported by a Q10, preserving unknown wire values."""
+
+    room_id: int
+    fan_level: Q10RoomFanLevel | int
+    water_level: YXWaterLevel | int
+    clean_type: Q10RoomCleanType | int
+    clean_count: Q10CleanCount | int
+    clean_line: YXCleanLine | int
 
 
 @dataclass
@@ -270,6 +297,11 @@ class Q10Status(RoborockBase):
     def fault_name(self) -> str | None:
         """Returns the name of the current fault."""
         return self.fault.value if self.fault is not None else None
+
+    @property
+    def clean_count_mode(self) -> Q10CleanCount | None:
+        """Return the typed cleaning pass count without changing the raw status field."""
+        return Q10CleanCount.from_code_optional(self.clean_count) if self.clean_count is not None else None
 
 
 @dataclass

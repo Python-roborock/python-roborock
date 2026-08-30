@@ -148,6 +148,17 @@ class YXFanLevel(RoborockModeEnum):
     MAX_PLUS = "max_plus", 8  # super
 
 
+class Q10RoomFanLevel(RoborockModeEnum):
+    """Suction levels used inside a Q10 customized-room payload."""
+
+    UNKNOWN = "unknown", -1
+    QUIET = "quiet", 1
+    BALANCED = "balanced", 2
+    TURBO = "turbo", 3
+    MAX = "max", 4
+    MAX_PLUS = "max_plus", 5
+
+
 class YXWaterLevel(RoborockModeEnum):
     UNKNOWN = "unknown", -1
     OFF = "off", 0  # close
@@ -160,6 +171,24 @@ class YXCleanLine(RoborockModeEnum):
     FAST = "fast", 0
     DAILY = "daily", 1
     FINE = "fine", 2
+
+
+class Q10CleanCount(RoborockModeEnum):
+    """Number of passes for a Q10 cleaning task."""
+
+    UNKNOWN = "unknown", -1
+    ONCE = "once", 1
+    TWICE = "twice", 2
+    THREE_TIMES = "three_times", 3
+
+
+class Q10RoomCleanType(RoborockModeEnum):
+    """Work performed in one Q10 customized-room setting."""
+
+    UNKNOWN = "unknown", -1
+    VAC_AND_MOP = "vac_and_mop", 1
+    VACUUM = "vacuum", 2
+    MOP = "mop", 3
 
 
 class YXRoomMaterial(RoborockModeEnum):
