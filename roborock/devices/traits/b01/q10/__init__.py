@@ -27,6 +27,7 @@ from .map import MapContentTrait, MapDpsTrait
 from .maps import MapsTrait
 from .network_info import NetworkInfoTrait
 from .remote import RemoteTrait
+from .room_cleaning import RoomCleaningTrait
 from .status import StatusTrait
 from .vacuum import VacuumTrait
 from .volume import SoundVolumeTrait
@@ -42,6 +43,7 @@ __all__ = [
     "MapContentTrait",
     "MapsTrait",
     "NetworkInfoTrait",
+    "RoomCleaningTrait",
     "SoundVolumeTrait",
     "StatusTrait",
 ]
@@ -63,6 +65,9 @@ class Q10PropertiesApi(Trait):
 
     remote: RemoteTrait
     """Trait for sending remote control related commands to Q10 devices."""
+
+    room_cleaning: RoomCleaningTrait
+    """Trait for customized per-room cleaning settings and commands."""
 
     volume: SoundVolumeTrait
     """Trait for reading / setting the speaker volume."""
@@ -101,13 +106,16 @@ class Q10PropertiesApi(Trait):
         self,
         channel: B01Q10Channel,
         *,
+        model: str | None = None,
         map_parser_config: B01Q10MapParserConfig | None = None,
     ) -> None:
         """Initialize the B01Props API."""
         self._channel = channel
         self.command = CommandTrait(channel)
-        self.vacuum = VacuumTrait(self.command)
+        advanced_cleaning_supported = model is None or model == "roborock.vacuum.ss07"
+        self.vacuum = VacuumTrait(self.command, advanced_cleaning_supported=advanced_cleaning_supported)
         self.remote = RemoteTrait(self.command)
+        self.room_cleaning = RoomCleaningTrait(self.command, supported=advanced_cleaning_supported)
         self.status = StatusTrait()
         self.volume = SoundVolumeTrait(self.command)
         self.child_lock = ChildLockTrait(self.command)
@@ -117,7 +125,11 @@ class Q10PropertiesApi(Trait):
         self.network_info = NetworkInfoTrait()
         self.consumable = ConsumableTrait()
         self._map_dps = MapDpsTrait()
-        self.maps = MapsTrait(self.command, map_parser_config=map_parser_config)
+        self.maps = MapsTrait(
+            self.command,
+            map_parser_config=map_parser_config,
+            map_changed_callback=self.room_cleaning.invalidate,
+        )
         self.map = MapContentTrait(
             self._map_dps,
             self.command,
@@ -139,6 +151,7 @@ class Q10PropertiesApi(Trait):
             self.clean_history,
             self._map_dps,
             self.maps,
+            self.room_cleaning,
         ]
         self._subscribe_task: asyncio.Task[None] | None = None
 
@@ -159,7 +172,8 @@ class Q10PropertiesApi(Trait):
     async def refresh(self) -> None:
         """Refresh all traits."""
         # Sending REQUEST_DPS causes the device to publish its ordinary status
-        # values. Map-list and map-content refreshes have separate schedules.
+        # values. Map, map-list, and customized-room settings have separate
+        # refresh methods so callers can schedule those larger responses.
         await self.command.send(B01_Q10_DP.REQUEST_DPS, params={})
 
     async def _subscribe_loop(self) -> None:
@@ -203,7 +217,8 @@ class Q10PropertiesApi(Trait):
 def create(
     channel: B01Q10Channel,
     *,
+    model: str | None = None,
     map_parser_config: B01Q10MapParserConfig | None = None,
 ) -> Q10PropertiesApi:
     """Create traits for B01 devices."""
-    return Q10PropertiesApi(channel, map_parser_config=map_parser_config)
+    return Q10PropertiesApi(channel, model=model, map_parser_config=map_parser_config)

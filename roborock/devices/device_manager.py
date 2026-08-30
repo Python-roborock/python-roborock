@@ -265,6 +265,7 @@ async def create_device_manager(
                     channel = b01_q10_channel
                     trait = b01.q10.create(
                         channel,
+                        model=product.model,
                         map_parser_config=(
                             B01Q10MapParserConfig(
                                 map_scale=map_parser_config.map_scale,

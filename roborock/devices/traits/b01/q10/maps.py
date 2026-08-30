@@ -1,6 +1,7 @@
 """Trait for Q10 saved-map list data."""
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -55,12 +56,14 @@ class MapsTrait(Maps, UpdatableTrait):
         command: CommandTrait,
         *,
         map_parser_config: B01Q10MapParserConfig | None = None,
+        map_changed_callback: Callable[[], None] | None = None,
     ) -> None:
         """Initialize the saved-map list trait."""
         Maps.__init__(self)
         UpdatableTrait.__init__(self, command, _LOGGER)
         self._command = command
         self._map_parser_config = map_parser_config or B01Q10MapParserConfig()
+        self._map_changed_callback = map_changed_callback
         self.detail_packet: Q10MapPacket | None = None
         """Most recently pushed ``04 01`` saved-map detail."""
         self.detail_map_id: str | None = None
@@ -94,6 +97,8 @@ class MapsTrait(Maps, UpdatableTrait):
                 }
             },
         )
+        if self._map_changed_callback is not None:
+            self._map_changed_callback()
 
     async def refresh_detail(self, map_id: str | None = None) -> None:
         """Request a read-only preview for one saved map.
@@ -132,7 +137,14 @@ class MapsTrait(Maps, UpdatableTrait):
         # cannot replace a usable map list with an unrelated response.
         if not isinstance(response, dict) or response.get("op") != "list" or response.get("result") != 1:
             return
+        previous_map_id = self.current_map_id
         super().update_from_dps(decoded_dps)
+        if (
+            previous_map_id is not None
+            and self.current_map_id != previous_map_id
+            and self._map_changed_callback is not None
+        ):
+            self._map_changed_callback()
 
     def update_from_map_packet(self, packet: Q10MapPacket) -> None:
         """Store and render a pushed saved-map detail packet."""

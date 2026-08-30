@@ -51,4 +51,4 @@ def fake_channel_fixture() -> FakeB01Q10Channel:
 
 @pytest.fixture(name="q10_api")
 def q10_api_fixture(fake_channel: FakeB01Q10Channel) -> Q10PropertiesApi:
-    return create(fake_channel)
+    return create(fake_channel, model="roborock.vacuum.ss07")

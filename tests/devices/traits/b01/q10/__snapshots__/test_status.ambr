@@ -44,6 +44,12 @@
         'wifiName': 'wifi-network-name',
       }),
     }),
+    'room_cleaning': dict({
+      'settings': tuple(
+      ),
+      'settingsAvailable': False,
+      'supported': True,
+    }),
     'status': dict({
       'addCleanState': False,
       'areaUnit': 'square_meter',
@@ -427,6 +433,12 @@
           'wifiName': '**REDACTED**',
         }),
       }),
+      'room_cleaning': dict({
+        'settings': tuple(
+        ),
+        'settingsAvailable': False,
+        'supported': True,
+      }),
       'status': dict({
         'addCleanState': False,
         'areaUnit': 'square_meter',
@@ -499,6 +511,12 @@
     'maps': dict({
     }),
     'network_info': dict({
+    }),
+    'room_cleaning': dict({
+      'settings': tuple(
+      ),
+      'settingsAvailable': False,
+      'supported': True,
     }),
     'status': dict({
     }),
