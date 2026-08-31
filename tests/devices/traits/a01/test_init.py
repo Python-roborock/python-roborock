@@ -5,9 +5,12 @@ from typing import Any
 import pytest
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import unpad
+from freezegun import freeze_time
 
-from roborock.devices.traits.a01 import DyadApi, ZeoApi
+from roborock.devices.traits.a01 import DyadApi, ZeoApi, create
+from roborock.devices.traits.a01.device_feature import build_force_load_dp_list
 from roborock.roborock_message import RoborockDyadDataProtocol, RoborockMessageProtocol, RoborockZeoProtocol
+from roborock.testing.a01_simulator import DEFAULT_DYAD_PRODUCT
 from tests.fixtures.channel_fixtures import FakeChannel
 from tests.protocols.common import build_a01_message
 
@@ -134,6 +137,136 @@ async def test_dyad_invalid_response_value(
 
     result = await dyad_api.query_values(query)
     assert result == expected_result
+
+
+async def test_dyad_values_track_pushes(dyad_api: DyadApi, fake_channel: FakeChannel):
+    """Pushed values are merged into `values` in arrival order."""
+    assert dyad_api.values == {}
+    await dyad_api.start()
+
+    fake_channel.notify_subscribers(build_a01_message({201: 6, 209: 80}))
+    assert dyad_api.values == {
+        RoborockDyadDataProtocol.STATUS: "self_clean_deep_cleaning",
+        RoborockDyadDataProtocol.POWER: 80,
+    }
+
+    fake_channel.notify_subscribers(build_a01_message({209: 50, 999: 1}))
+    assert dyad_api.values == {
+        RoborockDyadDataProtocol.STATUS: "self_clean_deep_cleaning",
+        RoborockDyadDataProtocol.POWER: 50,
+    }
+
+
+async def test_dyad_update_listener(dyad_api: DyadApi, fake_channel: FakeChannel):
+    """Update listeners are notified when a value changes, not on identical pushes."""
+    updates: list[dict[RoborockDyadDataProtocol, Any]] = []
+    unsub = dyad_api.add_update_listener(lambda: updates.append(dyad_api.values))
+    await dyad_api.start()
+
+    fake_channel.notify_subscribers(build_a01_message({209: 80}))
+    assert updates == [{RoborockDyadDataProtocol.POWER: 80}]
+
+    fake_channel.notify_subscribers(build_a01_message({209: 80}))
+    assert len(updates) == 1
+
+    fake_channel.notify_subscribers(build_a01_message({209: 50}))
+    assert len(updates) == 2
+    assert updates[1] == {RoborockDyadDataProtocol.POWER: 50}
+
+    unsub()
+    fake_channel.notify_subscribers(build_a01_message({209: 20}))
+    assert len(updates) == 2
+
+
+async def test_dyad_query_values_updates_values(dyad_api: DyadApi, fake_channel: FakeChannel):
+    """Query responses populate `values` even without an active subscription."""
+    fake_channel.response_queue.append(build_a01_message({201: 6, 209: 80}))
+    await dyad_api.query_values([RoborockDyadDataProtocol.STATUS, RoborockDyadDataProtocol.POWER])
+
+    assert dyad_api.values == {
+        RoborockDyadDataProtocol.STATUS: "self_clean_deep_cleaning",
+        RoborockDyadDataProtocol.POWER: 80,
+    }
+
+
+async def test_dyad_query_response_does_not_overwrite_newer_push(dyad_api: DyadApi, fake_channel: FakeChannel):
+    """A push arriving while the query is still in flight wins over the query response."""
+    await dyad_api.start()
+    fake_channel.response_queue.append(build_a01_message({209: 80}))
+
+    # Deliver the push in the suspension window between the response arriving
+    # and query_values() returning.
+    async def push_before_query_returns() -> None:
+        fake_channel.notify_subscribers(build_a01_message({209: 50}))
+
+    fake_channel.health_manager.on_success = push_before_query_returns  # type: ignore[method-assign]
+
+    result = await dyad_api.query_values([RoborockDyadDataProtocol.POWER])
+    assert result == {RoborockDyadDataProtocol.POWER: 80}
+    assert dyad_api.values == {RoborockDyadDataProtocol.POWER: 50}
+
+
+async def test_dyad_last_message_time(dyad_api: DyadApi, fake_channel: FakeChannel):
+    """Every decoded message updates last_message_time, even an identical heartbeat."""
+    assert dyad_api.last_message_time is None
+    await dyad_api.start()
+
+    with freeze_time("2026-08-31 10:00:00") as frozen:
+        fake_channel.notify_subscribers(build_a01_message({209: 80}))
+        first = dyad_api.last_message_time
+        assert first is not None
+
+        frozen.tick(datetime.timedelta(seconds=30))
+        fake_channel.notify_subscribers(build_a01_message({209: 80}))
+        assert dyad_api.last_message_time == first + datetime.timedelta(seconds=30)
+
+
+async def test_dyad_initial_status_seeds_values(fake_channel: FakeChannel):
+    """The cloud status snapshot populates `values` without a device round trip."""
+    api = DyadApi(fake_channel, initial_status={201: 6, 209: 80, 999: 1})  # type: ignore[arg-type]
+
+    assert api.values == {
+        RoborockDyadDataProtocol.STATUS: "self_clean_deep_cleaning",
+        RoborockDyadDataProtocol.POWER: 80,
+    }
+    assert api.last_message_time is None
+
+
+async def test_create_seeds_values_from_device_status(fake_channel: FakeChannel):
+    """create() normalizes the string-keyed cloud snapshot before seeding."""
+    api = create(DEFAULT_DYAD_PRODUCT, fake_channel, device_status={"201": 6, "209": 80})  # type: ignore[arg-type]
+
+    assert isinstance(api, DyadApi)
+    assert api.values == {
+        RoborockDyadDataProtocol.STATUS: "self_clean_deep_cleaning",
+        RoborockDyadDataProtocol.POWER: 80,
+    }
+
+
+async def test_dyad_close_stops_tracking(dyad_api: DyadApi, fake_channel: FakeChannel):
+    """After close(), pushes no longer update `values`."""
+    await dyad_api.start()
+    fake_channel.notify_subscribers(build_a01_message({209: 80}))
+    assert dyad_api.values == {RoborockDyadDataProtocol.POWER: 80}
+
+    dyad_api.close()
+    fake_channel.notify_subscribers(build_a01_message({209: 50}))
+    assert dyad_api.values == {RoborockDyadDataProtocol.POWER: 80}
+
+
+async def test_zeo_values_track_pushes(zeo_api: ZeoApi, fake_channel: FakeChannel):
+    """Pushed values are merged into `values` after start()."""
+    force_load_response = {int(dp): 0 for dp in build_force_load_dp_list(None)}
+    fake_channel.response_queue.append(build_a01_message(force_load_response))
+    await zeo_api.start()
+
+    fake_channel.notify_subscribers(build_a01_message({203: 6, 218: 12}))
+    assert zeo_api.values[RoborockZeoProtocol.STATE] == "spinning"
+    assert zeo_api.values[RoborockZeoProtocol.WASHING_LEFT] == 12
+
+    fake_channel.notify_subscribers(build_a01_message({203: 7}))
+    assert zeo_api.values[RoborockZeoProtocol.STATE] == "drying"
+    assert zeo_api.values[RoborockZeoProtocol.WASHING_LEFT] == 12
 
 
 async def test_dyad_add_listener(dyad_api: DyadApi, fake_channel: FakeChannel):
