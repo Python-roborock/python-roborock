@@ -225,6 +225,14 @@ def test_render_applies_erase_zones_from_header_without_trace() -> None:
     assert render != base
 
 
+def test_header_vector_calibration_is_independent_of_trace_orientation() -> None:
+    """A live trace cannot flip saved erase/restriction geometry vertically."""
+    packet = replace(_packet(), header_calibration=HEADER)
+    mirrored_trace = replace(TRACE_CALIBRATION, y_sign=-1)
+
+    assert _vector_calibration(packet, mirrored_trace) == VECTOR_CALIBRATION
+
+
 def test_render_partial_erase() -> None:
     """An erase rectangle only blanks the cells it covers, leaving the rest."""
     packet, trace = _calibrated_inputs()
