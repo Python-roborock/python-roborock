@@ -108,6 +108,7 @@ REDACT_KEYS = {
     "wifiName",
     "lat",
     "long",
+    "rawName",
 }
 KEEP_KEYS = {
     # Product information not unique per user
