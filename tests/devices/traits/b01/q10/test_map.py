@@ -1,14 +1,14 @@
 """Tests for the Q10 B01 map content trait.
 
-Map list data and map content have independent refresh schedules. Content
-requests use a stored map ID, and the device sends the data later in a
-``MAP_RESPONSE`` packet. These tests cover that state management. The render
-details are tested in ``tests/map/test_b01_q10_render.py``.
+Map list data and current-map content have independent refresh schedules. The
+device sends map data later in a ``MAP_RESPONSE`` packet. These tests cover
+that state management; rendering is tested separately.
 """
 
 import asyncio
 import base64
 from collections.abc import AsyncGenerator, Generator
+from dataclasses import replace
 from pathlib import Path
 from typing import cast
 from unittest.mock import Mock, patch
@@ -23,6 +23,9 @@ from roborock.devices.traits.b01.q10.map import MapContentTrait, MapDpsTrait
 from roborock.devices.traits.b01.q10.maps import MapsTrait
 from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
+    B01Q10MapParserConfig,
+    Q10MapPacketKind,
+    Q10Obstacle,
     Q10Point,
     Q10TracePacket,
     parse_map_packet,
@@ -38,19 +41,9 @@ TRACE_SESSION_FIXTURE = Path("tests/map/testdata/b01_q10_trace_session.bin")
 
 
 def _map_trait(map_dps: MapDpsTrait | None = None) -> MapContentTrait:
-    """Create map content with a stored map ID for tests that do not perform I/O."""
+    """Create map content for tests that do not perform I/O."""
     command = cast(CommandTrait, Mock(spec=CommandTrait))
-    maps = MapsTrait(command)
-    maps.update_from_dps(
-        {
-            B01_Q10_DP.MULTI_MAP: {
-                "data": [{"id": "12345"}],
-                "op": "list",
-                "result": 1,
-            }
-        }
-    )
-    return MapContentTrait(map_dps or MapDpsTrait(), maps, command)
+    return MapContentTrait(map_dps or MapDpsTrait(), command)
 
 
 def _zone_blob() -> str:
@@ -81,6 +74,35 @@ def test_update_from_map_packet_populates_image_and_rooms() -> None:
     assert trait.image_content[:8] == b"\x89PNG\r\n\x1a\n"
     assert {room.id: room.name for room in trait.rooms} == {2: "Living Room", 3: "Bedroom"}
     assert len(updates) == 1
+
+
+def test_update_from_map_packet_exposes_obstacles() -> None:
+    """Live callers receive the same decoded obstacles used by rendering."""
+    packet = replace(
+        parse_map_packet(FIXTURE.read_bytes()),
+        obstacles=[Q10Obstacle(250, -300), Q10Obstacle(-50, 100)],
+    )
+    trait = _map_trait()
+
+    trait.update_from_map_packet(packet)
+
+    assert trait.obstacles == packet.obstacles
+    assert trait.as_dict()["obstacles"] == [
+        {"x": 250, "y": -300},
+        {"x": -50, "y": 100},
+    ]
+    exposed = trait.obstacles
+    exposed.clear()
+    assert trait.obstacles == packet.obstacles
+
+
+def test_live_map_trait_rejects_archived_packet() -> None:
+    """Direct callers cannot bypass API routing and replace live map state."""
+    payload = FIXTURE.read_bytes()
+    archived = parse_map_packet(b"\x03\x01" + payload[2:])
+
+    with pytest.raises(ValueError, match="Expected a current Q10 map packet"):
+        _map_trait().update_from_map_packet(archived)
 
 
 def test_update_from_trace_packet_populates_path_and_position() -> None:
@@ -120,7 +142,7 @@ class _FakeQ10Properties:
                 }
             }
         )
-        self.map = MapContentTrait(MapDpsTrait(), self.maps, command)
+        self.map = MapContentTrait(MapDpsTrait(), command)
         self.refresh_count = 0
 
         async def refresh_map() -> None:
@@ -140,34 +162,6 @@ class _FakeQ10PropertiesWithTrace(_FakeQ10Properties):
         self.map.refresh = refresh_map  # type: ignore[method-assign]
 
 
-class _FakeQ10PropertiesWithoutMapId:
-    def __init__(self) -> None:
-        command = cast(CommandTrait, Mock(spec=CommandTrait))
-        self.maps = MapsTrait(command)
-        self.map = MapContentTrait(MapDpsTrait(), self.maps, command)
-        self.maps_refresh_count = 0
-        self.map_refresh_count = 0
-
-        async def refresh_maps() -> None:
-            self.maps_refresh_count += 1
-            self.maps.update_from_dps(
-                {
-                    B01_Q10_DP.MULTI_MAP: {
-                        "data": [{"id": "12345"}],
-                        "op": "list",
-                        "result": 1,
-                    }
-                }
-            )
-
-        async def refresh_map() -> None:
-            self.map_refresh_count += 1
-            self.map.update_from_trace_packet(parse_trace_packet(TRACE_SESSION_FIXTURE.read_bytes()))
-
-        self.maps.refresh = refresh_maps  # type: ignore[method-assign]
-        self.map.refresh = refresh_map  # type: ignore[method-assign]
-
-
 async def test_await_q10_map_push_waits_for_fresh_update() -> None:
     """A cached trace alone is not treated as a successful new map push."""
     properties = _FakeQ10Properties()
@@ -176,6 +170,7 @@ async def test_await_q10_map_push_waits_for_fresh_update() -> None:
     got_trace = await _await_q10_map_push(
         cast(Q10PropertiesApi, properties),
         lambda: bool(properties.map.path),
+        lambda: properties.map.trace_revision,
         timeout=0.01,
     )
 
@@ -189,26 +184,12 @@ async def test_await_q10_map_push_returns_true_after_update() -> None:
     got_trace = await _await_q10_map_push(
         cast(Q10PropertiesApi, properties),
         lambda: bool(properties.map.path),
+        lambda: properties.map.trace_revision,
         timeout=0.01,
     )
 
     assert got_trace is True
     assert len(properties.map.path) == 14
-
-
-async def test_await_q10_map_push_requests_map_list_only_on_first_use() -> None:
-    """Content gets the list first only when no stored map ID is available."""
-    properties = _FakeQ10PropertiesWithoutMapId()
-
-    got_trace = await _await_q10_map_push(
-        cast(Q10PropertiesApi, properties),
-        lambda: bool(properties.map.path),
-        timeout=0.01,
-    )
-
-    assert got_trace is True
-    assert properties.maps_refresh_count == 1
-    assert properties.map_refresh_count == 1
 
 
 async def test_await_q10_map_push_can_fall_back_to_cached_map_on_timeout() -> None:
@@ -218,6 +199,7 @@ async def test_await_q10_map_push_can_fall_back_to_cached_map_on_timeout() -> No
     got_map = await _await_q10_map_push(
         cast(Q10PropertiesApi, properties),
         lambda: properties.map.image_content is not None,
+        lambda: properties.map.map_revision,
         timeout=0.01,
         allow_cached_on_timeout=True,
     )
@@ -273,6 +255,101 @@ async def test_subscribe_loop_routes_map_push(
     assert {room.id: room.name for room in q10_api.map.rooms} == {2: "Living Room", 3: "Bedroom"}
 
 
+async def test_archived_map_pushes_cannot_overwrite_live_map(
+    q10_api: Q10PropertiesApi,
+    message_queue: asyncio.Queue[Q10Message],
+) -> None:
+    """03/04 detail packets are isolated from the current live-map trait."""
+    current_bytes = FIXTURE.read_bytes()
+    current = parse_map_packet(current_bytes)
+    trace = parse_trace_packet(TRACE_SESSION_FIXTURE.read_bytes())
+    clean_record = parse_map_packet(b"\x03\x01" + current_bytes[2:])
+    saved_map = parse_map_packet(b"\x04\x01" + current_bytes[2:])
+
+    message_queue.put_nowait(current)
+    message_queue.put_nowait(trace)
+    await _wait_for(lambda: q10_api.map.image_content is not None and bool(q10_api.map.path))
+    live_image = q10_api.map.image_content
+    live_rooms = list(q10_api.map.rooms)
+    live_path = list(q10_api.map.path)
+    live_position = q10_api.map.robot_position
+    live_heading = q10_api.map.robot_heading
+    live_updates: list[None] = []
+    clean_record_updates: list[None] = []
+    saved_map_updates: list[None] = []
+    q10_api.map.add_update_listener(lambda: live_updates.append(None))
+    q10_api.clean_history.add_update_listener(lambda: clean_record_updates.append(None))
+    q10_api.maps.add_update_listener(lambda: saved_map_updates.append(None))
+
+    message_queue.put_nowait(clean_record)
+    message_queue.put_nowait(saved_map)
+    await _wait_for(lambda: q10_api.maps.detail_packet is not None)
+
+    assert q10_api.map.image_content == live_image
+    assert q10_api.map.rooms == live_rooms
+    assert q10_api.map.path == live_path
+    assert q10_api.map.robot_position == live_position
+    assert q10_api.map.robot_heading == live_heading
+    assert live_updates == []
+    assert q10_api.clean_history.detail_packet is not None
+    assert q10_api.clean_history.detail_packet.kind is Q10MapPacketKind.CLEAN_RECORD_DETAIL
+    assert q10_api.clean_history.detail_image_content is not None
+    assert q10_api.maps.detail_packet is not None
+    assert q10_api.maps.detail_packet.kind is Q10MapPacketKind.SAVED_MAP_DETAIL
+    assert q10_api.maps.detail_image_content is not None
+    assert clean_record_updates == [None]
+    assert saved_map_updates == [None]
+
+
+def test_archive_owners_reject_wrong_packet_kinds(q10_api: Q10PropertiesApi) -> None:
+    """Semantic archive traits reject packets owned by another map stream."""
+    current = parse_map_packet(FIXTURE.read_bytes())
+
+    with pytest.raises(ValueError, match="clean-record detail"):
+        q10_api.clean_history.update_from_map_packet(current)
+    with pytest.raises(ValueError, match="saved-map detail"):
+        q10_api.maps.update_from_map_packet(current)
+
+
+def test_saved_map_detail_exposes_obstacles(q10_api: Q10PropertiesApi) -> None:
+    payload = FIXTURE.read_bytes()
+    packet = replace(
+        parse_map_packet(b"\x04\x01" + payload[2:]),
+        obstacles=[Q10Obstacle(100, -200)],
+    )
+
+    q10_api.maps.update_from_map_packet(packet)
+
+    assert q10_api.maps.detail_obstacles == packet.obstacles
+    exposed = q10_api.maps.detail_obstacles
+    exposed.clear()
+    assert q10_api.maps.detail_obstacles == packet.obstacles
+
+
+def test_all_q10_map_views_share_the_injected_render_config(
+    fake_channel: FakeB01Q10Channel,
+) -> None:
+    config = B01Q10MapParserConfig(map_scale=2)
+    api = Q10PropertiesApi(fake_channel, map_parser_config=config)
+    payload = FIXTURE.read_bytes()
+
+    with (
+        patch("roborock.devices.traits.b01.q10.map.render_q10_map", return_value=b"map") as live_render,
+        patch(
+            "roborock.devices.traits.b01.q10.clean_history.render_q10_map",
+            return_value=b"history",
+        ) as history_render,
+        patch("roborock.devices.traits.b01.q10.maps.render_q10_map", return_value=b"saved") as saved_render,
+    ):
+        api._handle_message(parse_map_packet(payload))
+        api._handle_message(parse_map_packet(b"\x03\x01" + payload[2:]))
+        api._handle_message(parse_map_packet(b"\x04\x01" + payload[2:]))
+
+    assert live_render.call_args.kwargs["config"] is config
+    assert history_render.call_args.kwargs["config"] is config
+    assert saved_render.call_args.kwargs["config"] is config
+
+
 async def test_subscribe_loop_routes_trace_push(
     q10_api: Q10PropertiesApi,
     message_queue: asyncio.Queue[Q10Message],
@@ -286,7 +363,7 @@ async def test_subscribe_loop_routes_trace_push(
     assert q10_api.map.robot_position is not None
 
 
-async def test_map_list_and_content_refresh_are_independent(
+async def test_map_list_and_current_content_refresh_are_independent(
     q10_api: Q10PropertiesApi,
     mock_channel: FakeB01Q10Channel,
     message_queue: asyncio.Queue[Q10Message],
@@ -320,15 +397,7 @@ async def test_map_list_and_content_refresh_are_independent(
 
     await q10_api.map.refresh()
 
-    assert mock_channel.published_commands[1] == (
-        B01_Q10_DP.COMMON,
-        {
-            str(B01_Q10_DP.MULTI_MAP.code): {
-                "op": "get",
-                "id": "12345",
-            }
-        },
-    )
+    assert mock_channel.published_commands[1] == (B01_Q10_DP.REQUEST_DPS, {})
     assert q10_api.maps.current_map_id == "12345"
 
 
@@ -355,10 +424,14 @@ async def test_empty_map_list_does_not_request_content(
     assert mock_channel.published_commands == []
 
 
-async def test_map_content_refresh_requires_stored_map_id(q10_api: Q10PropertiesApi) -> None:
-    """Content cannot be requested until the map list supplies an ID."""
-    with pytest.raises(RoborockException, match="map list is available"):
-        await q10_api.map.refresh()
+async def test_map_content_refresh_does_not_require_stored_map_id(
+    q10_api: Q10PropertiesApi,
+    mock_channel: FakeB01Q10Channel,
+) -> None:
+    """Current-map refresh is read-only and independent of saved-map state."""
+    await q10_api.map.refresh()
+
+    assert mock_channel.published_commands == [(B01_Q10_DP.REQUEST_DPS, {})]
 
 
 async def test_map_content_refresh_requests_are_not_rate_limited(q10_api: Q10PropertiesApi) -> None:
@@ -377,6 +450,106 @@ async def test_map_content_refresh_requests_are_not_rate_limited(q10_api: Q10Pro
         await q10_api.map.refresh()
 
     assert send.await_count == 2
+
+
+async def test_saved_map_detail_refresh_uses_current_map_id(q10_api: Q10PropertiesApi) -> None:
+    """Saved-map detail uses the independently validated select request."""
+    q10_api.maps.update_from_dps(
+        {
+            B01_Q10_DP.MULTI_MAP: {
+                "data": [{"id": "12345"}],
+                "op": "list",
+                "result": 1,
+            }
+        }
+    )
+    with patch.object(q10_api.command, "send") as send:
+        await q10_api.maps.refresh_detail()
+
+    send.assert_awaited_once_with(
+        B01_Q10_DP.COMMON,
+        {str(B01_Q10_DP.MULTI_MAP.code): {"op": "select", "id": "12345"}},
+    )
+
+
+async def test_saved_map_detail_refresh_accepts_any_listed_map_id(q10_api: Q10PropertiesApi) -> None:
+    q10_api.maps.update_from_dps(
+        {
+            B01_Q10_DP.MULTI_MAP: {
+                "data": [{"id": "12345"}, {"id": "67890"}],
+                "op": "list",
+                "result": 1,
+            }
+        }
+    )
+    assert [map_info.id for map_info in q10_api.maps.map_list] == ["12345", "67890"]
+
+    with patch.object(q10_api.command, "send") as send:
+        await q10_api.maps.refresh_detail("67890")
+
+    send.assert_awaited_once_with(
+        B01_Q10_DP.COMMON,
+        {str(B01_Q10_DP.MULTI_MAP.code): {"op": "select", "id": "67890"}},
+    )
+
+
+async def test_saved_map_detail_refresh_rejects_unknown_or_parallel_request(
+    q10_api: Q10PropertiesApi,
+) -> None:
+    q10_api.maps.update_from_dps(
+        {
+            B01_Q10_DP.MULTI_MAP: {
+                "data": [{"id": "12345"}],
+                "op": "list",
+                "result": 1,
+            }
+        }
+    )
+    with pytest.raises(RoborockException, match="Unknown Q10 saved-map ID"):
+        await q10_api.maps.refresh_detail("67890")
+
+    await q10_api.maps.refresh_detail("12345")
+    with pytest.raises(RoborockException, match="already pending"):
+        await q10_api.maps.refresh_detail("12345")
+
+
+async def test_saved_map_detail_correlates_pending_map_id(q10_api: Q10PropertiesApi) -> None:
+    requested_id = str(parse_map_packet(FIXTURE.read_bytes()).map_id)
+    q10_api.maps.update_from_dps(
+        {
+            B01_Q10_DP.MULTI_MAP: {
+                "data": [{"id": requested_id}, {"id": "999"}],
+                "op": "list",
+                "result": 1,
+            }
+        }
+    )
+
+    await q10_api.maps.refresh_detail("999")
+    packet = parse_map_packet(b"\x04\x01" + FIXTURE.read_bytes()[2:])
+    q10_api.maps.update_from_map_packet(packet)
+    assert q10_api.maps.detail_packet is None
+
+    matching = MapsTrait(q10_api.command)
+    matching.update_from_dps(
+        {
+            B01_Q10_DP.MULTI_MAP: {
+                "data": [{"id": requested_id}],
+                "op": "list",
+                "result": 1,
+            }
+        }
+    )
+    await matching.refresh_detail(requested_id)
+    matching.update_from_map_packet(packet)
+    assert matching.detail_packet is packet
+    assert matching.detail_map_id == requested_id
+
+
+async def test_saved_map_detail_refresh_requires_stored_map_id(q10_api: Q10PropertiesApi) -> None:
+    """Detail cannot be requested until the saved-map list supplies an ID."""
+    with pytest.raises(RoborockException, match="map list is available"):
+        await q10_api.maps.refresh_detail()
 
 
 def test_map_get_ack_does_not_replace_saved_map_list(q10_api: Q10PropertiesApi) -> None:
@@ -536,8 +709,8 @@ async def test_charging_status_renders_robot_at_dock(render_map: Mock) -> None:
     assert render_map.call_args.kwargs["robot_at_dock"] is True
 
 
-def test_docked_state_hides_trace_only_from_rendering(render_map: Mock) -> None:
-    """A docked render omits the valid trace without deleting source data."""
+def test_docked_state_clears_stale_live_trace(render_map: Mock) -> None:
+    """A docked update removes a completed path from public live state."""
     map_dps = MapDpsTrait()
     trait = _map_trait(map_dps)
     packet = parse_map_packet(FIXTURE.read_bytes())
@@ -550,13 +723,13 @@ def test_docked_state_hides_trace_only_from_rendering(render_map: Mock) -> None:
 
     map_dps.update_from_dps({B01_Q10_DP.STATUS: YXDeviceState.CHARGING.code})
 
-    assert trait.path == trace.points
+    assert trait.path == []
     assert render_map.call_args.args[1] is None
     assert render_map.call_args.kwargs["robot_at_dock"] is True
 
 
-def test_late_trace_is_retained_but_hidden_while_docked(render_map: Mock) -> None:
-    """A late trace stays available but is not part of a docked render."""
+def test_late_trace_is_ignored_while_docked(render_map: Mock) -> None:
+    """A delayed trace cannot repopulate public state while docked."""
     map_dps = MapDpsTrait()
     map_dps.update_from_dps({B01_Q10_DP.STATUS: YXDeviceState.CHARGING.code})
     trait = _map_trait(map_dps)
@@ -566,7 +739,7 @@ def test_late_trace_is_retained_but_hidden_while_docked(render_map: Mock) -> Non
     trait.update_from_map_packet(parse_map_packet(FIXTURE.read_bytes()))
     trait.update_from_trace_packet(trace)
 
-    assert trait.path == trace.points
+    assert trait.path == []
     assert render_map.call_args.args[1] is None
 
 

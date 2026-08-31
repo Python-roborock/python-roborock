@@ -10,6 +10,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from PIL import Image
+from vacuum_map_parser_base.config.drawable import Drawable
 from vacuum_map_parser_base.config.size import Size, Sizes
 from vacuum_map_parser_base.map_data import MapData, Point
 
@@ -18,7 +19,9 @@ from roborock.map.b01_q10_map_parser import (
     B01Q10MapParserConfig,
     Q10EraseZone,
     Q10HeaderCalibration,
+    Q10HistoricalTracePacket,
     Q10MapPacket,
+    Q10Obstacle,
     Q10Point,
     Q10TracePacket,
     parse_map_packet,
@@ -34,7 +37,9 @@ from roborock.map.b01_q10_render import (
     Q10MapOverlays,
     _calibration_from_header_metadata,
     _erased_cells,
+    _obstacle_calibration,
     _place_docked_robot,
+    _place_obstacles,
     _vector_calibration,
     render_q10_map,
     solve_q10_calibration,
@@ -58,7 +63,7 @@ def _packet() -> Q10MapPacket:
 def _render(
     packet: Q10MapPacket | None = None,
     *,
-    trace: Q10TracePacket | None = None,
+    trace: Q10TracePacket | Q10HistoricalTracePacket | None = None,
     overlays: Q10MapOverlays | None = None,
 ) -> bytes:
     return render_q10_map(
@@ -115,6 +120,71 @@ def test_render_draws_path_and_position() -> None:
     assert rendered.size == (8 * 4, 6 * 4)
     # The shared V1 robot glyph has a white body at its center.
     assert rendered.getpixel(image_position) == (255, 255, 255, 255)
+
+
+def test_render_accepts_historical_trace() -> None:
+    """A validated clean-record path uses the same calibrated drawing path."""
+    packet, live_trace = _calibrated_inputs()
+    historical = Q10HistoricalTracePacket(points=live_trace.points, heading=live_trace.heading)
+
+    assert _render(packet, trace=historical) == _render(packet, trace=live_trace)
+
+
+def test_place_obstacles_uses_its_validated_coordinate_scale() -> None:
+    """Obstacle coordinates use 50 raw units per grid pixel around the origin."""
+    packet = replace(
+        _packet(),
+        header_calibration=replace(HEADER, charger_x=0, charger_y=0),
+        obstacles=[Q10Obstacle(50, 100), Q10Obstacle(-50, -50)],
+    )
+    map_data = MapData()
+
+    calibration = _obstacle_calibration(packet)
+    assert calibration == GridCalibration(resolution=50.0, origin_x=0.0, origin_y=5.0, y_sign=1)
+    assert _place_obstacles(map_data, packet)
+    assert map_data.obstacles is not None
+    assert [(obstacle.x, obstacle.y) for obstacle in map_data.obstacles] == [(1.0, 3.0), (-1.0, 6.0)]
+    assert all(obstacle.details.type is None for obstacle in map_data.obstacles)
+
+
+def test_place_obstacles_requires_header_calibration() -> None:
+    """Unanchored obstacle points remain exposed but cannot be drawn safely."""
+    packet = replace(_packet(), header_calibration=None, obstacles=[Q10Obstacle(50, 100)])
+    map_data = MapData()
+
+    assert _obstacle_calibration(packet) is None
+    assert not _place_obstacles(map_data, packet)
+    assert map_data.obstacles is None
+
+
+def test_render_obstacles_respects_drawables_config() -> None:
+    packet = replace(
+        _packet(),
+        header_calibration=replace(HEADER, charger_x=0, charger_y=0),
+        obstacles=[Q10Obstacle(100, 100)],
+    )
+
+    hidden = render_q10_map(packet, None, Q10MapOverlays(), config=B01Q10MapParserConfig(drawables=[]))
+    visible = render_q10_map(
+        packet,
+        None,
+        Q10MapOverlays(),
+        config=B01Q10MapParserConfig(drawables=[Drawable.OBSTACLES]),
+    )
+
+    assert visible != hidden
+
+
+def test_skip_cleaning_points_are_not_rendered_as_obstacles() -> None:
+    """The distinct skip-clean table must never gain an obstacle glyph."""
+    packet = replace(
+        _packet(),
+        header_calibration=replace(HEADER, charger_x=0, charger_y=0),
+        skip_cleaning_points=[Q10Point(100, 100)],
+    )
+    config = B01Q10MapParserConfig(drawables=[Drawable.OBSTACLES])
+
+    assert _render(packet) == render_q10_map(packet, None, Q10MapOverlays(), config=config)
 
 
 def test_render_draws_zones_and_virtual_walls() -> None:

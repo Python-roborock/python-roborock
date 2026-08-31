@@ -2,6 +2,7 @@
 
 import io
 from pathlib import Path
+from typing import Any
 
 import pytest
 from PIL import Image
@@ -10,9 +11,14 @@ from roborock.exceptions import RoborockException
 from roborock.map.b01_grid_layers import LAYER_BACKGROUND, LAYER_FLOOR, LAYER_WALL
 from roborock.map.b01_q10_map_parser import (
     B01Q10MapParser,
+    Q10MapPacketKind,
+    Q10Obstacle,
+    Q10Point,
     Q10Room,
     classify_q10_cell,
+    is_clean_record_map_packet,
     is_map_packet,
+    is_saved_map_packet,
     is_trace_packet,
     lz4_block_decompress,
     parse_map_packet,
@@ -105,6 +111,13 @@ def test_lz4_block_back_reference() -> None:
     # seq2: final literals-only token (0 literals) ends the block per LZ4 spec.
     block = bytes([0x14, ord("A"), 0x01, 0x00, 0x00])
     assert lz4_block_decompress(block) == b"A" * 9
+
+
+def test_lz4_block_rejects_output_over_limit() -> None:
+    block = bytes([0x14, ord("A"), 0x01, 0x00, 0x00])
+
+    with pytest.raises(RoborockException, match="maximum output size"):
+        lz4_block_decompress(block, max_output_size=8)
 
 
 def test_is_map_packet() -> None:
@@ -356,10 +369,29 @@ def test_parse_trace_rejects_misaligned_points() -> None:
         parse_trace_packet(b"\x02\x01" + b"\x00" * 12 + b"\x01\x02\x03")
 
 
+@pytest.mark.parametrize("declared_count", [0, 2])
+def test_parse_trace_rejects_declared_count_mismatch(declared_count: int) -> None:
+    """An aligned body cannot silently disagree with the firmware count."""
+    payload = bytearray(_trace_payload([(10, 20)]))
+    payload[8:10] = declared_count.to_bytes(2, "big")
+
+    with pytest.raises(RoborockException, match="point count"):
+        parse_trace_packet(bytes(payload))
+
+
 def test_parse_rejects_bad_layout_length() -> None:
     payload = bytearray(_payload())
     payload[27:29] = (0xFFFF).to_bytes(2, "big")  # compressed length past the buffer
     with pytest.raises(RoborockException, match="invalid layout block length"):
+        parse_map_packet(bytes(payload))
+
+
+def test_parse_rejects_unreasonable_header_dimensions() -> None:
+    payload = bytearray(_payload())
+    payload[7:9] = (65535).to_bytes(2, "big")
+    payload[9:11] = (65535).to_bytes(2, "big")
+
+    with pytest.raises(RoborockException, match="supported grid size"):
         parse_map_packet(bytes(payload))
 
 
@@ -385,6 +417,43 @@ def _carpet_tail(width: int, height: int, carpet: bytes, erase: bytes = bytes([0
     """Build a packet tail: an erase section followed by a carpet-mask section."""
     block = _literal_lz4_block(carpet)
     return erase + (width * height).to_bytes(4, "big") + len(block).to_bytes(2, "big") + block
+
+
+def _map_detail_payload(
+    marker: bytes,
+    points: list[tuple[int, int]],
+    *,
+    obstacles: list[tuple[int, int]] | None = None,
+    skip_cleaning_points: list[tuple[int, int]] | None = None,
+    version: int = 1,
+    opaque_value: int = 2,
+    heading: int = 3,
+    reserved: int = 0,
+    trailing: bytes = b"",
+) -> bytes:
+    """Build a neutral synthetic detail packet from the existing map fixture."""
+    obstacle_points = obstacles or []
+    skipped_points = skip_cleaning_points or []
+    obstacle_table = bytes([len(obstacle_points)]) + b"".join(
+        x.to_bytes(2, "big", signed=True) + y.to_bytes(2, "big", signed=True) for x, y in obstacle_points
+    )
+    skip_table = bytes([len(skipped_points)]) + b"".join(
+        x.to_bytes(2, "big", signed=True) + y.to_bytes(2, "big", signed=True) for x, y in skipped_points
+    )
+    header = (
+        version.to_bytes(1, "big")
+        + opaque_value.to_bytes(4, "big")
+        + len(points).to_bytes(4, "big")
+        + heading.to_bytes(2, "big", signed=True)
+        + reserved.to_bytes(2, "big")
+    )
+    point_table = b"".join(x.to_bytes(2, "big", signed=True) + y.to_bytes(2, "big", signed=True) for x, y in points)
+    history = header + point_table
+    payload = bytearray(
+        FIXTURE.read_bytes() + _carpet_tail(8, 6, bytes(48)) + obstacle_table + skip_table + history + trailing
+    )
+    payload[:2] = marker
+    return bytes(payload)
 
 
 def test_parse_carpet_mask_from_map_packet_tail() -> None:
@@ -413,6 +482,145 @@ def test_parse_carpet_mask_from_map_packet_tail() -> None:
 
 def test_parse_map_packet_without_carpet() -> None:
     assert parse_map_packet(FIXTURE.read_bytes()).carpet_mask is None
+
+
+def test_parse_obstacles_and_skip_cleaning_points_before_historical_trace() -> None:
+    """Each post-carpet point table is bounded before the 03 path header."""
+    packet = parse_map_packet(
+        _map_detail_payload(
+            b"\x03\x01",
+            [(11, -12), (13, -14)],
+            obstacles=[(250, -300), (-32768, 32767)],
+            skip_cleaning_points=[(-40, 50)],
+        )
+    )
+
+    assert packet.obstacles == [Q10Obstacle(250, -300), Q10Obstacle(-32768, 32767)]
+    assert packet.skip_cleaning_points == [Q10Point(-40, 50)]
+    assert packet.historical_trace is not None
+    assert packet.historical_trace.points == [Q10Point(11, -12), Q10Point(13, -14)]
+
+
+@pytest.mark.parametrize("marker", [b"\x01\x01", b"\x04\x01"])
+def test_obstacles_are_decoded_for_current_and_saved_maps(marker: bytes) -> None:
+    """Obstacle metadata belongs to the map package, not only clean history."""
+    packet = parse_map_packet(
+        _map_detail_payload(
+            marker,
+            [],
+            obstacles=[(100, 200)],
+            skip_cleaning_points=[(30, -40)],
+        )
+    )
+
+    assert packet.obstacles == [Q10Obstacle(100, 200)]
+    assert packet.skip_cleaning_points == [Q10Point(30, -40)]
+    assert packet.historical_trace is None
+
+
+def test_empty_obstacle_sections_do_not_consume_historical_header() -> None:
+    packet = parse_map_packet(_map_detail_payload(b"\x03\x01", [(10, -20)]))
+
+    assert packet.obstacles == []
+    assert packet.skip_cleaning_points == []
+    assert packet.historical_trace is not None
+    assert packet.historical_trace.points == [Q10Point(10, -20)]
+
+
+@pytest.mark.parametrize(
+    "section",
+    [
+        b"\x02\x00\x01\x00\x02",  # two obstacles declared, only one present
+        b"\x00\x02\x00\x01\x00\x02",  # two skip points declared, only one present
+    ],
+)
+def test_truncated_obstacle_sections_are_ignored(section: bytes) -> None:
+    """A partial point table is never reinterpreted as a later section."""
+    payload = bytearray(FIXTURE.read_bytes() + _carpet_tail(8, 6, bytes(48)) + section)
+    payload[:2] = b"\x03\x01"
+
+    packet = parse_map_packet(bytes(payload))
+
+    assert packet.obstacles == []
+    assert packet.skip_cleaning_points == []
+    assert packet.historical_trace is None
+
+
+def test_classify_current_clean_record_and_saved_map_packets() -> None:
+    """All known map markers retain an explicit semantic kind."""
+    current = FIXTURE.read_bytes()
+    clean_record = _map_detail_payload(b"\x03\x01", [(10, -20)])
+    saved_map = _map_detail_payload(b"\x04\x01", [(10, -20)])
+
+    assert is_map_packet(current)
+    assert is_clean_record_map_packet(clean_record)
+    assert is_saved_map_packet(saved_map)
+    assert parse_map_packet(current).kind is Q10MapPacketKind.CURRENT
+    assert parse_map_packet(clean_record).kind is Q10MapPacketKind.CLEAN_RECORD_DETAIL
+    assert parse_map_packet(saved_map).kind is Q10MapPacketKind.SAVED_MAP_DETAIL
+
+
+def test_parse_clean_record_historical_trace_with_unknown_tail() -> None:
+    """The bounded historical path is decoded without interpreting later bytes."""
+    packet = parse_map_packet(_map_detail_payload(b"\x03\x01", [(10, -20), (-30, 40)], trailing=b"future-section"))
+
+    assert packet.historical_trace is not None
+    assert [(point.x, point.y) for point in packet.historical_trace.points] == [(10, -20), (-30, 40)]
+    assert packet.historical_trace.version == 1
+    assert packet.historical_trace.opaque_value == 2
+    assert packet.historical_trace.heading == 3
+    assert packet.historical_trace.robot_position == Q10Point(-30, 40)
+
+
+def test_zero_point_historical_trace_with_following_section() -> None:
+    """A zero-point path remains valid when a later section follows it."""
+    packet = parse_map_packet(_map_detail_payload(b"\x03\x01", [], trailing=b"recorded-path"))
+
+    assert packet.historical_trace is not None
+    assert packet.historical_trace.points == []
+
+
+def test_historical_trace_is_not_inferred_for_other_packet_kinds() -> None:
+    """The validated ``03 01`` layout is not assumed for current or saved maps."""
+    current = parse_map_packet(_map_detail_payload(b"\x01\x01", [(10, -20)]))
+    saved_map = parse_map_packet(_map_detail_payload(b"\x04\x01", [(10, -20)]))
+
+    assert current.historical_trace is None
+    assert saved_map.historical_trace is None
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"version": 2},
+        {"reserved": 1},
+    ],
+)
+def test_unsupported_historical_trace_header_is_ignored(kwargs: dict[str, Any]) -> None:
+    payload = _map_detail_payload(b"\x03\x01", [(10, -20)], **kwargs)
+    packet = parse_map_packet(payload)
+
+    assert packet.historical_trace is None
+
+
+def test_truncated_historical_trace_is_ignored() -> None:
+    payload = _map_detail_payload(b"\x03\x01", [(10, -20)])[:-2]
+    packet = parse_map_packet(payload)
+
+    assert packet.historical_trace is None
+
+
+def test_invalid_erase_section_is_ignored() -> None:
+    """An invalid erase header cannot become an anchor for later sections."""
+    tail = b"\x01\xffopaque-tail"
+    payload = bytearray(FIXTURE.read_bytes() + tail)
+    payload[:2] = b"\x03\x01"
+
+    packet = parse_map_packet(bytes(payload))
+
+    assert packet.erase_zones == []
+    assert packet.carpet_mask is None
+    assert packet.historical_trace is None
 
 
 def test_carpet_mask_ignored_when_uncompressed_len_mismatches() -> None:
