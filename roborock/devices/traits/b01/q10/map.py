@@ -7,10 +7,10 @@ Map-related state arrives on three independent streams:
 * restricted zones, virtual walls and dock state arrive as ordinary DPS values.
 
 ``MapDpsTrait`` owns the low-level map-specific DPS read model.
-``MapContentTrait`` uses a stored ID from ``MapsTrait`` only when it requests
-content. It combines the latest map and trace packets with the map DPS state
-through the pure functions in :mod:`roborock.map.b01_q10_render`. Map-list
-updates do not refresh content.
+``MapContentTrait`` requests a current-map push through ``REQUEST_DPS`` and
+combines the latest map and trace packets with the map DPS state through the
+pure functions in :mod:`roborock.map.b01_q10_render`. Saved-map list/detail
+operations remain on ``MapsTrait``.
 """
 
 import logging
@@ -24,6 +24,7 @@ from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
     B01Q10MapParserConfig,
     Q10MapPacket,
+    Q10MapPacketKind,
     Q10Point,
     Q10Room,
     Q10TracePacket,
@@ -33,7 +34,6 @@ from roborock.map.b01_q10_render import Q10MapOverlays, render_q10_map
 
 from .command import CommandTrait
 from .common import UpdatableTrait
-from .maps import MapsTrait
 
 _LOGGER = logging.getLogger(__name__)
 _DOCKED_STATES = {YXDeviceState.CHARGING, YXDeviceState.EMPTYING_THE_BIN}
@@ -83,15 +83,13 @@ class MapContentTrait(TraitUpdateListener):
     """High-level composed Q10 map view.
 
     The latest map and trace packets are combined with the injected
-    :class:`MapDpsTrait` whenever a source changes. The
-    :class:`MapsTrait` supplies a stored ID only when this trait requests
-    content.
+    :class:`MapDpsTrait` whenever a source changes. Current-map acquisition is
+    independent of the saved-map list.
     """
 
     def __init__(
         self,
         map_dps: MapDpsTrait,
-        maps: MapsTrait,
         command: CommandTrait,
         *,
         map_parser_config: B01Q10MapParserConfig | None = None,
@@ -99,33 +97,37 @@ class MapContentTrait(TraitUpdateListener):
         TraitUpdateListener.__init__(self, logger=_LOGGER)
         self._config = map_parser_config or B01Q10MapParserConfig()
         self._map_dps = map_dps
-        self._maps = maps
         self._command = command
         self._map_packet: Q10MapPacket | None = None
         self._trace_packet: Q10TracePacket | None = None
         self._image_content: bytes | None = None
+        self._map_revision = 0
+        self._trace_revision = 0
         self._map_dps.add_update_listener(self._map_dps_updated)
 
     async def refresh(self) -> None:
-        """Request content for the first map in the latest saved-map list."""
-        if (map_id := self._maps.current_map_id) is None:
-            raise RoborockException("Cannot request Q10 map content before the map list is available")
-        # Map lists and map content can change at different times. Reuse the
-        # stored ID so a content refresh does not also refresh the list.
-        await self._command.send(
-            B01_Q10_DP.COMMON,
-            {
-                str(B01_Q10_DP.MULTI_MAP.code): {
-                    "op": "get",
-                    "id": map_id,
-                }
-            },
-        )
+        """Request a safe asynchronous current-map/status push.
+
+        Some ss07 firmware treats ``dpMultiMap op:get`` as an active
+        cleaning/relocation command. ``REQUEST_DPS`` is the device's read-only
+        current-map request and does not depend on a saved-map ID.
+        """
+        await self._command.send(B01_Q10_DP.REQUEST_DPS, params={})
 
     @property
     def image_content(self) -> bytes | None:
         """The composed map PNG, if the latest map rendered successfully."""
         return self._image_content
+
+    @property
+    def map_revision(self) -> int:
+        """Monotonic revision incremented only by current-map packets."""
+        return self._map_revision
+
+    @property
+    def trace_revision(self) -> int:
+        """Monotonic revision incremented only by live-trace state changes."""
+        return self._trace_revision
 
     @property
     def rooms(self) -> list[Q10Room]:
@@ -149,18 +151,28 @@ class MapContentTrait(TraitUpdateListener):
 
     def update_from_map_packet(self, packet: Q10MapPacket) -> None:
         """Store a map-protocol update and render the latest sources."""
+        if packet.kind is not Q10MapPacketKind.CURRENT:
+            raise ValueError(f"Expected a current Q10 map packet, got {packet.kind.value}")
         self._map_packet = packet
+        self._map_revision += 1
         self._render()
         self._notify_update()
 
     def update_from_trace_packet(self, packet: Q10TracePacket) -> None:
         """Store a trace-protocol update and render the latest sources."""
-        self._trace_packet = packet
+        self._trace_packet = None if self._map_dps.robot_at_dock else packet
+        self._trace_revision += 1
         self._render()
         self._notify_update()
 
     def _map_dps_updated(self) -> None:
         """Render after the low-level map DPS source changes."""
+        if self._map_dps.robot_at_dock and self._trace_packet is not None:
+            # A completed cleaning trace is not the current robot position once
+            # the device is docked. Clear the public live-path state even if the
+            # firmware does not send its usual zero-point trace.
+            self._trace_packet = None
+            self._trace_revision += 1
         if self._map_packet is None:
             return
         self._render()
