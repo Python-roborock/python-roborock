@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v7.2.0 (2026-08-31)
+
+### Features
+
+- Add device info and test data for Roborock Q Revo (a75)
+  ([#926](https://github.com/Python-roborock/python-roborock/pull/926),
+  [`d2cda89`](https://github.com/Python-roborock/python-roborock/commit/d2cda89dd7b998109164d651b5d1d7f4535b600e))
+
+
 ## v7.1.1 (2026-08-22)
 
 ### Bug Fixes
