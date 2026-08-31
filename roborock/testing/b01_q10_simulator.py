@@ -1,5 +1,6 @@
 """Stateful simulator for Roborock Q10 (B01) devices."""
 
+import base64
 import copy
 import json
 import logging
@@ -90,6 +91,37 @@ class Q10VacuumSimulator(RoborockDeviceSimulator):
         )
         super().__init__(duid, device_info, product, has_local_channel=False)
         self.status = copy.deepcopy(status or DEFAULT_Q10_STATUS)
+        self._room_clean_settings: dict[int, tuple[int, int, int, int, int]] = {1: (1, 3, 1, 2, 2)}
+
+    def _complete_room_clean_payload(self) -> str:
+        """Build the simulator's complete ``dpCustomerClean`` response."""
+        payload = bytearray((len(self._room_clean_settings),))
+        for room_id, (fan, water, clean_type, count, line) in self._room_clean_settings.items():
+            properties = bytearray(26)
+            properties[0:2] = room_id.to_bytes(2, "big")
+            properties[3:5] = b"\xff\xff"
+            properties[5:7] = count.to_bytes(2, "big")
+            properties[7:10] = bytes((clean_type, fan, water))
+            properties[10] = 0xFF
+            properties[11] = line
+            name = f"Room {room_id}".encode()
+            payload.extend(properties)
+            payload.extend(bytes((len(name),)) + name + bytes(19 - len(name)))
+            payload.append(0)
+        return base64.b64encode(payload).decode()
+
+    def _apply_compact_room_clean_payload(self, value: str) -> bool:
+        """Apply a valid compact room-settings write to simulator state."""
+        try:
+            raw = base64.b64decode(value, validate=True)
+        except (ValueError, TypeError):
+            return False
+        if not raw or len(raw) != 1 + raw[0] * 6:
+            return False
+        for offset in range(1, len(raw), 6):
+            room_id, fan, water, clean_type, count, line = raw[offset : offset + 6]
+            self._room_clean_settings[room_id] = (fan, water, clean_type, count, line)
+        return True
 
     async def _handle_publish(self, message: RoborockMessage, channel: Any) -> None:
         """Process incoming Q10 RPC command payload."""
@@ -112,6 +144,29 @@ class Q10VacuumSimulator(RoborockDeviceSimulator):
             try:
                 code = int(code_str)
             except ValueError:
+                continue
+
+            if code == 101 and isinstance(params, dict):
+                common = self.status[101]
+                if not isinstance(common, dict):
+                    continue
+                changed: dict[int, Any] = {}
+                for nested_code_raw, nested_value in params.items():
+                    try:
+                        nested_code = int(nested_code_raw)
+                    except (TypeError, ValueError):
+                        continue
+                    if nested_code == 62 and isinstance(nested_value, str):
+                        if self._apply_compact_room_clean_payload(nested_value):
+                            common[nested_code] = nested_value
+                            changed[nested_code] = nested_value
+                    elif nested_code == 63 and nested_value == 0:
+                        changed[62] = self._complete_room_clean_payload()
+                    elif nested_code in (25, 26, 37, 47, 50, 77, 78):
+                        common[nested_code] = nested_value
+                        changed[nested_code] = nested_value
+                if changed:
+                    updated_dps[101] = changed
                 continue
 
             # Command: REQUEST_DPS (102) -> trigger status push
@@ -172,6 +227,11 @@ class Q10VacuumSimulator(RoborockDeviceSimulator):
             elif code == 124:
                 self.status[124] = params
                 updated_dps[124] = params
+
+            # Command: CLEAN_COUNT (136)
+            elif code == 136:
+                self.status[136] = params
+                updated_dps[136] = params
 
             # Command: CLEAN_MODE (137)
             elif code == 137:
