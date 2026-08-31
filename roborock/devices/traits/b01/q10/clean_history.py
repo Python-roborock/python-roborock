@@ -22,6 +22,16 @@ from roborock.data.b01_q10.b01_q10_code_mappings import (
     YXStartMethod,
 )
 from roborock.data.b01_q10.b01_q10_containers import Q10CleanRecord
+from roborock.exceptions import RoborockException
+from roborock.map.b01_q10_map_parser import (
+    B01Q10MapParserConfig,
+    Q10HistoricalTracePacket,
+    Q10MapPacket,
+    Q10MapPacketKind,
+    Q10Obstacle,
+    Q10Point,
+)
+from roborock.map.b01_q10_render import Q10MapOverlays, render_q10_map
 
 from .command import CommandTrait
 from .common import UpdatableTrait
@@ -115,12 +125,28 @@ class CleanHistoryTrait(UpdatableTrait):
     or a single ``op:"notify"`` record) rather than a flat data-point-to-field map.
     """
 
-    def __init__(self, command: CommandTrait) -> None:
+    _command: CommandTrait
+
+    def __init__(
+        self,
+        command: CommandTrait,
+        *,
+        map_parser_config: B01Q10MapParserConfig | None = None,
+    ) -> None:
         """Initialize the clean history trait."""
         UpdatableTrait.__init__(self, command, _LOGGER)
+        self._command = command
         self._converter = CleanRecordConverter()
+        self._map_parser_config = map_parser_config or B01Q10MapParserConfig()
         self.records: list[Q10CleanRecord] = []
         """Decoded clean records, most recent first."""
+        self.detail_packet: Q10MapPacket | None = None
+        """Most recently pushed ``03 01`` clean-record map detail."""
+        self.detail_record: Q10CleanRecord | None = None
+        """Record associated with :attr:`detail_packet`, when requested here."""
+        self.detail_image_content: bytes | None = None
+        """Rendered clean-record detail image, if decoding succeeded."""
+        self._pending_detail_record: Q10CleanRecord | None = None
 
     @property
     def last_record(self) -> Q10CleanRecord | None:
@@ -134,12 +160,51 @@ class CleanHistoryTrait(UpdatableTrait):
         asynchronously on the device stream and populate :attr:`records` once
         :meth:`update_from_dps` processes the ``dpCleanRecord`` push.
         """
-        if self._command is None:
-            raise ValueError("Trait is read-only; no command channel was provided")
         await self._command.send(
             B01_Q10_DP.COMMON,
             params={str(B01_Q10_DP.CLEAN_RECORD.code): {"op": "list"}},
         )
+
+    async def refresh_detail(self, record: Q10CleanRecord) -> None:
+        """Request the saved map and path for one clean record.
+
+        The complete 12-field raw record is the firmware's detail identifier;
+        the shorter human-facing record ID is not accepted. Only one request
+        may be outstanding because ``03 01`` responses carry no correlation ID.
+        """
+        if not record.raw or not record.map_len:
+            raise RoborockException("The Q10 clean record has no saved map detail")
+        if self._pending_detail_record is not None:
+            raise RoborockException("A Q10 clean-record detail request is already pending")
+        self._pending_detail_record = record
+        try:
+            await self._command.send(
+                B01_Q10_DP.COMMON,
+                params={
+                    str(B01_Q10_DP.CLEAN_RECORD.code): {
+                        "op": "select",
+                        "id": record.raw,
+                    }
+                },
+            )
+        except RoborockException:
+            self._pending_detail_record = None
+            raise
+
+    @property
+    def detail_trace(self) -> Q10HistoricalTracePacket | None:
+        """Historical path embedded in the selected clean-record detail."""
+        return self.detail_packet.historical_trace if self.detail_packet else None
+
+    @property
+    def detail_path(self) -> list[Q10Point]:
+        """Historical path points for the selected clean record."""
+        return self.detail_trace.points if self.detail_trace else []
+
+    @property
+    def detail_obstacles(self) -> list[Q10Obstacle]:
+        """Obstacle markers embedded in the selected clean-record map."""
+        return list(self.detail_packet.obstacles) if self.detail_packet else []
 
     def update_from_dps(self, decoded_dps: dict[B01_Q10_DP, Any]) -> None:
         """Apply a ``dpCleanRecord`` push (a full list reply or a single notify)."""
@@ -150,6 +215,25 @@ class CleanHistoryTrait(UpdatableTrait):
         if push is None:
             return
         self._apply(push)
+
+    def update_from_map_packet(self, packet: Q10MapPacket) -> None:
+        """Store and render a pushed clean-record detail map."""
+        if packet.kind is not Q10MapPacketKind.CLEAN_RECORD_DETAIL:
+            raise ValueError(f"Expected a Q10 clean-record detail packet, got {packet.kind.value}")
+        self.detail_record = self._pending_detail_record
+        self._pending_detail_record = None
+        self.detail_packet = packet
+        try:
+            self.detail_image_content = render_q10_map(
+                packet,
+                packet.historical_trace,
+                Q10MapOverlays(),
+                config=self._map_parser_config,
+            )
+        except RoborockException:
+            _LOGGER.debug("Failed to render Q10 clean-record detail", exc_info=True)
+            self.detail_image_content = None
+        self._notify_update()
 
     def _apply(self, push: CleanRecordPush) -> None:
         """Merge or replace the records from ``push``, then sort newest-first and notify."""

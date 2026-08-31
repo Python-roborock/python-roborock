@@ -16,11 +16,11 @@ drawing) and the calibration policy live here, next to the rest of the map code.
 import io
 import math
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from vacuum_map_parser_base.config.drawable import Drawable
 from vacuum_map_parser_base.config.size import Size, Sizes
-from vacuum_map_parser_base.map_data import Area, MapData, Path, Point, Wall
+from vacuum_map_parser_base.map_data import Area, MapData, Obstacle, ObstacleDetails, Path, Point, Wall
 
 from roborock.exceptions import RoborockException
 
@@ -28,20 +28,23 @@ from .b01_grid_layers import (
     GridCalibration,
     GridLayers,
     solve_calibration,
-    solve_calibration_with_origin,
 )
 from .b01_q10_map_parser import (
     B01Q10MapParser,
     B01Q10MapParserConfig,
     Q10EraseZone,
+    Q10HistoricalTracePacket,
     Q10MapPacket,
+    Q10Point,
+    Q10Room,
     Q10TracePacket,
     erased_packet,
 )
 from .b01_q10_overlays import ZONE_TYPE_NO_GO, ZONE_TYPE_NO_MOP, Q10Zone
 from .map_parser import DEFAULT_DRAWABLES, MapParserConfig, _create_image_generator
 
-# Path-units-per-pixel candidates for calibration. A dense ss07 path lands a
+# Path-units-per-pixel candidates for packets without usable header metadata.
+# A dense ss07 path lands a
 # best fit of 20.0 around the header origin -- ground-truthed June 2026 on the
 # R1: a corridor drive registered at 20 (matching the format author's
 # independent "20 path-units/px"), and the dock->corridor span lined up with the
@@ -55,18 +58,18 @@ _Q10_RESOLUTIONS = [step * 0.5 for step in range(24, 53)]  # 12.0 .. 26.0
 # erase/restriction vectors use 5 mm units: one header unit therefore equals
 # two vector units. Trace points use a separate 2.5 mm coordinate scale.
 _Q10_VECTOR_UNITS_PER_HEADER_RESOLUTION_UNIT = 2.0
+# The grid header's resolution is centimetres per pixel, while live trace
+# coordinates are 2.5 mm units. One header unit therefore spans four trace
+# units (5 cm/pixel -> 20 trace units/pixel for the observed resolution 5).
+_Q10_TRACE_UNITS_PER_HEADER_RESOLUTION_UNIT = 4.0
 # A path needs enough shape to constrain a full (origin + resolution) fit; a few
 # points cannot.
 _MIN_CALIBRATION_POINTS = 20
-# When the grid-frame header supplies the origin, only the resolution is fit, so
-# a much shorter path suffices to confirm it (early in a clean, not just a dense
-# one). See :func:`solve_calibration_with_origin`.
-_MIN_HEADER_CALIBRATION_POINTS = 4
-
 _Q10_DRAWABLE_TYPES = {
     Drawable.CHARGER,
     Drawable.NO_GO_AREAS,
     Drawable.NO_MOPPING_AREAS,
+    Drawable.OBSTACLES,
     Drawable.PATH,
     Drawable.VACUUM_POSITION,
     Drawable.VIRTUAL_WALLS,
@@ -84,7 +87,7 @@ class Q10MapOverlays:
 
 def render_q10_map(
     packet: Q10MapPacket,
-    trace: Q10TracePacket | None,
+    trace: Q10TracePacket | Q10HistoricalTracePacket | None,
     overlays: Q10MapOverlays,
     *,
     config: B01Q10MapParserConfig,
@@ -114,7 +117,7 @@ def render_q10_map(
         raise RoborockException("Failed to render Q10 map image")
     map_data = parsed.map_data
 
-    has_drawables = False
+    has_drawables = _place_obstacles(map_data, packet)
     if trace_calibration is not None and trace is not None:
         charger_heading = packet.header_calibration.charger_phi if packet.header_calibration is not None else None
         _place_trace(map_data, trace_calibration, trace, charger_heading=charger_heading)
@@ -131,36 +134,155 @@ def render_q10_map(
     return parsed.image_content
 
 
+def _obstacle_calibration(packet: Q10MapPacket) -> GridCalibration | None:
+    """Build the obstacle-table transform from the map header.
+
+    Q10 obstacle positions use 50 raw units per occupancy-grid pixel, unlike
+    the 5 mm restriction vectors and 2.5 mm cleaning traces.
+    """
+    header = packet.header_calibration
+    if header is None or (origin := header.origin_pixels()) is None:
+        return None
+    return GridCalibration(resolution=50.0, origin_x=origin[0], origin_y=origin[1], y_sign=1)
+
+
+def _place_obstacles(map_data: MapData, packet: Q10MapPacket) -> bool:
+    """Project position-only Q10 obstacle markers into shared ``MapData``."""
+    calibration = _obstacle_calibration(packet)
+    if calibration is None or not packet.obstacles:
+        return False
+    map_data.obstacles = [
+        Obstacle(*calibration.world_to_pixel(obstacle.x, obstacle.y), ObstacleDetails())
+        for obstacle in packet.obstacles
+    ]
+    return True
+
+
 def solve_q10_calibration(
     packet: Q10MapPacket,
-    trace: Q10TracePacket | None,
+    trace: Q10TracePacket | Q10HistoricalTracePacket | None,
 ) -> GridCalibration | None:
     """Derive world-to-pixel calibration from a map and its current trace.
 
-    When the map packet's grid-frame header carries a calibration origin (ss07),
-    only the resolution is fit -- around that fixed origin -- so a short path
-    suffices and the origin is exact rather than recovered by a slide. Otherwise
-    the full origin + resolution fit is used, which needs a reasonably dense
-    cleaning path. Returns ``None`` if the path is too short/featureless to fit.
+    When the map packet carries usable ss07 header metadata, its fixed origin
+    and resolution are authoritative and work from the first live pose. Older
+    or incomplete packets fall back to a full origin/resolution fit, which needs
+    a reasonably dense cleaning path. Returns ``None`` when neither is usable.
     """
-    if trace is None:
+    if trace is None or not trace.points:
         return None
+    if calibration := _trace_calibration_from_header_metadata(packet, trace.points):
+        return calibration
     points: list[tuple[float, float]] = [(point.x, point.y) for point in trace.points]
-    return _calibration_from_header(packet, points) or _calibration_from_fit(packet.layers, points)
+    return _calibration_from_fit(packet.layers, points)
 
 
-def _calibration_from_header(
+def _trace_calibration_from_header_metadata(
     packet: Q10MapPacket,
-    points: list[tuple[float, float]],
+    points: Sequence[Q10Point],
 ) -> GridCalibration | None:
-    """Calibrate around the header-supplied origin (resolution fit to a path)."""
-    header_calibration = packet.header_calibration
-    if header_calibration is None or len(points) < _MIN_HEADER_CALIBRATION_POINTS:
+    """Build the live-trace transform directly from validated header metadata."""
+    header = packet.header_calibration
+    if header is None or header.resolution <= 0 or (origin := header.origin_pixels()) is None:
         return None
-    origin = header_calibration.origin_pixels()
-    if origin is None:  # keepalive frame -- no usable origin
+    resolution = header.resolution * _Q10_TRACE_UNITS_PER_HEADER_RESOLUTION_UNIT
+    if not min(_Q10_RESOLUTIONS) <= resolution <= max(_Q10_RESOLUTIONS):
         return None
-    return solve_calibration_with_origin(packet.layers, points, origin, resolutions=_Q10_RESOLUTIONS)
+    calibration = GridCalibration(
+        resolution=resolution,
+        origin_x=origin[0],
+        origin_y=origin[1],
+        y_sign=1,
+    )
+    return calibration if _trace_projects_onto_floor(packet.layers, points, calibration) else None
+
+
+def _trace_projects_onto_floor(
+    layers: GridLayers,
+    points: Sequence[Q10Point],
+    calibration: GridCalibration,
+) -> bool:
+    """Validate header calibration against a bounded sample of trace points."""
+    if not points:
+        return False
+    stride = max(1, len(points) // 256)
+    sample = points[::stride]
+    on_floor = 0
+    for point in sample:
+        pixel_x, pixel_y = calibration.world_to_pixel(point.x, point.y)
+        if not math.isfinite(pixel_x) or not math.isfinite(pixel_y):
+            continue
+        column, row = math.floor(pixel_x), math.floor(pixel_y)
+        if not (0 <= column < layers.width and 0 <= row < layers.height):
+            continue
+        if layers.cell_class(layers.grid[row * layers.width + column]) == "floor":
+            on_floor += 1
+    return on_floor >= len(sample) * 0.5
+
+
+def _room_at_position(
+    packet: Q10MapPacket,
+    position: Q10Point,
+    calibration: GridCalibration,
+    *,
+    search_radius: int = 2,
+) -> Q10Room | None:
+    """Resolve a live position to a segmented room in the occupancy grid.
+
+    The exact cell wins. A robot centre can briefly land on a wall or doorway
+    pixel, so a small expanding neighbourhood is used only when the exact cell
+    is not segmented. Ambiguous ties stay unknown rather than naming the wrong
+    room.
+    """
+    pixel_x, pixel_y = calibration.world_to_pixel(position.x, position.y)
+    if not math.isfinite(pixel_x) or not math.isfinite(pixel_y):
+        return None
+    column, row = math.floor(pixel_x), math.floor(pixel_y)
+    if not (0 <= column < packet.width and 0 <= row < packet.height):
+        return None
+
+    rooms_by_value = {room.pixel_value: room for room in packet.rooms}
+
+    def room_at(column: int, row: int) -> Q10Room | None:
+        if not (0 <= column < packet.width and 0 <= row < packet.height):
+            return None
+        return rooms_by_value.get(packet.grid[row * packet.width + column])
+
+    if room := room_at(column, row):
+        return room
+
+    for radius in range(1, max(0, search_radius) + 1):
+        room_ids = {
+            candidate.id
+            for nearby_row in range(row - radius, row + radius + 1)
+            for nearby_column in range(column - radius, column + radius + 1)
+            if (candidate := room_at(nearby_column, nearby_row)) is not None
+        }
+        if not room_ids:
+            continue
+        if len(room_ids) != 1:
+            return None
+        room_id = room_ids.pop()
+        return next((room for room in packet.rooms if room.id == room_id), None)
+    return None
+
+
+def resolve_q10_current_room(packet: Q10MapPacket, trace: Q10TracePacket | None) -> Q10Room | None:
+    """Infer the robot's current room from its latest live pose and map grid.
+
+    No authoritative active-segment field has been identified or observed on
+    ss07 firmware. The live trace's final point is the robot pose, and the full
+    map labels every segmented floor cell. Header metadata supplies the fixed
+    transform from trace coordinates to that grid; older/incomplete packets
+    fall back to the path-fit calibration used by rendering.
+    """
+    if trace is None or (position := trace.robot_position) is None:
+        return None
+    calibration = solve_q10_calibration(packet, trace)
+    if calibration is None:
+        return None
+    room = _room_at_position(packet, position, calibration)
+    return replace(room) if room is not None else None
 
 
 def _calibration_from_header_metadata(
@@ -232,7 +354,7 @@ def _erased_cells(
 def _place_trace(
     map_data: MapData,
     calibration: GridCalibration,
-    trace: Q10TracePacket,
+    trace: Q10TracePacket | Q10HistoricalTracePacket,
     *,
     charger_heading: int | None = None,
 ) -> None:
@@ -326,10 +448,10 @@ def _draw_map_content(
     """Draw Q10 content with the shared V1 image generator."""
     if map_data.image is None:
         raise RoborockException("Failed to render Q10 map image")
-    generator = _create_image_generator(
-        MapParserConfig(map_scale=config.map_scale),
-        drawables=_Q10_DRAWABLES,
+    drawables = (
+        _Q10_DRAWABLES if config.drawables is None else [d for d in config.drawables if d in _Q10_DRAWABLE_TYPES]
     )
+    generator = _create_image_generator(MapParserConfig(map_scale=config.map_scale), drawables=drawables)
     generator.draw_map(map_data)
     buffer = io.BytesIO()
     map_data.image.data.save(buffer, format="PNG")

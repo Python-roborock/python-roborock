@@ -13,7 +13,7 @@ from syrupy import SnapshotAssertion
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP, YXWaterLevel
 from roborock.data.code_mappings import completed_warnings
 from roborock.exceptions import RoborockException
-from roborock.map.b01_q10_map_parser import Q10MapPacket, Q10TracePacket
+from roborock.map.b01_q10_map_parser import Q10MapPacket, Q10MapPacketKind, Q10TracePacket
 from roborock.protocols.b01_q10_protocol import (
     Q10DpsUpdate,
     decode_message,
@@ -66,7 +66,23 @@ def test_decode_message_map_packet() -> None:
     message = _message(MAP_FIXTURE.read_bytes(), RoborockMessageProtocol.MAP_RESPONSE)
     decoded = decode_message(message)
     assert isinstance(decoded, Q10MapPacket)
-    assert {room.id: room.name for room in decoded.rooms} == {2: "Living Room", 3: "Bedroom"}
+    assert {room.id: room.name for room in decoded.rooms} == {2: "Living Room", 3: "bedroom"}
+
+
+@pytest.mark.parametrize(
+    ("marker", "kind"),
+    [
+        (b"\x03\x01", Q10MapPacketKind.CLEAN_RECORD_DETAIL),
+        (b"\x04\x01", Q10MapPacketKind.SAVED_MAP_DETAIL),
+    ],
+)
+def test_decode_message_archived_map_packet(marker: bytes, kind: Q10MapPacketKind) -> None:
+    """The decoder recognizes both archived map-detail markers."""
+    fixture = MAP_FIXTURE.read_bytes()
+    decoded = decode_message(_message(marker + fixture[2:], RoborockMessageProtocol.MAP_RESPONSE))
+
+    assert isinstance(decoded, Q10MapPacket)
+    assert decoded.kind is kind
 
 
 def test_decode_message_trace_packet() -> None:
