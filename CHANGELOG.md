@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v7.2.1 (2026-08-31)
+
+### Bug Fixes
+
+- Keep Q10 map vectors stable during live updates
+  ([#932](https://github.com/Python-roborock/python-roborock/pull/932),
+  [`c947ec5`](https://github.com/Python-roborock/python-roborock/commit/c947ec51ea7ea45c701e8f12a14bd900d3bc997b))
+
+
 ## v7.2.0 (2026-08-31)
 
 ### Features
