@@ -187,6 +187,7 @@ async def test_dyad_query_values_updates_values(dyad_api: DyadApi, fake_channel:
         RoborockDyadDataProtocol.STATUS: "self_clean_deep_cleaning",
         RoborockDyadDataProtocol.POWER: 80,
     }
+    assert dyad_api.last_message_time is not None
 
 
 async def test_dyad_query_response_does_not_overwrite_newer_push(dyad_api: DyadApi, fake_channel: FakeChannel):

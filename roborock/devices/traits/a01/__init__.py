@@ -6,7 +6,7 @@ Dyad (Wet/Dry Vacuums) and Zeo (Washing Machines).
 Using A01 APIs
 --------------
 A01 devices expose a single API object that handles all device interactions. This API is
-available on the device instance (typically via `device.a01_properties`).
+available on the device instance (`device.dyad` or `device.zeo`).
 
 The API provides these methods:
 1.  **query_values(protocols)**: Fetches current state for specific data points.
@@ -236,6 +236,18 @@ class A01Api(Trait, TraitUpdateListener, Generic[_P]):
         self._last_message_time = datetime.now(UTC)
         self._merge_values(self._decode_datapoints(datapoints))
 
+    def _merge_query_response(self, values: dict[_P, Any]) -> None:
+        """Record a successful query response when there is no subscription.
+
+        When subscribed, the response was already merged in arrival order and
+        timestamped by `_on_message`; merging again here could overwrite a
+        push that arrived after it.
+        """
+        if self._unsub is not None:
+            return
+        self._last_message_time = datetime.now(UTC)
+        self._merge_values(values)
+
     def _merge_values(self, values: dict[_P, Any]) -> None:
         """Merge decoded values into the cache and notify on change."""
         changed = False
@@ -272,10 +284,7 @@ class DyadApi(A01Api[RoborockDyadDataProtocol]):
             value_encoder=json.dumps,
         )
         values = {protocol: convert_dyad_value(protocol, response.get(protocol)) for protocol in protocols}
-        # When subscribed, the response was already merged in arrival order;
-        # merging again here could overwrite a push that arrived after it.
-        if self._unsub is None:
-            self._merge_values(values)
+        self._merge_query_response(values)
         return values
 
     async def set_value(self, protocol: RoborockDyadDataProtocol, value: Any) -> dict[RoborockDyadDataProtocol, Any]:
@@ -386,10 +395,7 @@ class ZeoApi(A01Api[RoborockZeoProtocol]):
             value_encoder=json.dumps,
         )
         values = {protocol: convert_zeo_value(protocol, response.get(protocol)) for protocol in protocols}
-        # When subscribed, the response was already merged in arrival order;
-        # merging again here could overwrite a push that arrived after it.
-        if self._unsub is None:
-            self._merge_values(values)
+        self._merge_query_response(values)
         return values
 
     async def set_value(self, protocol: RoborockZeoProtocol, value: Any) -> dict[RoborockZeoProtocol, Any]:
