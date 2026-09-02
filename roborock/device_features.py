@@ -4,7 +4,7 @@ from functools import cache
 from typing import Any, Self
 
 from roborock.data.code_mappings import RoborockProductNickname
-from roborock.data.containers import RoborockBase
+from roborock.data.containers import RoborockBase, _decamelize
 from roborock.data.v1 import RoborockDockTypeCode
 
 
@@ -653,6 +653,26 @@ class DeviceFeatures(RoborockBase):
         )
 
         return cls(**kwargs)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Self | None:
+        """Create device features, rejecting incomplete cached capabilities.
+
+        Persisted feature data may have been written by an older version of the
+        library that did not yet know about every capability. Missing boolean
+        fields therefore mean the cached feature set is stale, not that those
+        capabilities are unsupported. Return ``None`` so callers rediscover the
+        complete feature set from the device.
+        """
+        if not isinstance(data, dict):
+            return None
+
+        serialized_fields = {_decamelize(key) for key in data}
+        required_fields = {feature.name for feature in fields(cls) if feature.type is bool}
+        if not required_fields.issubset(serialized_fields):
+            return None
+
+        return super().from_dict(data)
 
     def get_supported_features(self) -> list[str]:
         """Returns a list of supported features (Primarily used for logging purposes)."""
