@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v7.2.3 (2026-09-02)
+
+### Bug Fixes
+
+- Request Q10 maps without starting cleaning
+  ([#933](https://github.com/Python-roborock/python-roborock/pull/933),
+  [`db86533`](https://github.com/Python-roborock/python-roborock/commit/db86533036167c50799bd2b46f852ed59d2e23f8))
+
+
 ## v7.2.2 (2026-09-02)
 
 ### Bug Fixes
