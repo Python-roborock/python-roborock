@@ -11,7 +11,13 @@ from Crypto.Util.Padding import pad
 from PIL import Image
 
 from roborock.exceptions import RoborockException
-from roborock.map.b01_map_parser import B01MapParser, _parse_scmap_payload
+from roborock.map.b01_grid_layers import LAYER_BACKGROUND, LAYER_FLOOR, LAYER_WALL
+from roborock.map.b01_map_parser import (
+    B01MapParser,
+    B01MapParserConfig,
+    _parse_scmap_payload,
+    classify_q7_cell,
+)
 from roborock.map.proto.b01_scmap_pb2 import RobotMap  # type: ignore[attr-defined]
 from roborock.protocols.b01_q7_protocol import create_map_key, decode_map_payload
 
@@ -124,6 +130,29 @@ def test_b01_scmap_parser_maps_observed_schema_fields() -> None:
     assert parsed.roomDataInfo[0].global_seq == 9
     assert parsed.roomDataInfo[1].roomId == 99
     assert not parsed.roomDataInfo[1].HasField("roomName")
+
+
+def test_classify_q7_cell() -> None:
+    assert classify_q7_cell(0) == LAYER_BACKGROUND
+    assert classify_q7_cell(127) == LAYER_WALL
+    assert classify_q7_cell(128) == LAYER_FLOOR
+
+
+def test_b01_map_parser_renders_shared_q7_layer_classes() -> None:
+    """The parser keeps shared layer decomposition behind its public API."""
+    payload = RobotMap()
+    payload.mapHead.sizeX = 2
+    payload.mapHead.sizeY = 2
+    payload.mapData.mapData = bytes([0, 127, 128, 128])
+
+    parsed = B01MapParser(B01MapParserConfig(map_scale=1)).parse(payload.SerializeToString())
+
+    assert parsed.image_content is not None
+    image = Image.open(io.BytesIO(parsed.image_content))
+    assert image.getpixel((0, 0)) == (255, 255, 255)
+    assert image.getpixel((1, 0)) == (255, 255, 255)
+    assert image.getpixel((0, 1)) == (0, 0, 0)
+    assert image.getpixel((1, 1)) == (180, 180, 180)
 
 
 def test_b01_map_parser_rejects_invalid_payload() -> None:

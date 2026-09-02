@@ -15,9 +15,36 @@ from vacuum_map_parser_base.map_data import ImageData, MapData
 from roborock.exceptions import RoborockException
 from roborock.map.proto.b01_scmap_pb2 import RobotMap  # type: ignore[attr-defined]
 
+from .b01_grid_layers import (
+    LAYER_BACKGROUND,
+    LAYER_FLOOR,
+    LAYER_WALL,
+    GridLayers,
+    decompose_grid,
+)
 from .map_parser import ParsedMapData
 
 _MAP_FILE_FORMAT = "PNG"
+
+
+# The Q7 occupancy grid encodes only these classes (no per-room segmentation in
+# the raster -- room ids/names live in the protobuf metadata, not the pixels).
+_Q7_WALL_VALUE = 127
+_Q7_FLOOR_VALUE = 128
+_Q7_RENDER_INTENSITY = {
+    LAYER_BACKGROUND: 0,
+    LAYER_WALL: 180,
+    LAYER_FLOOR: 255,
+}
+
+
+def classify_q7_cell(value: int) -> str:
+    """Map a Q7 SCMap grid cell value to a canonical layer class."""
+    if value == _Q7_WALL_VALUE:
+        return LAYER_WALL
+    if value == _Q7_FLOOR_VALUE:
+        return LAYER_FLOOR
+    return LAYER_BACKGROUND  # 0 = outside / unknown
 
 
 @dataclass
@@ -39,8 +66,9 @@ class B01MapParser:
         parsed = _parse_scmap_payload(payload)
         size_x, size_y, grid = _extract_grid(parsed)
         room_names = _extract_room_names(parsed)
+        layers = decompose_grid(size_x, size_y, grid, [], classify_q7_cell)
 
-        image = _render_occupancy_image(grid, size_x=size_x, size_y=size_y, scale=self._config.map_scale)
+        image = _render_occupancy_image(layers, scale=self._config.map_scale)
 
         map_data = MapData()
         map_data.image = ImageData(
@@ -111,23 +139,15 @@ def _extract_room_names(parsed: RobotMap) -> dict[int, str]:
     return room_names
 
 
-def _render_occupancy_image(grid: bytes, *, size_x: int, size_y: int, scale: int) -> Image.Image:
-    """Render the B01 occupancy grid into a simple image."""
-
-    # The observed occupancy grid contains only:
-    # - 0: outside/unknown
-    # - 127: wall/obstacle
-    # - 128: floor/free
-    table = bytearray(range(256))
-    table[0] = 0
-    table[127] = 180
-    table[128] = 255
-
-    mapped = grid.translate(bytes(table))
-    img = Image.frombytes("L", (size_x, size_y), mapped)
-    img = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM).convert("RGB")
+def _render_occupancy_image(layers: GridLayers, *, scale: int) -> Image.Image:
+    """Render canonical Q7 grid classes into the composed map image."""
+    mapped = bytes(_Q7_RENDER_INTENSITY[layers.cell_class(value)] for value in layers.grid)
+    img = Image.frombytes("L", (layers.width, layers.height), mapped)
+    if layers.flip:
+        img = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+    img = img.convert("RGB")
 
     if scale > 1:
-        img = img.resize((size_x * scale, size_y * scale), resample=Image.Resampling.NEAREST)
+        img = img.resize((layers.width * scale, layers.height * scale), resample=Image.Resampling.NEAREST)
 
     return img
