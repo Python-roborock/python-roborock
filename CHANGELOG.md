@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v7.2.2 (2026-09-02)
+
+### Bug Fixes
+
+- Handle stale features to fix bug
+  ([#940](https://github.com/Python-roborock/python-roborock/pull/940),
+  [`1ea20ad`](https://github.com/Python-roborock/python-roborock/commit/1ea20ad685dabbd35e666b7f93ed5cd0de03d11b))
+
+
 ## v7.2.1 (2026-08-31)
 
 ### Bug Fixes
