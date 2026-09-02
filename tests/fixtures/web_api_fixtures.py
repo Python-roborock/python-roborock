@@ -137,6 +137,41 @@ def mock_rest_fixture(skip_rate_limit: Any, home_data: dict[str, Any]) -> aiores
             status=200,
             payload={"api": None, "code": 200, "result": None, "status": "ok", "success": True},
         )
+        mocked.get(
+            re.compile(r"https://.*roborock\.com/user/inbox(\?.*)?$"),
+            status=200,
+            payload={
+                "api": None,
+                "result": {
+                    "total": 2,
+                    "list": [
+                        {
+                            "id": 2458218464,
+                            "trigger": "NOTIFICATION",
+                            "duid": "abc123",
+                            "subject": "Roborock Q7",
+                            "content": "Battery low. Please charge.",
+                            "extra": '{"templateId":34}',
+                            "read": False,
+                            "createTime": "2026-05-29T14:03:16.542+00:00",
+                        },
+                        {
+                            "id": 2458212274,
+                            "trigger": "NOTIFICATION",
+                            "duid": "abc123",
+                            "subject": "Roborock Q7",
+                            "content": "Cleaning complete. Returning to dock.",
+                            "extra": '{"templateId":24}',
+                            "read": True,
+                            "createTime": "2026-05-23T06:08:39.687+00:00",
+                        },
+                    ],
+                },
+                "status": "ok",
+                "success": True,
+            },
+            repeat=True,
+        )
         mocked.post(
             re.compile(r"https://.*iot\.roborock\.com/api/v4/email/code/send.*"),
             status=200,
