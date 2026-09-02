@@ -1,88 +1,83 @@
-"""Common code for MQTT tests."""
+"""Helpers for tests that use the real EMQX broker."""
 
 import asyncio
-import io
-import logging
-from collections.abc import Callable
-from queue import Queue
+import os
+from collections.abc import Iterable
+
+from zmqtt import MQTTClientV5, Subscription, create_client
 
 from roborock.mqtt.session import MqttParams
 from roborock.roborock_message import RoborockMessage
 
 from .logging import CapturedRequestLog
 
-_LOGGER = logging.getLogger(__name__)
-
-# Used by fixtures to handle incoming requests and prepare responses
-MqttRequestHandler = Callable[[bytes], bytes | None]
+MQTT_HOST = os.getenv("ROBOROCK_TEST_MQTT_HOST", "localhost")
+MQTT_PORT = int(os.getenv("ROBOROCK_TEST_MQTT_PORT", "1888"))
 
 
-class FakeMqttSocketHandler:
-    """Fake socket used by the test to simulate a connection to the broker.
-
-    The socket handler is used to intercept the socket send and recv calls and
-    populate the response buffer with data to be sent back to the client. The
-    handle request callback handles the incoming requests and prepares the responses.
-    """
-
-    def __init__(
-        self, handle_request: MqttRequestHandler, response_queue: Queue[bytes], log: CapturedRequestLog
-    ) -> None:
-        self.response_buf = io.BytesIO()
-        self.handle_request = handle_request
-        self.response_queue = response_queue
-        self.log = log
-        self.client_connected = False
-
-    def pending(self) -> int:
-        """Return the number of bytes in the response buffer."""
-        return len(self.response_buf.getvalue())
-
-    def handle_socket_recv(self, read_size: int) -> bytes:
-        """Intercept a client recv() and populate the buffer."""
-        if self.pending() == 0:
-            raise BlockingIOError("No response queued")
-
-        self.response_buf.seek(0)
-        data = self.response_buf.read(read_size)
-        _LOGGER.debug("Response: 0x%s", data.hex())
-        # Consume the rest of the data in the buffer
-        remaining_data = self.response_buf.read()
-        self.response_buf = io.BytesIO(remaining_data)
-        return data
-
-    def handle_socket_send(self, client_request: bytes) -> int:
-        """Receive an incoming request from the client."""
-        self.client_connected = True
-        _LOGGER.debug("Request: 0x%s", client_request.hex())
-        self.log.add_log_entry("[mqtt >]", client_request)
-        if (response := self.handle_request(client_request)) is not None:
-            # Enqueue a response to be sent back to the client in the buffer.
-            # The buffer will be emptied when the client calls recv() on the socket
-            _LOGGER.debug("Queued: 0x%s", response.hex())
-            self.log.add_log_entry("[mqtt <]", response)
-            self.response_buf.write(response)
-        return len(client_request)
-
-    def push_response(self) -> None:
-        """Push a response to the client."""
-        if not self.response_queue.empty() and self.client_connected:
-            response = self.response_queue.get()
-            # Enqueue a response to be sent back to the client in the buffer.
-            # The buffer will be emptied when the client calls recv() on the socket
-            _LOGGER.debug("Queued: 0x%s", response.hex())
-            self.log.add_log_entry("[mqtt <]", response)
-            self.response_buf.write(response)
-
-
-FAKE_PARAMS = MqttParams(
-    host="localhost",
-    port=1883,
+TEST_MQTT_PARAMS = MqttParams(
+    host=MQTT_HOST,
+    port=MQTT_PORT,
     tls=False,
     username="username",
     password="password",
-    timeout=10.0,
+    timeout=2.0,
 )
+
+
+def create_test_client() -> MQTTClientV5:
+    """Create an MQTT 5 client connected to the test EMQX broker."""
+    return create_client(MQTT_HOST, MQTT_PORT, version="5.0", mqtt_connect_timeout=2.0)
+
+
+class MqttResponder:
+    """Act as a device through the real broker for scripted request/response tests."""
+
+    def __init__(
+        self,
+        request_topic: str,
+        response_topic: str,
+        responses: Iterable[bytes | None],
+        log: CapturedRequestLog | None = None,
+    ) -> None:
+        self._request_topic = request_topic
+        self._response_topic = response_topic
+        self._responses = list(responses)
+        self._log = log
+        self._client = create_test_client()
+        self._subscription: Subscription
+        self._task: asyncio.Task[None] | None = None
+        self.requests: list[bytes] = []
+
+    async def __aenter__(self) -> "MqttResponder":
+        await self._client.connect()
+        self._subscription = self._client.subscribe(self._request_topic)
+        await self._subscription.start()
+        self._task = asyncio.create_task(self._respond())
+        return self
+
+    async def __aexit__(self, *exc: object) -> None:
+        await self._subscription.stop()
+        if self._task is not None:
+            self._task.cancel()
+            await asyncio.gather(self._task, return_exceptions=True)
+        await self._client.disconnect()
+
+    async def _respond(self) -> None:
+        for response in self._responses:
+            message = await self._subscription.get_message()
+            self.requests.append(message.payload)
+            if self._log is not None:
+                self._log.add_log_entry("[mqtt >]", message.payload)
+            if response is not None:
+                if self._log is not None:
+                    self._log.add_log_entry("[mqtt <]", response)
+                await self._client.publish(self._response_topic, response)
+
+    async def wait(self) -> None:
+        """Wait until all scripted requests have been handled."""
+        if self._task is not None:
+            await asyncio.wait_for(asyncio.shield(self._task), timeout=2.0)
 
 
 class Subscriber:

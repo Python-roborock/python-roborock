@@ -1,17 +1,17 @@
 """End-to-end tests for MQTT session.
 
-These tests use a fake MQTT broker to verify the session implementation. We
-mock out the lower level socket connections to simulate a broker which gets us
-close to an "end to end" test without needing an actual MQTT broker server.
+These tests use a real EMQX broker to verify the session implementation over
+TCP, including the actual zmqtt protocol and subscription lifecycle.
 
 These are higher level tests than the similar tests in tests/mqtt/test_roborock_session.py
 which use mocks to verify specific behaviors.
 """
 
 import asyncio
+import copy
 import json
 from collections.abc import AsyncGenerator, Awaitable, Callable
-from typing import Any
+from typing import Any, cast
 
 import pytest
 import syrupy
@@ -30,8 +30,9 @@ from roborock.protocols.b01_q7_protocol import B01_VERSION
 from roborock.protocols.v1_protocol import LocalProtocolVersion
 from roborock.roborock_message import RoborockB01Props, RoborockMessage, RoborockMessageProtocol, RoborockZeoProtocol
 from roborock.web_api import RoborockApiClient
-from tests import mock_data, mqtt_packet
+from tests import mock_data
 from tests.fixtures.logging import CapturedRequestLog
+from tests.fixtures.mqtt import MQTT_HOST, MQTT_PORT, MqttResponder
 from tests.mock_data import HOME_DATA_RAW, LOCAL_KEY
 
 TEST_USERNAME = "user@example.com"
@@ -40,6 +41,7 @@ TEST_CODE = 1234
 # The topic used for the user + device. This is determined from the fake Home
 # data API response.
 TEST_TOPIC_FORMAT = "rr/m/o/user123/19648f94/{duid}"
+TEST_REQUEST_TOPIC_FORMAT = "rr/m/i/user123/19648f94/{duid}"
 TEST_RANDOM = 23
 TEST_HOST = mock_data.TEST_LOCAL_API_HOST
 NETWORK_INFO = {
@@ -50,35 +52,13 @@ NETWORK_INFO = {
     "rssi": -50,
 }
 # For tests that want to skip the web API login flow
+TEST_USER_DATA = cast(dict[str, Any], copy.deepcopy(mock_data.USER_DATA))
+TEST_USER_DATA["rriot"]["r"]["m"] = f"tcp://{MQTT_HOST}:{MQTT_PORT}"
 TEST_USER_PARAMS = UserParams(
     username=TEST_USERNAME,
-    user_data=UserData.from_dict(mock_data.USER_DATA),
+    user_data=UserData.from_dict(TEST_USER_DATA),
     base_url=mock_data.BASE_URL,
 )
-MQTT_DEFAULT_RESPONSES: list[bytes] = [
-    # MQTT connection response
-    mqtt_packet.gen_connack(rc=0, flags=2),
-    # ACK the request to subscribe to the topic
-    mqtt_packet.gen_suback(mid=1),
-]
-
-
-@pytest.fixture(autouse=True)
-def auto_mock_mqtt_client(mock_aiomqtt_client: None) -> None:
-    """Automatically use the mock mqtt client fixture."""
-
-
-@pytest.fixture(autouse=True)
-def auto_fast_backoff(fast_backoff_fixture: None) -> None:
-    """Automatically use the fast backoff fixture."""
-
-
-@pytest.fixture(autouse=True)
-def mqtt_server_fixture(mock_paho_mqtt_create_connection: None, mock_paho_mqtt_select: None) -> None:
-    """Fixture to mock the MQTT connection.
-
-    This is here to pull in the mock socket fixtures into all tests used here.
-    """
 
 
 @pytest.fixture(autouse=True)
@@ -207,7 +187,6 @@ class ResponseBuilder:
 
 async def test_v1_device(
     mock_rest: Any,
-    push_mqtt_response: Callable[[bytes], None],
     local_response_queue: asyncio.Queue[bytes],
     local_received_requests: asyncio.Queue[bytes],
     log: CapturedRequestLog,
@@ -220,19 +199,13 @@ async def test_v1_device(
     web_api = RoborockApiClient(username=TEST_USERNAME)
     await web_api.request_code()
     user_data = await web_api.code_login(TEST_CODE)
+    user_data.rriot.r.m = f"tcp://{MQTT_HOST}:{MQTT_PORT}"
 
-    # Prepare MQTT requests
+    # Prepare the device response sent through the real broker.
     response_builder = ResponseBuilder()
     test_topic = TEST_TOPIC_FORMAT.format(duid="abc123")
-    mqtt_responses: list[bytes] = [
-        *MQTT_DEFAULT_RESPONSES,
-        # ACK the GET_NETWORK_INFO call. id is deterministic based on deterministic_message_fixtures
-        mqtt_packet.gen_publish(
-            test_topic, mid=2, payload=response_builder.build_v1_rpc(data={"id": 9090, "result": NETWORK_INFO})
-        ),
-    ]
-    for response in mqtt_responses:
-        push_mqtt_response(response)
+    request_topic = TEST_REQUEST_TOPIC_FORMAT.format(duid="abc123")
+    mqtt_responses = [response_builder.build_v1_rpc(data={"id": 9090, "result": NETWORK_INFO})]
 
     # Prepare local device responses. The ids are deterministic based on deterministic_message_fixtures
     response_builder.seq_counter = 0
@@ -252,7 +225,9 @@ async def test_v1_device(
         user_data=user_data,
         base_url=await web_api.base_url,
     )
-    device_manager = await device_manager_factory(user_params)
+    async with MqttResponder(request_topic, test_topic, mqtt_responses, log) as responder:
+        device_manager = await device_manager_factory(user_params)
+        await responder.wait()
 
     # The mocked Home Data API returns a single v1 device
     devices = await device_manager.get_devices()
@@ -278,13 +253,6 @@ async def test_v1_device(
     # Close the device manager. We will test re-connecting and reusing the network
     # information and device discovery information from the cache.
     await device_manager.close()
-
-    mqtt_responses = [
-        *MQTT_DEFAULT_RESPONSES,
-        # No network info call this time since it should be cached
-    ]
-    for response in mqtt_responses:
-        push_mqtt_response(response)
 
     # Prepare local device responses.
     response_builder.seq_counter = 0
@@ -322,7 +290,6 @@ async def test_v1_device(
 
 async def test_l01_device(
     mock_rest: Any,
-    push_mqtt_response: Callable[[bytes], None],
     local_response_queue: asyncio.Queue[bytes],
     local_received_requests: asyncio.Queue[bytes],
     log: CapturedRequestLog,
@@ -330,18 +297,11 @@ async def test_l01_device(
     device_manager_factory: Callable[[UserParams], Awaitable[DeviceManager]],
 ) -> None:
     """Test the device manager end to end flow with a l01 device."""
-    # Prepare MQTT requests
+    # Prepare the device response sent through the real broker.
     mqtt_response_builder = ResponseBuilder()
     test_topic = TEST_TOPIC_FORMAT.format(duid="abc123")
-    mqtt_responses: list[bytes] = [
-        *MQTT_DEFAULT_RESPONSES,
-        # ACK the GET_NETWORK_INFO call. id is deterministic based on deterministic_message_fixtures
-        mqtt_packet.gen_publish(
-            test_topic, mid=2, payload=mqtt_response_builder.build_v1_rpc(data={"id": 9090, "result": NETWORK_INFO})
-        ),
-    ]
-    for response in mqtt_responses:
-        push_mqtt_response(response)
+    request_topic = TEST_REQUEST_TOPIC_FORMAT.format(duid="abc123")
+    mqtt_responses = [mqtt_response_builder.build_v1_rpc(data={"id": 9090, "result": NETWORK_INFO})]
 
     # Prepare local device responses. The ids are deterministic based on deterministic_message_fixtures
     local_response_builder = ResponseBuilder()
@@ -365,7 +325,9 @@ async def test_l01_device(
         local_response_queue.put_nowait(payload)
 
     # Create the device manager
-    device_manager = await device_manager_factory(TEST_USER_PARAMS)
+    async with MqttResponder(request_topic, test_topic, mqtt_responses, log) as responder:
+        device_manager = await device_manager_factory(TEST_USER_PARAMS)
+        await responder.wait()
 
     # The mocked Home Data API returns a single v1 device
     devices = await device_manager.get_devices()
@@ -405,36 +367,28 @@ async def test_l01_device(
 )
 async def test_q10_device(
     mock_rest: Any,
-    push_mqtt_response: Callable[[bytes], None],
     log: CapturedRequestLog,
     device_manager_factory: Callable[[UserParams], Awaitable[DeviceManager]],
     home_data: dict[str, Any],
     snapshot: syrupy.SnapshotAssertion,
 ) -> None:
     """Test the device manager end to end flow with a B01 Q10 device."""
-    # Prepare MQTT requests
-    for response in MQTT_DEFAULT_RESPONSES:
-        push_mqtt_response(response)
+    request_topic = TEST_REQUEST_TOPIC_FORMAT.format(duid="device-id-def456")
+    response_topic = TEST_TOPIC_FORMAT.format(duid="device-id-def456")
+    async with MqttResponder(request_topic, response_topic, [None], log) as responder:
+        device_manager = await device_manager_factory(TEST_USER_PARAMS)
+        devices = await device_manager.get_devices()
+        assert len(devices) == 1
+        device = devices[0]
+        assert device.duid == "device-id-def456"
+        assert device.name == "Roborock Q10 S5+"
+        assert device.is_connected
+        assert not device.is_local_connected  # Q10 does not support local connections
 
-    # Create the device manager
-    device_manager = await device_manager_factory(TEST_USER_PARAMS)
-
-    # The mocked Home Data API returns a single v1 device
-    devices = await device_manager.get_devices()
-    assert len(devices) == 1
-    device = devices[0]
-    assert device.duid == "device-id-def456"
-    assert device.name == "Roborock Q10 S5+"
-    assert device.is_connected
-    assert not device.is_local_connected  # Q10 does not support local connections
-
-    # Send a command. We don't block any response, but just use this to verify
-    # against the golden byte stream snapshot.
-    assert device.b01_q10_properties
-    command = device.b01_q10_properties.command
-    await command.send(B01_Q10_DP.REQUEST_DPS, params={})
-
-    # In the future here we can verify receiving requests from the device
+        assert device.b01_q10_properties
+        command = device.b01_q10_properties.command
+        await command.send(B01_Q10_DP.REQUEST_DPS, params={})
+        await responder.wait()
 
     assert snapshot == log
 
@@ -453,49 +407,36 @@ async def test_q10_device(
 )
 async def test_q7_device(
     mock_rest: Any,
-    push_mqtt_response: Callable[[bytes], None],
     log: CapturedRequestLog,
     device_manager_factory: Callable[[UserParams], Awaitable[DeviceManager]],
     home_data: dict[str, Any],
     snapshot: syrupy.SnapshotAssertion,
 ) -> None:
     """Test the device manager end to end flow with a B01 Q10 device."""
-    # Prepare MQTT requests
     response_builder = ResponseBuilder()
     response_builder.version = B01_VERSION
     test_topic = TEST_TOPIC_FORMAT.format(duid="device-id-q7")
+    request_topic = TEST_REQUEST_TOPIC_FORMAT.format(duid="device-id-q7")
     mqtt_responses: list[bytes] = [
-        *MQTT_DEFAULT_RESPONSES,
-        # ACK the Query status call sent below. id is deterministic based on deterministic_message_fixtures
-        mqtt_packet.gen_publish(
-            test_topic, mid=2, payload=response_builder.build_b01_q7_rpc({"status": 2}, msg_id=9090)
-        ),
-        # ACK the start clean call sent below. id is deterministic based on deterministic_message_fixtures
-        mqtt_packet.gen_publish(test_topic, mid=2, payload=response_builder.build_b01_q7_rpc("ok", msg_id=9093)),
+        response_builder.build_b01_q7_rpc({"status": 2}, msg_id=9090),
+        response_builder.build_b01_q7_rpc("ok", msg_id=9093),
     ]
-    for response in mqtt_responses:
-        push_mqtt_response(response)
+    async with MqttResponder(request_topic, test_topic, mqtt_responses, log) as responder:
+        device_manager = await device_manager_factory(TEST_USER_PARAMS)
+        devices = await device_manager.get_devices()
+        assert len(devices) == 1
+        device = devices[0]
+        assert device.duid == "device-id-q7"
+        assert device.name == "Roborock Q7"
+        assert device.is_connected
+        assert not device.is_local_connected  # Q7 does not support local connections
 
-    # Create the device manager
-    device_manager = await device_manager_factory(TEST_USER_PARAMS)
-
-    # The mocked Home Data API returns a single v1 device
-    devices = await device_manager.get_devices()
-    assert len(devices) == 1
-    device = devices[0]
-    assert device.duid == "device-id-q7"
-    assert device.name == "Roborock Q7"
-    assert device.is_connected
-    assert not device.is_local_connected  # Q7 does not support local connections
-
-    # Query a value from the device.
-    assert device.b01_q7_properties
-    props = await device.b01_q7_properties.query_values([RoborockB01Props.STATUS])
-    assert props
-    assert props.status == WorkStatusMapping.PAUSED
-
-    # Send a command and block on an OK response.
-    await device.b01_q7_properties.start_clean()
+        assert device.b01_q7_properties
+        props = await device.b01_q7_properties.query_values([RoborockB01Props.STATUS])
+        assert props
+        assert props.status == WorkStatusMapping.PAUSED
+        await device.b01_q7_properties.start_clean()
+        await responder.wait()
 
     assert snapshot == log
 
@@ -514,43 +455,34 @@ async def test_q7_device(
 )
 async def test_a01_device(
     mock_rest: Any,
-    push_mqtt_response: Callable[[bytes], None],
     log: CapturedRequestLog,
     device_manager_factory: Callable[[UserParams], Awaitable[DeviceManager]],
     home_data: dict[str, Any],
     snapshot: syrupy.SnapshotAssertion,
 ) -> None:
     """Test the device manager end to end flow with an A01 device."""
-    # Prepare MQTT requests
     response_builder = ResponseBuilder()
     response_builder.version = A01_VERSION
     test_topic = TEST_TOPIC_FORMAT.format(duid="zeo_duid")
+    request_topic = TEST_REQUEST_TOPIC_FORMAT.format(duid="zeo_duid")
     mqtt_responses: list[bytes] = [
-        *MQTT_DEFAULT_RESPONSES,
-        # ACK the FEATURE_BITS query sent by _discover_features()
-        mqtt_packet.gen_publish(test_topic, mid=2, payload=response_builder.build_a01_rpc({"237": 1})),
-        # ACK the Query state call sent below
-        mqtt_packet.gen_publish(test_topic, mid=3, payload=response_builder.build_a01_rpc({"203": 6})),
+        response_builder.build_a01_rpc({"237": 1}),
+        response_builder.build_a01_rpc({"203": 6}),
     ]
-    for response in mqtt_responses:
-        push_mqtt_response(response)
+    async with MqttResponder(request_topic, test_topic, mqtt_responses, log) as responder:
+        device_manager = await device_manager_factory(TEST_USER_PARAMS)
+        devices = await device_manager.get_devices()
+        assert len(devices) == 1
+        device = devices[0]
+        assert device.duid == "zeo_duid"
+        assert device.name == "Zeo One"
+        assert device.is_connected
+        assert not device.is_local_connected  # Washing Machine does not support local connections
 
-    # Create the device manager
-    device_manager = await device_manager_factory(TEST_USER_PARAMS)
-
-    # The mocked Home Data API returns a single v1 device
-    devices = await device_manager.get_devices()
-    assert len(devices) == 1
-    device = devices[0]
-    assert device.duid == "zeo_duid"
-    assert device.name == "Zeo One"
-    assert device.is_connected
-    assert not device.is_local_connected  # Washing Machine does not support local connections
-
-    # Query a value from the device.
-    assert device.zeo
-    props: dict[RoborockZeoProtocol, Any] = await device.zeo.query_values([RoborockZeoProtocol.STATE])
-    assert props
-    assert props[RoborockZeoProtocol.STATE] == ZeoState.spinning.name
+        assert device.zeo
+        props: dict[RoborockZeoProtocol, Any] = await device.zeo.query_values([RoborockZeoProtocol.STATE])
+        assert props
+        assert props[RoborockZeoProtocol.STATE] == ZeoState.spinning.name
+        await responder.wait()
 
     assert snapshot == log

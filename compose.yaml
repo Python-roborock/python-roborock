@@ -1,0 +1,13 @@
+services:
+  emqx:
+    image: emqx/emqx:6.2.3
+    ports:
+      - "${ROBOROCK_TEST_MQTT_PORT:-1888}:1883"
+      - "${ROBOROCK_TEST_EMQX_DASHBOARD_PORT:-18083}:18083"
+    healthcheck:
+      test: ["CMD", "/opt/emqx/bin/emqx", "ctl", "status"]
+      interval: 5s
+      timeout: 25s
+      retries: 5
+    security_opt:
+      - no-new-privileges:true
