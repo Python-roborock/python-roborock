@@ -12,9 +12,11 @@ Cloud and Network.
     *   **Vacuums (V1)**: Use `device.v1_properties` to access traits like `status` or `consumables`.
         *   Call `await trait.refresh()` to update state.
         *   Use `device.v1_properties.command.send()` for raw commands (start/stop).
-    *   **Washers (A01)**: Use `device.a01_properties` for Dyad/Zeo devices.
-        *   Use `await device.a01_properties.query_values([...])` to get state.
-        *   Use `await device.a01_properties.set_value(protocol, value)` to control.
+    *   **Washers (A01)**: Use `device.dyad` or `device.zeo` for Dyad/Zeo devices.
+        *   Read `api.values` for the latest known state, merged from query responses and unsolicited pushes.
+        *   Use `api.add_update_listener(callback)` to be notified when `values` changes.
+        *   Use `await api.query_values([...])` to poll specific data points.
+        *   Use `await api.set_value(protocol, value)` to control.
     *   **Vacuums (B01 Q10)**: Use `device.b01_q10_properties` for Q10 series devices.
         *   Use `device.b01_q10_properties.vacuum` to access vacuum commands (start, pause, stop, dock, empty dustbin, set clean mode, set fan level).
         *   Use `device.b01_q10_properties.command.send()` for raw DP commands.
