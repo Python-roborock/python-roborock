@@ -140,34 +140,6 @@ class _FakeQ10PropertiesWithTrace(_FakeQ10Properties):
         self.map.refresh = refresh_map  # type: ignore[method-assign]
 
 
-class _FakeQ10PropertiesWithoutMapId:
-    def __init__(self) -> None:
-        command = cast(CommandTrait, Mock(spec=CommandTrait))
-        self.maps = MapsTrait(command)
-        self.map = MapContentTrait(MapDpsTrait(), self.maps, command)
-        self.maps_refresh_count = 0
-        self.map_refresh_count = 0
-
-        async def refresh_maps() -> None:
-            self.maps_refresh_count += 1
-            self.maps.update_from_dps(
-                {
-                    B01_Q10_DP.MULTI_MAP: {
-                        "data": [{"id": "12345"}],
-                        "op": "list",
-                        "result": 1,
-                    }
-                }
-            )
-
-        async def refresh_map() -> None:
-            self.map_refresh_count += 1
-            self.map.update_from_trace_packet(parse_trace_packet(TRACE_SESSION_FIXTURE.read_bytes()))
-
-        self.maps.refresh = refresh_maps  # type: ignore[method-assign]
-        self.map.refresh = refresh_map  # type: ignore[method-assign]
-
-
 async def test_await_q10_map_push_waits_for_fresh_update() -> None:
     """A cached trace alone is not treated as a successful new map push."""
     properties = _FakeQ10Properties()
@@ -194,21 +166,6 @@ async def test_await_q10_map_push_returns_true_after_update() -> None:
 
     assert got_trace is True
     assert len(properties.map.path) == 14
-
-
-async def test_await_q10_map_push_requests_map_list_only_on_first_use() -> None:
-    """Content gets the list first only when no stored map ID is available."""
-    properties = _FakeQ10PropertiesWithoutMapId()
-
-    got_trace = await _await_q10_map_push(
-        cast(Q10PropertiesApi, properties),
-        lambda: bool(properties.map.path),
-        timeout=0.01,
-    )
-
-    assert got_trace is True
-    assert properties.maps_refresh_count == 1
-    assert properties.map_refresh_count == 1
 
 
 async def test_await_q10_map_push_can_fall_back_to_cached_map_on_timeout() -> None:
@@ -286,7 +243,7 @@ async def test_subscribe_loop_routes_trace_push(
     assert q10_api.map.robot_position is not None
 
 
-async def test_map_list_and_content_refresh_are_independent(
+async def test_map_list_and_current_content_refresh_are_independent(
     q10_api: Q10PropertiesApi,
     mock_channel: FakeB01Q10Channel,
     message_queue: asyncio.Queue[Q10Message],
@@ -320,15 +277,7 @@ async def test_map_list_and_content_refresh_are_independent(
 
     await q10_api.map.refresh()
 
-    assert mock_channel.published_commands[1] == (
-        B01_Q10_DP.COMMON,
-        {
-            str(B01_Q10_DP.MULTI_MAP.code): {
-                "op": "get",
-                "id": "12345",
-            }
-        },
-    )
+    assert mock_channel.published_commands[1] == (B01_Q10_DP.REQUEST_DPS, {})
     assert q10_api.maps.current_map_id == "12345"
 
 
@@ -355,10 +304,14 @@ async def test_empty_map_list_does_not_request_content(
     assert mock_channel.published_commands == []
 
 
-async def test_map_content_refresh_requires_stored_map_id(q10_api: Q10PropertiesApi) -> None:
-    """Content cannot be requested until the map list supplies an ID."""
-    with pytest.raises(RoborockException, match="map list is available"):
-        await q10_api.map.refresh()
+async def test_map_content_refresh_does_not_require_stored_map_id(
+    q10_api: Q10PropertiesApi,
+    mock_channel: FakeB01Q10Channel,
+) -> None:
+    """Current-map refresh is read-only and independent of saved-map state."""
+    await q10_api.map.refresh()
+
+    assert mock_channel.published_commands == [(B01_Q10_DP.REQUEST_DPS, {})]
 
 
 async def test_map_content_refresh_requests_are_not_rate_limited(q10_api: Q10PropertiesApi) -> None:
