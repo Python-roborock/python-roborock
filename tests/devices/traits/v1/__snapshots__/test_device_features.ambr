@@ -39,6 +39,26 @@
     'water_shortage_status': True,
   })
 # ---
+# name: test_is_attribute_supported[home_data_device_q_revo.json]
+  dict({
+    'battery': True,
+    'charge_status': True,
+    'clean_fluid_status': False,
+    'clean_percent': True,
+    'clear_water_box_status': True,
+    'dirty_water_box_status': True,
+    'dock_error_status': True,
+    'dry_status': True,
+    'error_code': True,
+    'fan_power': True,
+    'rdt': True,
+    'state': True,
+    'water_box_carriage_status': True,
+    'water_box_mode': True,
+    'water_box_status': True,
+    'water_shortage_status': True,
+  })
+# ---
 # name: test_is_attribute_supported[home_data_device_s5e.json]
   dict({
     'battery': True,
@@ -127,6 +147,13 @@
   })
 # ---
 # name: test_is_consumable_field_supported[home_data_device_q5_max.json]
+  dict({
+    'filter_work_time': True,
+    'main_brush_work_time': True,
+    'side_brush_work_time': True,
+  })
+# ---
+# name: test_is_consumable_field_supported[home_data_device_q_revo.json]
   dict({
     'filter_work_time': True,
     'main_brush_work_time': True,

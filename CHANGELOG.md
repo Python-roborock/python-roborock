@@ -2,6 +2,75 @@
 
 <!-- version list -->
 
+## v7.4.1 (2026-09-07)
+
+### Bug Fixes
+
+- Skip DP 225 on Zeo H1 (roborock.wm.a63)
+  ([#946](https://github.com/Python-roborock/python-roborock/pull/946),
+  [`25185b0`](https://github.com/Python-roborock/python-roborock/commit/25185b0a2cb564be1d2930b6e3374172c19ab742))
+
+
+## v7.4.0 (2026-09-07)
+
+### Features
+
+- **web_api**: Add firmware/OTA info, update trigger and silent-OTA toggle
+  ([#839](https://github.com/Python-roborock/python-roborock/pull/839),
+  [`c742831`](https://github.com/Python-roborock/python-roborock/commit/c74283159b3d3212aaef9771fcfa3550e813d845))
+
+
+## v7.3.0 (2026-09-07)
+
+### Bug Fixes
+
+- Update last_message_time on unsubscribed query responses
+  ([#941](https://github.com/Python-roborock/python-roborock/pull/941),
+  [`b7a5208`](https://github.com/Python-roborock/python-roborock/commit/b7a52081c8398b6570ceae98e4c85579ae406788))
+
+### Features
+
+- Track A01 device state from push updates
+  ([#941](https://github.com/Python-roborock/python-roborock/pull/941),
+  [`b7a5208`](https://github.com/Python-roborock/python-roborock/commit/b7a52081c8398b6570ceae98e4c85579ae406788))
+
+
+## v7.2.3 (2026-09-02)
+
+### Bug Fixes
+
+- Request Q10 maps without starting cleaning
+  ([#933](https://github.com/Python-roborock/python-roborock/pull/933),
+  [`db86533`](https://github.com/Python-roborock/python-roborock/commit/db86533036167c50799bd2b46f852ed59d2e23f8))
+
+
+## v7.2.2 (2026-09-02)
+
+### Bug Fixes
+
+- Handle stale features to fix bug
+  ([#940](https://github.com/Python-roborock/python-roborock/pull/940),
+  [`1ea20ad`](https://github.com/Python-roborock/python-roborock/commit/1ea20ad685dabbd35e666b7f93ed5cd0de03d11b))
+
+
+## v7.2.1 (2026-08-31)
+
+### Bug Fixes
+
+- Keep Q10 map vectors stable during live updates
+  ([#932](https://github.com/Python-roborock/python-roborock/pull/932),
+  [`c947ec5`](https://github.com/Python-roborock/python-roborock/commit/c947ec51ea7ea45c701e8f12a14bd900d3bc997b))
+
+
+## v7.2.0 (2026-08-31)
+
+### Features
+
+- Add device info and test data for Roborock Q Revo (a75)
+  ([#926](https://github.com/Python-roborock/python-roborock/pull/926),
+  [`d2cda89`](https://github.com/Python-roborock/python-roborock/commit/d2cda89dd7b998109164d651b5d1d7f4535b600e))
+
+
 ## v7.1.1 (2026-08-22)
 
 ### Bug Fixes
