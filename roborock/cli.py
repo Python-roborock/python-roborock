@@ -597,7 +597,7 @@ async def maps(ctx, device_id: str):
 # The Q10 publishes its current map asynchronously after a REQUEST_DPS. Firmware
 # throttles pushes to ~once per 60-70s, so rapid re-requests may not be answered
 # immediately. This bounds how long a one-shot CLI command waits.
-_Q10_MAP_PUSH_TIMEOUT = 75.0
+_Q10_MAP_PUSH_TIMEOUT = 30.0
 
 
 async def _await_q10_map_push(

@@ -1,0 +1,33 @@
+{
+    "duid": "device-id-a75",
+    "name": "Roborock Q Revo",
+    "localKey": "key123key123key1",
+    "productId": "product-id-a75",
+    "fv": "02.20.60",
+    "activeTime": 1700593279,
+    "timeZoneId": "Europe/Berlin",
+    "iconUrl": "",
+    "share": false,
+    "online": true,
+    "pv": "1.0",
+    "tuyaMigrated": false,
+    "extra": "{}",
+    "sn": "A75SAMPLESNTEST",
+    "featureSet": "2238601361260543",
+    "newFeatureSet": "100A80505EDEFFFE",
+    "deviceStatus": {
+        "120": 0,
+        "121": 8,
+        "122": 100,
+        "123": 103,
+        "124": 202,
+        "125": 6,
+        "126": 2,
+        "127": 66,
+        "128": 0,
+        "133": 1,
+        "134": 0
+    },
+    "silentOtaSwitch": true,
+    "f": false
+}
