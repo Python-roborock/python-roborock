@@ -11,6 +11,7 @@ from roborock.exceptions import RoborockException
 from roborock.map.b01_grid_layers import LAYER_BACKGROUND, LAYER_FLOOR, LAYER_WALL
 from roborock.map.b01_q10_map_parser import (
     B01Q10MapParser,
+    Q10CleanRecordMapPacket,
     Q10MapPacketKind,
     Q10Point,
     Q10Room,
@@ -101,7 +102,7 @@ def test_lz4_block_roundtrip_all_literals() -> None:
     block.append(0x0F << 4)
     block.append(len(original) - 15)
     block += original
-    assert lz4_block_decompress(bytes(block)) == original
+    assert lz4_block_decompress(bytes(block), max_output_size=len(original)) == original
 
 
 def test_lz4_block_back_reference() -> None:
@@ -109,7 +110,7 @@ def test_lz4_block_back_reference() -> None:
     # seq1: 1 literal 'A', then match (offset 1, length 4+4=8) -> 'A' x9.
     # seq2: final literals-only token (0 literals) ends the block per LZ4 spec.
     block = bytes([0x14, ord("A"), 0x01, 0x00, 0x00])
-    assert lz4_block_decompress(block) == b"A" * 9
+    assert lz4_block_decompress(block, max_output_size=9) == b"A" * 9
 
 
 def test_lz4_block_rejects_output_over_limit() -> None:
@@ -490,6 +491,7 @@ def test_parse_clean_record_historical_trace_with_unknown_tail() -> None:
     """The bounded historical path is decoded without interpreting later bytes."""
     packet = parse_map_packet(_map_detail_payload(b"\x03\x01", [(10, -20), (-30, 40)], trailing=b"future-section"))
 
+    assert isinstance(packet, Q10CleanRecordMapPacket)
     assert packet.historical_trace is not None
     assert [(point.x, point.y) for point in packet.historical_trace.points] == [(10, -20), (-30, 40)]
     assert packet.historical_trace.version == 1
@@ -502,6 +504,7 @@ def test_zero_point_historical_trace_with_following_section() -> None:
     """A zero-point path remains valid when a later section follows it."""
     packet = parse_map_packet(_map_detail_payload(b"\x03\x01", [], trailing=b"recorded-path"))
 
+    assert isinstance(packet, Q10CleanRecordMapPacket)
     assert packet.historical_trace is not None
     assert packet.historical_trace.points == []
 
@@ -511,8 +514,8 @@ def test_historical_trace_is_not_inferred_for_other_packet_kinds() -> None:
     current = parse_map_packet(_map_detail_payload(b"\x01\x01", [(10, -20)]))
     saved_map = parse_map_packet(_map_detail_payload(b"\x04\x01", [(10, -20)]))
 
-    assert current.historical_trace is None
-    assert saved_map.historical_trace is None
+    assert not isinstance(current, Q10CleanRecordMapPacket)
+    assert not isinstance(saved_map, Q10CleanRecordMapPacket)
 
 
 @pytest.mark.parametrize(
@@ -527,6 +530,7 @@ def test_unsupported_historical_trace_header_is_ignored(kwargs: dict[str, Any]) 
     payload = _map_detail_payload(b"\x03\x01", [(10, -20)], **kwargs)
     packet = parse_map_packet(payload)
 
+    assert isinstance(packet, Q10CleanRecordMapPacket)
     assert packet.historical_trace is None
 
 
@@ -534,6 +538,7 @@ def test_truncated_historical_trace_is_ignored() -> None:
     payload = _map_detail_payload(b"\x03\x01", [(10, -20)])[:-2]
     packet = parse_map_packet(payload)
 
+    assert isinstance(packet, Q10CleanRecordMapPacket)
     assert packet.historical_trace is None
 
 
@@ -547,6 +552,7 @@ def test_invalid_erase_section_is_ignored() -> None:
 
     assert packet.erase_zones == []
     assert packet.carpet_mask is None
+    assert isinstance(packet, Q10CleanRecordMapPacket)
     assert packet.historical_trace is None
 
 
