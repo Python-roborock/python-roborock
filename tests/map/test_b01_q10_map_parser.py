@@ -498,6 +498,7 @@ def test_parse_obstacles_and_skip_cleaning_points_before_historical_trace() -> N
 
     assert packet.obstacles == [Q10Obstacle(250, -300), Q10Obstacle(-32768, 32767)]
     assert packet.skip_cleaning_points == [Q10Point(-40, 50)]
+    assert isinstance(packet, Q10CleanRecordMapPacket)
     assert packet.historical_trace is not None
     assert packet.historical_trace.points == [Q10Point(11, -12), Q10Point(13, -14)]
 
@@ -524,6 +525,7 @@ def test_empty_obstacle_sections_do_not_consume_historical_header() -> None:
 
     assert packet.obstacles == []
     assert packet.skip_cleaning_points == []
+    assert isinstance(packet, Q10CleanRecordMapPacket)
     assert packet.historical_trace is not None
     assert packet.historical_trace.points == [Q10Point(10, -20)]
 
@@ -544,6 +546,7 @@ def test_truncated_obstacle_sections_are_ignored(section: bytes) -> None:
 
     assert packet.obstacles == []
     assert packet.skip_cleaning_points == []
+    assert isinstance(packet, Q10CleanRecordMapPacket)
     assert packet.historical_trace is None
 
 
