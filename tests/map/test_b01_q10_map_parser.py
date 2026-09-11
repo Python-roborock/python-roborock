@@ -516,7 +516,7 @@ def test_obstacles_are_decoded_for_current_and_saved_maps(marker: bytes) -> None
 
     assert packet.obstacles == [Q10Obstacle(100, 200)]
     assert packet.skip_cleaning_points == [Q10Point(30, -40)]
-    assert packet.historical_trace is None
+    assert not isinstance(packet, Q10CleanRecordMapPacket)
 
 
 def test_empty_obstacle_sections_do_not_consume_historical_header() -> None:
