@@ -25,9 +25,9 @@ from roborock.data.b01_q10.b01_q10_containers import Q10CleanRecord
 from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
     B01Q10MapParserConfig,
+    Q10CleanRecordMapPacket,
     Q10HistoricalTracePacket,
     Q10MapPacket,
-    Q10MapPacketKind,
     Q10Obstacle,
     Q10Point,
 )
@@ -140,7 +140,7 @@ class CleanHistoryTrait(UpdatableTrait):
         self._map_parser_config = map_parser_config or B01Q10MapParserConfig()
         self.records: list[Q10CleanRecord] = []
         """Decoded clean records, most recent first."""
-        self.detail_packet: Q10MapPacket | None = None
+        self.detail_packet: Q10CleanRecordMapPacket | None = None
         """Most recently pushed ``03 01`` clean-record map detail."""
         self.detail_record: Q10CleanRecord | None = None
         """Record associated with :attr:`detail_packet`, when requested here."""
@@ -218,7 +218,7 @@ class CleanHistoryTrait(UpdatableTrait):
 
     def update_from_map_packet(self, packet: Q10MapPacket) -> None:
         """Store and render a pushed clean-record detail map."""
-        if packet.kind is not Q10MapPacketKind.CLEAN_RECORD_DETAIL:
+        if not isinstance(packet, Q10CleanRecordMapPacket):
             raise ValueError(f"Expected a Q10 clean-record detail packet, got {packet.kind.value}")
         self.detail_record = self._pending_detail_record
         self._pending_detail_record = None
@@ -226,7 +226,7 @@ class CleanHistoryTrait(UpdatableTrait):
         try:
             self.detail_image_content = render_q10_map(
                 packet,
-                packet.historical_trace,
+                None,
                 Q10MapOverlays(),
                 config=self._map_parser_config,
             )

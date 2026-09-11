@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v7.4.2 (2026-09-10)
+
+### Bug Fixes
+
+- Remove v1 image parser monkey patch
+  ([#949](https://github.com/Python-roborock/python-roborock/pull/949),
+  [`dfd93fc`](https://github.com/Python-roborock/python-roborock/commit/dfd93fcc4edd2cdf350515f3a23a38202cc9c8ca))
+
+
 ## v7.4.1 (2026-09-07)
 
 ### Bug Fixes

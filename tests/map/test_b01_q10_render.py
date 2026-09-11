@@ -17,11 +17,13 @@ from vacuum_map_parser_base.map_data import MapData, Point
 from roborock.map.b01_grid_layers import GridCalibration
 from roborock.map.b01_q10_map_parser import (
     B01Q10MapParserConfig,
+    Q10CleanRecordMapPacket,
     Q10EraseZone,
     Q10HeaderCalibration,
     Q10HistoricalTracePacket,
     Q10MapPacket,
     Q10Obstacle,
+    Q10MapPacketKind,
     Q10Point,
     Q10TracePacket,
     parse_map_packet,
@@ -63,7 +65,7 @@ def _packet() -> Q10MapPacket:
 def _render(
     packet: Q10MapPacket | None = None,
     *,
-    trace: Q10TracePacket | Q10HistoricalTracePacket | None = None,
+    trace: Q10TracePacket | None = None,
     overlays: Q10MapOverlays | None = None,
 ) -> bytes:
     return render_q10_map(
@@ -127,7 +129,11 @@ def test_render_accepts_historical_trace() -> None:
     packet, live_trace = _calibrated_inputs()
     historical = Q10HistoricalTracePacket(points=live_trace.points, heading=live_trace.heading)
 
-    assert _render(packet, trace=historical) == _render(packet, trace=live_trace)
+    archived = Q10CleanRecordMapPacket(
+        **vars(replace(packet, kind=Q10MapPacketKind.CLEAN_RECORD_DETAIL)), historical_trace=historical
+    )
+    assert _render(archived) == _render(packet, trace=live_trace)
+    assert _render(archived, trace=Q10TracePacket(points=[])) == _render(archived)
 
 
 def test_place_obstacles_uses_its_validated_coordinate_scale() -> None:
