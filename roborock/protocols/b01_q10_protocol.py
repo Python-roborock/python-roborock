@@ -121,9 +121,10 @@ def decode_message(message: RoborockMessage) -> Q10Message | None:
     """
     if message.protocol == RoborockMessageProtocol.MAP_RESPONSE:
         payload = message.payload or b""
-        if Q10MapPacketKind.from_payload(payload) is Q10MapPacketKind.TRACE:
+        kind = Q10MapPacketKind.from_payload(payload)
+        if kind is Q10MapPacketKind.TRACE:
             return parse_trace_packet(payload)
-        if Q10MapPacketKind.from_payload(payload) is not None:
+        if kind is not None:
             return parse_map_packet(payload)
         return None
     return Q10DpsUpdate(dps=decode_rpc_response(message))
