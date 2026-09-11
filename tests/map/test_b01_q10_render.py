@@ -27,7 +27,6 @@ from roborock.map.b01_q10_map_parser import (
     Q10MapPacket,
     Q10MapPacketKind,
     Q10Obstacle,
-    Q10MapPacketKind,
     Q10Point,
     Q10Room,
     Q10TracePacket,
