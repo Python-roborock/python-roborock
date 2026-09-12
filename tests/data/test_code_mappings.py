@@ -36,18 +36,18 @@ def test_invalid_from_code_optional() -> None:
 
 
 def test_from_code_optional_does_not_warn(caplog: pytest.LogCaptureFixture) -> None:
-    """from_code_optional must silently return None for unknown codes.
+    """Test that mapped codes return enum members and unmapped codes return None without warning spam."""
+    completed_warnings.discard("909090 is not a valid code for B01_Q10_DP")
 
-    Regression test: ss07 hardware pushes data points this library does not model
-    (e.g. DPs 112 and 113); resolving them via the optional lookup must not emit
-    the "not a valid code" warning that the strict ``from_code`` logs.
-    """
-    completed_warnings.discard("112 is not a valid code for B01_Q10_DP")
-    completed_warnings.discard("113 is not a valid code for B01_Q10_DP")
+    # Mapped codes should now resolve to their respective enum members
+    assert B01_Q10_DP.from_code_optional(112) is B01_Q10_DP.UNKNOWN_112
+    assert B01_Q10_DP.from_code_optional(113) is B01_Q10_DP.UNKNOWN_113
+
+    # Truly unmapped codes should return None silently
     with caplog.at_level(logging.WARNING):
-        assert B01_Q10_DP.from_code_optional(112) is None
-        assert B01_Q10_DP.from_code_optional(113) is None
-    assert "not a valid code" not in caplog.text
+        assert B01_Q10_DP.from_code_optional(909090) is None
+
+    assert "is not a valid code for B01_Q10_DP" not in caplog.text
 
 
 def test_from_code_still_warns(caplog: pytest.LogCaptureFixture) -> None:

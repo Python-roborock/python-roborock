@@ -140,17 +140,11 @@ def test_decode_invalid_rpc_payload(payload: bytes, expected_error_message: str)
 
 def test_decode_unknown_dps_code(caplog: pytest.LogCaptureFixture) -> None:
     """Unknown data points are dropped silently, without logging warnings.
-
-    ss07 hardware pushes DPs 112 and 113 (and occasionally others) that this
-    library does not model. They must be ignored without emitting "not a valid
-    code" warnings, which previously spammed the log on every status push.
     """
-    completed_warnings.discard("112 is not a valid code for B01_Q10_DP")
-    completed_warnings.discard("113 is not a valid code for B01_Q10_DP")
     completed_warnings.discard("909090 is not a valid code for B01_Q10_DP")
     message = RoborockMessage(
         protocol=RoborockMessageProtocol.RPC_RESPONSE,
-        payload=b'{"dps": {"909090": 123, "112": 0, "113": 0, "122": 100}}',
+        payload=b'{"dps": {"909090": 123, "122": 100}}',
         seq=12750,
         version=b"B01",
         random=97431,
@@ -163,6 +157,22 @@ def test_decode_unknown_dps_code(caplog: pytest.LogCaptureFixture) -> None:
         B01_Q10_DP.BATTERY: 100,
     }
     assert "not a valid code" not in caplog.text
+
+def test_decode_mapped_112_113_dps() -> None:
+    """Verify newly mapped status codes 112 and 113 decode correctly."""
+    message = RoborockMessage(
+        protocol=RoborockMessageProtocol.RPC_RESPONSE,
+        payload=b'{"dps": {"112": 0, "113": 0}}',
+        seq=12751,
+        version=b"B01",
+        random=97431,
+        timestamp=1652547161,
+    )
+    decoded_message = decode_rpc_response(message)
+    assert decoded_message == {
+        B01_Q10_DP.UNKNOWN_112: 0,
+        B01_Q10_DP.UNKNOWN_113: 0,
+    }
 
 
 @pytest.mark.parametrize(
