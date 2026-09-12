@@ -33,7 +33,9 @@ from .b01_grid_layers import (
 from .b01_q10_map_parser import (
     B01Q10MapParser,
     B01Q10MapParserConfig,
+    Q10CleanRecordMapPacket,
     Q10EraseZone,
+    Q10HistoricalTracePacket,
     Q10MapPacket,
     Q10TracePacket,
     erased_packet,
@@ -62,7 +64,6 @@ _MIN_CALIBRATION_POINTS = 20
 # a much shorter path suffices to confirm it (early in a clean, not just a dense
 # one). See :func:`solve_calibration_with_origin`.
 _MIN_HEADER_CALIBRATION_POINTS = 4
-
 _Q10_DRAWABLE_TYPES = {
     Drawable.CHARGER,
     Drawable.NO_GO_AREAS,
@@ -97,8 +98,10 @@ def render_q10_map(
     available trace and DPS overlays are projected and drawn in pixel space.
     Raises :class:`RoborockException` if map rendering fails.
     """
+    # An archived map owns its path; a live trace must never replace it.
+    render_trace = packet.historical_trace if isinstance(packet, Q10CleanRecordMapPacket) else trace
     parser = B01Q10MapParser(config)
-    trace_calibration = solve_q10_calibration(packet, trace)
+    trace_calibration = solve_q10_calibration(packet, render_trace)
     vector_calibration = _vector_calibration(packet, trace_calibration)
 
     render_packet = packet
@@ -115,9 +118,9 @@ def render_q10_map(
     map_data = parsed.map_data
 
     has_drawables = False
-    if trace_calibration is not None and trace is not None:
+    if trace_calibration is not None and render_trace is not None:
         charger_heading = packet.header_calibration.charger_phi if packet.header_calibration is not None else None
-        _place_trace(map_data, trace_calibration, trace, charger_heading=charger_heading)
+        _place_trace(map_data, trace_calibration, render_trace, charger_heading=charger_heading)
         has_drawables = True
     has_drawables = _place_charger_from_header(map_data, packet) or has_drawables
     if robot_at_dock:
@@ -133,7 +136,7 @@ def render_q10_map(
 
 def solve_q10_calibration(
     packet: Q10MapPacket,
-    trace: Q10TracePacket | None,
+    trace: Q10TracePacket | Q10HistoricalTracePacket | None,
 ) -> GridCalibration | None:
     """Derive world-to-pixel calibration from a map and its current trace.
 
@@ -232,7 +235,7 @@ def _erased_cells(
 def _place_trace(
     map_data: MapData,
     calibration: GridCalibration,
-    trace: Q10TracePacket,
+    trace: Q10TracePacket | Q10HistoricalTracePacket,
     *,
     charger_heading: int | None = None,
 ) -> None:
