@@ -8,13 +8,26 @@ from unittest.mock import Mock, patch
 
 import pytest
 import syrupy
+from vacuum_map_parser_base.config.drawable import Drawable
 
 from roborock.data import HomeData, UserData
+from roborock.data.b01_q10.b01_q10_code_mappings import (
+    Q10CleanCount,
+    Q10RoomCleanType,
+    Q10RoomFanLevel,
+    YXCleanLine,
+    YXDeviceCleanTask,
+    YXDeviceState,
+    YXWaterLevel,
+)
+from roborock.data.b01_q10.b01_q10_containers import Q10RoomCleanSettings
 from roborock.data.containers import HomeDataDevice, HomeDataProduct, RoborockCategory
 from roborock.devices.cache import InMemoryCache
 from roborock.devices.device import RoborockDevice
 from roborock.devices.device_manager import UserParams, create_device_manager, create_web_api_wrapper
+from roborock.devices.traits.b01.q10 import create as create_q10
 from roborock.exceptions import RoborockException, RoborockInvalidCredentials
+from roborock.map.map_parser import MapParserConfig
 from roborock.testing import FakeRoborockCloud, Q10VacuumSimulator, V1VacuumSimulator
 from tests import mock_data
 
@@ -85,7 +98,13 @@ async def test_with_q10_device(cloud: FakeRoborockCloud, patch_device_manager: N
     )
     cloud.add_device(q10_sim)
 
-    device_manager = await create_device_manager(USER_PARAMS)
+    map_parser_config = MapParserConfig(drawables=[Drawable.OBSTACLES], map_scale=2)
+    with patch("roborock.devices.device_manager.b01.q10.create", wraps=create_q10) as q10_create:
+        device_manager = await create_device_manager(USER_PARAMS, map_parser_config=map_parser_config)
+    q10_config = q10_create.call_args.kwargs["map_parser_config"]
+    assert q10_create.call_args.kwargs["model"] == "roborock.vacuum.ss07"
+    assert q10_config.map_scale == 2
+    assert q10_config.drawables == [Drawable.OBSTACLES]
     devices = await device_manager.get_devices()
 
     # The setup includes fake_device (V1) by default because of the fake_device fixture
@@ -116,19 +135,37 @@ async def test_with_q10_device(cloud: FakeRoborockCloud, patch_device_manager: N
         await asyncio.sleep(0.05)
 
     assert q10_device.b01_q10_properties.status.battery == 100
-    from roborock.data.b01_q10.b01_q10_code_mappings import YXDeviceState
-
     assert q10_device.b01_q10_properties.status.status == YXDeviceState.CHARGING
 
-    await q10_device.b01_q10_properties.vacuum.start_clean()
+    api = q10_device.b01_q10_properties
+    await api.room_cleaning.refresh()
+    for _ in range(20):
+        if api.room_cleaning.settings_available:
+            break
+        await asyncio.sleep(0.05)
+    assert api.room_cleaning.settings_available is True
+
+    settings = Q10RoomCleanSettings(
+        room_id=1,
+        fan_level=Q10RoomFanLevel.TURBO,
+        water_level=YXWaterLevel.MEDIUM,
+        clean_type=Q10RoomCleanType.VAC_AND_MOP,
+        clean_count=Q10CleanCount.TWICE,
+        clean_line=YXCleanLine.FINE,
+    )
+    await api.room_cleaning.set_settings((settings,))
+    await api.room_cleaning.clean((settings,))
 
     for _ in range(20):
-        if q10_device.b01_q10_properties.status.status == YXDeviceState.CLEANING:
+        if api.status.status == YXDeviceState.CLEANING:
             break
         await asyncio.sleep(0.05)
 
-    assert q10_device.b01_q10_properties.status.status == YXDeviceState.CLEANING
+    assert api.status.status == YXDeviceState.CLEANING
+    assert api.status.clean_task_type is YXDeviceCleanTask.ELECTORAL
     assert q10_sim.status[121] == 5
+    assert q10_sim.status[137] == 4
+    assert q10_sim.status[138] == 2
 
     await device_manager.close()
 

@@ -2,10 +2,14 @@
 
 from roborock.data.b01_q10.b01_q10_code_mappings import (
     B01_Q10_DP,
+    Q10CleanCount,
+    YXCleanLine,
     YXCleanType,
     YXDeviceCleanTask,
     YXFanLevel,
+    YXWaterLevel,
 )
+from roborock.exceptions import RoborockUnsupportedFeature
 
 from .command import CommandTrait
 
@@ -17,9 +21,15 @@ class VacuumTrait:
     commands to Q10 devices.
     """
 
-    def __init__(self, command: CommandTrait) -> None:
+    def __init__(self, command: CommandTrait, *, advanced_cleaning_supported: bool = False) -> None:
         """Initialize the VacuumTrait."""
         self._command = command
+        self._advanced_cleaning_supported = advanced_cleaning_supported
+
+    @property
+    def advanced_cleaning_supported(self) -> bool:
+        """Return whether the advanced cleaning writes are verified for this model."""
+        return self._advanced_cleaning_supported
 
     async def start_clean(self) -> None:
         """Start a whole-home clean.
@@ -96,6 +106,8 @@ class VacuumTrait:
 
     async def set_clean_mode(self, mode: YXCleanType) -> None:
         """Set the cleaning mode (vacuum, mop, or both)."""
+        if not isinstance(mode, YXCleanType) or mode is YXCleanType.UNKNOWN:
+            raise ValueError("mode must be a supported YXCleanType")
         await self._command.send(
             command=B01_Q10_DP.CLEAN_MODE,
             params=mode.code,
@@ -103,7 +115,37 @@ class VacuumTrait:
 
     async def set_fan_level(self, level: YXFanLevel) -> None:
         """Set the fan suction level."""
+        if not isinstance(level, YXFanLevel) or level is YXFanLevel.UNKNOWN:
+            raise ValueError("level must be a supported YXFanLevel")
         await self._command.send(
             command=B01_Q10_DP.FAN_LEVEL,
             params=level.code,
         )
+
+    async def set_water_level(self, level: YXWaterLevel) -> None:
+        """Set the mop water level."""
+        self._raise_if_advanced_cleaning_unsupported()
+        if not isinstance(level, YXWaterLevel) or level is YXWaterLevel.UNKNOWN:
+            raise ValueError("level must be a supported YXWaterLevel")
+        await self._command.send(B01_Q10_DP.WATER_LEVEL, level.code)
+
+    async def set_clean_count(self, count: Q10CleanCount) -> None:
+        """Set the number of passes for ordinary cleaning."""
+        self._raise_if_advanced_cleaning_unsupported()
+        if not isinstance(count, Q10CleanCount) or count is Q10CleanCount.UNKNOWN:
+            raise ValueError("count must be a supported Q10CleanCount")
+        await self._command.send(B01_Q10_DP.CLEAN_COUNT, count.code)
+
+    async def set_clean_line(self, line: YXCleanLine) -> None:
+        """Set the cleaning route preference."""
+        self._raise_if_advanced_cleaning_unsupported()
+        if not isinstance(line, YXCleanLine):
+            raise ValueError("line must be a supported YXCleanLine")
+        await self._command.send(
+            B01_Q10_DP.COMMON,
+            {str(B01_Q10_DP.CLEAN_LINE.code): line.code},
+        )
+
+    def _raise_if_advanced_cleaning_unsupported(self) -> None:
+        if not self._advanced_cleaning_supported:
+            raise RoborockUnsupportedFeature("Advanced cleaning controls are only verified for Q10 model ss07")

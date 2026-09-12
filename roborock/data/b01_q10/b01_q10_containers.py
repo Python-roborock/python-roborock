@@ -12,6 +12,9 @@ from dataclasses import dataclass, field
 from ..containers import RoborockBase
 from .b01_q10_code_mappings import (
     B01_Q10_DP,
+    Q10CleanCount,
+    Q10RoomCleanType,
+    Q10RoomFanLevel,
     YXAreaUnit,
     YXBackType,
     YXCarpetCleanType,
@@ -27,6 +30,69 @@ from .b01_q10_code_mappings import (
     YXStartMethod,
     YXWaterLevel,
 )
+
+_ROBOROCK_COORDINATE_OFFSET_MM = 25_500
+_Q10_VECTOR_UNIT_MM = 5
+
+
+@dataclass(frozen=True)
+class Q10RoborockPoint:
+    """A point in the common Roborock millimetre coordinate space."""
+
+    x: int
+    y: int
+
+    @classmethod
+    def from_vector(cls, x: int, y: int) -> "Q10RoborockPoint":
+        """Convert Q10 vector coordinates to common Roborock coordinates."""
+        for value in (x, y):
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ValueError("vector coordinates must be integers")
+            if not -(2**15) <= value < 2**15:
+                raise ValueError("vector coordinates are outside the Q10 map range")
+        return cls(
+            x=_ROBOROCK_COORDINATE_OFFSET_MM + x * _Q10_VECTOR_UNIT_MM,
+            y=_ROBOROCK_COORDINATE_OFFSET_MM + y * _Q10_VECTOR_UNIT_MM,
+        )
+
+    def to_vector(self) -> tuple[int, int]:
+        """Convert common Roborock coordinates to the Q10 vector grid."""
+        coordinates: list[int] = []
+        for value in (self.x, self.y):
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ValueError("coordinates must be integers")
+            relative_mm = value - _ROBOROCK_COORDINATE_OFFSET_MM
+            if relative_mm % _Q10_VECTOR_UNIT_MM:
+                raise ValueError("coordinates must align to the Q10 5 mm grid")
+            coordinate = relative_mm // _Q10_VECTOR_UNIT_MM
+            if not -(2**15) <= coordinate < 2**15:
+                raise ValueError("coordinates are outside the Q10 map range")
+            coordinates.append(coordinate)
+        return coordinates[0], coordinates[1]
+
+
+@dataclass(frozen=True)
+class Q10RoomCleanSettings:
+    """Writable cleaning settings for one Q10 room."""
+
+    room_id: int
+    fan_level: Q10RoomFanLevel
+    water_level: YXWaterLevel
+    clean_type: Q10RoomCleanType
+    clean_count: Q10CleanCount
+    clean_line: YXCleanLine
+
+
+@dataclass(frozen=True)
+class Q10ReportedRoomCleanSettings:
+    """Cleaning settings reported by a Q10, preserving unknown wire values."""
+
+    room_id: int
+    fan_level: Q10RoomFanLevel | int
+    water_level: YXWaterLevel | int
+    clean_type: Q10RoomCleanType | int
+    clean_count: Q10CleanCount | int
+    clean_line: YXCleanLine | int
 
 
 @dataclass
@@ -88,7 +154,9 @@ class Q10MapInfo(RoborockBase):
     """A saved map reported by ``dpMultiMap``.
 
     Q10 firmware represents the map identifier as a string on the wire. The
-    value is sent back unchanged in a subsequent ``{"op": "get"}`` request.
+    value is sent back unchanged in a subsequent ``{"op": "select"}`` detail
+    request. On Q10 firmware, ``select`` previews a saved map without applying
+    it as the active map.
     """
 
     id: str
@@ -229,6 +297,11 @@ class Q10Status(RoborockBase):
     def fault_name(self) -> str | None:
         """Returns the name of the current fault."""
         return self.fault.value if self.fault is not None else None
+
+    @property
+    def clean_count_mode(self) -> Q10CleanCount | None:
+        """Return the typed cleaning pass count without changing the raw status field."""
+        return Q10CleanCount.from_code_optional(self.clean_count) if self.clean_count is not None else None
 
 
 @dataclass

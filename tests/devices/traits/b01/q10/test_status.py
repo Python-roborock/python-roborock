@@ -11,6 +11,7 @@ import pytest
 from roborock.data import HomeDataDevice, HomeDataProduct
 from roborock.data.b01_q10.b01_q10_code_mappings import (
     B01_Q10_DP,
+    Q10CleanCount,
     YXAreaUnit,
     YXCarpetCleanType,
     YXCleanLine,
@@ -151,6 +152,7 @@ async def test_status_trait_refresh(
     assert q10_api.consumable.filter_life == 0
     assert q10_api.consumable.sensor_life == 0
     assert q10_api.status.cleaning_progress == 100
+    assert q10_api.status.clean_count_mode is Q10CleanCount.ONCE
     assert q10_api.status.fault is YXFault.NONE
     assert q10_api.status.clean_mode == YXCleanType.VAC_AND_MOP
     assert q10_api.status.water_level == YXWaterLevel.LOW

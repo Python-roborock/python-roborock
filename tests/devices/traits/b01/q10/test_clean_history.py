@@ -1,3 +1,6 @@
+from dataclasses import replace
+from pathlib import Path
+
 import pytest
 
 from roborock.data.b01_q10.b01_q10_code_mappings import (
@@ -10,6 +13,8 @@ from roborock.data.b01_q10.b01_q10_code_mappings import (
 from roborock.data.b01_q10.b01_q10_containers import Q10CleanRecord
 from roborock.devices.traits.b01.q10 import Q10PropertiesApi
 from roborock.devices.traits.b01.q10.clean_history import CleanHistoryTrait, CleanRecordConverter
+from roborock.exceptions import RoborockException
+from roborock.map.b01_q10_map_parser import Q10Obstacle, parse_map_packet
 
 from .conftest import FakeB01Q10Channel
 
@@ -175,3 +180,67 @@ async def test_refresh_sends_op_list(q10_api: Q10PropertiesApi, fake_channel: Fa
         B01_Q10_DP.COMMON,
         {"52": {"op": "list"}},
     )
+
+
+async def test_refresh_detail_sends_full_raw_record(
+    clean_history: CleanHistoryTrait,
+    fake_channel: FakeB01Q10Channel,
+) -> None:
+    record = CleanRecordConverter.parse_record(RECORD_A)
+    assert record is not None
+
+    await clean_history.refresh_detail(record)
+
+    assert fake_channel.published_commands == [
+        (
+            B01_Q10_DP.COMMON,
+            {"52": {"op": "select", "id": RECORD_A}},
+        )
+    ]
+
+
+async def test_refresh_detail_rejects_record_without_map(clean_history: CleanHistoryTrait) -> None:
+    record = CleanRecordConverter.parse_record("x_1781226271_1_1_0_0_0_0_2_1_1_0")
+    assert record is not None
+
+    with pytest.raises(RoborockException, match="no saved map detail"):
+        await clean_history.refresh_detail(record)
+
+
+async def test_refresh_detail_rejects_parallel_request(clean_history: CleanHistoryTrait) -> None:
+    record = CleanRecordConverter.parse_record(RECORD_A)
+    assert record is not None
+    await clean_history.refresh_detail(record)
+
+    with pytest.raises(RoborockException, match="already pending"):
+        await clean_history.refresh_detail(record)
+
+
+async def test_detail_response_is_associated_with_pending_record(
+    clean_history: CleanHistoryTrait,
+) -> None:
+    record = CleanRecordConverter.parse_record(RECORD_A)
+    assert record is not None
+    await clean_history.refresh_detail(record)
+    fixture = Path("tests/map/testdata/b01_q10_map.bin").read_bytes()
+    packet = parse_map_packet(b"\x03\x01" + fixture[2:])
+
+    clean_history.update_from_map_packet(packet)
+
+    assert clean_history.detail_record is record
+    assert clean_history.detail_packet is packet
+
+
+def test_clean_record_detail_exposes_obstacles(clean_history: CleanHistoryTrait) -> None:
+    fixture = Path("tests/map/testdata/b01_q10_map.bin").read_bytes()
+    packet = replace(
+        parse_map_packet(b"\x03\x01" + fixture[2:]),
+        obstacles=[Q10Obstacle(100, -200), Q10Obstacle(-300, 400)],
+    )
+
+    clean_history.update_from_map_packet(packet)
+
+    assert clean_history.detail_obstacles == packet.obstacles
+    exposed = clean_history.detail_obstacles
+    exposed.clear()
+    assert clean_history.detail_obstacles == packet.obstacles
