@@ -6,6 +6,10 @@ This intentionally mirrors the v1 `MapContentTrait` contract:
 - fields `image_content`, `map_data`, and `raw_api_response` are then readable
 
 For B01/Q7 devices, the underlying raw map payload is retrieved via `MapTrait`.
+
+Q7 devices additionally stream map frames unprompted while cleaning; those arrive
+through `update_from_push()`, which keeps the same cached fields current and
+notifies registered update listeners.
 """
 
 import asyncio

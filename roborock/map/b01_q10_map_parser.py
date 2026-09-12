@@ -341,7 +341,7 @@ def _drop_stray_leading_point(points: list[Q10Point]) -> list[Q10Point]:
     """
     if len(points) < 3:
         return points
-    steps = [math.hypot(b.x - a.x, b.y - a.y) for a, b in zip(points, points[1:])]
+    steps = [math.hypot(b.x - a.x, b.y - a.y) for a, b in zip(points, points[1:], strict=False)]
     median_rest = statistics.median(steps[1:])
     if median_rest > 0 and steps[0] > _STRAY_POINT_STEP_RATIO * median_rest:
         return points[1:]
@@ -425,7 +425,7 @@ def _infer_layout(decoded: bytes, width: int) -> tuple[int, bytes, bytes]:
     up with the marker. Used as a fallback when the header carries no usable
     height.
     """
-    for room_count in range(0, _MAX_ROOMS + 1):
+    for room_count in range(_MAX_ROOMS + 1):
         room_data_length = 2 + room_count * _ROOM_RECORD_LENGTH
         area = len(decoded) - room_data_length
         if area <= 0 or area % width:

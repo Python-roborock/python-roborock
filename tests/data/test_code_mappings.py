@@ -85,7 +85,7 @@ def test_invalid_from_value() -> None:
 
 
 @pytest.mark.parametrize(
-    "input, expected",
+    "input_value, expected",
     [
         ("START_CLEAN", B01_Q10_DP.START_CLEAN),
         ("start_clean", B01_Q10_DP.START_CLEAN),
@@ -103,9 +103,9 @@ def test_invalid_from_value() -> None:
         (999999, None),
     ],
 )
-def test_from_any_optional(input: str | int, expected: B01_Q10_DP | None) -> None:
+def test_from_any_optional(input_value: str | int, expected: B01_Q10_DP | None) -> None:
     """Test from_any_optional method."""
-    assert B01_Q10_DP.from_any_optional(input) == expected
+    assert B01_Q10_DP.from_any_optional(input_value) == expected
 
 
 def test_homedata_product_unknown_category():

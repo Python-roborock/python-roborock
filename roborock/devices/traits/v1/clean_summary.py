@@ -56,7 +56,7 @@ class CleanRecordConverter(common.V1TraitDataConverter):
                             rec.square_meter_area or 0
                         )
                     return final_record
-                except Exception:
+                except Exception:  # noqa: BLE001
                     # Return final record when an exception occurred
                     return final_record
             # There are still a few unknown variables in this.
