@@ -1,5 +1,6 @@
 """Tests for the B01 protocol message encoding and decoding."""
 
+import base64
 import json
 import logging
 import pathlib
@@ -11,14 +12,19 @@ from freezegun import freeze_time
 from syrupy import SnapshotAssertion
 
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP, YXWaterLevel
+from roborock.data.b01_q10.b01_q10_containers import Q10RoborockPoint
 from roborock.data.code_mappings import completed_warnings
 from roborock.exceptions import RoborockException
-from roborock.map.b01_q10_map_parser import Q10MapPacket, Q10TracePacket
+from roborock.map.b01_q10_map_parser import Q10MapPacket, Q10MapPacketKind, Q10TracePacket
+from roborock.map.b01_q10_overlays import Q10RestrictedZone, Q10RestrictionType, Q10VirtualWall
 from roborock.protocols.b01_q10_protocol import (
     Q10DpsUpdate,
     decode_message,
     decode_rpc_response,
     encode_mqtt_payload,
+    encode_restricted_zones,
+    encode_room_name,
+    encode_virtual_walls,
 )
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 
@@ -28,6 +34,211 @@ TESTDATA_IDS = [x.stem for x in TESTDATA_FILES]
 
 MAP_FIXTURE = pathlib.Path("tests/map/testdata/b01_q10_map.bin")
 TRACE_FIXTURE = pathlib.Path("tests/map/testdata/b01_q10_trace.bin")
+
+
+def _point(x: int, y: int) -> Q10RoborockPoint:
+    """Build a public-coordinate point from a captured Q10 wire vector."""
+    return Q10RoborockPoint.from_vector(x, y)
+
+
+def _zone(zone_type: Q10RestrictionType, *vertices: tuple[int, int]) -> Q10RestrictedZone:
+    return Q10RestrictedZone(zone_type, tuple(_point(*vertex) for vertex in vertices))  # type: ignore[arg-type]
+
+
+def _wall(start: tuple[int, int], end: tuple[int, int]) -> Q10VirtualWall:
+    return Q10VirtualWall(_point(*start), _point(*end))
+
+
+def test_encode_restricted_zones_real_three_zone_capture_byte_exact() -> None:
+    """Encoding is the exact inverse of a real three-zone DP 55 capture."""
+    captured = (
+        "AQMABP9A9ToAEPU6ABDzzv9A884AAAAAAAAAAAAAAAAAAAAAAAAAAAAE/Rb/mv5z/5r+c/3L/Rb9ywAAAA"
+        "AAAAAAAAAAAAAAAAAAAAAAAAQDpADEB3UAxAd1/GMDpPxjAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+    )
+    zones = [
+        _zone(Q10RestrictionType.NO_GO, (-192, -2758), (16, -2758), (16, -3122), (-192, -3122)),
+        _zone(Q10RestrictionType.NO_GO, (-746, -102), (-397, -102), (-397, -565), (-746, -565)),
+        _zone(Q10RestrictionType.NO_GO, (932, 196), (1909, 196), (1909, -925), (932, -925)),
+    ]
+
+    assert encode_restricted_zones(zones) == captured
+
+
+def test_encode_restricted_zones_empty_is_device_canonical_payload() -> None:
+    assert encode_restricted_zones([]) == "AQA="
+
+
+def test_encode_restricted_zones_mixed_types_and_padding_byte_exact() -> None:
+    """Multiple restriction kinds retain order and fixed 38-byte padding."""
+    zones = [
+        _zone(Q10RestrictionType.NO_MOP, (-1, 2), (3, 4), (5, 6), (7, 8)),
+        _zone(Q10RestrictionType.THRESHOLD, (-32_768, 32_767), (0, 1), (2, 3), (4, 5)),
+    ]
+    record_one = bytes.fromhex("0204ffff0002000300040005000600070008") + bytes(20)
+    record_two = bytes.fromhex("030480007fff000000010002000300040005") + bytes(20)
+
+    assert base64.b64decode(encode_restricted_zones(zones)) == b"\x01\x02" + record_one + record_two
+
+
+def test_encode_virtual_walls_real_mixed_capture_byte_exact() -> None:
+    """Encoding preserves the proven x/y order for real horizontal and vertical walls."""
+    captured = "AgNyBGMFsARjAf8FAAH7CnE="
+    walls = [_wall((882, 1123), (1456, 1123)), _wall((511, 1280), (507, 2673))]
+
+    assert encode_virtual_walls(walls) == captured
+
+
+def test_encode_virtual_walls_empty_is_device_canonical_payload() -> None:
+    assert encode_virtual_walls([]) == "AA=="
+
+
+def test_encode_virtual_walls_signed_boundaries_byte_exact() -> None:
+    walls = [_wall((-32_768, 32_767), (32_767, -32_768))]
+
+    assert base64.b64decode(encode_virtual_walls(walls)) == bytes.fromhex("0180007fff7fff8000")
+
+
+@pytest.mark.parametrize("collection", ["not-zones", b"not-zones", [object()]])
+def test_encode_restricted_zones_rejects_wrong_collection_values(collection: Any) -> None:
+    with pytest.raises(ValueError, match="zones"):
+        encode_restricted_zones(collection)
+
+
+def test_encode_restricted_zones_rejects_more_than_wire_count() -> None:
+    zone = _zone(Q10RestrictionType.NO_GO, (0, 0), (1, 0), (1, 1), (0, 1))
+
+    with pytest.raises(ValueError, match="at most 255"):
+        encode_restricted_zones([zone] * 256)
+
+
+def test_encode_restricted_zones_rejects_wrong_type() -> None:
+    zone = Q10RestrictedZone(
+        "no-go",  # type: ignore[arg-type]
+        (_point(0, 0), _point(1, 0), _point(1, 1), _point(0, 1)),
+    )
+
+    with pytest.raises(ValueError, match="restricted-zone type"):
+        encode_restricted_zones([zone])
+
+
+def test_encode_restricted_zones_preserves_unknown_wire_type() -> None:
+    zone = Q10RestrictedZone(42, (_point(0, 0), _point(1, 0), _point(1, 1), _point(0, 1)))
+
+    assert base64.b64decode(encode_restricted_zones([zone]))[2] == 42
+
+
+@pytest.mark.parametrize(
+    "vertices",
+    [
+        ((0, 0), (1, 0), (1, 1)),
+        ((0, 0), (1, 0), (1, 1), (0, 1), (-1, 0)),
+    ],
+)
+def test_encode_restricted_zones_rejects_wrong_cardinality(vertices: tuple[tuple[int, int], ...]) -> None:
+    zone = Q10RestrictedZone(
+        Q10RestrictionType.NO_GO,
+        tuple(_point(*vertex) for vertex in vertices),  # type: ignore[arg-type]
+    )
+
+    with pytest.raises(ValueError, match="exactly four"):
+        encode_restricted_zones([zone])
+
+
+def test_encode_restricted_zones_rejects_duplicate_vertices() -> None:
+    duplicate = _point(0, 0)
+    zone = Q10RestrictedZone(
+        Q10RestrictionType.NO_GO,
+        (duplicate, _point(1, 0), _point(1, 1), duplicate),
+    )
+
+    with pytest.raises(ValueError, match="distinct"):
+        encode_restricted_zones([zone])
+
+
+@pytest.mark.parametrize(
+    ("vertices", "message"),
+    [
+        (((0, 0), (1, 0), (2, 0), (3, 0)), "enclose an area"),
+        (((0, 0), (2, 2), (0, 2), (2, 0)), "enclose an area|must not cross"),
+    ],
+)
+def test_encode_restricted_zones_rejects_invalid_geometry(
+    vertices: tuple[tuple[int, int], ...],
+    message: str,
+) -> None:
+    zone = _zone(Q10RestrictionType.NO_GO, *vertices)
+
+    with pytest.raises(ValueError, match=message):
+        encode_restricted_zones([zone])
+
+
+@pytest.mark.parametrize("collection", ["not-walls", b"not-walls", [object()]])
+def test_encode_virtual_walls_rejects_wrong_collection_values(collection: Any) -> None:
+    with pytest.raises(ValueError, match="walls"):
+        encode_virtual_walls(collection)
+
+
+def test_encode_virtual_walls_rejects_more_than_wire_count() -> None:
+    wall = _wall((0, 0), (1, 1))
+
+    with pytest.raises(ValueError, match="at most 255"):
+        encode_virtual_walls([wall] * 256)
+
+
+def test_encode_virtual_walls_rejects_duplicate_endpoints() -> None:
+    point = _point(0, 0)
+
+    with pytest.raises(ValueError, match="distinct"):
+        encode_virtual_walls([Q10VirtualWall(point, point)])
+
+
+@pytest.mark.parametrize(
+    "point",
+    [
+        Q10RoborockPoint(True, 25_500),
+        Q10RoborockPoint(25_500.0, 25_500),  # type: ignore[arg-type]
+        Q10RoborockPoint(25_501, 25_500),
+        Q10RoborockPoint(-138_345, 25_500),
+    ],
+)
+def test_zone_and_wall_encoders_reject_invalid_coordinates(point: Q10RoborockPoint) -> None:
+    valid = (_point(10, 10), _point(11, 10), _point(11, 11))
+    zone = Q10RestrictedZone(Q10RestrictionType.NO_GO, (point, *valid))
+    wall = Q10VirtualWall(point, _point(2, 2))
+
+    with pytest.raises(ValueError, match="coordinates"):
+        encode_restricted_zones([zone])
+    with pytest.raises(ValueError, match="coordinates"):
+        encode_virtual_walls([wall])
+
+
+def test_overlay_encoders_do_not_mutate_callers() -> None:
+    zones = [_zone(Q10RestrictionType.NO_MOP, (0, 0), (2, 0), (2, 2), (0, 2))]
+    walls = [_wall((-1, -1), (1, 1))]
+    original_zones = list(zones)
+    original_walls = list(walls)
+
+    encode_restricted_zones(zones)
+    encode_virtual_walls(walls)
+
+    assert zones == original_zones
+    assert walls == original_walls
+
+
+def test_encode_room_name_uses_fixed_utf8_field() -> None:
+    assert base64.b64decode(encode_room_name(7, "Café")) == bytes((1, 7, 0, 5)) + "Café".encode() + bytes(14)
+
+
+@pytest.mark.parametrize("room_id", [True, -1, 256, 1.0, "1"])
+def test_encode_room_name_rejects_invalid_room_id(room_id: Any) -> None:
+    with pytest.raises(ValueError, match="room_id"):
+        encode_room_name(room_id, "Study")
+
+
+@pytest.mark.parametrize("name", ["", "a\x00b", "x" * 20, "é" * 10, 1])
+def test_encode_room_name_rejects_invalid_name(name: Any) -> None:
+    with pytest.raises(ValueError, match="name"):
+        encode_room_name(7, name)
 
 
 def _message(payload: bytes, protocol: RoborockMessageProtocol) -> RoborockMessage:
@@ -66,7 +277,23 @@ def test_decode_message_map_packet() -> None:
     message = _message(MAP_FIXTURE.read_bytes(), RoborockMessageProtocol.MAP_RESPONSE)
     decoded = decode_message(message)
     assert isinstance(decoded, Q10MapPacket)
-    assert {room.id: room.name for room in decoded.rooms} == {2: "Living Room", 3: "Bedroom"}
+    assert {room.id: room.name for room in decoded.rooms} == {2: "Living Room", 3: "bedroom"}
+
+
+@pytest.mark.parametrize(
+    ("marker", "kind"),
+    [
+        (b"\x03\x01", Q10MapPacketKind.CLEAN_RECORD_DETAIL),
+        (b"\x04\x01", Q10MapPacketKind.SAVED_MAP_DETAIL),
+    ],
+)
+def test_decode_message_archived_map_packet(marker: bytes, kind: Q10MapPacketKind) -> None:
+    """The decoder recognizes both archived map-detail markers."""
+    fixture = MAP_FIXTURE.read_bytes()
+    decoded = decode_message(_message(marker + fixture[2:], RoborockMessageProtocol.MAP_RESPONSE))
+
+    assert isinstance(decoded, Q10MapPacket)
+    assert decoded.kind is kind
 
 
 def test_decode_message_trace_packet() -> None:

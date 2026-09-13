@@ -1,7 +1,10 @@
 """Roborock B01 Protocol encoding and decoding."""
 
+import base64
 import json
 import logging
+import struct
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -10,11 +13,12 @@ from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
     Q10MapPacket,
     Q10TracePacket,
-    is_map_packet,
     is_trace_packet,
+    map_packet_kind,
     parse_map_packet,
     parse_trace_packet,
 )
+from roborock.map.b01_q10_overlays import Q10RestrictedZone, Q10VirtualWall
 from roborock.roborock_message import (
     RoborockMessage,
     RoborockMessageProtocol,
@@ -24,6 +28,120 @@ _LOGGER = logging.getLogger(__name__)
 
 B01_VERSION = b"B01"
 ParamsType = list | dict | int | None
+_Q10_ZONE_RECORD_SIZE = 38
+_Q10_ROOM_NAME_FIELD_SIZE = 19
+
+
+def _orientation(a: tuple[int, int], b: tuple[int, int], c: tuple[int, int]) -> int:
+    return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+
+
+def _on_segment(a: tuple[int, int], b: tuple[int, int], point: tuple[int, int]) -> bool:
+    return min(a[0], b[0]) <= point[0] <= max(a[0], b[0]) and min(a[1], b[1]) <= point[1] <= max(a[1], b[1])
+
+
+def _segments_cross(a: tuple[int, int], b: tuple[int, int], c: tuple[int, int], d: tuple[int, int]) -> bool:
+    orientations = (
+        _orientation(a, b, c),
+        _orientation(a, b, d),
+        _orientation(c, d, a),
+        _orientation(c, d, b),
+    )
+    if orientations[0] * orientations[1] < 0 and orientations[2] * orientations[3] < 0:
+        return True
+    return any(
+        orientation == 0 and _on_segment(start, end, point)
+        for orientation, start, end, point in (
+            (orientations[0], a, b, c),
+            (orientations[1], a, b, d),
+            (orientations[2], c, d, a),
+            (orientations[3], c, d, b),
+        )
+    )
+
+
+def _validate_quadrilateral(vertices: list[tuple[int, int]]) -> None:
+    area_twice = sum(
+        x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(vertices, (*vertices[1:], vertices[0]), strict=True)
+    )
+    if area_twice == 0:
+        raise ValueError("restricted-zone vertices must enclose an area")
+    if _segments_cross(vertices[0], vertices[1], vertices[2], vertices[3]) or _segments_cross(
+        vertices[1], vertices[2], vertices[3], vertices[0]
+    ):
+        raise ValueError("restricted-zone edges must not cross")
+
+
+def encode_restricted_zones(zones: Sequence[Q10RestrictedZone]) -> str:
+    """Encode the complete Q10 restricted-zone collection."""
+    if isinstance(zones, (str, bytes)) or len(zones) > 255:
+        raise ValueError("zones must be a sequence of at most 255 restrictions")
+    if not zones:
+        return base64.b64encode(b"\x01\x00").decode()
+
+    payload = bytearray((1, len(zones)))
+    for zone in zones:
+        if not isinstance(zone, Q10RestrictedZone):
+            raise ValueError("zones must contain Q10RestrictedZone values")
+        if isinstance(zone.type, bool) or not isinstance(zone.type, int) or not 0 <= zone.type <= 255:
+            raise ValueError("restricted-zone type must be an integer between 0 and 255")
+        if len(zone.vertices) != 4:
+            raise ValueError("restricted zones must contain exactly four vertices")
+        if len(set(zone.vertices)) != 4:
+            raise ValueError("restricted-zone vertices must be distinct")
+        record = bytearray((zone.type, len(zone.vertices)))
+        vector_vertices = [point.to_vector() for point in zone.vertices]
+        _validate_quadrilateral(vector_vertices)
+        for x, y in vector_vertices:
+            record.extend(
+                struct.pack(
+                    ">hh",
+                    x,
+                    y,
+                )
+            )
+        record.extend(bytes(_Q10_ZONE_RECORD_SIZE - len(record)))
+        payload.extend(record)
+    return base64.b64encode(payload).decode()
+
+
+def encode_virtual_walls(walls: Sequence[Q10VirtualWall]) -> str:
+    """Encode the complete Q10 virtual-wall collection."""
+    if isinstance(walls, (str, bytes)) or len(walls) > 255:
+        raise ValueError("walls must be a sequence of at most 255 virtual walls")
+
+    payload = bytearray((len(walls),))
+    for wall in walls:
+        if not isinstance(wall, Q10VirtualWall):
+            raise ValueError("walls must contain Q10VirtualWall values")
+        if wall.start == wall.end:
+            raise ValueError("virtual-wall endpoints must be distinct")
+        for point in (wall.start, wall.end):
+            x, y = point.to_vector()
+            payload.extend(
+                struct.pack(
+                    ">hh",
+                    x,
+                    y,
+                )
+            )
+    return base64.b64encode(payload).decode()
+
+
+def encode_room_name(room_id: int, name: str) -> str:
+    """Encode a Q10 room-name update."""
+    if isinstance(room_id, bool) or not isinstance(room_id, int) or not 0 <= room_id <= 255:
+        raise ValueError("room_id must be an integer between 0 and 255")
+    if not isinstance(name, str) or not name or "\x00" in name:
+        raise ValueError("name must be a non-empty string without null bytes")
+    encoded_name = name.encode("utf-8")
+    if len(encoded_name) > _Q10_ROOM_NAME_FIELD_SIZE:
+        raise ValueError("name must be at most 19 UTF-8 bytes")
+
+    payload = bytearray((1, room_id, 0, len(encoded_name)))
+    payload.extend(encoded_name)
+    payload.extend(bytes(_Q10_ROOM_NAME_FIELD_SIZE - len(encoded_name)))
+    return base64.b64encode(payload).decode()
 
 
 def encode_mqtt_payload(command: B01_Q10_DP, params: ParamsType) -> RoborockMessage:
@@ -113,16 +231,16 @@ Q10Message = Q10DpsUpdate | Q10MapPacket | Q10TracePacket
 def decode_message(message: RoborockMessage) -> Q10Message | None:
     """Decode a pushed Q10 ``RoborockMessage`` into a typed message.
 
-    ``MAP_RESPONSE`` (protocol 301) payloads carry the binary map (``01 01``) or
-    trace (``02 01``) packets, which are parsed by the map parser; any other
-    ``MAP_RESPONSE`` marker is unrecognized and yields ``None``. Every other
-    protocol is treated as a DPS status update.
+    ``MAP_RESPONSE`` (protocol 301) payloads carry binary current-map (``01
+    01``), trace (``02 01``), clean-record detail (``03 01``), or saved-map
+    detail (``04 01``) packets. Any other marker is unrecognized and yields
+    ``None``. Every other protocol is treated as a DPS status update.
 
     Raises ``RoborockException`` if a recognized payload fails to parse.
     """
     if message.protocol == RoborockMessageProtocol.MAP_RESPONSE:
         payload = message.payload or b""
-        if is_map_packet(payload):
+        if map_packet_kind(payload) is not None:
             return parse_map_packet(payload)
         if is_trace_packet(payload):
             return parse_trace_packet(payload)
