@@ -224,6 +224,10 @@ class StatusV2(RoborockBase):
         newer off-peak charging logic seamlessly while maintaining backwards compatibility
         with older devices.
         """
+        return self.get_dock_state()
+
+    def get_dock_state(self, *, is_supported_valley_electricity: bool = True) -> RoborockDockState:
+        """Return the dock state, accounting for off-peak charging support."""
         if self.state is None or self.state == RoborockStateCode.unknown:
             return RoborockDockState.unknown
 
@@ -239,7 +243,7 @@ class StatusV2(RoborockBase):
 
         # 3 & 4. CHARGING and CHARGE_WAITING
         if self.state == RoborockStateCode.charging:
-            if self.charge_status == RoborockChargeStatus.charge_waiting:
+            if is_supported_valley_electricity and self.charge_status == RoborockChargeStatus.charge_waiting:
                 return RoborockDockState.off_peak_waiting
             return RoborockDockState.charging
 
@@ -249,6 +253,11 @@ class StatusV2(RoborockBase):
 
         # 1. IDLE (Not on dock, or doing something else)
         return RoborockDockState.idle
+
+    @property
+    def is_battery_charging(self) -> bool:
+        """Return whether the battery is actively charging."""
+        return self.dock_state == RoborockDockState.charging
 
     def __repr__(self) -> str:
         return _attr_repr(self)
