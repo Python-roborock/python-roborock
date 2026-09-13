@@ -24,6 +24,8 @@
       'dustSwitch': True,
     }),
     'map': dict({
+      'obstacles': list([
+      ]),
       'path': list([
       ]),
       'robotHeading': None,
@@ -404,6 +406,8 @@
         'dustSwitch': True,
       }),
       'map': dict({
+        'obstacles': list([
+        ]),
         'path': list([
         ]),
         'robotHeading': None,
@@ -480,6 +484,8 @@
     'dust_collection': dict({
     }),
     'map': dict({
+      'obstacles': list([
+      ]),
       'path': list([
       ]),
       'robotHeading': None,
