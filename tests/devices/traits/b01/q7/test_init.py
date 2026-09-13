@@ -175,7 +175,7 @@ async def test_q7_api_set_do_not_disturb_invalid_time(
     ("enabled", "expected_code"),
     [(True, 1), (False, 0)],
 )
-async def test_q7_api_set_button_light(
+async def test_q7_api_set_button_lights(
     enabled: bool,
     expected_code: int,
     q7_api: Q7PropertiesApi,
@@ -183,7 +183,7 @@ async def test_q7_api_set_button_light(
 ):
     """Test toggling the button/panel lights."""
     fake_channel.response_queue.append({"result": "ok"})
-    await q7_api.set_button_light(enabled)
+    await q7_api.set_button_lights(enabled)
 
     assert len(fake_channel.published_commands) == 1
     command, params = fake_channel.published_commands[0]
