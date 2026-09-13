@@ -139,8 +139,7 @@ def test_decode_invalid_rpc_payload(payload: bytes, expected_error_message: str)
 
 
 def test_decode_unknown_dps_code(caplog: pytest.LogCaptureFixture) -> None:
-    """Unknown data points are dropped silently, without logging warnings.
-    """
+    """Unknown data points are dropped silently, without logging warnings."""
     completed_warnings.discard("909090 is not a valid code for B01_Q10_DP")
     message = RoborockMessage(
         protocol=RoborockMessageProtocol.RPC_RESPONSE,
@@ -157,6 +156,7 @@ def test_decode_unknown_dps_code(caplog: pytest.LogCaptureFixture) -> None:
         B01_Q10_DP.BATTERY: 100,
     }
     assert "not a valid code" not in caplog.text
+
 
 def test_decode_mapped_112_113_dps() -> None:
     """Verify newly mapped status codes 112 and 113 decode correctly."""
