@@ -88,7 +88,9 @@ class Q10MapInfo(RoborockBase):
     """A saved map reported by ``dpMultiMap``.
 
     Q10 firmware represents the map identifier as a string on the wire. The
-    value is sent back unchanged in a subsequent ``{"op": "get"}`` request.
+    value is sent back unchanged in a subsequent ``{"op": "select"}`` detail
+    request. On Q10 firmware, ``select`` previews a saved map without applying
+    it as the active map.
     """
 
     id: str
