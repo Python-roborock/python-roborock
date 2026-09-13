@@ -119,8 +119,11 @@ async def test_q7_map_content_updates_from_push(
         fake_channel.map_push_callback(pushed_payload)
 
     assert q7_api.map_content.image_content == b"pngbytes"
+    assert q7_api.map_content.map_data is dummy_map_data
     assert q7_api.map_content.raw_api_response == pushed_payload
     assert updates == [True]
+    # No RPC was needed to get here.
+    assert fake_channel.published_commands == []
 
     await q7_api.close()
     assert fake_channel.map_push_callback is None

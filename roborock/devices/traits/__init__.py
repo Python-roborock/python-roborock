@@ -24,5 +24,5 @@ __all__ = [
 ]
 
 
-class Trait(ABC):
+class Trait(ABC):  # noqa: B024
     """Base class for all traits."""

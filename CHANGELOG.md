@@ -2,6 +2,97 @@
 
 <!-- version list -->
 
+## v7.6.0 (2026-09-13)
+
+### Features
+
+- Add dust collection settings to the B01 Q7 api
+  ([#919](https://github.com/Python-roborock/python-roborock/pull/919),
+  [`b8b2409`](https://github.com/Python-roborock/python-roborock/commit/b8b2409404438478f36f3ef343f4828423caaffb))
+
+
+## v7.5.0 (2026-09-12)
+
+### Bug Fixes
+
+- Resolve Q7 map mypy errors ([#911](https://github.com/Python-roborock/python-roborock/pull/911),
+  [`09c9a5b`](https://github.com/Python-roborock/python-roborock/commit/09c9a5b1bd3d2f7e5c635b70d10948fbaf7b8b66))
+
+### Features
+
+- Align Q7 map colors with V1 ([#911](https://github.com/Python-roborock/python-roborock/pull/911),
+  [`09c9a5b`](https://github.com/Python-roborock/python-roborock/commit/09c9a5b1bd3d2f7e5c635b70d10948fbaf7b8b66))
+
+- Color and label Q7 rooms in the rendered map
+  ([#911](https://github.com/Python-roborock/python-roborock/pull/911),
+  [`09c9a5b`](https://github.com/Python-roborock/python-roborock/commit/09c9a5b1bd3d2f7e5c635b70d10948fbaf7b8b66))
+
+- Decode and render Q7 carpets ([#911](https://github.com/Python-roborock/python-roborock/pull/911),
+  [`09c9a5b`](https://github.com/Python-roborock/python-roborock/commit/09c9a5b1bd3d2f7e5c635b70d10948fbaf7b8b66))
+
+- Decode Q7 (B01) map geometry — dock, robot pose, path and rooms
+  ([#911](https://github.com/Python-roborock/python-roborock/pull/911),
+  [`09c9a5b`](https://github.com/Python-roborock/python-roborock/commit/09c9a5b1bd3d2f7e5c635b70d10948fbaf7b8b66))
+
+- Render Q7 restricted areas ([#911](https://github.com/Python-roborock/python-roborock/pull/911),
+  [`09c9a5b`](https://github.com/Python-roborock/python-roborock/commit/09c9a5b1bd3d2f7e5c635b70d10948fbaf7b8b66))
+
+
+## v7.4.3 (2026-09-12)
+
+### Bug Fixes
+
+- Name B01 Q7 code 2103 and document dock dust-collection state fields
+  ([#921](https://github.com/Python-roborock/python-roborock/pull/921),
+  [`65f592b`](https://github.com/Python-roborock/python-roborock/commit/65f592b43036dbd3e8c08cc333202c2259430c62))
+
+### Chores
+
+- Reflow F_2103 comment ([#921](https://github.com/Python-roborock/python-roborock/pull/921),
+  [`65f592b`](https://github.com/Python-roborock/python-roborock/commit/65f592b43036dbd3e8c08cc333202c2259430c62))
+
+### Documentation
+
+- Add .claude/skills symlink for Claude Code discovery
+  ([#954](https://github.com/Python-roborock/python-roborock/pull/954),
+  [`7d65d27`](https://github.com/Python-roborock/python-roborock/commit/7d65d270e3efeafb95e38bdec251d0fdf11889d0))
+
+- Add repository engineering guidelines, review skill, and contributor standards
+  ([#954](https://github.com/Python-roborock/python-roborock/pull/954),
+  [`7d65d27`](https://github.com/Python-roborock/python-roborock/commit/7d65d270e3efeafb95e38bdec251d0fdf11889d0))
+
+- Add repository engineering guidelines, review skill, and contributor standards (#953)
+  ([#954](https://github.com/Python-roborock/python-roborock/pull/954),
+  [`7d65d27`](https://github.com/Python-roborock/python-roborock/commit/7d65d270e3efeafb95e38bdec251d0fdf11889d0))
+
+- Address review feedback on feature gating, forward refs, and test paths
+  ([#954](https://github.com/Python-roborock/python-roborock/pull/954),
+  [`7d65d27`](https://github.com/Python-roborock/python-roborock/commit/7d65d270e3efeafb95e38bdec251d0fdf11889d0))
+
+- Streamline AGENTS.md by removing redundancies
+  ([#954](https://github.com/Python-roborock/python-roborock/pull/954),
+  [`7d65d27`](https://github.com/Python-roborock/python-roborock/commit/7d65d270e3efeafb95e38bdec251d0fdf11889d0))
+
+- **q7**: Document live map pushes and cover them in tests
+  ([#927](https://github.com/Python-roborock/python-roborock/pull/927),
+  [`af8a4d1`](https://github.com/Python-roborock/python-roborock/commit/af8a4d1dba01ebfe3f5c05f3c53d80c2b73d28fe))
+
+### Refactoring
+
+- Enable stricter ruff lints and broad exception checking
+  ([#956](https://github.com/Python-roborock/python-roborock/pull/956),
+  [`28a6edc`](https://github.com/Python-roborock/python-roborock/commit/28a6edcc790d48ddffa214c77216133dfe12e5f6))
+
+
+## v7.4.2 (2026-09-10)
+
+### Bug Fixes
+
+- Remove v1 image parser monkey patch
+  ([#949](https://github.com/Python-roborock/python-roborock/pull/949),
+  [`dfd93fc`](https://github.com/Python-roborock/python-roborock/commit/dfd93fcc4edd2cdf350515f3a23a38202cc9c8ca))
+
+
 ## v7.4.1 (2026-09-07)
 
 ### Bug Fixes
