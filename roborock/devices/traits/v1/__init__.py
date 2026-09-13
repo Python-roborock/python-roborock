@@ -289,11 +289,6 @@ class PropertiesApi(Trait):
             obstacle_photos._rpc_channel = self._get_rpc_channel(obstacle_photos)
             self.obstacle_photos = obstacle_photos
 
-        if self.mop_dryer is None and self._is_supported(MopDryerTrait, "mop_dryer", dock_features):
-            mop_dryer = MopDryerTrait(self.status)
-            mop_dryer._rpc_channel = self._get_rpc_channel(mop_dryer)
-            self.mop_dryer = mop_dryer
-
         # Dynamically create any traits that need to be populated
         for item in fields(self):
             if (trait := getattr(self, item.name, None)) is not None:
