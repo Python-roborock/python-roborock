@@ -5,8 +5,10 @@ import pytest
 from roborock.data.b01_q7 import (
     CleanTaskTypeMapping,
     CleanTypeMapping,
+    DustCollectionStateMapping,
     SCDeviceCleanParam,
     SCWindMapping,
+    StationStateMapping,
     WaterLevelMapping,
     WorkStatusMapping,
 )
@@ -23,6 +25,8 @@ async def test_q7_api_query_values(q7_api: Q7PropertiesApi, fake_channel: FakeQ7
         "status": 1,
         "wind": 2,
         "battery": 100,
+        "station_act": 3,
+        "dust_action": 1,
     }
 
     fake_channel.response_queue.append(response_data)
@@ -31,17 +35,28 @@ async def test_q7_api_query_values(q7_api: Q7PropertiesApi, fake_channel: FakeQ7
         [
             RoborockB01Props.STATUS,
             RoborockB01Props.WIND,
+            RoborockB01Props.STATION_ACT,
+            RoborockB01Props.DUST_ACTION,
         ]
     )
 
     assert result is not None
     assert result.status == WorkStatusMapping.WAITING_FOR_ORDERS
     assert result.wind == SCWindMapping.STANDARD
+    assert result.station_act is StationStateMapping.collecting_dust
+    assert result.dust_action is DustCollectionStateMapping.collecting_dust
 
     assert len(fake_channel.published_commands) == 1
     command, params = fake_channel.published_commands[0]
     assert command == RoborockB01Q7Methods.GET_PROP
-    assert params == {"property": [RoborockB01Props.STATUS, RoborockB01Props.WIND]}
+    assert params == {
+        "property": [
+            RoborockB01Props.STATUS,
+            RoborockB01Props.WIND,
+            RoborockB01Props.STATION_ACT,
+            RoborockB01Props.DUST_ACTION,
+        ]
+    }
 
 
 @pytest.mark.parametrize(

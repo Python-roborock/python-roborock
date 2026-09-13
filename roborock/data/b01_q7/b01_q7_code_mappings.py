@@ -1,6 +1,6 @@
 from typing import Self, cast
 
-from ..code_mappings import RoborockModeEnum
+from ..code_mappings import RoborockEnum, RoborockModeEnum
 
 
 class WorkStatusMapping(RoborockModeEnum):
@@ -119,6 +119,22 @@ class WorkModeMapping(RoborockModeEnum):
     EXPLORE_GO_HOME = ("explore_go_home", 47)
     EXPLORE_BROKEN = ("explore_broken", 48)
     EXPLORE_IDLE = ("explore_idle", 49)
+
+
+class StationStateMapping(RoborockEnum):
+    """Known dock activity states observed on the Q7 M5+."""
+
+    unknown = -1
+    idle = 0
+    collecting_dust = 3
+
+
+class DustCollectionStateMapping(RoborockEnum):
+    """Known dust collection states observed on the Q7 M5+."""
+
+    unknown = -1
+    idle = 0
+    collecting_dust = 1
 
 
 class StationActionMapping(RoborockModeEnum):
