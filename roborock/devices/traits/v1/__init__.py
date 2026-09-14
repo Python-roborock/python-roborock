@@ -82,6 +82,7 @@ from . import (
     led_status,
     map_content,
     maps,
+    mop_dryer,
     network_info,
     obstacle_photos,
     rooms,
@@ -105,6 +106,7 @@ from .home import HomeTrait
 from .led_status import LedStatusTrait
 from .map_content import MapContentTrait
 from .maps import MapsTrait
+from .mop_dryer import MopDryerTrait
 from .network_info import NetworkInfoTrait
 from .obstacle_photos import ObstaclePhotoTrait
 from .rooms import RoomsTrait
@@ -132,6 +134,7 @@ __all__ = [
     "led_status",
     "map_content",
     "maps",
+    "mop_dryer",
     "network_info",
     "obstacle_photos",
     "rooms",
@@ -175,6 +178,7 @@ class PropertiesApi(Trait):
     wash_towel_mode: WashTowelModeTrait | None = None
     smart_wash_params: SmartWashParamsTrait | None = None
     obstacle_photos: ObstaclePhotoTrait | None = None
+    mop_dryer: MopDryerTrait | None = None
 
     def __init__(
         self,
@@ -284,6 +288,11 @@ class PropertiesApi(Trait):
             obstacle_photos = ObstaclePhotoTrait(self._rpc_channel)
             obstacle_photos._rpc_channel = self._get_rpc_channel(obstacle_photos)
             self.obstacle_photos = obstacle_photos
+
+        if self.mop_dryer is None and self._is_supported(MopDryerTrait, "mop_dryer", dock_features):
+            mop_dryer = MopDryerTrait(self.status)
+            mop_dryer._rpc_channel = self._get_rpc_channel(mop_dryer)
+            self.mop_dryer = mop_dryer
 
         # Dynamically create any traits that need to be populated
         for item in fields(self):
