@@ -18,6 +18,7 @@ from roborock import (
 from roborock.data import SHORT_MODEL_TO_ENUM, RoborockProductNickname
 from roborock.data.v1 import (
     RoborockStateCode,
+    StatusV2,
 )
 from roborock.device_features import DeviceFeatures
 from roborock.devices.device import RoborockDevice
@@ -610,3 +611,25 @@ def test_update_listener_ignores_unrelated(status_trait: StatusTrait) -> None:
 
     assert not event.is_set()
     unsubscribe()
+
+
+@pytest.mark.parametrize(
+    ("seq_type", "expected"),
+    [(1, True), (0, False), (None, None)],
+)
+def test_clean_then_mop(status_trait: StatusTrait, seq_type: int | None, expected: bool | None) -> None:
+    """seq_type reports whether the current run vacuums before mopping."""
+    status_trait.seq_type = seq_type
+
+    assert status_trait.clean_then_mop is expected
+
+
+def test_status_parses_seq_type() -> None:
+    """seq_type is read from the device status payload.
+
+    The device reports it in get_status; before it was modelled here it was
+    silently dropped along with every other unmatched key.
+    """
+    status = StatusV2.from_dict({**STATUS, "seq_type": 1})
+
+    assert status.seq_type == 1

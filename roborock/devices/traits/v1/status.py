@@ -28,6 +28,8 @@ _LOGGER = logging.getLogger(__name__)
 
 _DPS_CONVERTER = DpsDataConverter.from_dataclass(StatusV2)
 
+_SEQ_TYPE_CLEAN_THEN_MOP = 1
+
 
 class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
     """Trait for managing the status of Roborock devices.
@@ -110,6 +112,17 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
         if self.mop_mode is None:
             return None
         return self.mop_route_mapping.get(self.mop_mode)
+
+    @property
+    def clean_then_mop(self) -> bool | None:
+        """Whether the current run vacuums each room fully before mopping it.
+
+        Reported by the device as ``seq_type``. It describes the run in
+        progress; it is not a persisted setting and cannot be set directly.
+        """
+        if self.seq_type is None:
+            return None
+        return self.seq_type == _SEQ_TYPE_CLEAN_THEN_MOP
 
     @property
     def current_cleaning_mode(self) -> CleaningMode | None:
