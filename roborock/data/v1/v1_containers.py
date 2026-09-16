@@ -137,6 +137,8 @@ class StatusV2(RoborockBase):
     repeat: int | None = None
     kct: int | None = None
     subdivision_sets: int | None = None
+    seq_type: int | None = field(default=None, metadata={"feature": "is_clean_then_mop_mode_supported"})
+    """Cleaning sequence of the current run; 1 means vacuum the room, then mop it."""
 
     @property
     def square_meter_clean_area(self) -> float | None:
