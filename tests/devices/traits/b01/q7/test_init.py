@@ -5,8 +5,10 @@ import pytest
 from roborock.data.b01_q7 import (
     CleanTaskTypeMapping,
     CleanTypeMapping,
+    DustCollectionStateMapping,
     SCDeviceCleanParam,
     SCWindMapping,
+    StationStateMapping,
     WaterLevelMapping,
     WorkStatusMapping,
 )
@@ -23,6 +25,8 @@ async def test_q7_api_query_values(q7_api: Q7PropertiesApi, fake_channel: FakeQ7
         "status": 1,
         "wind": 2,
         "battery": 100,
+        "station_act": 3,
+        "dust_action": 1,
     }
 
     fake_channel.response_queue.append(response_data)
@@ -31,17 +35,28 @@ async def test_q7_api_query_values(q7_api: Q7PropertiesApi, fake_channel: FakeQ7
         [
             RoborockB01Props.STATUS,
             RoborockB01Props.WIND,
+            RoborockB01Props.STATION_ACT,
+            RoborockB01Props.DUST_ACTION,
         ]
     )
 
     assert result is not None
     assert result.status == WorkStatusMapping.WAITING_FOR_ORDERS
     assert result.wind == SCWindMapping.STANDARD
+    assert result.station_act is StationStateMapping.collecting_dust
+    assert result.dust_action is DustCollectionStateMapping.collecting_dust
 
     assert len(fake_channel.published_commands) == 1
     command, params = fake_channel.published_commands[0]
     assert command == RoborockB01Q7Methods.GET_PROP
-    assert params == {"property": [RoborockB01Props.STATUS, RoborockB01Props.WIND]}
+    assert params == {
+        "property": [
+            RoborockB01Props.STATUS,
+            RoborockB01Props.WIND,
+            RoborockB01Props.STATION_ACT,
+            RoborockB01Props.DUST_ACTION,
+        ]
+    }
 
 
 @pytest.mark.parametrize(
@@ -131,6 +146,56 @@ async def test_q7_api_set_child_lock(
     command, params = fake_channel.published_commands[0]
     assert command == RoborockB01Q7Methods.SET_PROP
     assert params == {RoborockB01Props.CHILD_LOCK: expected_code}
+
+
+@pytest.mark.parametrize(
+    ("enabled", "expected_code"),
+    [(True, 1), (False, 0)],
+)
+async def test_q7_api_set_dust_collection(
+    enabled: bool,
+    expected_code: int,
+    q7_api: Q7PropertiesApi,
+    fake_channel: FakeQ7Channel,
+):
+    """Test toggling automatic dust collection."""
+    fake_channel.response_queue.append({"result": "ok"})
+    await q7_api.set_dust_collection(enabled)
+
+    assert len(fake_channel.published_commands) == 1
+    command, params = fake_channel.published_commands[0]
+    assert command == RoborockB01Q7Methods.SET_PROP
+    assert params == {RoborockB01Props.DUST_AUTO_STATE: expected_code}
+
+
+@pytest.mark.parametrize("frequency", [1, 2, 3])
+async def test_q7_api_set_dust_collection_frequency(
+    frequency: int,
+    q7_api: Q7PropertiesApi,
+    fake_channel: FakeQ7Channel,
+):
+    """Test setting the automatic dust-collection frequency."""
+    fake_channel.response_queue.append({"result": "ok"})
+    await q7_api.set_dust_collection_frequency(frequency)
+
+    assert len(fake_channel.published_commands) == 1
+    command, params = fake_channel.published_commands[0]
+    assert command == RoborockB01Q7Methods.SET_PROP
+    assert params == {RoborockB01Props.DUST_FREQUENCY: frequency}
+
+
+@pytest.mark.parametrize("frequency", [0, -1])
+async def test_q7_api_set_dust_collection_frequency_invalid(
+    frequency: int,
+    q7_api: Q7PropertiesApi,
+    fake_channel: FakeQ7Channel,
+):
+    """Test invalid dust-collection frequencies raise without publishing."""
+    fake_channel.response_queue.append({"result": "ok"})
+    with pytest.raises(ValueError, match="positive number of cleans"):
+        await q7_api.set_dust_collection_frequency(frequency)
+
+    assert len(fake_channel.published_commands) == 0
 
 
 @pytest.mark.parametrize("enabled, expected_is_open", [(True, 1), (False, 0)])

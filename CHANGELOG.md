@@ -2,6 +2,64 @@
 
 <!-- version list -->
 
+## v7.8.0 (2026-09-13)
+
+### Features
+
+- Add Q7 dock state enums ([#958](https://github.com/Python-roborock/python-roborock/pull/958),
+  [`44ffbe6`](https://github.com/Python-roborock/python-roborock/commit/44ffbe6689aa213e1de1c6401b5d637fab5fab07))
+
+
+## v7.7.1 (2026-09-13)
+
+### Bug Fixes
+
+- Docstring formatting in test_decode_unknown_dps_code
+  ([#951](https://github.com/Python-roborock/python-roborock/pull/951),
+  [`7af2463`](https://github.com/Python-roborock/python-roborock/commit/7af2463122174b7ad8ada2961db2493bd61bd1f5))
+
+- **code_mappings**: Map codes 112 and 113 for B01_Q10_DP
+  ([#951](https://github.com/Python-roborock/python-roborock/pull/951),
+  [`7af2463`](https://github.com/Python-roborock/python-roborock/commit/7af2463122174b7ad8ada2961db2493bd61bd1f5))
+
+
+## v7.7.0 (2026-09-13)
+
+### Bug Fixes
+
+- Require confirmed Q10 goto ownership
+  ([#908](https://github.com/Python-roborock/python-roborock/pull/908),
+  [`4411412`](https://github.com/Python-roborock/python-roborock/commit/44114126b4bfae2f4af4dbf8a4b129bfa24af381))
+
+### Features
+
+- Add Q10 zone cleaning and position coordinates
+  ([#908](https://github.com/Python-roborock/python-roborock/pull/908),
+  [`4411412`](https://github.com/Python-roborock/python-roborock/commit/44114126b4bfae2f4af4dbf8a4b129bfa24af381))
+
+- Add Q10 zone, position, and goto support
+  ([#908](https://github.com/Python-roborock/python-roborock/pull/908),
+  [`4411412`](https://github.com/Python-roborock/python-roborock/commit/44114126b4bfae2f4af4dbf8a4b129bfa24af381))
+
+- Add safe Q10 goto lifecycle ([#908](https://github.com/Python-roborock/python-roborock/pull/908),
+  [`4411412`](https://github.com/Python-roborock/python-roborock/commit/44114126b4bfae2f4af4dbf8a4b129bfa24af381))
+
+### Refactoring
+
+- Apply Q10 API review feedback
+  ([#908](https://github.com/Python-roborock/python-roborock/pull/908),
+  [`4411412`](https://github.com/Python-roborock/python-roborock/commit/44114126b4bfae2f4af4dbf8a4b129bfa24af381))
+
+
+## v7.6.0 (2026-09-13)
+
+### Features
+
+- Add dust collection settings to the B01 Q7 api
+  ([#919](https://github.com/Python-roborock/python-roborock/pull/919),
+  [`b8b2409`](https://github.com/Python-roborock/python-roborock/commit/b8b2409404438478f36f3ef343f4828423caaffb))
+
+
 ## v7.5.0 (2026-09-12)
 
 ### Bug Fixes

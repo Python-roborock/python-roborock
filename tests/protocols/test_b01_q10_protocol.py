@@ -3,6 +3,7 @@
 import json
 import logging
 import pathlib
+from base64 import b64decode
 from collections.abc import Generator
 from typing import Any
 
@@ -11,13 +12,16 @@ from freezegun import freeze_time
 from syrupy import SnapshotAssertion
 
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP, YXWaterLevel
+from roborock.data.b01_q10.b01_q10_containers import Q10RoborockPoint
 from roborock.data.code_mappings import completed_warnings
 from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import Q10MapPacket, Q10TracePacket
 from roborock.protocols.b01_q10_protocol import (
+    CleanParams,
     Q10DpsUpdate,
     decode_message,
     decode_rpc_response,
+    encode_clean_params,
     encode_mqtt_payload,
 )
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
@@ -28,6 +32,72 @@ TESTDATA_IDS = [x.stem for x in TESTDATA_FILES]
 
 MAP_FIXTURE = pathlib.Path("tests/map/testdata/b01_q10_map.bin")
 TRACE_FIXTURE = pathlib.Path("tests/map/testdata/b01_q10_trace.bin")
+
+
+def test_encode_clean_params_source_verified_fixture() -> None:
+    """Zone parameters match a payload verified against ss07 hardware."""
+    params = CleanParams(
+        Q10RoborockPoint(25650, 25700),
+        Q10RoborockPoint(25550, 25600),
+        clean_count=2,
+    )
+
+    assert b64decode(encode_clean_params(params)) == bytes(
+        (
+            1,
+            2,
+            1,
+            4,
+            0,
+            10,
+            0,
+            20,
+            0,
+            30,
+            0,
+            20,
+            0,
+            30,
+            0,
+            40,
+            0,
+            10,
+            0,
+            40,
+            0,
+            *([0] * 19),
+        )
+    )
+
+
+@pytest.mark.parametrize("clean_count", [0, 4, True])
+def test_encode_clean_params_rejects_invalid_clean_count(clean_count: int) -> None:
+    """The protocol validates the device's supported clean-count range."""
+    with pytest.raises(ValueError, match="clean_count must be between 1 and 3"):
+        encode_clean_params(
+            CleanParams(
+                Q10RoborockPoint(25550, 25600),
+                Q10RoborockPoint(25650, 25700),
+                clean_count,
+            )
+        )
+
+
+def test_encode_clean_params_rejects_empty_zone() -> None:
+    """Two corners must enclose a non-empty rectangle."""
+    with pytest.raises(ValueError, match="zone corners must enclose an area"):
+        encode_clean_params(
+            CleanParams(
+                Q10RoborockPoint(25550, 25600),
+                Q10RoborockPoint(25550, 25700),
+            )
+        )
+
+
+def test_encode_clean_params_rejects_untyped_corners() -> None:
+    """The wire encoder accepts only common-coordinate point objects."""
+    with pytest.raises(ValueError, match="zone corners must be Q10RoborockPoint"):
+        encode_clean_params(CleanParams((25550, 25600), (25650, 25700)))  # type: ignore[arg-type]
 
 
 def _message(payload: bytes, protocol: RoborockMessageProtocol) -> RoborockMessage:
@@ -139,18 +209,11 @@ def test_decode_invalid_rpc_payload(payload: bytes, expected_error_message: str)
 
 
 def test_decode_unknown_dps_code(caplog: pytest.LogCaptureFixture) -> None:
-    """Unknown data points are dropped silently, without logging warnings.
-
-    ss07 hardware pushes DPs 112 and 113 (and occasionally others) that this
-    library does not model. They must be ignored without emitting "not a valid
-    code" warnings, which previously spammed the log on every status push.
-    """
-    completed_warnings.discard("112 is not a valid code for B01_Q10_DP")
-    completed_warnings.discard("113 is not a valid code for B01_Q10_DP")
+    """Unknown data points are dropped silently, without logging warnings."""
     completed_warnings.discard("909090 is not a valid code for B01_Q10_DP")
     message = RoborockMessage(
         protocol=RoborockMessageProtocol.RPC_RESPONSE,
-        payload=b'{"dps": {"909090": 123, "112": 0, "113": 0, "122": 100}}',
+        payload=b'{"dps": {"909090": 123, "122": 100}}',
         seq=12750,
         version=b"B01",
         random=97431,
@@ -163,6 +226,23 @@ def test_decode_unknown_dps_code(caplog: pytest.LogCaptureFixture) -> None:
         B01_Q10_DP.BATTERY: 100,
     }
     assert "not a valid code" not in caplog.text
+
+
+def test_decode_mapped_112_113_dps() -> None:
+    """Verify newly mapped status codes 112 and 113 decode correctly."""
+    message = RoborockMessage(
+        protocol=RoborockMessageProtocol.RPC_RESPONSE,
+        payload=b'{"dps": {"112": 0, "113": 0}}',
+        seq=12751,
+        version=b"B01",
+        random=97431,
+        timestamp=1652547161,
+    )
+    decoded_message = decode_rpc_response(message)
+    assert decoded_message == {
+        B01_Q10_DP.UNKNOWN_112: 0,
+        B01_Q10_DP.UNKNOWN_113: 0,
+    }
 
 
 @pytest.mark.parametrize(

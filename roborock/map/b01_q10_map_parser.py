@@ -29,6 +29,7 @@ from vacuum_map_parser_base.config.color import ColorsPalette, SupportedColor
 from vacuum_map_parser_base.config.image_config import ImageConfig
 from vacuum_map_parser_base.map_data import ImageData, MapData, Point
 
+from roborock.data.b01_q10.b01_q10_containers import Q10RoborockPoint
 from roborock.data.containers import RoborockBase
 from roborock.exceptions import RoborockException
 
@@ -222,10 +223,14 @@ class Q10MapPacket:
 
 @dataclass
 class Q10Point(RoborockBase):
-    """A single point in Q10 map/trace coordinate space."""
+    """A point in the Q10 firmware's dock-relative trace coordinate space."""
 
     x: int
     y: int
+
+    def to_roborock(self) -> Q10RoborockPoint:
+        """Convert this trace point to common Roborock coordinates."""
+        return Q10RoborockPoint.from_trace(self.x, self.y)
 
 
 @dataclass

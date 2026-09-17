@@ -10,7 +10,9 @@ from .b01_q7_code_mappings import (
     CleanPathPreferenceMapping,
     CleanRepeatMapping,
     CleanTypeMapping,
+    DustCollectionStateMapping,
     SCWindMapping,
+    StationStateMapping,
     WaterLevelMapping,
     WorkModeMapping,
     WorkStatusMapping,
@@ -137,11 +139,11 @@ class B01Props(RoborockBase):
     custom_type: int | None = None
     sound: int | None = None
     work_mode: WorkModeMapping | None = None
-    station_act: int | None = None  # dock activity; 3 while collecting dust, 0 idle. hw-confirmed (Q7 M5+)
+    station_act: StationStateMapping | None = None
     charge_state: int | None = None
     current_map_id: int | None = None
     map_num: int | None = None
-    dust_action: int | None = None  # 1 while the dock is collecting dust; read-only (prop.set rejected, code 1)
+    dust_action: DustCollectionStateMapping | None = None  # Read-only; prop.set is rejected with code 1 on the Q7 M5+.
     quiet_is_open: int | None = None
     quiet_begin_time: int | None = None
     quiet_end_time: int | None = None
