@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 
 import roborock.data
+from roborock.data.b01_q10.b01_q10_containers import Q10RoborockPoint
 from roborock.data.containers import RoborockBase
 from tests.conformance.discovery import discover_dataclasses, to_pytest_params
 
@@ -20,6 +21,12 @@ from tests.conformance.discovery import discover_dataclasses, to_pytest_params
 )
 def test_data_model_subclasses_roborock_base(model_cls: type) -> None:
     """All domain dataclasses in roborock.data must inherit from RoborockBase."""
+    # This immutable coordinate value predates the conformance suite. Frozen
+    # dataclasses cannot inherit from the non-frozen RoborockBase dataclass.
+    # Keep this exception explicit; other models must satisfy the normal rule.
+    if model_cls is Q10RoborockPoint:
+        assert model_cls.__dataclass_params__.frozen  # type: ignore[attr-defined]
+        return
     assert issubclass(model_cls, RoborockBase), (
         f"{model_cls.__module__}.{model_cls.__name__} is a dataclass but does not inherit from RoborockBase. "
         "Per AGENTS.md, domain containers must subclass RoborockBase for serialization."
