@@ -188,7 +188,7 @@ class CleanHistoryTrait(UpdatableTrait):
                     }
                 },
             )
-        except Exception:
+        except RoborockException:
             self._pending_detail_record = None
             raise
 
@@ -231,7 +231,7 @@ class CleanHistoryTrait(UpdatableTrait):
                 Q10MapOverlays(),
                 config=self._map_parser_config,
             )
-        except Exception:
+        except RoborockException:
             _LOGGER.debug("Failed to render Q10 clean-record detail", exc_info=True)
             self.detail_image_content = None
         self._notify_update()

@@ -4,7 +4,7 @@ import json
 import logging
 from asyncio import BaseTransport, Lock
 
-from construct import (  # type: ignore
+from construct import (  # type: ignore[import-untyped]
     Bytes,
     Checksum,
     GreedyBytes,
@@ -63,7 +63,7 @@ class RoborockProtocol(asyncio.DatagramProtocol):
                     parsed_message = BroadcastMessage(duid=json_payload["duid"], ip=json_payload["ip"], version=version)
                     _LOGGER.debug(f"Received broadcast: {parsed_message}")
                     self.devices_found.append(parsed_message)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             _LOGGER.warning(f"Failed to decode message: {data!r}. Error: {e}")
 
     async def discover(self) -> list[BroadcastMessage]:

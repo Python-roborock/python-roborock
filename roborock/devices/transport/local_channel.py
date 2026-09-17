@@ -158,7 +158,7 @@ class LocalChannel(Channel):
                     await self._ping()
             except asyncio.CancelledError:
                 break
-            except Exception:
+            except Exception:  # noqa: BLE001
                 self._logger.debug("Keep-alive ping failed", exc_info=True)
                 # Retry next interval
 

@@ -29,15 +29,32 @@ from .b01_q10_code_mappings import (
 )
 
 _ROBOROCK_COORDINATE_OFFSET_MM = 25_500
+_Q10_TRACE_UNIT_MM = 2.5
 _Q10_VECTOR_UNIT_MM = 5
 
 
 @dataclass(frozen=True)
 class Q10RoborockPoint:
-    """A point in the common Roborock millimetre coordinate space."""
+    """A point in the common Roborock millimetre coordinate space.
+
+    Q10 trace and vector coordinates are firmware details. Public Q10 APIs use
+    this coordinate system, matching other Roborock devices and placing the dock
+    at ``(25500, 25500)``.
+    """
 
     x: int
     y: int
+
+    @classmethod
+    def from_trace(cls, x: int, y: int) -> "Q10RoborockPoint":
+        """Convert Q10 trace coordinates to common Roborock coordinates."""
+        for value in (x, y):
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ValueError("trace coordinates must be integers")
+        return cls(
+            x=round(_ROBOROCK_COORDINATE_OFFSET_MM + x * _Q10_TRACE_UNIT_MM),
+            y=round(_ROBOROCK_COORDINATE_OFFSET_MM + y * _Q10_TRACE_UNIT_MM),
+        )
 
     @classmethod
     def from_vector(cls, x: int, y: int) -> "Q10RoborockPoint":

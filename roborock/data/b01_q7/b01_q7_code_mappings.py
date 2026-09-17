@@ -1,6 +1,6 @@
 from typing import Self, cast
 
-from ..code_mappings import RoborockModeEnum
+from ..code_mappings import RoborockEnum, RoborockModeEnum
 
 
 class WorkStatusMapping(RoborockModeEnum):
@@ -119,6 +119,22 @@ class WorkModeMapping(RoborockModeEnum):
     EXPLORE_GO_HOME = ("explore_go_home", 47)
     EXPLORE_BROKEN = ("explore_broken", 48)
     EXPLORE_IDLE = ("explore_idle", 49)
+
+
+class StationStateMapping(RoborockEnum):
+    """Known dock activity states observed on the Q7 M5+."""
+
+    unknown = -1
+    idle = 0
+    collecting_dust = 3
+
+
+class DustCollectionStateMapping(RoborockEnum):
+    """Known dust collection states observed on the Q7 M5+."""
+
+    unknown = -1
+    idle = 0
+    collecting_dust = 1
 
 
 class StationActionMapping(RoborockModeEnum):
@@ -302,7 +318,11 @@ class B01Fault(RoborockModeEnum):
     # charging.
     F_2101 = ("fault_2101", 2101)
     F_2102 = ("cleaning_complete", 2102)  # Cleaning completed. Returning to the dock.
-    F_2103 = ("fault_2103", 2103)
+    F_2103 = (
+        "cleaning_complete_docked",
+        2103,
+    )  # Task finished and robot docked. Follows 2102 once docking and any auto-empty complete; persists
+    # while docked-idle. Not an error (hw-confirmed on a Q7 M5+).
     F_2104 = ("fault_2104", 2104)
     F_2105 = ("fault_2105", 2105)
     F_2108 = ("fault_2108", 2108)

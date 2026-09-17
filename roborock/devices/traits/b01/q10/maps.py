@@ -121,7 +121,7 @@ class MapsTrait(Maps, UpdatableTrait):
                     }
                 },
             )
-        except Exception:
+        except RoborockException:
             self._pending_detail_map_id = None
             raise
 
@@ -156,7 +156,7 @@ class MapsTrait(Maps, UpdatableTrait):
                 Q10MapOverlays(),
                 config=self._map_parser_config,
             )
-        except Exception:
+        except RoborockException:
             _LOGGER.debug("Failed to render Q10 saved-map detail", exc_info=True)
             self.detail_image_content = None
         self._notify_update()
