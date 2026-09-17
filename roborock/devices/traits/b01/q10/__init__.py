@@ -10,6 +10,7 @@ from roborock.devices.rpc.b01_q10_channel import B01Q10Channel
 from roborock.devices.traits import Trait
 from roborock.map.b01_q10_map_parser import (
     B01Q10MapParserConfig,
+    Q10CleanRecordDetail,
     Q10MapPacket,
     Q10MapPacketKind,
     Q10TracePacket,
@@ -106,7 +107,6 @@ class Q10PropertiesApi(Trait):
         """Initialize the B01Props API."""
         self._channel = channel
         self.command = CommandTrait(channel)
-        self.vacuum = VacuumTrait(self.command)
         self.remote = RemoteTrait(self.command)
         self.status = StatusTrait()
         self.volume = SoundVolumeTrait(self.command)
@@ -127,6 +127,7 @@ class Q10PropertiesApi(Trait):
             self.command,
             map_parser_config=map_parser_config,
         )
+        self.vacuum = VacuumTrait(self.command, self.status, self.map)
         # Read-model traits updated from the device's DPS push stream.
         self._updatable_traits = [
             self.status,
@@ -148,6 +149,7 @@ class Q10PropertiesApi(Trait):
 
     async def close(self) -> None:
         """Close any resources held by the trait."""
+        await self.vacuum.close()
         if self._subscribe_task is not None:
             self._subscribe_task.cancel()
             try:
@@ -176,10 +178,10 @@ class Q10PropertiesApi(Trait):
         if isinstance(message, Q10MapPacket):
             if message.kind is Q10MapPacketKind.CURRENT:
                 self.map.update_from_map_packet(message)
-            elif message.kind is Q10MapPacketKind.CLEAN_RECORD_DETAIL:
-                self.clean_history.update_from_map_packet(message)
             elif message.kind is Q10MapPacketKind.SAVED_MAP_DETAIL:
                 self.maps.update_from_map_packet(message)
+        elif isinstance(message, Q10CleanRecordDetail):
+            self.clean_history.update_from_detail(message)
         elif isinstance(message, Q10TracePacket):
             self.map.update_from_trace_packet(message)
         elif isinstance(message, Q10DpsUpdate):

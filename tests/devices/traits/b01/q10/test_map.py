@@ -24,10 +24,12 @@ from roborock.devices.traits.b01.q10.maps import MapsTrait
 from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
     B01Q10MapParserConfig,
+    Q10CleanRecordDetail,
     Q10MapPacketKind,
     Q10Obstacle,
     Q10Point,
     Q10TracePacket,
+    parse_clean_record_detail,
     parse_map_packet,
     parse_trace_packet,
 )
@@ -99,10 +101,10 @@ def test_update_from_map_packet_exposes_obstacles() -> None:
 def test_live_map_trait_rejects_archived_packet() -> None:
     """Direct callers cannot bypass API routing and replace live map state."""
     payload = FIXTURE.read_bytes()
-    archived = parse_map_packet(b"\x03\x01" + payload[2:])
+    archived = parse_clean_record_detail(b"\x03\x01" + payload[2:])
 
     with pytest.raises(ValueError, match="Expected a current Q10 map packet"):
-        _map_trait().update_from_map_packet(archived)
+        _map_trait().update_from_map_packet(archived.map)
 
 
 def test_update_from_trace_packet_populates_path_and_position() -> None:
@@ -117,7 +119,8 @@ def test_update_from_trace_packet_populates_path_and_position() -> None:
     assert len(trait.path) == 14
     assert (trait.path[0].x, trait.path[0].y) == (41, 64)
     assert trait.robot_position is not None
-    assert (trait.robot_position.x, trait.robot_position.y) == (276, -1)
+    assert (trait.robot_position.x, trait.robot_position.y) == (26190, 25498)
+    assert trait.trace_sequence == trace.sequence
     assert trait.robot_heading == -34
     assert len(updates) == 1
 
@@ -263,7 +266,7 @@ async def test_archived_map_pushes_cannot_overwrite_live_map(
     current_bytes = FIXTURE.read_bytes()
     current = parse_map_packet(current_bytes)
     trace = parse_trace_packet(TRACE_SESSION_FIXTURE.read_bytes())
-    clean_record = parse_map_packet(b"\x03\x01" + current_bytes[2:])
+    clean_record = parse_clean_record_detail(b"\x03\x01" + current_bytes[2:])
     saved_map = parse_map_packet(b"\x04\x01" + current_bytes[2:])
 
     message_queue.put_nowait(current)
@@ -306,7 +309,7 @@ def test_archive_owners_reject_wrong_packet_kinds(q10_api: Q10PropertiesApi) -> 
     current = parse_map_packet(FIXTURE.read_bytes())
 
     with pytest.raises(ValueError, match="clean-record detail"):
-        q10_api.clean_history.update_from_map_packet(current)
+        q10_api.clean_history.update_from_detail(Q10CleanRecordDetail(map=current))
     with pytest.raises(ValueError, match="saved-map detail"):
         q10_api.maps.update_from_map_packet(current)
 
@@ -342,7 +345,7 @@ def test_all_q10_map_views_share_the_injected_render_config(
         patch("roborock.devices.traits.b01.q10.maps.render_q10_map", return_value=b"saved") as saved_render,
     ):
         api._handle_message(parse_map_packet(payload))
-        api._handle_message(parse_map_packet(b"\x03\x01" + payload[2:]))
+        api._handle_message(parse_clean_record_detail(b"\x03\x01" + payload[2:]))
         api._handle_message(parse_map_packet(b"\x04\x01" + payload[2:]))
 
     assert live_render.call_args.kwargs["config"] is config
@@ -804,4 +807,4 @@ def test_map_content_trait_as_dict_camelizes_child_keys() -> None:
         "rawName": "rr_living_room",
     }
     assert data["path"] == [{"x": 100, "y": 200}, {"x": 150, "y": 250}]
-    assert data["robotPosition"] == {"x": 150, "y": 250}
+    assert data["robotPosition"] == {"x": 25875, "y": 26125}
