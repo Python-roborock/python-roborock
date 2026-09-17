@@ -1,8 +1,7 @@
 """Tests for B01 Q10 data containers."""
 
-from typing import Any
-
 from dataclasses import FrozenInstanceError
+from typing import Any
 
 import pytest
 
