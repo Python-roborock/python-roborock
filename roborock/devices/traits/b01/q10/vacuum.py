@@ -188,6 +188,7 @@ class VacuumTrait:
 
     async def goto_position(self, target: Q10RoborockPoint) -> None:
         """Move to a coordinate using an owned 40 cm zone-clean task."""
+        target = Q10RoborockPoint(target.x, target.y)
         target.to_vector()
         snapshot = self._goto_snapshot()
         if (position := snapshot.position) is not None and hypot(

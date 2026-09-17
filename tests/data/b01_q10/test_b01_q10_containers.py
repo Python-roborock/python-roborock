@@ -5,6 +5,17 @@ import pytest
 from roborock.data.b01_q10.b01_q10_containers import Q10RoborockPoint
 
 
+@pytest.mark.parametrize("coordinates", [(25500, 25500), (25550, 25600), (0, -5)])
+def test_q10_roborock_point_serialization(coordinates: tuple[int, int]) -> None:
+    """Public Q10 points round-trip through the standard data model helpers."""
+    x, y = coordinates
+    point = Q10RoborockPoint(x, y)
+    data = {"x": x, "y": y}
+
+    assert point.as_dict() == data
+    assert Q10RoborockPoint.from_dict(data) == point
+
+
 @pytest.mark.parametrize(
     ("vector", "expected"),
     [

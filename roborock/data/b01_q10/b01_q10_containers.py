@@ -33,8 +33,8 @@ _Q10_TRACE_UNIT_MM = 2.5
 _Q10_VECTOR_UNIT_MM = 5
 
 
-@dataclass(frozen=True)
-class Q10RoborockPoint:
+@dataclass
+class Q10RoborockPoint(RoborockBase):
     """A point in the common Roborock millimetre coordinate space.
 
     Q10 trace and vector coordinates are firmware details. Public Q10 APIs use

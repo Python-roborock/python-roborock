@@ -120,22 +120,27 @@ async def test_clean_zone_rejects_invalid_clean_count(
         )
 
 
+@pytest.mark.parametrize("mutate_target", [False, True])
 async def test_goto_position_pauses_owned_zone_at_target(
     q10_api: Q10PropertiesApi,
     fake_channel: FakeB01Q10Channel,
+    mutate_target: bool,
 ) -> None:
-    """A goto pauses after its own trace session reaches the target."""
+    """A goto pauses at its original target even if the caller changes the point."""
     q10_api.map.update_from_trace_packet(Q10TracePacket(points=[Q10Point(0, 0)], sequence=1))
     q10_api.status.clean_task_type = YXDeviceCleanTask.DIVIDE_AREAS
     q10_api.status.status = YXDeviceState.CLEANING
 
-    await q10_api.vacuum.goto_position(Q10RoborockPoint(29900, 28650))
-    assert q10_api.vacuum._goto_action is not None
+    target = Q10RoborockPoint(29900, 28650)
+    await q10_api.vacuum.goto_position(target)
+    if mutate_target:
+        target.x += 1000
+        target.y += 1000
 
     q10_api.map.update_from_trace_packet(Q10TracePacket(points=[Q10Point(1760, 1260)], sequence=2))
-    command_task = q10_api.vacuum._goto_command_task
-    assert command_task is not None
-    await command_task
+    async with asyncio.timeout(1):
+        while len(fake_channel.published_commands) < 2:
+            await asyncio.sleep(0)
 
     assert [command for command, _ in fake_channel.published_commands] == [
         B01_Q10_DP.START_CLEAN,
