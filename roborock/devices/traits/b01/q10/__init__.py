@@ -113,7 +113,6 @@ class Q10PropertiesApi(Trait):
         self._channel = channel
         self.command = CommandTrait(channel)
         advanced_cleaning_supported = model is None or model == "roborock.vacuum.ss07"
-        self.vacuum = VacuumTrait(self.command, advanced_cleaning_supported=advanced_cleaning_supported)
         self.remote = RemoteTrait(self.command)
         self.room_cleaning = RoomCleaningTrait(self.command, supported=advanced_cleaning_supported)
         self.status = StatusTrait()
@@ -139,6 +138,9 @@ class Q10PropertiesApi(Trait):
             self.command,
             map_parser_config=map_parser_config,
         )
+        self.vacuum = VacuumTrait(
+            self.command, self.status, self.map, advanced_cleaning_supported=advanced_cleaning_supported
+        )
         # Read-model traits updated from the device's DPS push stream.
         self._updatable_traits = [
             self.status,
@@ -161,6 +163,7 @@ class Q10PropertiesApi(Trait):
 
     async def close(self) -> None:
         """Close any resources held by the trait."""
+        await self.vacuum.close()
         if self._subscribe_task is not None:
             self._subscribe_task.cancel()
             try:

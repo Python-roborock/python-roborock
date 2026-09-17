@@ -26,7 +26,6 @@ pytest_plugins = [
 @pytest.fixture(autouse=True)
 def auto_mock_rest_fixture(mock_rest: Any) -> None:
     """Auto use the mock rest fixture for all tests in this module."""
-    pass
 
 
 async def test_pass_login_flow() -> None:

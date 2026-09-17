@@ -32,15 +32,32 @@ from .b01_q10_code_mappings import (
 )
 
 _ROBOROCK_COORDINATE_OFFSET_MM = 25_500
+_Q10_TRACE_UNIT_MM = 2.5
 _Q10_VECTOR_UNIT_MM = 5
 
 
 @dataclass(frozen=True)
 class Q10RoborockPoint:
-    """A point in the common Roborock millimetre coordinate space."""
+    """A point in the common Roborock millimetre coordinate space.
+
+    Q10 trace and vector coordinates are firmware details. Public Q10 APIs use
+    this coordinate system, matching other Roborock devices and placing the dock
+    at ``(25500, 25500)``.
+    """
 
     x: int
     y: int
+
+    @classmethod
+    def from_trace(cls, x: int, y: int) -> "Q10RoborockPoint":
+        """Convert Q10 trace coordinates to common Roborock coordinates."""
+        for value in (x, y):
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ValueError("trace coordinates must be integers")
+        return cls(
+            x=round(_ROBOROCK_COORDINATE_OFFSET_MM + x * _Q10_TRACE_UNIT_MM),
+            y=round(_ROBOROCK_COORDINATE_OFFSET_MM + y * _Q10_TRACE_UNIT_MM),
+        )
 
     @classmethod
     def from_vector(cls, x: int, y: int) -> "Q10RoborockPoint":
@@ -71,8 +88,8 @@ class Q10RoborockPoint:
         return coordinates[0], coordinates[1]
 
 
-@dataclass(frozen=True)
-class Q10RoomCleanSettings:
+@dataclass
+class Q10RoomCleanSettings(RoborockBase):
     """Writable cleaning settings for one Q10 room."""
 
     room_id: int
@@ -83,8 +100,8 @@ class Q10RoomCleanSettings:
     clean_line: YXCleanLine
 
 
-@dataclass(frozen=True)
-class Q10ReportedRoomCleanSettings:
+@dataclass
+class Q10ReportedRoomCleanSettings(RoborockBase):
     """Cleaning settings reported by a Q10, preserving unknown wire values."""
 
     room_id: int

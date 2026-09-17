@@ -370,3 +370,32 @@ def test_external_map_change_invalidates_room_settings(q10_api: Q10PropertiesApi
 
     assert q10_api.room_cleaning.settings_available is False
     assert q10_api.room_cleaning.settings == ()
+
+
+async def test_mutating_reported_room_cannot_authorize_an_unknown_room(
+    room_cleaning: RoomCleaningTrait,
+    fake_channel: FakeB01Q10Channel,
+) -> None:
+    _seed_rooms(room_cleaning, _settings(3))
+    room_cleaning.settings[0].room_id = 99
+    with pytest.raises(ValueError, match="Unknown"):
+        await room_cleaning.clean((_settings(99),))
+    assert fake_channel.published_commands == []
+
+
+async def test_pending_clean_snapshots_caller_room_settings(
+    room_cleaning: RoomCleaningTrait,
+    fake_channel: FakeB01Q10Channel,
+) -> None:
+    settings = _settings(3)
+    _seed_rooms(room_cleaning, settings)
+    echo = encode_room_clean_settings((settings,))
+    task = asyncio.create_task(room_cleaning.clean((settings,)))
+    await asyncio.sleep(0)
+    settings.room_id = 99
+    room_cleaning.update_from_dps({B01_Q10_DP.CUSTOMER_CLEAN: echo})
+    await task
+    assert fake_channel.published_commands[-1] == (
+        B01_Q10_DP.START_CLEAN,
+        {"cmd": YXDeviceCleanTask.ELECTORAL.code, "clean_paramters": [3]},
+    )

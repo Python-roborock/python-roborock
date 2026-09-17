@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from roborock.data.b01_q10.b01_q10_code_mappings import (
@@ -68,6 +68,7 @@ class RoomCleaningTrait(RoomCleaning, UpdatableTrait):
         self._raise_if_unsupported()
         selected = tuple(settings)
         payload = encode_room_clean_settings(selected)
+        selected = tuple(replace(room) for room in selected)
         self._validate_room_ids(selected)
         async with self._write_lock:
             await self._publish_and_confirm(payload, request_complete=True)
@@ -77,6 +78,7 @@ class RoomCleaningTrait(RoomCleaning, UpdatableTrait):
         self._raise_if_unsupported()
         selected = tuple(settings)
         payload = encode_room_clean_settings(selected)
+        selected = tuple(replace(room) for room in selected)
         self._validate_room_ids(selected)
         async with self._write_lock:
             await self._publish_and_confirm(payload)
@@ -131,7 +133,7 @@ class RoomCleaningTrait(RoomCleaning, UpdatableTrait):
             changed = update.settings != self._known_settings or not self._settings_available
             self._known_settings = update.settings
             self._settings_available = True
-            self.settings = update.settings
+            self.settings = tuple(replace(room) for room in update.settings)
             self.settings_available = True
             if changed:
                 self._notify_update()

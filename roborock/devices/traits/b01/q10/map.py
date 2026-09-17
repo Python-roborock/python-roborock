@@ -164,7 +164,7 @@ class MapContentTrait(TraitUpdateListener):
 
     @property
     def path(self) -> list[Q10Point]:
-        """Full path for live status and callers drawing their own map overlay."""
+        """Full path in the Q10 trace coordinate space used by the map renderer."""
         return self._trace_packet.points if self._trace_packet else []
 
     @property
@@ -237,9 +237,16 @@ class MapContentTrait(TraitUpdateListener):
         )
 
     @property
-    def robot_position(self) -> Q10Point | None:
-        """Current position for live status and caller-rendered map overlays."""
-        return self._trace_packet.robot_position if self._trace_packet else None
+    def robot_position(self) -> Q10RoborockPoint | None:
+        """Current position in the common Roborock millimetre coordinate space."""
+        if self._trace_packet is None or (position := self._trace_packet.robot_position) is None:
+            return None
+        return position.to_roborock()
+
+    @property
+    def trace_sequence(self) -> int | None:
+        """Current cleaning-session sequence from the trace stream."""
+        return self._trace_packet.sequence if self._trace_packet else None
 
     @property
     def robot_heading(self) -> int | None:
@@ -327,7 +334,9 @@ class MapContentTrait(TraitUpdateListener):
             "rooms": [room.as_dict() for room in self.rooms],
             "obstacles": [obstacle.as_dict() for obstacle in self.obstacles],
             "path": [point.as_dict() for point in self.path],
-            "robotPosition": self.robot_position.as_dict() if self.robot_position is not None else None,
+            "robotPosition": (
+                {"x": position.x, "y": position.y} if (position := self.robot_position) is not None else None
+            ),
             "robotHeading": self.robot_heading,
             "currentRoom": current_room.as_dict() if current_room is not None else None,
         }

@@ -34,6 +34,7 @@ from vacuum_map_parser_base.config.drawable import Drawable
 from vacuum_map_parser_base.config.image_config import ImageConfig
 from vacuum_map_parser_base.map_data import ImageData, MapData, Point
 
+from roborock.data.b01_q10.b01_q10_containers import Q10RoborockPoint
 from roborock.data.containers import RoborockBase
 from roborock.exceptions import RoborockException
 
@@ -249,10 +250,14 @@ class Q10MapPacket:
 
 @dataclass
 class Q10Point(RoborockBase):
-    """A single point in Q10 map/trace coordinate space."""
+    """A point in the Q10 firmware's dock-relative trace coordinate space."""
 
     x: int
     y: int
+
+    def to_roborock(self) -> Q10RoborockPoint:
+        """Convert this trace point to common Roborock coordinates."""
+        return Q10RoborockPoint.from_trace(self.x, self.y)
 
 
 @dataclass
@@ -432,7 +437,7 @@ def _drop_stray_leading_point(points: list[Q10Point]) -> list[Q10Point]:
     """
     if len(points) < 3:
         return points
-    steps = [math.hypot(b.x - a.x, b.y - a.y) for a, b in zip(points, points[1:])]
+    steps = [math.hypot(b.x - a.x, b.y - a.y) for a, b in zip(points, points[1:], strict=False)]
     median_rest = statistics.median(steps[1:])
     if median_rest > 0 and steps[0] > _STRAY_POINT_STEP_RATIO * median_rest:
         return points[1:]
@@ -522,7 +527,7 @@ def _infer_layout(decoded: bytes, width: int) -> tuple[int, bytes, bytes]:
     up with the marker. Used as a fallback when the header carries no usable
     height.
     """
-    for room_count in range(0, _MAX_ROOMS + 1):
+    for room_count in range(_MAX_ROOMS + 1):
         room_data_length = 2 + room_count * _ROOM_RECORD_LENGTH
         area = len(decoded) - room_data_length
         if area <= 0 or area % width:

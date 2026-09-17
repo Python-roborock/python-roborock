@@ -101,13 +101,8 @@ class B01_Q10_DP(RoborockModeEnum):
     VOICE_VERSION = ("dpVoiceVersion", 108)
     ROBOT_COUNTRY_CODE = ("dpRobotCountryCode", 109)
     HEARTBEAT = ("dpHeartbeat", 110)
-    # NOTE: ss07 hardware also pushes data points 112 and 113 in its full status
-    # dump. They are absent from the official app's vacuum plugin and stayed 0
-    # across every observed state (docked/charging, segment cleaning, lifted-off-
-    # ground fault, returning to dock, dustbin removed), so their meaning is not
-    # yet known. They are intentionally left unmapped; ``decode_rpc_response``
-    # silently ignores unknown codes via ``from_code_optional``, so they do not
-    # produce "not a valid code" warnings. Map them here once identified.
+    UNKNOWN_112 = ("dpUnknown112", 112)
+    UNKNOWN_113 = ("dpUnknown113", 113)
     STATUS = ("dpStatus", 121)
     BATTERY = ("dpBattery", 122)
     FAN_LEVEL = ("dpFanLevel", 123)  # NOTE: typo "dpfunLevel" in source code

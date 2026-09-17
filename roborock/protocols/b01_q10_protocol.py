@@ -5,8 +5,10 @@ import binascii
 import json
 import logging
 import struct
+from base64 import b64encode
 from collections.abc import Sequence
 from dataclasses import dataclass
+from struct import pack
 from typing import Any, TypeVar
 
 from roborock.data.b01_q10.b01_q10_code_mappings import (
@@ -17,7 +19,11 @@ from roborock.data.b01_q10.b01_q10_code_mappings import (
     YXCleanLine,
     YXWaterLevel,
 )
-from roborock.data.b01_q10.b01_q10_containers import Q10ReportedRoomCleanSettings, Q10RoomCleanSettings
+from roborock.data.b01_q10.b01_q10_containers import (
+    Q10ReportedRoomCleanSettings,
+    Q10RoborockPoint,
+    Q10RoomCleanSettings,
+)
 from roborock.data.code_mappings import RoborockModeEnum
 from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
@@ -277,6 +283,53 @@ def decode_room_clean_settings(payload: str) -> Q10RoomCleanUpdate:
     if offset != len(raw):
         raise RoborockException("Invalid Q10 customized-room payload: trailing data")
     return Q10RoomCleanUpdate(tuple(rooms), complete=True)
+
+
+_Q10_ZONE_NAME_FIELD_LENGTH = 19
+
+
+@dataclass(frozen=True)
+class CleanParams:
+    """Parameters for one rectangular Q10 zone-clean task."""
+
+    first_corner: Q10RoborockPoint
+    second_corner: Q10RoborockPoint
+    clean_count: int = 1
+
+    @property
+    def points(self) -> tuple[Q10RoborockPoint, ...]:
+        """Return rectangle vertices sorted into canonical wire order."""
+        min_x, max_x = sorted((self.first_corner.x, self.second_corner.x))
+        min_y, max_y = sorted((self.first_corner.y, self.second_corner.y))
+        return (
+            Q10RoborockPoint(min_x, min_y),
+            Q10RoborockPoint(max_x, min_y),
+            Q10RoborockPoint(max_x, max_y),
+            Q10RoborockPoint(min_x, max_y),
+        )
+
+
+def encode_clean_params(params: CleanParams) -> str:
+    """Encode Q10 zone-clean parameters for ``dpStartClean`` task type 3."""
+    if not isinstance(params, CleanParams):
+        raise ValueError("params must be CleanParams")
+    if not isinstance(params.first_corner, Q10RoborockPoint) or not isinstance(params.second_corner, Q10RoborockPoint):
+        raise ValueError("zone corners must be Q10RoborockPoint values")
+    if isinstance(params.clean_count, bool) or not 1 <= params.clean_count <= 3:
+        raise ValueError("clean_count must be between 1 and 3")
+    if params.first_corner.x == params.second_corner.x or params.first_corner.y == params.second_corner.y:
+        raise ValueError("zone corners must enclose an area")
+
+    points = params.points
+    payload = bytearray((1, params.clean_count, 1, len(points)))
+    for point in points:
+        payload.extend(pack(">hh", *point.to_vector()))
+
+    # The app protocol reserves a fixed 19-byte UTF-8 name field per zone. An
+    # unnamed zone is encoded as a zero length followed by zero padding.
+    payload.append(0)
+    payload.extend(bytes(_Q10_ZONE_NAME_FIELD_LENGTH))
+    return b64encode(payload).decode()
 
 
 def encode_mqtt_payload(command: B01_Q10_DP, params: ParamsType) -> RoborockMessage:
