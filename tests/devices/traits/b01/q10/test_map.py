@@ -95,7 +95,8 @@ def test_update_from_trace_packet_populates_path_and_position() -> None:
     assert len(trait.path) == 14
     assert (trait.path[0].x, trait.path[0].y) == (41, 64)
     assert trait.robot_position is not None
-    assert (trait.robot_position.x, trait.robot_position.y) == (276, -1)
+    assert (trait.robot_position.x, trait.robot_position.y) == (26190, 25498)
+    assert trait.trace_sequence == trace.sequence
     assert trait.robot_heading == -34
     assert len(updates) == 1
 
@@ -584,4 +585,4 @@ def test_map_content_trait_as_dict_camelizes_child_keys() -> None:
         "rawName": "rr_living_room",
     }
     assert data["path"] == [{"x": 100, "y": 200}, {"x": 150, "y": 250}]
-    assert data["robotPosition"] == {"x": 150, "y": 250}
+    assert data["robotPosition"] == {"x": 25875, "y": 26125}

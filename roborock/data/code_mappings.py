@@ -33,7 +33,7 @@ class RoborockEnum(IntEnum):
             if warning not in completed_warnings:
                 completed_warnings.add(warning)
                 _LOGGER.warning(warning)
-            return cls.unknown  # type: ignore
+            return cls.unknown  # type: ignore[attr-defined]
         default_value = next(item for item in cls)
         warning = f"Missing {cls.__name__} code: {key} - defaulting to {default_value}"
         if warning not in completed_warnings:

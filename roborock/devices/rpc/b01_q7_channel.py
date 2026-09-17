@@ -84,7 +84,7 @@ async def _send_command(
             return
         try:
             response = response_matcher(response_message)
-        except Exception as ex:
+        except Exception as ex:  # noqa: BLE001
             future.set_exception(ex)
             return
         if response is not None:

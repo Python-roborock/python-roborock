@@ -144,6 +144,6 @@ class RoomsTrait(Rooms, common.V1TraitMixin):
                 rooms_by_id.update({room.iot_id: room for room in shared_rooms})
                 return list(rooms_by_id.values())
             return await self._web_api.get_rooms()
-        except Exception:
+        except Exception:  # noqa: BLE001
             _LOGGER.debug("Failed to fetch rooms from web API", exc_info=True)
             return []
