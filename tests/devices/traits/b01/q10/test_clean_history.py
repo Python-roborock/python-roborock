@@ -13,7 +13,7 @@ from roborock.data.b01_q10.b01_q10_containers import Q10CleanRecord
 from roborock.devices.traits.b01.q10 import Q10PropertiesApi
 from roborock.devices.traits.b01.q10.clean_history import CleanHistoryTrait, CleanRecordConverter
 from roborock.exceptions import RoborockException
-from roborock.map.b01_q10_map_parser import parse_map_packet
+from roborock.map.b01_q10_map_parser import parse_clean_record_detail
 
 from .conftest import FakeB01Q10Channel
 
@@ -222,9 +222,10 @@ async def test_detail_response_is_associated_with_pending_record(
     assert record is not None
     await clean_history.refresh_detail(record)
     fixture = Path("tests/map/testdata/b01_q10_map.bin").read_bytes()
-    packet = parse_map_packet(b"\x03\x01" + fixture[2:])
+    packet = parse_clean_record_detail(b"\x03\x01" + fixture[2:])
 
-    clean_history.update_from_map_packet(packet)
+    clean_history.update_from_detail(packet)
 
     assert clean_history.detail_record is record
-    assert clean_history.detail_packet is packet
+    assert clean_history.detail_packet is packet.map
+    assert clean_history.detail is packet

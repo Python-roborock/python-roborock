@@ -25,9 +25,10 @@ from roborock.data.b01_q10.b01_q10_containers import Q10CleanRecord
 from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
     B01Q10MapParserConfig,
-    Q10CleanRecordMapPacket,
+    Q10CleanRecordDetail,
     Q10HistoricalTracePacket,
     Q10MapPacket,
+    Q10MapPacketKind,
     Q10Point,
 )
 from roborock.map.b01_q10_render import Q10MapOverlays, render_q10_map
@@ -139,7 +140,7 @@ class CleanHistoryTrait(UpdatableTrait):
         self._map_parser_config = map_parser_config or B01Q10MapParserConfig()
         self.records: list[Q10CleanRecord] = []
         """Decoded clean records, most recent first."""
-        self.detail_packet: Q10CleanRecordMapPacket | None = None
+        self.detail: Q10CleanRecordDetail | None = None
         """Most recently pushed ``03 01`` clean-record map detail."""
         self.detail_record: Q10CleanRecord | None = None
         """Record associated with :attr:`detail_packet`, when requested here."""
@@ -191,9 +192,14 @@ class CleanHistoryTrait(UpdatableTrait):
             raise
 
     @property
+    def detail_packet(self) -> Q10MapPacket | None:
+        """The map from the most recently received clean-record detail."""
+        return self.detail.map if self.detail else None
+
+    @property
     def detail_trace(self) -> Q10HistoricalTracePacket | None:
         """Historical path embedded in the selected clean-record detail."""
-        return self.detail_packet.historical_trace if self.detail_packet else None
+        return self.detail.trace if self.detail else None
 
     @property
     def detail_path(self) -> list[Q10Point]:
@@ -210,17 +216,17 @@ class CleanHistoryTrait(UpdatableTrait):
             return
         self._apply(push)
 
-    def update_from_map_packet(self, packet: Q10MapPacket) -> None:
+    def update_from_detail(self, detail: Q10CleanRecordDetail) -> None:
         """Store and render a pushed clean-record detail map."""
-        if not isinstance(packet, Q10CleanRecordMapPacket):
-            raise ValueError(f"Expected a Q10 clean-record detail packet, got {packet.kind.value}")
+        if detail.map.kind is not Q10MapPacketKind.CLEAN_RECORD_DETAIL:
+            raise ValueError(f"Expected a Q10 clean-record detail packet, got {detail.map.kind.value}")
         self.detail_record = self._pending_detail_record
         self._pending_detail_record = None
-        self.detail_packet = packet
+        self.detail = detail
         try:
             self.detail_image_content = render_q10_map(
-                packet,
-                None,
+                detail.map,
+                detail.trace,
                 Q10MapOverlays(),
                 config=self._map_parser_config,
             )
