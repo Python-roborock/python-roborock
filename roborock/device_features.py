@@ -643,7 +643,7 @@ class DeviceFeatures(RoborockBase):
             elif (product_features := f.metadata.get("product_features")) is not None:
                 if product_nickname is not None:
                     available_features = PRODUCT_FEATURE_MAP.get(product_nickname, [])
-                    if any(feat in available_features for feat in product_features):  # type: ignore
+                    if any(feat in available_features for feat in product_features):
                         kwargs[f.name] = True
 
         # The app combines runtime shake-mop, model shake/spin, and roller-mop

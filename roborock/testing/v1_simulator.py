@@ -346,7 +346,7 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
             msg_id = inner["id"]
             method = inner["method"]
             params = inner.get("params", [])
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             _LOGGER.debug("Failed to parse plaintext JSON RPC payload: %s", e, exc_info=True)
             return
 
@@ -358,7 +358,7 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
         if handler:
             try:
                 result = handler(params)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 error = str(e)
                 _LOGGER.debug("Error executing command handler for %s: %s", method, e, exc_info=True)
         else:

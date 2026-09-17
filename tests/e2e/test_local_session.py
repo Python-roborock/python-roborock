@@ -2,6 +2,7 @@
 
 import asyncio
 from collections.abc import AsyncGenerator
+from unittest.mock import patch
 
 import pytest
 import syrupy
@@ -167,7 +168,8 @@ async def test_l01_session(
         )
     )
 
-    await local_channel.connect()
+    with patch("roborock.devices.transport.local_channel._TIMEOUT", 0.05):
+        await local_channel.connect()
 
     assert local_channel.is_connected
 
