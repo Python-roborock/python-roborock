@@ -20,7 +20,7 @@ from dataclasses import dataclass
 
 from vacuum_map_parser_base.config.drawable import Drawable
 from vacuum_map_parser_base.config.size import Size, Sizes
-from vacuum_map_parser_base.map_data import Area, MapData, Path, Point, Wall
+from vacuum_map_parser_base.map_data import Area, MapData, Obstacle, ObstacleDetails, Path, Point, Wall
 
 from roborock.exceptions import RoborockException
 
@@ -34,6 +34,7 @@ from .b01_q10_map_parser import (
     B01Q10MapParser,
     B01Q10MapParserConfig,
     Q10EraseZone,
+    Q10HistoricalTracePacket,
     Q10MapPacket,
     Q10TracePacket,
     erased_packet,
@@ -62,11 +63,11 @@ _MIN_CALIBRATION_POINTS = 20
 # a much shorter path suffices to confirm it (early in a clean, not just a dense
 # one). See :func:`solve_calibration_with_origin`.
 _MIN_HEADER_CALIBRATION_POINTS = 4
-
 _Q10_DRAWABLE_TYPES = {
     Drawable.CHARGER,
     Drawable.NO_GO_AREAS,
     Drawable.NO_MOPPING_AREAS,
+    Drawable.OBSTACLES,
     Drawable.PATH,
     Drawable.VACUUM_POSITION,
     Drawable.VIRTUAL_WALLS,
@@ -84,7 +85,7 @@ class Q10MapOverlays:
 
 def render_q10_map(
     packet: Q10MapPacket,
-    trace: Q10TracePacket | None,
+    trace: Q10TracePacket | Q10HistoricalTracePacket | None,
     overlays: Q10MapOverlays,
     *,
     config: B01Q10MapParserConfig,
@@ -114,7 +115,7 @@ def render_q10_map(
         raise RoborockException("Failed to render Q10 map image")
     map_data = parsed.map_data
 
-    has_drawables = False
+    has_drawables = _place_obstacles(map_data, packet)
     if trace_calibration is not None and trace is not None:
         charger_heading = packet.header_calibration.charger_phi if packet.header_calibration is not None else None
         _place_trace(map_data, trace_calibration, trace, charger_heading=charger_heading)
@@ -131,9 +132,33 @@ def render_q10_map(
     return parsed.image_content
 
 
+def _obstacle_calibration(packet: Q10MapPacket) -> GridCalibration | None:
+    """Build the obstacle-table transform from the map header.
+
+    Q10 obstacle positions use 50 raw units per occupancy-grid pixel, unlike
+    the 5 mm restriction vectors and 2.5 mm cleaning traces.
+    """
+    header = packet.header_calibration
+    if header is None or (origin := header.origin_pixels()) is None:
+        return None
+    return GridCalibration(resolution=50.0, origin_x=origin[0], origin_y=origin[1], y_sign=1)
+
+
+def _place_obstacles(map_data: MapData, packet: Q10MapPacket) -> bool:
+    """Project position-only Q10 obstacle markers into shared ``MapData``."""
+    calibration = _obstacle_calibration(packet)
+    if calibration is None or not packet.obstacles:
+        return False
+    map_data.obstacles = [
+        Obstacle(*calibration.world_to_pixel(obstacle.x, obstacle.y), ObstacleDetails())
+        for obstacle in packet.obstacles
+    ]
+    return True
+
+
 def solve_q10_calibration(
     packet: Q10MapPacket,
-    trace: Q10TracePacket | None,
+    trace: Q10TracePacket | Q10HistoricalTracePacket | None,
 ) -> GridCalibration | None:
     """Derive world-to-pixel calibration from a map and its current trace.
 
@@ -232,7 +257,7 @@ def _erased_cells(
 def _place_trace(
     map_data: MapData,
     calibration: GridCalibration,
-    trace: Q10TracePacket,
+    trace: Q10TracePacket | Q10HistoricalTracePacket,
     *,
     charger_heading: int | None = None,
 ) -> None:
@@ -326,10 +351,10 @@ def _draw_map_content(
     """Draw Q10 content with the shared V1 image generator."""
     if map_data.image is None:
         raise RoborockException("Failed to render Q10 map image")
-    generator = _create_image_generator(
-        MapParserConfig(map_scale=config.map_scale),
-        drawables=_Q10_DRAWABLES,
+    drawables = (
+        _Q10_DRAWABLES if config.drawables is None else [d for d in config.drawables if d in _Q10_DRAWABLE_TYPES]
     )
+    generator = _create_image_generator(MapParserConfig(map_scale=config.map_scale), drawables=drawables)
     generator.draw_map(map_data)
     buffer = io.BytesIO()
     map_data.image.data.save(buffer, format="PNG")
