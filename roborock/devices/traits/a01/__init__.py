@@ -571,7 +571,11 @@ class ZeoApi(A01Api[RoborockZeoProtocol]):
             value_encoder=json.dumps,
         )
         if self._unsub is None:
-            self._update_traits(response)
+            # Not subscribed, so this response never reaches `_on_message`;
+            # project it into the traits here. `decode_rpc_response` keys the
+            # response by integer DP code (the channel signature reports the
+            # protocol enum), so normalize to the codes the traits expect.
+            self._update_traits({int(dp): value for dp, value in response.items()})
         values = {protocol: convert_zeo_value(protocol, response.get(protocol)) for protocol in protocols}
         self._merge_query_response(values)
         return values
