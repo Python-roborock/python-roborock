@@ -81,9 +81,10 @@ def build_param_dps(params: ZeoStartParams) -> dict[RoborockZeoProtocol, Any]:
     - ``mode``/``program`` are always sent.
     - Every other optional enum parameter is pushed only when it is non-null.
     - ``total_time`` (DP 234) is only sent when ``> 0`` — it doubles as the
-      washer/dryer branch selector.
+      washer/dryer branch selector.  It is a fixed programme-config value:
+      ``roborock.data.zeo.default_start_params()`` derives it from the
+      programme's duration config, so callers rarely set it themselves.
     """
-    # TODO(program-config): ``total_time`` is a fixed programme-config value
     dps: dict[RoborockZeoProtocol, Any] = {}
     for field_name, dp in _FIELD_TO_DP.items():
         val = getattr(params, field_name)
@@ -94,8 +95,8 @@ def build_param_dps(params: ZeoStartParams) -> dict[RoborockZeoProtocol, Any]:
             if val is not None:
                 dps[dp] = val
         elif val is not None and int(val) != 0:
-            # Skip "empty" enum members (null/none/empty = 0), matching the
-            # Bundle's `x != null` guards for optional parameters.
+            # Skip "empty" enum members (null/none/empty = 0): only parameters
+            # that are actually set are emitted.
             dps[dp] = val
     return dps
 

@@ -405,7 +405,7 @@ def build_force_load_dp_list(model: str | None) -> list[RoborockZeoProtocol]:
     return base
 
 
-# ── Feature-gated DP mapping (matches Bundle's loadFeatureDps()) ─────────
+# ── Feature-gated DP mapping ────────────────────────────────────────────
 #
 # Each entry maps a ZeoFeatureBits flag to the DPs that should only be
 # queried when that feature bit is set in DP 237 (FEATURE_BITS).

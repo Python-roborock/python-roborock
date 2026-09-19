@@ -83,18 +83,17 @@ class ZeoStartParams(RoborockBase):
     drying_method: ZeoDryingMethod | None = None
     steam_volume: ZeoSteamVolume | None = None
     # Timed-program running duration in minutes (DP 234).
-    # This is a fixed parameter of the programme config.
-    # TODO(program-config): once a programme table exists, this should be
-    # auto-populated from the programme config instead of passed by the caller.
-    total_time: int | None = None  # depends on programme configs
+    # This is a fixed parameter of the programme config: callers normally leave
+    # it unset and let `default_start_params()` derive it from the programme's
+    # duration config, picking a different value only from the durations that
+    # config lists.
+    total_time: int | None = None
 
     # Optional across both device families
     soak: ZeoSoak | None = None
     dry_and_care: ZeoDryAndCare | None = None
 
-    # Feature-gated start options (DP 258 / DP 255). In the Bundle these are
-    # the programme's config ``defaultIonStatus`` and the UI's
-    # ``wash_dry_linked`` state
+    # Feature-gated start options (DP 258 / DP 255).
     ion_deodorization: bool | None = None
     wash_dry_linked: bool | None = None
 
@@ -108,9 +107,8 @@ class ZeoStartParams(RoborockBase):
 class ZeoCustomMode(RoborockBase):
     """Decoded custom programme parameters from DP 222 (LoadCloudProgram).
 
-    Null / absent fields are represented as ``0`` which matches the
-    official app's behaviour (the right-shifted-and-masked value is
-    always non-negative).
+    Absent fields are represented as ``0``: the payload is decoded as a
+    right-shifted and masked bitfield, so no value is ever negative.
     """
 
     program: ZeoProgram

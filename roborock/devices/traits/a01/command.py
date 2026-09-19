@@ -58,8 +58,9 @@ class ZeoCommandTrait:
 
         Returns the full DPS frame that was sent, including DPs this method
         adds on its own (auto-dosing and feature-gated). Exposed so callers can
-        inspect/validate the frame — e.g. against the programme-config template
-        (not yet implemented) that defines valid parameter sets.
+        inspect/validate the frame — e.g. with
+        :func:`roborock.data.zeo.validate_start_params`, which checks it against
+        the device's own programme-config table.
         """
         dps: dict[RoborockZeoProtocol, Any] = {RoborockZeoProtocol.START: 1}
         dps.update(build_param_dps(params))
