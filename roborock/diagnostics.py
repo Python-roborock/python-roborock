@@ -104,6 +104,7 @@ REDACT_KEYS = {
     "name",
     "productId",
     "ipAddress",
+    "ipAdress",
     "wifiName",
     "lat",
     "long",

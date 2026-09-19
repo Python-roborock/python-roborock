@@ -172,6 +172,7 @@ PRODUCT_DOCK_TYPE_MAP: dict[str, RoborockDockTypeCode] = {
     "product-id-s7-maxv": RoborockDockTypeCode.o3_plus_dock,  # Ultra (Wash/Empty)
     "product-id-a125": RoborockDockTypeCode.o1_dock,  # Q5 Max+ (Auto-Empty)
     "73EnOOM2NhDujvnvb7hvvv": RoborockDockTypeCode.o0_dock,  # S5 Max (Standard Charging)
+    "product-id-a75": RoborockDockTypeCode.pearl_dock,  # Q Revo (Wash/Empty)
     "product-id-a123": RoborockDockTypeCode.pearl_plus_dock,  # PearlS Lite / Q Revo (Wash/Empty)
     "product-saros-10": RoborockDockTypeCode.o4_dock,  # Saros 10 / Q Revo Pro (Wash/Empty/Auto Fluid)
     "product-saros-10r": RoborockDockTypeCode.o6_dock,  # JC / Q Revo Master (Wash/Empty/Hot water)

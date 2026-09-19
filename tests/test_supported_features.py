@@ -1,12 +1,18 @@
+import logging
 from dataclasses import asdict
+from unittest.mock import AsyncMock
 
 import pytest
 from syrupy import SnapshotAssertion
 
 from roborock import SHORT_MODEL_TO_ENUM
+from roborock.data import HomeDataProduct
 from roborock.data.code_mappings import RoborockProductNickname
 from roborock.data.v1 import RoborockDockTypeCode
 from roborock.device_features import DeviceFeatures, RoborockDockFeatures, is_valid_dock, is_wash_n_fill_dock
+from roborock.devices.cache import CacheData, DeviceCache, InMemoryCache
+from roborock.devices.traits.v1.device_features import DeviceFeaturesTrait
+from roborock.roborock_typing import RoborockCommand
 from tests import mock_data
 
 # RR_API DockConfigs snapshot from the Qrevo Edge 2 bundle decoded on 2026-07-11.
@@ -75,6 +81,8 @@ def test_supported_features_qrevo_maxv():
     assert num_true != 0
     assert device_features.is_dust_collection_setting_supported
     assert device_features.is_led_status_switch_supported
+    assert device_features.is_shake_mop_set_supported
+    assert device_features.is_clean_route_setting_supported
     assert not device_features.is_matter_supported
     print(device_features)
 
@@ -95,6 +103,8 @@ def test_supported_features_s7():
     assert device_features
     assert device_features.is_custom_mode_supported
     assert device_features.is_led_status_switch_supported
+    assert device_features.is_shake_mop_set_supported
+    assert device_features.is_clean_route_setting_supported
     assert not device_features.is_hot_wash_towel_supported
     num_true = sum(v for v in vars(device_features).values() if isinstance(v, bool))
     assert num_true != 0
@@ -125,6 +135,120 @@ def test_new_feature_str_missing():
     assert not device_features.is_dust_collection_setting_supported
     assert not device_features.is_hot_wash_towel_supported
     assert not device_features.is_show_clean_finish_reason_supported
+
+
+def test_clean_route_setting_support_from_shake_mop_flag() -> None:
+    """Test clean-route capability includes the runtime shake-mop flag."""
+    device_features = DeviceFeatures.from_feature_flags(
+        new_feature_info=262144,
+        new_feature_info_str="",
+        feature_info=[],
+        product_nickname=None,
+    )
+
+    assert device_features.is_shake_mop_set_supported
+    assert device_features.is_clean_route_setting_supported
+
+
+def test_clean_route_setting_support_from_spin_mop_model() -> None:
+    """Test clean-route capability includes model-level spin-mop support."""
+    device_features = DeviceFeatures.from_feature_flags(
+        new_feature_info=0,
+        new_feature_info_str="",
+        feature_info=[],
+        product_nickname=RoborockProductNickname.PEARLSLITE,
+    )
+
+    assert not device_features.is_shake_mop_set_supported
+    assert not device_features.is_roller_mop_supported
+    assert device_features.is_clean_route_setting_supported
+
+
+@pytest.mark.parametrize(
+    ("feature_bit", "expected"),
+    [
+        (127, False),
+        (128, True),
+        (129, False),
+    ],
+)
+def test_clean_route_setting_support_from_roller_mop_bit(feature_bit: int, expected: bool) -> None:
+    """Test only the RR_API roller-mop bit adds roller route support."""
+    device_features = DeviceFeatures.from_feature_flags(
+        new_feature_info=0,
+        new_feature_info_str=f"{1 << feature_bit:X}",
+        feature_info=[],
+        product_nickname=None,
+    )
+
+    assert device_features.is_roller_mop_supported is expected
+    assert device_features.is_clean_route_setting_supported is expected
+
+
+@pytest.mark.parametrize(
+    ("new_feature_info", "expected"),
+    [
+        (0, False),
+        (262143, False),
+        (262144, True),
+        (262145, True),
+        (1 << 60, False),
+    ],
+)
+def test_shake_mop_feature_bit_boundary(new_feature_info: int, expected: bool) -> None:
+    """Test only feature values containing the shake-mop bit enable it."""
+    device_features = DeviceFeatures.from_feature_flags(
+        new_feature_info=new_feature_info,
+        new_feature_info_str="",
+        feature_info=[],
+        product_nickname=None,
+    )
+
+    assert device_features.is_shake_mop_set_supported is expected
+    assert device_features.is_clean_route_setting_supported is expected
+
+
+async def test_from_dict_rejects_legacy_missing_capabilities(caplog: pytest.LogCaptureFixture) -> None:
+    """Test stale cached features become a quiet cache miss."""
+    device_features = DeviceFeatures.from_feature_flags(
+        new_feature_info=262144,
+        new_feature_info_str="",
+        feature_info=[],
+        product_nickname=None,
+    )
+    legacy_data = device_features.as_dict()
+    for legacy_missing_key in (
+        "isAiRecognitionSettingSupported",
+        "isAiRecognitionObstacleSupported",
+        "isRollerMopSupported",
+    ):
+        del legacy_data[legacy_missing_key]
+
+    restored = DeviceFeatures.from_dict(legacy_data)
+
+    assert restored is None
+
+    with caplog.at_level(logging.ERROR):
+        cache_data = CacheData.from_dict({"deviceInfo": {"legacy-device": {"deviceFeatures": legacy_data}}})
+
+    assert cache_data.device_info["legacy-device"].device_features is None
+    assert not caplog.records
+
+    cache = InMemoryCache()
+    await cache.set(cache_data)
+    device_cache = DeviceCache("legacy-device", cache)
+    product = HomeDataProduct.from_dict(mock_data.PRODUCTS["home_data_product_a27.json"])
+    trait = DeviceFeaturesTrait(product, device_cache)
+    rpc_channel = AsyncMock()
+    rpc_channel.send_command.return_value = [mock_data.APP_GET_INIT_STATUS]
+    trait._rpc_channel = rpc_channel
+
+    await trait.refresh()
+
+    rpc_channel.send_command.assert_awaited_once_with(RoborockCommand.APP_GET_INIT_STATUS)
+    assert trait.is_ai_recognition_setting_supported
+    assert trait.is_ai_recognition_obstacle_supported
+    assert (await device_cache.get()).device_features is trait
 
 
 @pytest.mark.parametrize(

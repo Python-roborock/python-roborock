@@ -22,6 +22,8 @@ roborock> status --device_id <device_id>
 ```
 """
 
+# ruff: noqa: BLE001
+
 import asyncio
 import datetime
 import functools
@@ -38,9 +40,9 @@ try:
     import click
     import click_shell
     import yaml
-    from pyshark import FileCapture  # type: ignore
-    from pyshark.capture.live_capture import LiveCapture, UnknownInterfaceException  # type: ignore
-    from pyshark.packet.packet import Packet  # type: ignore
+    from pyshark import FileCapture  # type: ignore[import-untyped]
+    from pyshark.capture.live_capture import LiveCapture, UnknownInterfaceException  # type: ignore[import-untyped]
+    from pyshark.packet.packet import Packet  # type: ignore[import-untyped]
 except ImportError as err:
     raise SystemExit(
         f"The 'roborock' command line tool requires extra dependencies that are not installed ({err.name}).\n"
@@ -307,7 +309,7 @@ class RoborockContext(Cache):
 @click.pass_context
 def cli(ctx, debug: int):
     logging_config: dict[str, Any] = {"level": logging.DEBUG if debug > 0 else logging.INFO}
-    logging.basicConfig(**logging_config)  # type: ignore
+    logging.basicConfig(**logging_config)  # type: ignore[call-overload]
     ctx.obj = RoborockContext()
 
 
@@ -594,9 +596,9 @@ async def maps(ctx, device_id: str):
     await _display_v1_trait(context, device_id, lambda v1: v1.maps)
 
 
-# The Q10 pushes its map ~9s after a dpRequestDps; firmware throttles pushes to
-# ~once per 60-70s, so a single request is answered quickly but rapid re-requests
-# may not be. This bounds how long a one-shot CLI command waits for that push.
+# The Q10 publishes its current map asynchronously after a REQUEST_DPS. Firmware
+# throttles pushes to ~once per 60-70s, so rapid re-requests may not be answered
+# immediately. This bounds how long a one-shot CLI command waits.
 _Q10_MAP_PUSH_TIMEOUT = 30.0
 
 
@@ -607,13 +609,11 @@ async def _await_q10_map_push(
     timeout: float = _Q10_MAP_PUSH_TIMEOUT,
     allow_cached_on_timeout: bool = False,
 ) -> bool:
-    """Nudge a Q10 to push its map/trace and wait for a fresh update.
+    """Request Q10 map content and wait for usable map-trait state.
 
-    The Q10 map API is entirely push-driven: there is no synchronous get-map
-    request. A ``dpRequestDps`` causes the device to publish a ``MAP_RESPONSE``,
-    which the device's subscribe loop feeds into the map trait. Here we register
-    an update listener, send the request, and wait for a newly pushed update to
-    satisfy ``predicate``. Returns whether it did within ``timeout``.
+    The read-only ``REQUEST_DPS`` request returns immediately; current map
+    content arrives as a later ``MAP_RESPONSE`` and is published through the
+    standard trait update interface.
     """
     loop = asyncio.get_running_loop()
     updated: asyncio.Future[None] = loop.create_future()
@@ -624,8 +624,9 @@ async def _await_q10_map_push(
 
     unsub = properties.map.add_update_listener(on_update)
     try:
-        await properties.refresh()
-        await asyncio.wait_for(updated, timeout=timeout)
+        async with asyncio.timeout(timeout):
+            await properties.map.refresh()
+            await updated
         return True
     except TimeoutError:
         return allow_cached_on_timeout and predicate()
@@ -706,7 +707,10 @@ async def q10_position(ctx, device_id: str, include_path: bool):
         click.echo("Feature not supported by device")
         return
     properties = device.b01_q10_properties
-    got_trace = await _await_q10_map_push(properties, lambda: bool(properties.map.path))
+    got_trace = await _await_q10_map_push(
+        properties,
+        lambda: bool(properties.map.path),
+    )
     if not got_trace:
         click.echo("No live trace available (the robot only reports position while cleaning).")
         return
@@ -986,9 +990,8 @@ async def parser(_, local_key, device_ip, file):
                                     local_key,
                                 )
                                 print(f"Received request: {f}")
-                            except BaseException as e:
+                            except Exception as e:
                                 print(e)
-                                pass
                         elif packet.ip.src == device_ip:
                             try:
                                 f, buffer["data"] = MessageParser.parse(
@@ -996,16 +999,15 @@ async def parser(_, local_key, device_ip, file):
                                     local_key,
                                 )
                                 print(f"Received response: {f}")
-                            except BaseException as e:
+                            except Exception as e:
                                 print(e)
-                                pass
 
     try:
         await capture.packets_from_tshark(on_package, close_tshark=not file_provided)
-    except UnknownInterfaceException:
+    except UnknownInterfaceException as err:
         raise RoborockException(
             "You need to run 'rvictl -s XXXXXXXX-XXXXXXXXXXXXXXXX' first, with an iPhone connected to usb port"
-        )
+        ) from err
 
 
 def _parse_diagnostic_file(diagnostic_path: Path) -> dict[str, dict[str, Any]]:
@@ -1317,7 +1319,7 @@ def update_docs(data_file: str, output_file: str):
         ]
         # Regular features are the remaining keys, sorted alphabetically
         # We filter out the special rows to avoid duplicating them.
-        sorted_features = sorted(list(all_features - set(special_rows)))
+        sorted_features = sorted(all_features - set(special_rows))
 
         header = ["Feature"] + sorted_products
 

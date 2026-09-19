@@ -1,6 +1,9 @@
 """Test cases for the containers module."""
 
 import json
+import logging
+
+import pytest
 
 from roborock.data.b01_q7 import (
     B01Fault,
@@ -9,9 +12,34 @@ from roborock.data.b01_q7 import (
     CleanRecordDetail,
     CleanRecordList,
     CleanRepeatMapping,
+    DustCollectionStateMapping,
     SCWindMapping,
+    StationStateMapping,
     WorkStatusMapping,
 )
+from roborock.data.code_mappings import completed_warnings
+
+
+@pytest.mark.parametrize(
+    ("code", "expected"),
+    [
+        (0, WorkStatusMapping.SLEEPING),
+        (1, WorkStatusMapping.WAITING_FOR_ORDERS),
+        (2, WorkStatusMapping.PAUSED),
+        (3, WorkStatusMapping.DOCKING),
+        (4, WorkStatusMapping.CHARGING),
+        (5, WorkStatusMapping.SWEEP_MOPING),
+        (6, WorkStatusMapping.SWEEP_MOPING_2),
+        (7, WorkStatusMapping.MOPING),
+        (8, WorkStatusMapping.UPDATING),
+        (9, WorkStatusMapping.MOP_CLEANING),
+        (10, WorkStatusMapping.MOP_AIRDRYING),
+        (11, WorkStatusMapping.WORKING_SLEEP),
+    ],
+)
+def test_work_status_mapping(code: int, expected: WorkStatusMapping) -> None:
+    """Test every Q7 work status handled by the official app bundle."""
+    assert WorkStatusMapping.from_code(code) is expected
 
 
 def test_b01props_deserialization():
@@ -112,6 +140,94 @@ def test_b01props_deserialization():
     assert deserialized.clean_path_preference == CleanPathPreferenceMapping.DEEP
     assert deserialized.repeat_state_name == "two"
     assert deserialized.clean_path_preference_name == "deep"
+
+
+def test_b01props_deserialization_working_sleep_status():
+    """Test the working-sleep status reported by Q7 devices."""
+    deserialized = B01Props.from_dict(
+        {
+            "status": 11,
+            "quantity": 87,
+            "wind": 2,
+        }
+    )
+
+    assert isinstance(deserialized, B01Props)
+    assert deserialized.status == WorkStatusMapping.WORKING_SLEEP
+    assert deserialized.status_name == "working_sleep"
+    assert deserialized.quantity == 87
+    assert deserialized.wind == SCWindMapping.STANDARD
+
+
+def test_b01props_deserialization_unknown_work_status(caplog: pytest.LogCaptureFixture):
+    """Test that an unrecognized future work status does not break the response."""
+    warning = "999 is not a valid code for WorkStatusMapping"
+    completed_warnings.discard(warning)
+    with caplog.at_level(logging.WARNING):
+        deserialized = B01Props.from_dict(
+            {
+                "status": 999,
+                "quantity": 87,
+                "wind": 2,
+            }
+        )
+
+    assert isinstance(deserialized, B01Props)
+    assert deserialized.status == WorkStatusMapping.UNKNOWN
+    assert deserialized.status_name == "unknown"
+    assert deserialized.quantity == 87
+    assert deserialized.wind == SCWindMapping.STANDARD
+    assert warning in caplog.text
+    assert "Failed to convert status" not in caplog.text
+
+
+@pytest.mark.parametrize("station_key,dust_key", [("station_act", "dust_action"), ("stationAct", "dustAction")])
+@pytest.mark.parametrize(
+    ("station_code", "dust_code", "expected_station", "expected_dust"),
+    [
+        (0, 0, StationStateMapping.idle, DustCollectionStateMapping.idle),
+        (3, 1, StationStateMapping.collecting_dust, DustCollectionStateMapping.collecting_dust),
+    ],
+)
+def test_b01props_dock_states(
+    station_key: str,
+    dust_key: str,
+    station_code: int,
+    dust_code: int,
+    expected_station: StationStateMapping,
+    expected_dust: DustCollectionStateMapping,
+) -> None:
+    """Decode dock states and preserve integer values when serializing them."""
+    props = B01Props.from_dict({station_key: station_code, dust_key: dust_code})
+
+    assert props.station_act is expected_station
+    assert props.dust_action is expected_dust
+    serialized = json.loads(json.dumps(props.as_dict()))
+    assert serialized == {"stationAct": station_code, "dustAction": dust_code}
+    restored = B01Props.from_dict(serialized)
+    assert restored.station_act is expected_station
+    assert restored.dust_action is expected_dust
+
+
+@pytest.mark.parametrize("station_code,dust_code", [(-1, -1), (1, 2), (999, 999)])
+def test_b01props_unknown_dock_states(station_code: int, dust_code: int, caplog: pytest.LogCaptureFixture) -> None:
+    """Unknown dock states must not appear idle or discard other properties."""
+    props = B01Props.from_dict({"station_act": station_code, "dust_action": dust_code, "quantity": 87})
+
+    assert props.station_act is StationStateMapping.unknown
+    assert props.dust_action is DustCollectionStateMapping.unknown
+    assert props.quantity == 87
+    assert "Failed to convert" not in caplog.text
+
+
+@pytest.mark.parametrize("payload", [{}, {"station_act": None, "dust_action": None}])
+def test_b01props_missing_dock_states(payload: dict[str, None]) -> None:
+    """Missing dock states stay absent rather than becoming idle or unknown."""
+    props = B01Props.from_dict(payload)
+
+    assert props.station_act is None
+    assert props.dust_action is None
+    assert props.as_dict() == {}
 
 
 def test_b01_q7_clean_record_list_parses_detail_fields():

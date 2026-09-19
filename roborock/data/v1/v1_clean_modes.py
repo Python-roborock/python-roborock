@@ -29,7 +29,7 @@ class CleanRoutes(RoborockModeEnum):
     DEEP = ("deep", 301)
     DEEP_PLUS = ("deep_plus", 303)
     FAST = ("fast", 304)
-    DEEP_PLUS_CN = ("deep_plus", 305)
+    DEEP_PLUS_CN = ("deep_plus_cn", 305, "deep_plus")
     SMART_MODE = ("smart_mode", 306)
     CUSTOMIZED = ("custom", 302)
 
@@ -131,16 +131,19 @@ def get_clean_modes(features: DeviceFeatures) -> list[VacuumModes]:
 
 def get_clean_routes(features: DeviceFeatures, region: str) -> list[CleanRoutes]:
     """The routes that the vacuum will take while mopping"""
+    if not features.is_clean_route_setting_supported:
+        return []
     if features.is_none_pure_clean_mop_with_max_plus:
         return [CleanRoutes.FAST, CleanRoutes.STANDARD]
-    supported = [CleanRoutes.STANDARD, CleanRoutes.DEEP]
+    supported = [CleanRoutes.STANDARD]
+    if not features.is_clean_efficiency_supported:
+        supported.append(CleanRoutes.DEEP)
     if features.is_careful_slow_mop_supported:
-        if not (
-            features.is_corner_clean_mode_supported
+        if (
+            not features.is_corner_clean_mode_supported
             and features.is_clean_route_deep_slow_plus_supported
             and region == "cn"
         ):
-            # for some reason there is a china specific deep plus mode
             supported.append(CleanRoutes.DEEP_PLUS_CN)
         else:
             supported.append(CleanRoutes.DEEP_PLUS)

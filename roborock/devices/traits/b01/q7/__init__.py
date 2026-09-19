@@ -3,6 +3,7 @@
 Potentially other devices may fall into this category in the future.
 """
 
+from collections.abc import Callable
 from typing import Any
 
 from roborock import B01Props
@@ -71,6 +72,19 @@ class Q7PropertiesApi(Trait):
             self._map_rpc_channel,
             self.map,
         )
+        self._unsub_map_pushes: Callable[[], None] | None = None
+
+    async def start(self) -> None:
+        """Start listening for unsolicited map pushes from the device."""
+        if self._unsub_map_pushes is not None:
+            return
+        self._unsub_map_pushes = await self._map_rpc_channel.subscribe_map_pushes(self.map_content.update_from_push)
+
+    async def close(self) -> None:
+        """Stop listening for unsolicited map pushes."""
+        if self._unsub_map_pushes is not None:
+            self._unsub_map_pushes()
+            self._unsub_map_pushes = None
 
     async def query_values(self, props: list[RoborockB01Props]) -> B01Props | None:
         """Query the device for the values of the given Q7 properties."""
@@ -116,6 +130,16 @@ class Q7PropertiesApi(Trait):
     async def set_child_lock(self, enabled: bool) -> None:
         """Enable or disable the child lock."""
         await self.set_prop(RoborockB01Props.CHILD_LOCK, int(enabled))
+
+    async def set_dust_collection(self, enabled: bool) -> None:
+        """Enable or disable automatic dust collection at the dock."""
+        await self.set_prop(RoborockB01Props.DUST_AUTO_STATE, int(enabled))
+
+    async def set_dust_collection_frequency(self, frequency: int) -> None:
+        """Set how often the dock auto-empties, in cleans per emptying (1 = every clean)."""
+        if frequency < 1:
+            raise ValueError(f"frequency must be a positive number of cleans, got {frequency}")
+        await self.set_prop(RoborockB01Props.DUST_FREQUENCY, frequency)
 
     async def set_do_not_disturb(self, enabled: bool, begin_time: int, end_time: int) -> None:
         """Configure do-not-disturb.

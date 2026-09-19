@@ -2,6 +2,298 @@
 
 <!-- version list -->
 
+## v7.8.1 (2026-09-17)
+
+### Bug Fixes
+
+- Preserve immutable Q10 points in model conformance checks
+  ([#965](https://github.com/Python-roborock/python-roborock/pull/965),
+  [`386e4c5`](https://github.com/Python-roborock/python-roborock/commit/386e4c50fe9ca29d7a4caa85a3662c3c104b26f2))
+
+
+## v7.8.0 (2026-09-13)
+
+### Features
+
+- Add Q7 dock state enums ([#958](https://github.com/Python-roborock/python-roborock/pull/958),
+  [`44ffbe6`](https://github.com/Python-roborock/python-roborock/commit/44ffbe6689aa213e1de1c6401b5d637fab5fab07))
+
+
+## v7.7.1 (2026-09-13)
+
+### Bug Fixes
+
+- Docstring formatting in test_decode_unknown_dps_code
+  ([#951](https://github.com/Python-roborock/python-roborock/pull/951),
+  [`7af2463`](https://github.com/Python-roborock/python-roborock/commit/7af2463122174b7ad8ada2961db2493bd61bd1f5))
+
+- **code_mappings**: Map codes 112 and 113 for B01_Q10_DP
+  ([#951](https://github.com/Python-roborock/python-roborock/pull/951),
+  [`7af2463`](https://github.com/Python-roborock/python-roborock/commit/7af2463122174b7ad8ada2961db2493bd61bd1f5))
+
+
+## v7.7.0 (2026-09-13)
+
+### Bug Fixes
+
+- Require confirmed Q10 goto ownership
+  ([#908](https://github.com/Python-roborock/python-roborock/pull/908),
+  [`4411412`](https://github.com/Python-roborock/python-roborock/commit/44114126b4bfae2f4af4dbf8a4b129bfa24af381))
+
+### Features
+
+- Add Q10 zone cleaning and position coordinates
+  ([#908](https://github.com/Python-roborock/python-roborock/pull/908),
+  [`4411412`](https://github.com/Python-roborock/python-roborock/commit/44114126b4bfae2f4af4dbf8a4b129bfa24af381))
+
+- Add Q10 zone, position, and goto support
+  ([#908](https://github.com/Python-roborock/python-roborock/pull/908),
+  [`4411412`](https://github.com/Python-roborock/python-roborock/commit/44114126b4bfae2f4af4dbf8a4b129bfa24af381))
+
+- Add safe Q10 goto lifecycle ([#908](https://github.com/Python-roborock/python-roborock/pull/908),
+  [`4411412`](https://github.com/Python-roborock/python-roborock/commit/44114126b4bfae2f4af4dbf8a4b129bfa24af381))
+
+### Refactoring
+
+- Apply Q10 API review feedback
+  ([#908](https://github.com/Python-roborock/python-roborock/pull/908),
+  [`4411412`](https://github.com/Python-roborock/python-roborock/commit/44114126b4bfae2f4af4dbf8a4b129bfa24af381))
+
+
+## v7.6.0 (2026-09-13)
+
+### Features
+
+- Add dust collection settings to the B01 Q7 api
+  ([#919](https://github.com/Python-roborock/python-roborock/pull/919),
+  [`b8b2409`](https://github.com/Python-roborock/python-roborock/commit/b8b2409404438478f36f3ef343f4828423caaffb))
+
+
+## v7.5.0 (2026-09-12)
+
+### Bug Fixes
+
+- Resolve Q7 map mypy errors ([#911](https://github.com/Python-roborock/python-roborock/pull/911),
+  [`09c9a5b`](https://github.com/Python-roborock/python-roborock/commit/09c9a5b1bd3d2f7e5c635b70d10948fbaf7b8b66))
+
+### Features
+
+- Align Q7 map colors with V1 ([#911](https://github.com/Python-roborock/python-roborock/pull/911),
+  [`09c9a5b`](https://github.com/Python-roborock/python-roborock/commit/09c9a5b1bd3d2f7e5c635b70d10948fbaf7b8b66))
+
+- Color and label Q7 rooms in the rendered map
+  ([#911](https://github.com/Python-roborock/python-roborock/pull/911),
+  [`09c9a5b`](https://github.com/Python-roborock/python-roborock/commit/09c9a5b1bd3d2f7e5c635b70d10948fbaf7b8b66))
+
+- Decode and render Q7 carpets ([#911](https://github.com/Python-roborock/python-roborock/pull/911),
+  [`09c9a5b`](https://github.com/Python-roborock/python-roborock/commit/09c9a5b1bd3d2f7e5c635b70d10948fbaf7b8b66))
+
+- Decode Q7 (B01) map geometry — dock, robot pose, path and rooms
+  ([#911](https://github.com/Python-roborock/python-roborock/pull/911),
+  [`09c9a5b`](https://github.com/Python-roborock/python-roborock/commit/09c9a5b1bd3d2f7e5c635b70d10948fbaf7b8b66))
+
+- Render Q7 restricted areas ([#911](https://github.com/Python-roborock/python-roborock/pull/911),
+  [`09c9a5b`](https://github.com/Python-roborock/python-roborock/commit/09c9a5b1bd3d2f7e5c635b70d10948fbaf7b8b66))
+
+
+## v7.4.3 (2026-09-12)
+
+### Bug Fixes
+
+- Name B01 Q7 code 2103 and document dock dust-collection state fields
+  ([#921](https://github.com/Python-roborock/python-roborock/pull/921),
+  [`65f592b`](https://github.com/Python-roborock/python-roborock/commit/65f592b43036dbd3e8c08cc333202c2259430c62))
+
+### Chores
+
+- Reflow F_2103 comment ([#921](https://github.com/Python-roborock/python-roborock/pull/921),
+  [`65f592b`](https://github.com/Python-roborock/python-roborock/commit/65f592b43036dbd3e8c08cc333202c2259430c62))
+
+### Documentation
+
+- Add .claude/skills symlink for Claude Code discovery
+  ([#954](https://github.com/Python-roborock/python-roborock/pull/954),
+  [`7d65d27`](https://github.com/Python-roborock/python-roborock/commit/7d65d270e3efeafb95e38bdec251d0fdf11889d0))
+
+- Add repository engineering guidelines, review skill, and contributor standards
+  ([#954](https://github.com/Python-roborock/python-roborock/pull/954),
+  [`7d65d27`](https://github.com/Python-roborock/python-roborock/commit/7d65d270e3efeafb95e38bdec251d0fdf11889d0))
+
+- Add repository engineering guidelines, review skill, and contributor standards (#953)
+  ([#954](https://github.com/Python-roborock/python-roborock/pull/954),
+  [`7d65d27`](https://github.com/Python-roborock/python-roborock/commit/7d65d270e3efeafb95e38bdec251d0fdf11889d0))
+
+- Address review feedback on feature gating, forward refs, and test paths
+  ([#954](https://github.com/Python-roborock/python-roborock/pull/954),
+  [`7d65d27`](https://github.com/Python-roborock/python-roborock/commit/7d65d270e3efeafb95e38bdec251d0fdf11889d0))
+
+- Streamline AGENTS.md by removing redundancies
+  ([#954](https://github.com/Python-roborock/python-roborock/pull/954),
+  [`7d65d27`](https://github.com/Python-roborock/python-roborock/commit/7d65d270e3efeafb95e38bdec251d0fdf11889d0))
+
+- **q7**: Document live map pushes and cover them in tests
+  ([#927](https://github.com/Python-roborock/python-roborock/pull/927),
+  [`af8a4d1`](https://github.com/Python-roborock/python-roborock/commit/af8a4d1dba01ebfe3f5c05f3c53d80c2b73d28fe))
+
+### Refactoring
+
+- Enable stricter ruff lints and broad exception checking
+  ([#956](https://github.com/Python-roborock/python-roborock/pull/956),
+  [`28a6edc`](https://github.com/Python-roborock/python-roborock/commit/28a6edcc790d48ddffa214c77216133dfe12e5f6))
+
+
+## v7.4.2 (2026-09-10)
+
+### Bug Fixes
+
+- Remove v1 image parser monkey patch
+  ([#949](https://github.com/Python-roborock/python-roborock/pull/949),
+  [`dfd93fc`](https://github.com/Python-roborock/python-roborock/commit/dfd93fcc4edd2cdf350515f3a23a38202cc9c8ca))
+
+
+## v7.4.1 (2026-09-07)
+
+### Bug Fixes
+
+- Skip DP 225 on Zeo H1 (roborock.wm.a63)
+  ([#946](https://github.com/Python-roborock/python-roborock/pull/946),
+  [`25185b0`](https://github.com/Python-roborock/python-roborock/commit/25185b0a2cb564be1d2930b6e3374172c19ab742))
+
+
+## v7.4.0 (2026-09-07)
+
+### Features
+
+- **web_api**: Add firmware/OTA info, update trigger and silent-OTA toggle
+  ([#839](https://github.com/Python-roborock/python-roborock/pull/839),
+  [`c742831`](https://github.com/Python-roborock/python-roborock/commit/c74283159b3d3212aaef9771fcfa3550e813d845))
+
+
+## v7.3.0 (2026-09-07)
+
+### Bug Fixes
+
+- Update last_message_time on unsubscribed query responses
+  ([#941](https://github.com/Python-roborock/python-roborock/pull/941),
+  [`b7a5208`](https://github.com/Python-roborock/python-roborock/commit/b7a52081c8398b6570ceae98e4c85579ae406788))
+
+### Features
+
+- Track A01 device state from push updates
+  ([#941](https://github.com/Python-roborock/python-roborock/pull/941),
+  [`b7a5208`](https://github.com/Python-roborock/python-roborock/commit/b7a52081c8398b6570ceae98e4c85579ae406788))
+
+
+## v7.2.3 (2026-09-02)
+
+### Bug Fixes
+
+- Request Q10 maps without starting cleaning
+  ([#933](https://github.com/Python-roborock/python-roborock/pull/933),
+  [`db86533`](https://github.com/Python-roborock/python-roborock/commit/db86533036167c50799bd2b46f852ed59d2e23f8))
+
+
+## v7.2.2 (2026-09-02)
+
+### Bug Fixes
+
+- Handle stale features to fix bug
+  ([#940](https://github.com/Python-roborock/python-roborock/pull/940),
+  [`1ea20ad`](https://github.com/Python-roborock/python-roborock/commit/1ea20ad685dabbd35e666b7f93ed5cd0de03d11b))
+
+
+## v7.2.1 (2026-08-31)
+
+### Bug Fixes
+
+- Keep Q10 map vectors stable during live updates
+  ([#932](https://github.com/Python-roborock/python-roborock/pull/932),
+  [`c947ec5`](https://github.com/Python-roborock/python-roborock/commit/c947ec51ea7ea45c701e8f12a14bd900d3bc997b))
+
+
+## v7.2.0 (2026-08-31)
+
+### Features
+
+- Add device info and test data for Roborock Q Revo (a75)
+  ([#926](https://github.com/Python-roborock/python-roborock/pull/926),
+  [`d2cda89`](https://github.com/Python-roborock/python-roborock/commit/d2cda89dd7b998109164d651b5d1d7f4535b600e))
+
+
+## v7.1.1 (2026-08-22)
+
+### Bug Fixes
+
+- Update pypi-publish so that it will properly build to pypi
+  ([#925](https://github.com/Python-roborock/python-roborock/pull/925),
+  [`ae59910`](https://github.com/Python-roborock/python-roborock/commit/ae59910fd6ef47d1d2ab4d5a0277d97bc038188f))
+
+
+## v7.1.0 (2026-08-21)
+
+### Bug Fixes
+
+- Address PR review comments from Lash-L
+  ([#909](https://github.com/Python-roborock/python-roborock/pull/909),
+  [`d96ce5c`](https://github.com/Python-roborock/python-roborock/commit/d96ce5c880eb526f5a39394571e6fe840cef2438))
+
+- Camelize nested child keys in map trait serialization
+  ([#909](https://github.com/Python-roborock/python-roborock/pull/909),
+  [`d96ce5c`](https://github.com/Python-roborock/python-roborock/commit/d96ce5c880eb526f5a39394571e6fe840cef2438))
+
+- Only apply live map pushes to Q7 map content
+  ([#912](https://github.com/Python-roborock/python-roborock/pull/912),
+  [`8133747`](https://github.com/Python-roborock/python-roborock/commit/8133747480f2b79a46fe560292b573898adcb38c))
+
+- Replace __init__ with __all__ in a01 traits
+  ([#920](https://github.com/Python-roborock/python-roborock/pull/920),
+  [`5761844`](https://github.com/Python-roborock/python-roborock/commit/57618441e023de9172dbd821fe1a065a310e4c23))
+
+- Stale snapshot ([#923](https://github.com/Python-roborock/python-roborock/pull/923),
+  [`9b59172`](https://github.com/Python-roborock/python-roborock/commit/9b5917201dfdb1cd06b7e28b7ea9ded1a5ebb1d1))
+
+- Subclass Q10Room and Q10Point from RoborockBase
+  ([#909](https://github.com/Python-roborock/python-roborock/pull/909),
+  [`d96ce5c`](https://github.com/Python-roborock/python-roborock/commit/d96ce5c880eb526f5a39394571e6fe840cef2438))
+
+- Support Q10 diagnostics display
+  ([#909](https://github.com/Python-roborock/python-roborock/pull/909),
+  [`d96ce5c`](https://github.com/Python-roborock/python-roborock/commit/d96ce5c880eb526f5a39394571e6fe840cef2438))
+
+### Chores
+
+- Move Enum and _camelize imports to top of file
+  ([#909](https://github.com/Python-roborock/python-roborock/pull/909),
+  [`d96ce5c`](https://github.com/Python-roborock/python-roborock/commit/d96ce5c880eb526f5a39394571e6fe840cef2438))
+
+### Features
+
+- Add support for Q10 diagnostics data
+  ([#909](https://github.com/Python-roborock/python-roborock/pull/909),
+  [`d96ce5c`](https://github.com/Python-roborock/python-roborock/commit/d96ce5c880eb526f5a39394571e6fe840cef2438))
+
+- Live Q7 (B01) map updates from unsolicited map pushes
+  ([#912](https://github.com/Python-roborock/python-roborock/pull/912),
+  [`8133747`](https://github.com/Python-roborock/python-roborock/commit/8133747480f2b79a46fe560292b573898adcb38c))
+
+
+## v7.0.1 (2026-08-15)
+
+### Bug Fixes
+
+- Align mop routes with device capabilities
+  ([#918](https://github.com/Python-roborock/python-roborock/pull/918),
+  [`5120fbd`](https://github.com/Python-roborock/python-roborock/commit/5120fbd673486badf4295ad8438bd324f0382bc5))
+
+- Fix Q7 code mapping issue for workmode
+  ([#917](https://github.com/Python-roborock/python-roborock/pull/917),
+  [`3e0ffbd`](https://github.com/Python-roborock/python-roborock/commit/3e0ffbdc8d498ef368f9da17478542dc85604f48))
+
+- Fix support gap for the clean route logic
+  ([#918](https://github.com/Python-roborock/python-roborock/pull/918),
+  [`5120fbd`](https://github.com/Python-roborock/python-roborock/commit/5120fbd673486badf4295ad8438bd324f0382bc5))
+
+
 ## v7.0.0 (2026-08-13)
 
 ### Bug Fixes
