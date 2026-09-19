@@ -6,7 +6,7 @@ Dyad (Wet/Dry Vacuums) and Zeo (Washing Machines).
 Using A01 APIs
 --------------
 A01 devices expose a single API object that handles all device interactions. This API is
-available on the device instance (typically via `device.a01_properties`).
+available on the device instance (`device.dyad` or `device.zeo`).
 
 The API provides these methods:
 1.  **query_values(protocols)**: Fetches current state for specific data points.
@@ -14,18 +14,22 @@ The API provides these methods:
     `RoborockZeoProtocol`) to request specific data.
 2.  **set_value(protocol, value)**: Sends a command to the device to change a setting
     or perform an action.
-3.  **add_listener(callback)**: Subscribes to state the device pushes on its own (for
-    example when its state changes), invoking the callback with decoded values.
+3.  **values**: The latest known state, merged from query responses and unsolicited
+    pushes in arrival order.
+4.  **add_update_listener(callback)**: Registers a callback invoked whenever `values`
+    changes; read `values` from the callback to get the updated state.
 
-Note that these APIs fetch data directly from the device upon request and do not
-cache state internally.
+The device pushes only the data points that changed, so `values` is the merged view
+of everything seen so far. State tracking is active once the device is connected
+(the device calls `start()` on the API, which subscribes to the MQTT topic).
 """
 
 import json
 import logging
+from abc import abstractmethod
 from collections.abc import Callable
-from datetime import time
-from typing import Any
+from datetime import UTC, datetime, time
+from typing import Any, Generic, TypeVar
 
 from roborock.data import DyadProductInfo, DyadSndState, HomeDataProduct, RoborockCategory
 from roborock.data.dyad.dyad_code_mappings import (
@@ -89,7 +93,8 @@ from roborock.roborock_message import (
 
 _LOGGER = logging.getLogger(__name__)
 
-__init__ = [
+__all__ = [
+    "A01Api",
     "DyadApi",
     "ZeoApi",
     "ZeoCommandTrait",
@@ -139,7 +144,7 @@ def _try_json(val: Any) -> Any:
         try:
             return json.loads(val)
         except ValueError:
-            pass
+            _LOGGER.debug("Failed to parse JSON for value %r, returning as-is", val)
     return val
 
 
@@ -207,6 +212,9 @@ ZEO_PROTOCOL_ENTRIES: dict[RoborockZeoProtocol, Callable] = {
     RoborockZeoProtocol.DETERGENT_SET: lambda val: bool(val),
     RoborockZeoProtocol.SOFTENER_SET: lambda val: bool(val),
     RoborockZeoProtocol.FLUFF_CLEANED: lambda val: bool(val),
+    # read-write (JSON objects — bundle reads via JSON.parse)
+    RoborockZeoProtocol.VOICE_VOLUME: lambda val: _try_json(val),  # {"snd_volume": int}
+    RoborockZeoProtocol.VOICE_SWITCH: lambda val: _try_json(val),  # {"speech_switch": 1/0}
     # read-write (int-valued)
     RoborockZeoProtocol.CUSTOM_PARAM_SAVE: lambda val: int(val),
     RoborockZeoProtocol.CUSTOM_PARAM_GET: lambda val: int(val),
@@ -214,11 +222,6 @@ ZEO_PROTOCOL_ENTRIES: dict[RoborockZeoProtocol, Callable] = {
     # NOTE: LIGHT_SETTING(229) / DETERGENT_VOLUME(230) / SOFTENER_VOLUME(231)
     # are "server schema only" and do NOT exist in the device bundle — they
     # have no device-side implementation, so no converters are registered.
-    # meta — write-only (JSON payloads; echo back as JSON strings)
-    RoborockZeoProtocol.SET_SOUND_PACKAGE: lambda val: _try_json(val),
-    RoborockZeoProtocol.VOICE_VOLUME: lambda val: _try_json(val),
-    RoborockZeoProtocol.VOICE_SWITCH: lambda val: _try_json(val),
-    RoborockZeoProtocol.VOICE_RECORD_DELETE: lambda val: _try_json(val),
 }
 
 
@@ -243,14 +246,130 @@ def convert_zeo_value(protocol_value: RoborockZeoProtocol, value: Any) -> Any:
 
 
 _DYAD_PROTOCOL_VALUES = frozenset(protocol.value for protocol in RoborockDyadDataProtocol)
+_ZEO_PROTOCOL_VALUES = frozenset(protocol.value for protocol in RoborockZeoProtocol)
+
+_P = TypeVar("_P", RoborockDyadDataProtocol, RoborockZeoProtocol)
 
 
-class DyadApi(Trait):
+class A01Api(Trait, TraitUpdateListener, Generic[_P]):
+    """Base class for A01 device APIs with device state tracking.
+
+    Query responses and unsolicited pushes both arrive on the same MQTT topic,
+    so a single subscription merges every decoded message into `values` in
+    arrival order. Update listeners are notified whenever a value changes.
+    """
+
+    def __init__(self, channel: MqttChannel, initial_status: dict[int, Any] | None = None) -> None:
+        """Initialize the A01 API, optionally seeding `values` from a cloud status snapshot."""
+        TraitUpdateListener.__init__(self, _LOGGER)
+        self._channel = channel
+        self._values: dict[_P, Any] = {}
+        self._unsub: Callable[[], None] | None = None
+        self._last_message_time: datetime | None = None
+        if initial_status:
+            self._merge_datapoints(initial_status)
+
+    @property
+    def values(self) -> dict[_P, Any]:
+        """Latest known device state, merged from query responses and pushes.
+
+        The device pushes only the data points that changed, so this is the
+        merged view of everything seen so far. A protocol the device has not
+        reported yet is absent from the dictionary.
+        """
+        return dict(self._values)
+
+    @property
+    def last_message_time(self) -> datetime | None:
+        """Time the last message was received from the device.
+
+        Updated on every decoded message, even when no value changed: idle
+        devices push an identical heartbeat, so this is the liveness signal
+        even when `values` stays the same and update listeners stay silent.
+        The initial cloud status snapshot does not count as a message.
+        """
+        return self._last_message_time
+
+    async def start(self) -> None:
+        """Subscribe to the device state topic and start tracking `values`."""
+        await self._ensure_subscribed()
+
+    def close(self) -> None:
+        """Unsubscribe from MQTT push and release resources."""
+        if self._unsub is not None:
+            self._unsub()
+            self._unsub = None
+
+    async def _ensure_subscribed(self) -> None:
+        """Subscribe to MQTT DPS push (idempotent)."""
+        if self._unsub is not None:
+            return
+        self._unsub = await self._channel.subscribe(self._on_message)
+
+    @abstractmethod
+    def _decode_datapoints(self, datapoints: dict[int, Any]) -> dict[_P, Any]:
+        """Convert raw datapoints to typed values, skipping unknown codes."""
+
+    def _merge_datapoints(self, datapoints: dict[int, Any]) -> None:
+        """Merge raw datapoints into `values`.
+
+        Subclasses may extend this to project the raw datapoints somewhere
+        else as well (e.g. into typed traits). It is called for unsolicited
+        pushes and for the initial cloud status snapshot.
+        """
+        self._merge_values(self._decode_datapoints(datapoints))
+
+    def _on_message(self, message: RoborockMessage) -> None:
+        """Handle a message on the device topic (query response or push)."""
+        if message.protocol != RoborockMessageProtocol.RPC_RESPONSE:
+            return
+        try:
+            datapoints = decode_rpc_response(message)
+        except RoborockException:
+            _LOGGER.debug("Dropped malformed push message", exc_info=True)
+            return
+        self._last_message_time = datetime.now(UTC)
+        self._merge_datapoints(datapoints)
+
+    def _merge_query_response(self, values: dict[_P, Any]) -> None:
+        """Record a successful query response when there is no subscription.
+
+        When subscribed, the response was already merged in arrival order and
+        timestamped by `_on_message`; merging again here could overwrite a
+        push that arrived after it.
+        """
+        if self._unsub is not None:
+            return
+        self._last_message_time = datetime.now(UTC)
+        self._merge_values(values)
+
+    def _merge_values(self, values: dict[_P, Any]) -> None:
+        """Merge decoded values into the cache and notify on change."""
+        changed = False
+        for protocol, value in values.items():
+            if value is None:
+                continue
+            if protocol not in self._values or self._values[protocol] != value:
+                self._values[protocol] = value
+                changed = True
+        if changed:
+            self._notify_update()
+
+
+class DyadApi(A01Api[RoborockDyadDataProtocol]):
     """API for interacting with Dyad devices."""
 
-    def __init__(self, channel: MqttChannel) -> None:
-        """Initialize the Dyad API."""
-        self._channel = channel
+    name = "dyad"
+
+    def _decode_datapoints(self, datapoints: dict[int, Any]) -> dict[RoborockDyadDataProtocol, Any]:
+        """Convert raw datapoints to typed values, skipping unknown codes."""
+        values: dict[RoborockDyadDataProtocol, Any] = {}
+        for code, value in datapoints.items():
+            if code not in _DYAD_PROTOCOL_VALUES:
+                continue
+            protocol = RoborockDyadDataProtocol(code)
+            values[protocol] = convert_dyad_value(protocol, value)
+        return values
 
     async def query_values(self, protocols: list[RoborockDyadDataProtocol]) -> dict[RoborockDyadDataProtocol, Any]:
         """Query the device for the values of the given Dyad protocols."""
@@ -259,7 +378,9 @@ class DyadApi(Trait):
             {RoborockDyadDataProtocol.ID_QUERY: protocols},
             value_encoder=json.dumps,
         )
-        return {protocol: convert_dyad_value(protocol, response.get(protocol)) for protocol in protocols}
+        values = {protocol: convert_dyad_value(protocol, response.get(protocol)) for protocol in protocols}
+        self._merge_query_response(values)
+        return values
 
     async def set_value(self, protocol: RoborockDyadDataProtocol, value: Any) -> dict[RoborockDyadDataProtocol, Any]:
         """Set a value for a specific protocol on the device."""
@@ -272,6 +393,9 @@ class DyadApi(Trait):
         The callback is invoked with decoded values whenever the device sends a
         message, including unsolicited pushes when its state changes. Only known
         protocols are delivered. Returns a callable to remove the listener.
+
+        Prefer `add_update_listener` together with `values`, which handle the
+        merging of partial pushes for you.
         """
 
         def on_message(message: RoborockMessage) -> None:
@@ -279,33 +403,41 @@ class DyadApi(Trait):
                 datapoints = decode_rpc_response(message)
             except RoborockException:
                 return
-            values: dict[RoborockDyadDataProtocol, Any] = {}
-            for code, value in datapoints.items():
-                if code not in _DYAD_PROTOCOL_VALUES:
-                    continue
-                protocol = RoborockDyadDataProtocol(code)
-                values[protocol] = convert_dyad_value(protocol, value)
-            if values:
+            if values := self._decode_datapoints(datapoints):
                 callback(values)
 
         return await self._channel.subscribe(on_message)
 
 
-class ZeoApi(Trait, TraitUpdateListener):
+class ZeoApi(A01Api[RoborockZeoProtocol]):
     """API for interacting with Zeo devices."""
 
-    def __init__(self, channel: MqttChannel, model: str | None = None) -> None:
+    name = "zeo"
+
+    def __init__(
+        self, channel: MqttChannel, model: str | None = None, initial_status: dict[int, Any] | None = None
+    ) -> None:
         """Initialize the Zeo API."""
-        TraitUpdateListener.__init__(self, _LOGGER)
-        self._channel = channel
-        self._dps_cache: dict[int, Any] = {}
-        self._dps_unsub: Callable[[], None] | None = None
         self._feature_bits: int = 0
         self._features: ZeoFeatures | None = None
         self._model = model
-        self._command: ZeoCommandTrait | None = None
-        self._settings: ZeoSettingTrait | None = None
-        self._status: ZeoStatusTrait | None = None
+        # Build the typed traits before `super().__init__()` so that the
+        # initial cloud status snapshot and every later push are projected
+        # into them as well (see `_merge_datapoints`).
+        self._settings = ZeoSettingTrait(
+            channel,
+            model=model,
+            is_dryer=is_dryer(model),
+            features=lambda: self._features,
+        )
+        self._status = ZeoStatusTrait()
+        self._command = ZeoCommandTrait(
+            channel=channel,
+            settings=lambda: self._settings,
+            features=lambda: self._features,
+            custom_mode=lambda: self.get_custom_mode(),
+        )
+        super().__init__(channel, initial_status)
 
     @property
     def features(self) -> ZeoFeatures | None:
@@ -317,19 +449,12 @@ class ZeoApi(Trait, TraitUpdateListener):
 
     @property
     def command(self) -> ZeoCommandTrait:
-        """Lazily-built trait for wash-programme commands."""
-        if self._command is None:
-            self._command = ZeoCommandTrait(
-                channel=self._channel,
-                settings=lambda: self.settings,
-                features=lambda: self._features,
-                custom_mode=lambda: self.get_custom_mode(),
-            )
+        """Typed trait for wash-programme commands."""
         return self._command
 
     @property
     def settings(self) -> ZeoSettingTrait:
-        """Lazily-built typed writable-state/setter trait.
+        """Typed writable-state/setter trait.
 
         Holds typed writable state (``mode``, ``temperature``,
         ``drying_method``, ...) refreshed from the device push stream, plus
@@ -337,38 +462,32 @@ class ZeoApi(Trait, TraitUpdateListener):
         the device family does not support (e.g. ``temperature`` on a dryer)
         remain ``None``.
         """
-        if self._settings is None:
-            self._settings = ZeoSettingTrait(
-                self._channel,
-                model=self._model,
-                is_dryer=is_dryer(self._model),
-                features=lambda: self._features,
-            )
         return self._settings
 
     @property
     def status(self) -> ZeoStatusTrait:
-        """Lazily-built typed read-only state trait.
+        """Typed read-only state trait.
 
         Holds device-reported read-only state (``state``, ``error``,
         ``washing_left``, ``countdown``, tank levels, ...) refreshed from the
         MQTT push stream. No setters — this is status only.
         """
-        if self._status is None:
-            self._status = ZeoStatusTrait()
         return self._status
 
-    def _update_settings_from_dps(self, decoded_dps: dict[int, Any]) -> None:
-        """Route raw DPS data to the settings/status traits, if built.
+    def _update_traits(self, datapoints: dict[int, Any]) -> None:
+        """Project raw datapoints into the typed traits.
 
         Writable DPs go to :class:`ZeoSettingTrait`; read-only DPs go to
-        :class:`ZeoStatusTrait`. Both are lazily built, so pushes received
-        before they exist are re-processed on first access via the raw cache.
+        :class:`ZeoStatusTrait`. The traits convert and merge the raw values
+        themselves, and ignore DPs they do not declare.
         """
-        if self._settings is not None:
-            self._settings.update_from_dps(decoded_dps)
-        if self._status is not None:
-            self._status.update_from_dps(decoded_dps)
+        self._settings.update_from_dps(datapoints)
+        self._status.update_from_dps(datapoints)
+
+    def _merge_datapoints(self, datapoints: dict[int, Any]) -> None:
+        """Project raw datapoints into the traits, then merge into `values`."""
+        self._update_traits(datapoints)
+        super()._merge_datapoints(datapoints)
 
     async def start(self) -> None:
         """Subscribe to MQTT push and trigger a full state sync.
@@ -376,30 +495,33 @@ class ZeoApi(Trait, TraitUpdateListener):
         Subscribes to the DPS MQTT topic, then performs a two-stage
         force-load: first the base DP list (including FEATURE_BITS),
         then a second query for the DPs gated behind each enabled feature.
-        The device responds with a complete state dump;
-        subsequent changes arrive via incremental MQTT push.
+        Each ID_QUERY returns the state of the queried DPs only (the base DP
+        list in stage one); feature-gated DPs are fetched separately in the
+        second-stage ``_load_feature_dps``. Subsequent changes arrive via
+        incremental MQTT push.
         """
         await self._ensure_subscribed()
         await self._force_load()
         await self._load_feature_dps()
 
-    def close(self) -> None:
-        """Unsubscribe from MQTT push and release resources."""
-        if self._dps_unsub is not None:
-            self._dps_unsub()
-            self._dps_unsub = None
-
-    async def _ensure_subscribed(self) -> None:
-        """Subscribe to MQTT DPS push (idempotent)."""
-        if self._dps_unsub is not None:
-            return
-        self._dps_unsub = await self._channel.subscribe(self._on_dps_message)
+    def _decode_datapoints(self, datapoints: dict[int, Any]) -> dict[RoborockZeoProtocol, Any]:
+        """Convert raw datapoints to typed values, skipping unknown codes."""
+        values: dict[RoborockZeoProtocol, Any] = {}
+        for code, value in datapoints.items():
+            if code not in _ZEO_PROTOCOL_VALUES:
+                continue
+            protocol = RoborockZeoProtocol(code)
+            values[protocol] = convert_zeo_value(protocol, value)
+        return values
 
     async def _force_load(self) -> None:
-        """Send ID_QUERY with the base DP list to trigger a full state push.
+        """Send ID_QUERY with the base DP list to fetch the base state.
 
-        For devices known to lack FEATURE_BITS, the DP is excluded
-        from the query list and ``_feature_bits`` stays at 0.
+        The device replies with the state of the *queried* DPs only — it is
+        not a full dump — so feature-gated DPs are fetched separately by
+        :meth:`_load_feature_dps`. For devices known to lack FEATURE_BITS,
+        the DP is excluded from the query list and ``_feature_bits`` stays at
+        0.
         """
         dp_list = build_force_load_dp_list(self._model)
         result = await self.query_values(dp_list)
@@ -425,34 +547,38 @@ class ZeoApi(Trait, TraitUpdateListener):
         if not feature_dps:
             return
         try:
+            # Prime the feature-gated DPs so the traits are populated on
+            # first use; failures are non-fatal because later pushes refill.
             await self.query_values(feature_dps)
         except RoborockException as exc:
             _LOGGER.warning("Feature DPS load failed (non-fatal): %s", exc)
 
-    def _on_dps_message(self, message: RoborockMessage) -> None:
-        """Handle unsolicited MQTT push (protocol 102 — RPC_RESPONSE)."""
-        if message.protocol != RoborockMessageProtocol.RPC_RESPONSE:
-            return
-        try:
-            decoded = decode_rpc_response(message)
-        except RoborockException:
-            _LOGGER.debug("Dropped malformed push message", exc_info=True)
-            return
-        self._dps_cache.update(decoded)
-        self._update_settings_from_dps(decoded)
-        self._notify_update()
+    def supports(self, feature: ZeoFeatureBits) -> bool:
+        """Check whether the device supports a given feature bit."""
+        return bool(self._feature_bits & (1 << feature.value))
 
     async def query_values(self, protocols: list[RoborockZeoProtocol]) -> dict[RoborockZeoProtocol, Any]:
-        """Query the device for the values of the given protocols."""
+        """Query the device for the values of the given protocols.
+
+        When the API is subscribed, the response also arrives on the MQTT
+        topic and is projected into the traits and `values` by ``_on_message``,
+        in arrival order. When it is not subscribed, the raw response is
+        projected into the traits here so they still see the queried state.
+        """
         response = await send_decoded_command(
             self._channel,
             {RoborockZeoProtocol.ID_QUERY: protocols},
             value_encoder=json.dumps,
         )
-        for protocol in protocols:
-            if (raw := response.get(protocol)) is not None:
-                self._dps_cache[int(protocol)] = raw
-        return {protocol: convert_zeo_value(protocol, response.get(protocol)) for protocol in protocols}
+        if self._unsub is None:
+            # Not subscribed, so this response never reaches `_on_message`;
+            # project it into the traits here. `decode_rpc_response` keys the
+            # response by integer DP code (the channel signature reports the
+            # protocol enum), so normalize to the codes the traits expect.
+            self._update_traits({int(dp): value for dp, value in response.items()})
+        values = {protocol: convert_zeo_value(protocol, response.get(protocol)) for protocol in protocols}
+        self._merge_query_response(values)
+        return values
 
     async def set_value(self, protocol: RoborockZeoProtocol, value: Any) -> dict[RoborockZeoProtocol, Any]:
         """Set a value for a specific protocol on the device."""
@@ -461,11 +587,11 @@ class ZeoApi(Trait, TraitUpdateListener):
 
     async def get_custom_mode(self) -> ZeoCustomMode | ZeoDryerCustomMode | None:
         """Query and decode the current custom programme (DP 222)."""
-        await self.query_values([RoborockZeoProtocol.CUSTOM_PARAM_GET, RoborockZeoProtocol.TOTAL_TIME])
-        raw = self._dps_cache.get(int(RoborockZeoProtocol.CUSTOM_PARAM_GET))
+        result = await self.query_values([RoborockZeoProtocol.CUSTOM_PARAM_GET, RoborockZeoProtocol.TOTAL_TIME])
+        raw = result.get(RoborockZeoProtocol.CUSTOM_PARAM_GET)
         if raw is None:
             return None
-        total_time = self._dps_cache.get(int(RoborockZeoProtocol.TOTAL_TIME))
+        total_time = result.get(RoborockZeoProtocol.TOTAL_TIME)
         try:
             raw_int = int(raw)
         except (TypeError, ValueError):
@@ -474,18 +600,37 @@ class ZeoApi(Trait, TraitUpdateListener):
             return ZeoDryerCustomMode.from_raw(raw_int, total_time)
         return ZeoCustomMode.from_raw(raw_int, total_time)
 
-    async def update_sound_package_info(self) -> Any:
+    async def update_sound_package_info(self) -> dict[str, Any] | None:
         """Query the sound-package info (DP 10004)."""
         result = await self.query_values([RoborockZeoProtocol.SOUND_PACKAGE_INFO])
-        return result.get(RoborockZeoProtocol.SOUND_PACKAGE_INFO)
+        raw = result.get(RoborockZeoProtocol.SOUND_PACKAGE_INFO)
+        if isinstance(raw, dict):
+            return raw
+        return None
 
 
-def create(product: HomeDataProduct, mqtt_channel: MqttChannel) -> DyadApi | ZeoApi:
-    """Create traits for A01 devices."""
+def _parse_device_status(device_status: dict | None) -> dict[int, Any] | None:
+    """Normalize the cloud home data status snapshot to integer datapoint codes."""
+    if not device_status:
+        return None
+    try:
+        return {int(code): value for code, value in device_status.items()}
+    except (TypeError, ValueError):
+        _LOGGER.debug("Ignoring malformed device status snapshot: %s", device_status)
+        return None
+
+
+def create(product: HomeDataProduct, mqtt_channel: MqttChannel, device_status: dict | None = None) -> DyadApi | ZeoApi:
+    """Create traits for A01 devices.
+
+    The optional `device_status` is the cloud home data status snapshot, used
+    to seed `values` so state is available before the first device round trip.
+    """
+    initial_status = _parse_device_status(device_status)
     match product.category:
         case RoborockCategory.WET_DRY_VAC:
-            return DyadApi(mqtt_channel)
+            return DyadApi(mqtt_channel, initial_status=initial_status)
         case RoborockCategory.WASHING_MACHINE:
-            return ZeoApi(mqtt_channel, model=product.model)
+            return ZeoApi(mqtt_channel, model=product.model, initial_status=initial_status)
         case _:
             raise NotImplementedError(f"Unsupported category {product.category}")

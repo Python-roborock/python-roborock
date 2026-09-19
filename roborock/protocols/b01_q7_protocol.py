@@ -83,8 +83,10 @@ def decode_rpc_response(message: RoborockMessage) -> dict[int, Any]:
         raise RoborockException(f"Invalid B01 message format: 'dps' should be a dictionary for {message.payload!r}")
     try:
         return {int(key): value for key, value in datapoints.items()}
-    except ValueError:
-        raise RoborockException(f"Invalid B01 message format: 'dps' key should be an integer for {message.payload!r}")
+    except ValueError as err:
+        raise RoborockException(
+            f"Invalid B01 message format: 'dps' key should be an integer for {message.payload!r}"
+        ) from err
 
 
 @dataclass

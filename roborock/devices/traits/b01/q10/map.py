@@ -7,10 +7,10 @@ Map-related state arrives on three independent streams:
 * restricted zones, virtual walls and dock state arrive as ordinary DPS values.
 
 ``MapDpsTrait`` owns the low-level map-specific DPS read model.
-``MapContentTrait`` combines that state with the latest map/trace packets
-through the pure functions in :mod:`roborock.map.b01_q10_render`. The high-level
-trait keeps only the latest value from each source and one replace-whole image;
-calibration, path placement and overlay placement remain inside the renderer.
+``MapContentTrait`` requests a current-map push through ``REQUEST_DPS`` and
+combines the latest map and trace packets with the map DPS state through the
+pure functions in :mod:`roborock.map.b01_q10_render`. Saved-map list/detail
+operations remain on ``MapsTrait``.
 """
 
 import logging
@@ -19,6 +19,7 @@ from typing import Any
 
 from roborock.data import RoborockBase
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP, YXDeviceState
+from roborock.data.b01_q10.b01_q10_containers import Q10RoborockPoint
 from roborock.devices.traits.common import DpsDataConverter, TraitUpdateListener
 from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
@@ -31,7 +32,9 @@ from roborock.map.b01_q10_map_parser import (
 from roborock.map.b01_q10_overlays import parse_virtual_wall_blob, parse_zone_blob
 from roborock.map.b01_q10_render import Q10MapOverlays, render_q10_map
 
+from .command import CommandTrait
 from .common import UpdatableTrait
+from .maps import MapsTrait
 
 _LOGGER = logging.getLogger(__name__)
 _DOCKED_STATES = {YXDeviceState.CHARGING, YXDeviceState.EMPTYING_THE_BIN}
@@ -80,23 +83,38 @@ class MapDpsTrait(MapDps, UpdatableTrait):
 class MapContentTrait(TraitUpdateListener):
     """High-level composed Q10 map view.
 
-    The latest map and trace packets are combined with the injected map DPS
-    whenever any source changes.
+    The latest map and trace packets are combined with the injected
+    :class:`MapDpsTrait` whenever a source changes. The
+    :class:`MapsTrait` supplies a stored ID only when this trait requests
+    content.
     """
 
     def __init__(
         self,
         map_dps: MapDpsTrait,
+        maps: MapsTrait,
+        command: CommandTrait,
         *,
         map_parser_config: B01Q10MapParserConfig | None = None,
     ) -> None:
         TraitUpdateListener.__init__(self, logger=_LOGGER)
         self._config = map_parser_config or B01Q10MapParserConfig()
         self._map_dps = map_dps
+        self._maps = maps
+        self._command = command
         self._map_packet: Q10MapPacket | None = None
         self._trace_packet: Q10TracePacket | None = None
         self._image_content: bytes | None = None
         self._map_dps.add_update_listener(self._map_dps_updated)
+
+    async def refresh(self) -> None:
+        """Request a safe asynchronous current-map/status push.
+
+        Some ss07 firmware treats ``dpMultiMap op:get`` as an active
+        cleaning/relocation command. ``REQUEST_DPS`` is the device's read-only
+        current-map request and does not depend on a saved-map ID.
+        """
+        await self._command.send(B01_Q10_DP.REQUEST_DPS, params={})
 
     @property
     def image_content(self) -> bytes | None:
@@ -110,13 +128,20 @@ class MapContentTrait(TraitUpdateListener):
 
     @property
     def path(self) -> list[Q10Point]:
-        """Full path for live status and callers drawing their own map overlay."""
+        """Full path in the Q10 trace coordinate space used by the map renderer."""
         return self._trace_packet.points if self._trace_packet else []
 
     @property
-    def robot_position(self) -> Q10Point | None:
-        """Current position for live status and caller-rendered map overlays."""
-        return self._trace_packet.robot_position if self._trace_packet else None
+    def robot_position(self) -> Q10RoborockPoint | None:
+        """Current position in the common Roborock millimetre coordinate space."""
+        if self._trace_packet is None or (position := self._trace_packet.robot_position) is None:
+            return None
+        return position.to_roborock()
+
+    @property
+    def trace_sequence(self) -> int | None:
+        """Current cleaning-session sequence from the trace stream."""
+        return self._trace_packet.sequence if self._trace_packet else None
 
     @property
     def robot_heading(self) -> int | None:
@@ -157,3 +182,18 @@ class MapContentTrait(TraitUpdateListener):
         except RoborockException as ex:
             _LOGGER.debug("Failed to render Q10 map packet: %s", ex)
             self._image_content = None
+
+    def as_dict(self, exclude: set[str] | None = None) -> dict[str, Any]:
+        """Return the trait data as a dictionary, excluding large binary data."""
+        exclude_set = exclude or set()
+        data = {
+            "rooms": [room.as_dict() for room in self.rooms],
+            "path": [point.as_dict() for point in self.path],
+            "robotPosition": (
+                {"x": position.x, "y": position.y} if (position := self.robot_position) is not None else None
+            ),
+            "robotHeading": self.robot_heading,
+        }
+        for key in exclude_set:
+            data.pop(key, None)
+        return data

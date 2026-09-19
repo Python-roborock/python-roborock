@@ -56,7 +56,7 @@ def fake_mqtt_socket_handler_fixture(
     socket_handler = FakeMqttSocketHandler(mqtt_request_handler, mqtt_response_queue, log)
     yield socket_handler
     if len(socket_handler.response_buf.getvalue()) > 0:
-        warnings.warn("Some enqueued MQTT responses were not consumed during the test")
+        warnings.warn("Some enqueued MQTT responses were not consumed during the test", stacklevel=2)
 
 
 @pytest.fixture(name="mock_sock")
@@ -81,7 +81,7 @@ def response_queue_fixture() -> Generator[Queue[bytes], None, None]:
     response_queue: Queue[bytes] = Queue()
     yield response_queue
     if not response_queue.empty():
-        warnings.warn("Some enqueued MQTT responses were not consumed during the test")
+        warnings.warn("Some enqueued MQTT responses were not consumed during the test", stacklevel=2)
 
 
 @pytest.fixture(name="mqtt_request_handler")

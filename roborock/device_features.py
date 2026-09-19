@@ -4,7 +4,7 @@ from functools import cache
 from typing import Any, Self
 
 from roborock.data.code_mappings import RoborockProductNickname
-from roborock.data.containers import RoborockBase
+from roborock.data.containers import RoborockBase, _decamelize
 from roborock.data.v1 import RoborockDockTypeCode
 
 
@@ -87,6 +87,7 @@ class NewFeatureStrBit(IntEnum):
     TWO_GEARS_NO_COLLISION = 118
     CARPET_SHAPE_TYPE = 119
     SR_MAP = 120
+    ROLLER_MOP = 128
 
 
 class ProductFeatures(StrEnum):
@@ -474,6 +475,7 @@ class DeviceFeatures(RoborockBase):
     )
     is_carpet_shape_type_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.CARPET_SHAPE_TYPE})
     is_sr_map_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.SR_MAP})
+    is_roller_mop_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.ROLLER_MOP})
 
     # Features from feature_info list
     is_led_status_switch_supported: bool = field(metadata={"robot_features": 119})
@@ -641,10 +643,36 @@ class DeviceFeatures(RoborockBase):
             elif (product_features := f.metadata.get("product_features")) is not None:
                 if product_nickname is not None:
                     available_features = PRODUCT_FEATURE_MAP.get(product_nickname, [])
-                    if any(feat in available_features for feat in product_features):  # type: ignore
+                    if any(feat in available_features for feat in product_features):
                         kwargs[f.name] = True
 
+        # The app combines runtime shake-mop, model shake/spin, and roller-mop
+        # capabilities when deciding whether mop routes can be configured.
+        kwargs["is_clean_route_setting_supported"] |= (
+            kwargs["is_shake_mop_set_supported"] or kwargs["is_roller_mop_supported"]
+        )
+
         return cls(**kwargs)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Self | None:
+        """Create device features, rejecting incomplete cached capabilities.
+
+        Persisted feature data may have been written by an older version of the
+        library that did not yet know about every capability. Missing boolean
+        fields therefore mean the cached feature set is stale, not that those
+        capabilities are unsupported. Return ``None`` so callers rediscover the
+        complete feature set from the device.
+        """
+        if not isinstance(data, dict):
+            return None
+
+        serialized_fields = {_decamelize(key) for key in data}
+        required_fields = {feature.name for feature in fields(cls) if feature.type is bool}
+        if not required_fields.issubset(serialized_fields):
+            return None
+
+        return super().from_dict(data)
 
     def get_supported_features(self) -> list[str]:
         """Returns a list of supported features (Primarily used for logging purposes)."""

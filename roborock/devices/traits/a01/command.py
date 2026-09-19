@@ -56,7 +56,10 @@ class ZeoCommandTrait:
         This is the primary start API: the caller needs to provide the
         parameters like mode/program/options/etc.
 
-        Returns the DPs that were actually sent.
+        Returns the full DPS frame that was sent, including DPs this method
+        adds on its own (auto-dosing and feature-gated). Exposed so callers can
+        inspect/validate the frame — e.g. against the programme-config template
+        (not yet implemented) that defines valid parameter sets.
         """
         dps: dict[RoborockZeoProtocol, Any] = {RoborockZeoProtocol.START: 1}
         dps.update(build_param_dps(params))
@@ -136,7 +139,7 @@ class ZeoCommandTrait:
         the machine to start immediately instead. The caller is responsible
         for ensuring *minutes* satisfies this constraint.
 
-        Returns the DPs that were sent.
+        Returns the full DPS frame that was sent (see :meth:`start_with`).
         """
         if minutes <= 0:
             cancel_dps: dict[RoborockZeoProtocol, Any] = {RoborockZeoProtocol.COUNTDOWN: 0}
@@ -160,38 +163,31 @@ class ZeoCommandTrait:
         )
         return dps
 
-    async def pause(self) -> dict[RoborockZeoProtocol, Any]:
-        """Pause the current programme (DP 201 = 1).
-
-        Returns the DPs that were actually sent.
-        """
+    async def pause(self) -> None:
+        """Pause the current programme (DP 201 = 1)."""
         dps = {RoborockZeoProtocol.PAUSE: 1}
         await send_decoded_command(self._channel, dps)
-        return dps
 
-    async def resume(self) -> dict[RoborockZeoProtocol, Any]:
+    async def resume(self) -> None:
         """Start/continue a paused programme (DP 200 = 1).
 
-        Only works while the device is powered on. Returns the DPs sent.
+        Only works while the device is powered on.
         """
         dps = {RoborockZeoProtocol.START: 1}
         await send_decoded_command(self._channel, dps)
-        return dps
 
-    async def stop(self) -> dict[RoborockZeoProtocol, Any]:
+    async def stop(self) -> None:
         """Stop the current programme (DP 200 = 0)."""
         dps = {RoborockZeoProtocol.START: 0}
         await send_decoded_command(self._channel, dps)
-        return dps
 
-    async def shutdown(self) -> dict[RoborockZeoProtocol, Any]:
+    async def shutdown(self) -> None:
         """Power off the device (DP 202 = 1).
 
-        Only works while the device is powered on. Returns the DPs sent.
+        Only works while the device is powered on.
         """
         dps = {RoborockZeoProtocol.SHUTDOWN: 1}
         await send_decoded_command(self._channel, dps)
-        return dps
 
 
 def _custom_mode_to_start_params(

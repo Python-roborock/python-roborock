@@ -87,7 +87,7 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
 
     @cached_property
     def mop_route_mapping(self) -> dict[int, str]:
-        return {route.code: route.value for route in self.mop_route_options}
+        return {route.code: route.display_name for route in self.mop_route_options}
 
     @cached_property
     def cleaning_mode_options(self) -> list[CleaningMode]:
