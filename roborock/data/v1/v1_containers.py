@@ -460,6 +460,28 @@ class SmartWashParams(RoborockBase):
 
 
 @dataclass
+class MopDryerProfile(RoborockBase):
+    """Dryer parameters for one state of the auto mop-drying setting."""
+
+    cliff_on: int | None = None
+    cliff_off: int | None = None
+    count: int | None = None
+    dry_time: int | None = None
+    """Drying duration in seconds. Only present in the ``on`` profile."""
+    dry_heating_film_time: int | None = None
+    """Heating element run time in seconds. Only present in the ``on`` profile."""
+
+
+@dataclass
+class MopDryerSetting(RoborockBase):
+    """Auto mop-drying setting, as returned by APP_GET_DRYER_SETTING."""
+
+    status: int | None = None
+    on: MopDryerProfile | None = None
+    off: MopDryerProfile | None = None
+
+
+@dataclass
 class DustCollectionMode(RoborockBase):
     mode: RoborockDockDustCollectionModeCode | None = None
 
