@@ -10,7 +10,7 @@ T = TypeVar("T")
 
 
 def unpack_list(value: list[T], size: int) -> list[T | None]:
-    return (value + [None] * size)[:size]  # type: ignore
+    return (value + [None] * size)[:size]
 
 
 class RoborockLoggerAdapter(logging.LoggerAdapter):

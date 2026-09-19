@@ -1,6 +1,6 @@
 [project]
 name = "python-roborock"
-version = "7.4.2"
+version = "7.8.1"
 description = "A package to control Roborock vacuums."
 authors = [{ name = "humbertogontijo", email = "humbertogontijo@users.noreply.github.com" }, {name="Lash-L"}, {name="allenporter"}]
 requires-python = ">=3.11, <4"
@@ -106,14 +106,40 @@ allowed_tags = [
 major_tags= ["refactor"]
 
 [tool.ruff]
-lint.ignore = ["F403", "E741"]
-lint.select=["E", "F", "UP", "I"]
+lint.ignore = []
+# TODO: Enable ASYNC (flake8-async) in a dedicated follow-up PR once async open() and timeout parameters are refactored.
+lint.select = [
+    "A",
+    "B",
+    "BLE",
+    "C4",
+    "E",
+    "F",
+    "FA",
+    "I",
+    "ICN",
+    "ISC",
+    "PGH",
+    "PIE",
+    "UP",
+    "W",
+    "YTT",
+]
 line-length = 120
 extend-exclude = ["roborock/map/proto/*_pb2.py"]
 
 [tool.ruff.lint.per-file-ignores]
 "*/__init__.py" = ["F401"]
+"roborock/__init__.py" = ["F403"]
+"roborock/data/__init__.py" = ["F403"]
+"roborock/data/b01_q7/__init__.py" = ["F403"]
+"roborock/data/b01_q10/__init__.py" = ["F403"]
+"roborock/data/dyad/__init__.py" = ["F403"]
+"roborock/data/mower/__init__.py" = ["F403"]
+"roborock/data/v1/__init__.py" = ["F403"]
+"roborock/data/zeo/__init__.py" = ["F403"]
 "roborock/map/proto/*_pb2.py" = ["E501", "I001", "UP009"]
+"tests/*" = ["B010"]
 
 [[tool.mypy.overrides]]
 module = ["roborock.map.proto.*"]

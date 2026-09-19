@@ -22,6 +22,8 @@ roborock> status --device_id <device_id>
 ```
 """
 
+# ruff: noqa: BLE001
+
 import asyncio
 import datetime
 import functools
@@ -38,9 +40,9 @@ try:
     import click
     import click_shell
     import yaml
-    from pyshark import FileCapture  # type: ignore
-    from pyshark.capture.live_capture import LiveCapture, UnknownInterfaceException  # type: ignore
-    from pyshark.packet.packet import Packet  # type: ignore
+    from pyshark import FileCapture  # type: ignore[import-untyped]
+    from pyshark.capture.live_capture import LiveCapture, UnknownInterfaceException  # type: ignore[import-untyped]
+    from pyshark.packet.packet import Packet  # type: ignore[import-untyped]
 except ImportError as err:
     raise SystemExit(
         f"The 'roborock' command line tool requires extra dependencies that are not installed ({err.name}).\n"
@@ -307,7 +309,7 @@ class RoborockContext(Cache):
 @click.pass_context
 def cli(ctx, debug: int):
     logging_config: dict[str, Any] = {"level": logging.DEBUG if debug > 0 else logging.INFO}
-    logging.basicConfig(**logging_config)  # type: ignore
+    logging.basicConfig(**logging_config)  # type: ignore[call-overload]
     ctx.obj = RoborockContext()
 
 
@@ -988,9 +990,8 @@ async def parser(_, local_key, device_ip, file):
                                     local_key,
                                 )
                                 print(f"Received request: {f}")
-                            except BaseException as e:
+                            except Exception as e:
                                 print(e)
-                                pass
                         elif packet.ip.src == device_ip:
                             try:
                                 f, buffer["data"] = MessageParser.parse(
@@ -998,16 +999,15 @@ async def parser(_, local_key, device_ip, file):
                                     local_key,
                                 )
                                 print(f"Received response: {f}")
-                            except BaseException as e:
+                            except Exception as e:
                                 print(e)
-                                pass
 
     try:
         await capture.packets_from_tshark(on_package, close_tshark=not file_provided)
-    except UnknownInterfaceException:
+    except UnknownInterfaceException as err:
         raise RoborockException(
             "You need to run 'rvictl -s XXXXXXXX-XXXXXXXXXXXXXXXX' first, with an iPhone connected to usb port"
-        )
+        ) from err
 
 
 def _parse_diagnostic_file(diagnostic_path: Path) -> dict[str, dict[str, Any]]:
@@ -1319,7 +1319,7 @@ def update_docs(data_file: str, output_file: str):
         ]
         # Regular features are the remaining keys, sorted alphabetically
         # We filter out the special rows to avoid duplicating them.
-        sorted_features = sorted(list(all_features - set(special_rows)))
+        sorted_features = sorted(all_features - set(special_rows))
 
         header = ["Feature"] + sorted_products
 
