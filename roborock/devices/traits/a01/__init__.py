@@ -380,8 +380,10 @@ class ZeoApi(Trait, TraitUpdateListener):
         Subscribes to the DPS MQTT topic, then performs a two-stage
         force-load: first the base DP list (including FEATURE_BITS),
         then a second query for the DPs gated behind each enabled feature.
-        The device responds with a complete state dump;
-        subsequent changes arrive via incremental MQTT push.
+        Each ID_QUERY returns the state of the queried DPs only (the base DP
+        list in stage one); feature-gated DPs are fetched separately in the
+        second-stage ``_load_feature_dps``. Subsequent changes arrive via
+        incremental MQTT push.
         """
         await self._ensure_subscribed()
         await self._force_load()
@@ -400,10 +402,13 @@ class ZeoApi(Trait, TraitUpdateListener):
         self._dps_unsub = await self._channel.subscribe(self._on_dps_message)
 
     async def _force_load(self) -> None:
-        """Send ID_QUERY with the base DP list to trigger a full state push.
+        """Send ID_QUERY with the base DP list to fetch the base state.
 
-        For devices known to lack FEATURE_BITS, the DP is excluded
-        from the query list and ``_feature_bits`` stays at 0.
+        The device replies with the state of the *queried* DPs only — it is
+        not a full dump — so feature-gated DPs are fetched separately by
+        :meth:`_load_feature_dps`. For devices known to lack FEATURE_BITS,
+        the DP is excluded from the query list and ``_feature_bits`` stays at
+        0.
         """
         dp_list = build_force_load_dp_list(self._model)
         result = await self.query_values(dp_list)
@@ -429,6 +434,9 @@ class ZeoApi(Trait, TraitUpdateListener):
         if not feature_dps:
             return
         try:
+            # Pre-warm the DPS cache: the converted return value is unused,
+            # but query_values() backfills the raw values into _dps_cache,
+            # which the lazily-built traits read on first access.
             await self.query_values(feature_dps)
         except RoborockException as exc:
             _LOGGER.warning("Feature DPS load failed (non-fatal): %s", exc)
@@ -447,7 +455,14 @@ class ZeoApi(Trait, TraitUpdateListener):
         self._notify_update()
 
     async def query_values(self, protocols: list[RoborockZeoProtocol]) -> dict[RoborockZeoProtocol, Any]:
-        """Query the device for the values of the given protocols."""
+        """Query the device for the values of the given protocols.
+
+        Side effect: raw responses are written into ``_dps_cache`` so that
+        lazily-built traits can backfill state on first access. The return
+        value is the converted form; both are provided because some callers
+        want the converted values (e.g. :meth:`get_custom_mode`) while the
+        cache holds the raw values the traits expect.
+        """
         response = await send_decoded_command(
             self._channel,
             {RoborockZeoProtocol.ID_QUERY: protocols},
