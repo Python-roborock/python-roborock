@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v7.8.2 (2026-09-20)
+
+### Bug Fixes
+
+- Fetch the latest user agreement version instead of hardcoding it
+  ([#960](https://github.com/Python-roborock/python-roborock/pull/960),
+  [`f6a40f8`](https://github.com/Python-roborock/python-roborock/commit/f6a40f8795d7991b85a2e5e99c5dee7bba97aaa5))
+
+
 ## v7.8.1 (2026-09-17)
 
 ### Bug Fixes
