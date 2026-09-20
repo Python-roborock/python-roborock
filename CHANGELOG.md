@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v7.8.1 (2026-09-17)
+
+### Bug Fixes
+
+- Preserve immutable Q10 points in model conformance checks
+  ([#965](https://github.com/Python-roborock/python-roborock/pull/965),
+  [`386e4c5`](https://github.com/Python-roborock/python-roborock/commit/386e4c50fe9ca29d7a4caa85a3662c3c104b26f2))
+
+
 ## v7.8.0 (2026-09-13)
 
 ### Features
