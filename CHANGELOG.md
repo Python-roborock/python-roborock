@@ -2,6 +2,21 @@
 
 <!-- version list -->
 
+## v7.9.0 (2026-09-21)
+
+### Features
+
+- Add MopDryerTrait for controlling the dock mop dryer
+  ([#952](https://github.com/Python-roborock/python-roborock/pull/952),
+  [`48f793f`](https://github.com/Python-roborock/python-roborock/commit/48f793fcb1ae13a4b2d21b939150fa464bae7879))
+
+### Refactoring
+
+- Back MopDryerTrait with the dryer setting instead of device status
+  ([#952](https://github.com/Python-roborock/python-roborock/pull/952),
+  [`48f793f`](https://github.com/Python-roborock/python-roborock/commit/48f793fcb1ae13a4b2d21b939150fa464bae7879))
+
+
 ## v7.8.2 (2026-09-20)
 
 ### Bug Fixes
