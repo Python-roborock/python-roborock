@@ -2,6 +2,39 @@
 
 <!-- version list -->
 
+## v7.9.0 (2026-09-21)
+
+### Features
+
+- Add MopDryerTrait for controlling the dock mop dryer
+  ([#952](https://github.com/Python-roborock/python-roborock/pull/952),
+  [`48f793f`](https://github.com/Python-roborock/python-roborock/commit/48f793fcb1ae13a4b2d21b939150fa464bae7879))
+
+### Refactoring
+
+- Back MopDryerTrait with the dryer setting instead of device status
+  ([#952](https://github.com/Python-roborock/python-roborock/pull/952),
+  [`48f793f`](https://github.com/Python-roborock/python-roborock/commit/48f793fcb1ae13a4b2d21b939150fa464bae7879))
+
+
+## v7.8.2 (2026-09-20)
+
+### Bug Fixes
+
+- Fetch the latest user agreement version instead of hardcoding it
+  ([#960](https://github.com/Python-roborock/python-roborock/pull/960),
+  [`f6a40f8`](https://github.com/Python-roborock/python-roborock/commit/f6a40f8795d7991b85a2e5e99c5dee7bba97aaa5))
+
+
+## v7.8.1 (2026-09-17)
+
+### Bug Fixes
+
+- Preserve immutable Q10 points in model conformance checks
+  ([#965](https://github.com/Python-roborock/python-roborock/pull/965),
+  [`386e4c5`](https://github.com/Python-roborock/python-roborock/commit/386e4c50fe9ca29d7a4caa85a3662c3c104b26f2))
+
+
 ## v7.8.0 (2026-09-13)
 
 ### Features
