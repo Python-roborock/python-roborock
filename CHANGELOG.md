@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v7.10.0 (2026-09-25)
+
+### Features
+
+- **q7**: Add set_button_light trait method
+  ([#843](https://github.com/Python-roborock/python-roborock/pull/843),
+  [`d26173e`](https://github.com/Python-roborock/python-roborock/commit/d26173ec1ed57bbe51b1568b4447ffaa29b3d259))
+
+- **q7**: Add set_button_lights trait method
+  ([#843](https://github.com/Python-roborock/python-roborock/pull/843),
+  [`d26173e`](https://github.com/Python-roborock/python-roborock/commit/d26173ec1ed57bbe51b1568b4447ffaa29b3d259))
+
+### Refactoring
+
+- **q7**: Rename set_button_light to set_button_lights
+  ([#843](https://github.com/Python-roborock/python-roborock/pull/843),
+  [`d26173e`](https://github.com/Python-roborock/python-roborock/commit/d26173ec1ed57bbe51b1568b4447ffaa29b3d259))
+
+
 ## v7.9.0 (2026-09-21)
 
 ### Features
