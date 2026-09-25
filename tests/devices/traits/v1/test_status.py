@@ -17,6 +17,8 @@ from roborock import (
 )
 from roborock.data import SHORT_MODEL_TO_ENUM, RoborockProductNickname
 from roborock.data.v1 import (
+    RoborockChargeStatus,
+    RoborockDockState,
     RoborockStateCode,
 )
 from roborock.device_features import DeviceFeatures
@@ -106,6 +108,39 @@ def test_none_values(status_trait: StatusTrait) -> None:
     assert status_trait.fan_speed_name is None
     assert status_trait.water_mode_name is None
     assert status_trait.mop_route_name is None
+
+
+@pytest.mark.parametrize(
+    (
+        "is_supported_valley_electricity",
+        "charge_status",
+        "battery",
+        "expected_dock_state",
+        "expected_is_battery_charging",
+    ),
+    [
+        (False, RoborockChargeStatus.charge_waiting, 50, RoborockDockState.charging, True),
+        (False, None, 50, RoborockDockState.charging, True),
+        (True, RoborockChargeStatus.charge_waiting, 50, RoborockDockState.off_peak_waiting, False),
+        (True, RoborockChargeStatus.charging, 50, RoborockDockState.charging, True),
+        (True, RoborockChargeStatus.charging, 100, RoborockDockState.full, False),
+    ],
+)
+def test_feature_aware_dock_and_charging_state(
+    is_supported_valley_electricity: bool,
+    charge_status: RoborockChargeStatus | None,
+    battery: int,
+    expected_dock_state: RoborockDockState,
+    expected_is_battery_charging: bool,
+) -> None:
+    """Test dock and charging state against the V1 app's feature-gated logic."""
+    status_trait = _create_cleaning_mode_status_trait(is_supported_valley_electricity=is_supported_valley_electricity)
+    status_trait.state = RoborockStateCode.charging
+    status_trait.charge_status = charge_status
+    status_trait.battery = battery
+
+    assert status_trait.dock_state == expected_dock_state
+    assert status_trait.is_battery_charging is expected_is_battery_charging
 
 
 def test_options(status_trait: StatusTrait) -> None:
