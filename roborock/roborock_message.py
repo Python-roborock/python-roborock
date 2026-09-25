@@ -179,11 +179,10 @@ class RoborockZeoProtocol(RoborockEnum):
     SILENT_MODE_ON = 240  # rw  [independent]  use set_silent_mode() for bundled set
     SILENT_MODE_START_TIME = 241  # rw  [independent]  minute-of-day
     SILENT_MODE_END_TIME = 242  # rw  [independent]  minute-of-day
-    UNKNOWN_243 = (
-        243  # unknown, not found in plugin bundle; present in MQTT push from some devices, increments with each push
-    )
+    UNKNOWN_243 = 243  # int, present in MQTT push from some devices, increments with each push
     DRY_CARE_MODE = 244  # rw  [startWith]
     SOFTENER_EXPANSION_TYPE = 245  # rw  [independent]
+    UNKNOWN_246 = 246
     SMILE_LIGHT_STATUS = 247  # rw  [independent]
     DETERGENT_EXPANSION_TYPE = 248  # rw  [independent]
     FLUFF_CLEANED = 249  # rw  [independent]
@@ -196,6 +195,7 @@ class RoborockZeoProtocol(RoborockEnum):
     DRYING_METHOD = 256  # rw  [startWith]
     STEAM_VOLUME = 257  # rw  [startWith]
     ION_DEODORIZATION = 258  # rw  [startWith / feature-gated]
+    UNKNOWN_259 = 259
     PANEL_TIMING_PROGRAM_PARAMS = 260  # ro
     STEAM_CARE_TIME = 261  # ro
     DEVICE_BOUND = 262  # ro
@@ -207,19 +207,21 @@ class RoborockZeoProtocol(RoborockEnum):
     # ── Meta / RPC / Voice (10000+) ────────────────────────────────────
     ID_QUERY = 10000  # -- multi-DP query request (not a device DP)
     F_C = 10001  # ro  query via checkFCCState()
-    SET_SOUND_PACKAGE = 10003  # wo  setSoundPackage(JSON)
-    SND_STATE = 10004  # ro  query via updateSoundPackageInfo()
+    SET_SOUND_PACKAGE = 10003  # wo  setSoundPackage(obj) → JSON.stringify(obj)
+    SOUND_PACKAGE_INFO = 10004  # ro  query via updateSoundPackageInfo(), JSON object
     PRODUCT_INFO = 10005  # ro  query via loadGeneralInfo() (10s timeout)
-    PRIVACY_INFO = 10006  # wo  syncPrivacyToDevice(agreed)
+    PRIVACY_INFO = 10006  # wo
     OTA_NFO = 10007  # ro  forceLoad only
     WASHING_LOG = 10008  # ro  forceLoad only, JSON
-    VOICE_VOLUME = 10009  # wo  [independent]  setVoiceVolume(int) → JSON
+    VOICE_VOLUME = 10009  # rw  [independent]  setVoiceVolume(int) → JSON.stringify({snd_volume: int}); readable
+    # via voiceVolume getter (FeatureBit.VoiceAssistant gated)
     RPC_REQUEST = 10101  # wo  rpcRequest(method) → JSON
     RPC_RESPONSE = 10102  # -- MQTT push protocol 102, not a device DP
-    VOICE_SWITCH = 10301  # wo  [independent]  setVoiceSwitchStatus(bool) → JSON
+    VOICE_SWITCH = 10301  # rw  [independent]  setVoiceSwitchStatus(bool) → JSON.stringify({speech_switch: 1/0});
+    # readable via isVoiceSwitchOn getter (FeatureBit.VoiceAssistant gated)
     VOICE_RECORD_INFO = 10302  # ro  cache-derived, auto JSON decoded
-    VOICE_RECORD = 10303  # ro  query via getVoiceControlRecord(), JSON
-    VOICE_RECORD_DELETE = 10304  # wo  [independent]  deleteVoiceControlRecord(id) → JSON
+    VOICE_RECORD = 10303  # ro  query via getVoiceControlRecord(), JSON {result:{history:[{id,ts,...}]}}
+    VOICE_RECORD_DELETE = 10304  # wo  [independent]  deleteVoiceControlRecord(id) → JSON.stringify({dialog_delete: id})
 
 
 class RoborockB01Protocol(RoborockEnum):
