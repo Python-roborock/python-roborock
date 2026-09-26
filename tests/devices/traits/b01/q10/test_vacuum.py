@@ -8,13 +8,16 @@ import pytest
 
 from roborock.data.b01_q10.b01_q10_code_mappings import (
     B01_Q10_DP,
+    Q10CleanCount,
+    YXCleanLine,
     YXCleanType,
     YXDeviceCleanTask,
     YXDeviceState,
     YXFanLevel,
+    YXWaterLevel,
 )
 from roborock.data.b01_q10.b01_q10_containers import Q10RoborockPoint
-from roborock.devices.traits.b01.q10 import Q10PropertiesApi
+from roborock.devices.traits.b01.q10 import Q10PropertiesApi, create
 from roborock.devices.traits.b01.q10 import vacuum as vacuum_module
 from roborock.devices.traits.b01.q10.vacuum import VacuumTrait
 from roborock.exceptions import RoborockException
@@ -43,6 +46,9 @@ def vacuum_fixture(q10_api: Q10PropertiesApi) -> VacuumTrait:
         (lambda x: x.empty_dustbin(), {"203": 2}),
         (lambda x: x.set_clean_mode(YXCleanType.VAC_AND_MOP), {"137": 1}),
         (lambda x: x.set_fan_level(YXFanLevel.BALANCED), {"123": 2}),
+        (lambda x: x.set_water_level(YXWaterLevel.HIGH), {"124": 3}),
+        (lambda x: x.set_clean_count(Q10CleanCount.TWICE), {"136": 2}),
+        (lambda x: x.set_clean_line(YXCleanLine.FINE), {"101": {"78": 2}}),
     ],
 )
 async def test_vacuum_commands(
@@ -62,6 +68,52 @@ async def test_vacuum_commands(
 
     assert command.code == dp_code
     assert params == expected_params
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        lambda vacuum: vacuum.set_clean_mode(YXCleanType.UNKNOWN),
+        lambda vacuum: vacuum.set_fan_level(YXFanLevel.UNKNOWN),
+        lambda vacuum: vacuum.set_water_level(YXWaterLevel.UNKNOWN),
+        lambda vacuum: vacuum.set_clean_count(Q10CleanCount.UNKNOWN),
+        lambda vacuum: vacuum.set_clean_mode(1),  # type: ignore[arg-type]
+        lambda vacuum: vacuum.set_fan_level(1),  # type: ignore[arg-type]
+        lambda vacuum: vacuum.set_water_level(1),  # type: ignore[arg-type]
+        lambda vacuum: vacuum.set_clean_count(1),  # type: ignore[arg-type]
+        lambda vacuum: vacuum.set_clean_line(1),  # type: ignore[arg-type]
+    ],
+)
+async def test_setting_commands_reject_unknown_without_publish(
+    vacuum: VacuumTrait,
+    fake_channel: FakeB01Q10Channel,
+    command: Callable[[VacuumTrait], Awaitable[None]],
+) -> None:
+    with pytest.raises(ValueError, match="supported"):
+        await command(vacuum)
+
+    assert fake_channel.published_commands == []
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        lambda vacuum: vacuum.set_water_level(YXWaterLevel.HIGH),
+        lambda vacuum: vacuum.set_clean_count(Q10CleanCount.TWICE),
+        lambda vacuum: vacuum.set_clean_line(YXCleanLine.FINE),
+    ],
+)
+async def test_advanced_cleaning_commands_reject_unverified_model(
+    fake_channel: FakeB01Q10Channel,
+    command: Callable[[VacuumTrait], Awaitable[None]],
+) -> None:
+    vacuum = create(fake_channel, model="roborock.vacuum.ss99").vacuum
+
+    with pytest.raises(RoborockException, match="only verified"):
+        await command(vacuum)
+
+    assert vacuum.advanced_cleaning_supported is False
+    assert fake_channel.published_commands == []
 
 
 async def test_clean_zone(
