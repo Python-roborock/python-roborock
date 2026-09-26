@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v7.11.0 (2026-09-26)
+
+### Features
+
+- Add resolve_error to StatusTrait
+  ([#968](https://github.com/Python-roborock/python-roborock/pull/968),
+  [`38c2675`](https://github.com/Python-roborock/python-roborock/commit/38c2675441c59aa0b00b9a6d83ae9f6e2b7b3c0c))
+
+
 ## v7.10.0 (2026-09-25)
 
 ### Features
