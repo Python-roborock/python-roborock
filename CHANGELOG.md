@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v7.11.1 (2026-09-26)
+
+### Bug Fixes
+
+- Offload map parsing to worker thread to prevent event loop blocking
+  ([#966](https://github.com/Python-roborock/python-roborock/pull/966),
+  [`dd7b4e7`](https://github.com/Python-roborock/python-roborock/commit/dd7b4e7e64f3ebbf8728a7e2fd7293ff570bc6a0))
+
+
 ## v7.11.0 (2026-09-26)
 
 ### Features
