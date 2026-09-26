@@ -273,7 +273,14 @@ def get_cleaning_mode_parameters(cleaning_mode: CleaningMode, features: DeviceFe
         raise RoborockUnsupportedFeature(f"Cleaning mode {cleaning_mode.value!r} is not supported")
 
     fan_power, water_box_mode, mop_mode = _get_clean_motor_mode_params(cleaning_mode, features)
-    params: dict[str, int] = {"fan_power": fan_power.code, "water_box_mode": water_box_mode.code}
+    water_code = water_box_mode.code
+    if features.is_water_slide_mode_supported:
+        # Aliased water enums retain legacy codes; the device mapping preserves
+        # slide-specific wire values without changing the user-facing names.
+        water_code = next(
+            code for code, name in get_water_mode_mapping(features).items() if name == water_box_mode.value
+        )
+    params: dict[str, int] = {"fan_power": fan_power.code, "water_box_mode": water_code}
     if features.is_clean_route_setting_supported:
         params["mop_mode"] = mop_mode.code
     return [params]
@@ -310,6 +317,8 @@ def get_current_cleaning_mode(
         return None
     clean_mode_enum = _resolve_clean_mode(clean_mode, features)
     water_mode_enum = _resolve_mode_code(water_mode, WaterModes)
+    if features.is_water_slide_mode_supported and isinstance(water_mode, int):
+        water_mode_enum = WATER_SLIDE_MODE_MAPPING.get(water_mode, water_mode_enum)
     mop_mode_enum = _resolve_mode_code(mop_mode, CleanRoutes)
     if clean_mode_enum is None or water_mode_enum is None:
         return None
