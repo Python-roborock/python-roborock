@@ -605,25 +605,23 @@ def test_decode_message_map_packet() -> None:
     assert {room.id: room.name for room in decoded.rooms} == {2: "Living Room", 3: "bedroom"}
 
 
-@pytest.mark.parametrize(
-    ("marker", "kind"),
-    [
-        (b"\x03\x01", Q10MapPacketKind.CLEAN_RECORD_DETAIL),
-        (b"\x04\x01", Q10MapPacketKind.SAVED_MAP_DETAIL),
-    ],
-)
-def test_decode_message_archived_map_packet(marker: bytes, kind: Q10MapPacketKind) -> None:
-    """The decoder recognizes both archived map-detail markers."""
+def test_decode_message_clean_record_detail() -> None:
+    """The clean-record marker decodes into a composed map and optional trace."""
     fixture = MAP_FIXTURE.read_bytes()
-    decoded = decode_message(_message(marker + fixture[2:], RoborockMessageProtocol.MAP_RESPONSE))
+    decoded = decode_message(_message(b"\x03\x01" + fixture[2:], RoborockMessageProtocol.MAP_RESPONSE))
 
-    if kind is Q10MapPacketKind.CLEAN_RECORD_DETAIL:
-        assert isinstance(decoded, Q10CleanRecordDetail)
-        assert decoded.map.kind is kind
-        assert decoded.trace is None
-    else:
-        assert isinstance(decoded, Q10MapPacket)
-        assert decoded.kind is kind
+    assert isinstance(decoded, Q10CleanRecordDetail)
+    assert decoded.map.kind is Q10MapPacketKind.CLEAN_RECORD_DETAIL
+    assert decoded.trace is None
+
+
+def test_decode_message_saved_map_detail() -> None:
+    """The saved-map marker decodes into a map packet."""
+    fixture = MAP_FIXTURE.read_bytes()
+    decoded = decode_message(_message(b"\x04\x01" + fixture[2:], RoborockMessageProtocol.MAP_RESPONSE))
+
+    assert isinstance(decoded, Q10MapPacket)
+    assert decoded.kind is Q10MapPacketKind.SAVED_MAP_DETAIL
 
 
 def test_decode_message_trace_packet() -> None:
