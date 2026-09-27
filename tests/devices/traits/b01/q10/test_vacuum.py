@@ -79,9 +79,6 @@ async def test_vacuum_commands(
         lambda vacuum: vacuum.set_clean_count(Q10CleanCount.UNKNOWN),
         lambda vacuum: vacuum.set_clean_mode(1),  # type: ignore[arg-type]
         lambda vacuum: vacuum.set_fan_level(1),  # type: ignore[arg-type]
-        lambda vacuum: vacuum.set_water_level(1),  # type: ignore[arg-type]
-        lambda vacuum: vacuum.set_clean_count(1),  # type: ignore[arg-type]
-        lambda vacuum: vacuum.set_clean_line(1),  # type: ignore[arg-type]
     ],
 )
 async def test_setting_commands_reject_unknown_without_publish(

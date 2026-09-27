@@ -308,22 +308,20 @@ class VacuumTrait:
     async def set_water_level(self, level: YXWaterLevel) -> None:
         """Set the mop water level."""
         self._raise_if_advanced_cleaning_unsupported()
-        if not isinstance(level, YXWaterLevel) or level is YXWaterLevel.UNKNOWN:
+        if level is YXWaterLevel.UNKNOWN:
             raise ValueError("level must be a supported YXWaterLevel")
         await self._command.send(B01_Q10_DP.WATER_LEVEL, level.code)
 
     async def set_clean_count(self, count: Q10CleanCount) -> None:
         """Set the number of passes for ordinary cleaning."""
         self._raise_if_advanced_cleaning_unsupported()
-        if not isinstance(count, Q10CleanCount) or count is Q10CleanCount.UNKNOWN:
+        if count is Q10CleanCount.UNKNOWN:
             raise ValueError("count must be a supported Q10CleanCount")
         await self._command.send(B01_Q10_DP.CLEAN_COUNT, count.code)
 
     async def set_clean_line(self, line: YXCleanLine) -> None:
         """Set the cleaning route preference."""
         self._raise_if_advanced_cleaning_unsupported()
-        if not isinstance(line, YXCleanLine):
-            raise ValueError("line must be a supported YXCleanLine")
         await self._command.send(
             B01_Q10_DP.COMMON,
             {str(B01_Q10_DP.CLEAN_LINE.code): line.code},

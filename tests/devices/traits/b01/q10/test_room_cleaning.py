@@ -2,6 +2,7 @@
 
 import asyncio
 import base64
+from unittest.mock import patch
 
 import pytest
 
@@ -18,7 +19,7 @@ from roborock.data.b01_q10.b01_q10_code_mappings import (
 from roborock.data.b01_q10.b01_q10_containers import Q10ReportedRoomCleanSettings, Q10RoomCleanSettings
 from roborock.devices.traits.b01.q10 import Q10PropertiesApi, create
 from roborock.devices.traits.b01.q10.room_cleaning import RoomCleaningTrait
-from roborock.exceptions import RoborockException
+from roborock.exceptions import RoborockException, RoborockTimeout
 from roborock.protocols.b01_q10_protocol import encode_room_clean_settings
 
 from .conftest import FakeB01Q10Channel
@@ -399,3 +400,141 @@ async def test_pending_clean_snapshots_caller_room_settings(
         B01_Q10_DP.START_CLEAN,
         {"cmd": YXDeviceCleanTask.ELECTORAL.code, "clean_paramters": [3]},
     )
+
+
+@pytest.mark.parametrize("operation", ["clean", "set_settings"])
+async def test_queued_operation_cannot_cross_map_invalidation(
+    room_cleaning: RoomCleaningTrait,
+    fake_channel: FakeB01Q10Channel,
+    operation: str,
+) -> None:
+    settings = _settings()
+    _seed_rooms(room_cleaning, settings)
+    first = asyncio.create_task(room_cleaning.clean((settings,)))
+    await asyncio.sleep(0)
+    queued = asyncio.create_task(getattr(room_cleaning, operation)((settings,)))
+    await asyncio.sleep(0)
+    room_cleaning.invalidate()
+    # Even a fresh snapshot with the same room IDs must not authorize an old request.
+    _seed_rooms(room_cleaning, settings)
+    with pytest.raises(RoborockException, match="map changed"):
+        await first
+    with pytest.raises(RoborockException, match="map changed"):
+        await queued
+    assert len(fake_channel.published_commands) == 1
+
+
+@pytest.mark.parametrize("invalidate_at", ["confirmation", "mode"])
+async def test_map_change_after_confirmation_prevents_start(
+    q10_api: Q10PropertiesApi,
+    fake_channel: FakeB01Q10Channel,
+    invalidate_at: str,
+) -> None:
+    settings = _settings()
+    history = q10_api.room_cleaning
+    _seed_rooms(history, settings)
+    entered_mode = asyncio.Event()
+    release_mode = asyncio.Event()
+    original_send = fake_channel.send_command
+
+    async def send(command: B01_Q10_DP, params: object = None) -> None:
+        await original_send(command, params)
+        if command is B01_Q10_DP.COMMON:
+            history.update_from_dps({B01_Q10_DP.CUSTOMER_CLEAN: encode_room_clean_settings((settings,))})
+            if invalidate_at == "confirmation":
+                history.invalidate()
+        elif command is B01_Q10_DP.CLEAN_MODE:
+            entered_mode.set()
+            await release_mode.wait()
+
+    with patch.object(fake_channel, "send_command", side_effect=send):
+        request = asyncio.create_task(history.clean((settings,)))
+        if invalidate_at == "mode":
+            await entered_mode.wait()
+            history.invalidate()
+            _seed_rooms(history, settings)
+            release_mode.set()
+        with pytest.raises(RoborockException, match="map changed"):
+            await request
+    assert all(command is not B01_Q10_DP.START_CLEAN for command, _ in fake_channel.published_commands)
+    assert len(fake_channel.published_commands) == (1 if invalidate_at == "confirmation" else 2)
+
+
+async def test_map_apply_invalidates_before_publish_completes(
+    q10_api: Q10PropertiesApi,
+    fake_channel: FakeB01Q10Channel,
+) -> None:
+    settings = _settings()
+    _seed_rooms(q10_api.room_cleaning, settings)
+    q10_api.maps.update_from_dps(
+        {B01_Q10_DP.MULTI_MAP: {"data": [{"id": "first"}, {"id": "second"}], "op": "list", "result": 1}}
+    )
+    publishing = asyncio.Event()
+    release = asyncio.Event()
+
+    async def send(*args: object, **kwargs: object) -> None:
+        publishing.set()
+        await release.wait()
+
+    with patch.object(fake_channel, "send_command", side_effect=send):
+        apply = asyncio.create_task(q10_api.maps.set_current_map("second"))
+        await publishing.wait()
+        assert not q10_api.room_cleaning.settings_available
+        with pytest.raises(RoborockException, match="Refresh"):
+            await q10_api.room_cleaning.clean((settings,))
+        release.set()
+        await apply
+
+
+async def test_device_close_cancels_publish_and_rejects_queued_room_operation(
+    q10_api: Q10PropertiesApi,
+    fake_channel: FakeB01Q10Channel,
+) -> None:
+    settings = _settings()
+    history = q10_api.room_cleaning
+    _seed_rooms(history, settings)
+    publishing = asyncio.Event()
+
+    async def send(*args: object, **kwargs: object) -> None:
+        publishing.set()
+        await asyncio.Future()
+
+    with patch.object(fake_channel, "send_command", side_effect=send):
+        active = asyncio.create_task(history.clean((settings,)))
+        await publishing.wait()
+        queued = asyncio.create_task(history.set_settings((settings,)))
+        await asyncio.sleep(0)
+        await q10_api.close()
+        with pytest.raises(asyncio.CancelledError):
+            await active
+        with pytest.raises(RoborockException, match="map changed"):
+            await queued
+    history.update_from_dps({B01_Q10_DP.CUSTOMER_CLEAN: encode_room_clean_settings((settings,))})
+    assert not history.settings_available
+    assert history.settings == ()
+    assert fake_channel.published_commands == []
+
+
+@pytest.mark.parametrize("operation", ["clean", "set_settings"])
+async def test_room_confirmation_deadline_includes_publish(
+    room_cleaning: RoomCleaningTrait,
+    fake_channel: FakeB01Q10Channel,
+    monkeypatch: pytest.MonkeyPatch,
+    operation: str,
+) -> None:
+    settings = _settings()
+    _seed_rooms(room_cleaning, settings)
+    monkeypatch.setattr("roborock.devices.traits.b01.q10.room_cleaning._WRITE_CONFIRMATION_TIMEOUT", 0.01)
+
+    async def send(*args: object, **kwargs: object) -> None:
+        await asyncio.Future()
+
+    with patch.object(fake_channel, "send_command", side_effect=send):
+        with pytest.raises(RoborockTimeout):
+            await getattr(room_cleaning, operation)((settings,))
+    # The timed-out publisher must release the lock and confirmation resources.
+    request = asyncio.create_task(room_cleaning.clean((settings,)))
+    await asyncio.sleep(0)
+    room_cleaning.update_from_dps({B01_Q10_DP.CUSTOMER_CLEAN: encode_room_clean_settings((settings,))})
+    await request
+    assert fake_channel.published_commands[-1][0] is B01_Q10_DP.START_CLEAN

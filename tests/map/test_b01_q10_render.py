@@ -20,10 +20,12 @@ from vacuum_map_parser_base.map_data import MapData, Point
 from roborock.map.b01_grid_layers import GridCalibration
 from roborock.map.b01_q10_map_parser import (
     B01Q10MapParserConfig,
+    Q10CleanRecordDetail,
     Q10EraseZone,
     Q10HeaderCalibration,
     Q10HistoricalTracePacket,
     Q10MapPacket,
+    Q10MapPacketKind,
     Q10Obstacle,
     Q10Point,
     Q10Room,
@@ -101,6 +103,7 @@ def _world_vertices(calibration: GridCalibration, pixels: list[tuple[int, int]])
 def _room_packet(grid: list[int], width: int) -> Q10MapPacket:
     """Build a minimal segmented map for deterministic room lookup tests."""
     return Q10MapPacket(
+        kind=Q10MapPacketKind.CURRENT,
         map_id=1,
         width=width,
         height=len(grid) // width,
@@ -146,7 +149,9 @@ def test_render_accepts_historical_trace() -> None:
     packet, live_trace = _calibrated_inputs()
     historical = Q10HistoricalTracePacket(points=live_trace.points, heading=live_trace.heading)
 
-    assert _render(packet, trace=historical) == _render(packet, trace=live_trace)
+    archived = Q10CleanRecordDetail(map=packet, trace=historical)
+    assert _render(archived.map, trace=archived.trace) == _render(packet, trace=live_trace)
+    assert _render(archived.map) != _render(archived.map, trace=archived.trace)
 
 
 def test_place_obstacles_uses_its_validated_coordinate_scale() -> None:

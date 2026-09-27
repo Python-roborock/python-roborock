@@ -25,7 +25,6 @@ import math
 import statistics
 import struct
 from dataclasses import dataclass, field, replace
-from enum import Enum
 from typing import TypeVar
 
 from PIL import Image
@@ -35,6 +34,7 @@ from vacuum_map_parser_base.config.image_config import ImageConfig
 from vacuum_map_parser_base.map_data import ImageData, MapData, Point
 
 from roborock.data.b01_q10.b01_q10_containers import Q10RoborockPoint
+from roborock.data.code_mappings import RoborockEnum
 from roborock.data.containers import RoborockBase
 from roborock.exceptions import RoborockException
 
@@ -71,11 +71,6 @@ def classify_q10_cell(value: int) -> str:
         return LAYER_WALL
     return LAYER_FLOOR
 
-
-MAP_PACKET_MARKER = b"\x01\x01"
-TRACE_PACKET_MARKER = b"\x02\x01"
-CLEAN_RECORD_MAP_PACKET_MARKER = b"\x03\x01"
-SAVED_MAP_PACKET_MARKER = b"\x04\x01"
 
 _MAP_ID_OFFSET = 2
 # Width and height are two consecutive u16be fields. An earlier revision read the
@@ -205,18 +200,34 @@ class Q10HeaderCalibration:
         )
 
 
-class Q10MapPacketKind(Enum):
+class Q10MapPacketKind(RoborockEnum):
     """Semantic kind identified by a Q10 map packet's two-byte marker."""
 
-    CURRENT = "current"
-    CLEAN_RECORD_DETAIL = "clean_record_detail"
-    SAVED_MAP_DETAIL = "saved_map_detail"
+    unknown = -1
+    CURRENT = 1
+    TRACE = 2
+    CLEAN_RECORD_DETAIL = 3
+    SAVED_MAP_DETAIL = 4
+
+    @property
+    def marker(self) -> bytes:
+        """Return the two-byte wire marker for this packet kind."""
+        return b"" if self is self.unknown else bytes((self.value, 1))
+
+    @classmethod
+    def from_payload(cls, payload: bytes) -> "Q10MapPacketKind | None":
+        """Return the recognized kind for a payload marker."""
+        if len(payload) < 2 or payload[1] != 1:
+            return None
+        kind = cls(payload[0])
+        return None if kind is cls.unknown else kind
 
 
 @dataclass
 class Q10MapPacket:
     """Decoded contents of a Q10 current or archived map packet."""
 
+    kind: Q10MapPacketKind
     map_id: int
     width: int
     height: int
@@ -230,11 +241,6 @@ class Q10MapPacket:
     """Carpet mask decoded from the packet tail: a full ``width*height`` grid in
     the same (top-down) pixel space as :attr:`grid`, where a non-zero cell is
     carpet (the value is the carpet kind). ``None`` if the packet carried none."""
-    kind: Q10MapPacketKind = Q10MapPacketKind.CURRENT
-    historical_trace: "Q10HistoricalTracePacket | None" = None
-    """Cleaning path embedded in a clean-record detail packet, if present."""
-    trailing_bytes: bytes = b""
-    """Bytes following all sections this parser can validate and decode."""
     obstacles: list["Q10Obstacle"] = field(default_factory=list)
     """Obstacle markers embedded after the carpet block (50 raw units/pixel)."""
     skip_cleaning_points: list["Q10Point"] = field(default_factory=list)
@@ -322,14 +328,20 @@ class Q10HistoricalTracePacket:
     """
 
     points: list[Q10Point] = field(default_factory=list)
-    version: int = 0
-    opaque_value: int = 0
     heading: int = 0
 
     @property
     def robot_position(self) -> Q10Point | None:
         """The final recorded position, if the historical path is non-empty."""
         return self.points[-1] if self.points else None
+
+
+@dataclass
+class Q10CleanRecordDetail:
+    """A clean-record response containing a map and its recorded path."""
+
+    map: Q10MapPacket
+    trace: Q10HistoricalTracePacket | None = None
 
 
 # Trace packet (``02 01``): a 14-byte header followed by big-endian int16 (x, y)
@@ -356,7 +368,6 @@ _TRACE_HEADING_OFFSET = 10
 
 _HISTORICAL_TRACE_HEADER_LENGTH = 13
 _HISTORICAL_TRACE_VERSION = 1
-_HISTORICAL_TRACE_OPAQUE_VALUE_OFFSET = 1
 _HISTORICAL_TRACE_POINT_COUNT_OFFSET = 5
 _HISTORICAL_TRACE_HEADING_OFFSET = 9
 _HISTORICAL_TRACE_RESERVED_OFFSET = 11
@@ -375,31 +386,12 @@ _STRAY_POINT_STEP_RATIO = 20
 
 def is_map_packet(payload: bytes) -> bool:
     """Return True if the payload is a Q10 full-map (``01 01``) packet."""
-    return payload[:2] == MAP_PACKET_MARKER
-
-
-def is_clean_record_map_packet(payload: bytes) -> bool:
-    """Return True for a Q10 clean-record detail (``03 01``) packet."""
-    return payload[:2] == CLEAN_RECORD_MAP_PACKET_MARKER
-
-
-def is_saved_map_packet(payload: bytes) -> bool:
-    """Return True for a Q10 saved-map detail (``04 01``) packet."""
-    return payload[:2] == SAVED_MAP_PACKET_MARKER
-
-
-def map_packet_kind(payload: bytes) -> Q10MapPacketKind | None:
-    """Classify a Q10 map marker without parsing the packet body."""
-    return {
-        MAP_PACKET_MARKER: Q10MapPacketKind.CURRENT,
-        CLEAN_RECORD_MAP_PACKET_MARKER: Q10MapPacketKind.CLEAN_RECORD_DETAIL,
-        SAVED_MAP_PACKET_MARKER: Q10MapPacketKind.SAVED_MAP_DETAIL,
-    }.get(payload[:2])
+    return Q10MapPacketKind.from_payload(payload) is Q10MapPacketKind.CURRENT
 
 
 def is_trace_packet(payload: bytes) -> bool:
     """Return True if the payload is a Q10 live trace (``02 01``) packet."""
-    return payload[:2] == TRACE_PACKET_MARKER
+    return Q10MapPacketKind.from_payload(payload) is Q10MapPacketKind.TRACE
 
 
 def parse_trace_packet(payload: bytes) -> Q10TracePacket:
@@ -444,12 +436,12 @@ def _drop_stray_leading_point(points: list[Q10Point]) -> list[Q10Point]:
     return points
 
 
-def lz4_block_decompress(data: bytes, max_output_size: int | None = None) -> bytes:
+def lz4_block_decompress(data: bytes, max_output_size: int) -> bytes:
     """Decompress a raw LZ4 *block* (no frame header).
 
     The Q10 map grid is stored as a single LZ4 block. This implements the
-    standard LZ4 block format so we don't add a native dependency. When
-    ``max_output_size`` is supplied, expansion beyond it is rejected before
+    standard LZ4 block format so we don't add a native dependency. Expansion beyond
+    ``max_output_size`` is rejected before
     allocating the excess output.
     """
     index = 0
@@ -478,7 +470,7 @@ def lz4_block_decompress(data: bytes, max_output_size: int | None = None) -> byt
         end = index + literal_length
         if end > len(data):
             raise RoborockException("Truncated LZ4 block while reading literals")
-        if max_output_size is not None and len(output) + literal_length > max_output_size:
+        if len(output) + literal_length > max_output_size:
             raise RoborockException("LZ4 block exceeds maximum output size")
         output.extend(data[index:end])
         index = end
@@ -494,7 +486,7 @@ def lz4_block_decompress(data: bytes, max_output_size: int | None = None) -> byt
             raise RoborockException("Invalid LZ4 back-reference offset")
 
         match_length = read_length(token & 0x0F) + 4
-        if max_output_size is not None and len(output) + match_length > max_output_size:
+        if len(output) + match_length > max_output_size:
             raise RoborockException("LZ4 block exceeds maximum output size")
         for _ in range(match_length):
             output.append(output[-offset])
@@ -560,9 +552,24 @@ def _parse_rooms(room_data: bytes, grid: bytes) -> list[Q10Room]:
 
 
 def parse_map_packet(payload: bytes) -> Q10MapPacket:
-    """Parse a Q10 current or archived map into typed source data."""
-    kind = map_packet_kind(payload)
-    if len(payload) < _LAYOUT_COMPRESSED_OFFSET or kind is None:
+    """Parse the raster and shared metadata of a current or archived map."""
+    packet, _, _ = _parse_map_layout(payload)
+    return packet
+
+
+def parse_clean_record_detail(payload: bytes) -> Q10CleanRecordDetail:
+    """Parse a clean-record response into its map and optional recorded path."""
+    if Q10MapPacketKind.from_payload(payload) is not Q10MapPacketKind.CLEAN_RECORD_DETAIL:
+        raise RoborockException("Payload is not a Q10 clean-record detail packet")
+    packet, tail, trace_offset = _parse_map_layout(payload)
+    trace = _parse_clean_record_trace(tail, trace_offset) if trace_offset is not None else None
+    return Q10CleanRecordDetail(map=packet, trace=trace)
+
+
+def _parse_map_layout(payload: bytes) -> tuple[Q10MapPacket, bytes, int | None]:
+    """Decode shared map fields and return the tail and historical path offset."""
+    kind = Q10MapPacketKind.from_payload(payload)
+    if len(payload) < _LAYOUT_COMPRESSED_OFFSET or kind is None or kind is Q10MapPacketKind.TRACE:
         raise RoborockException("Payload is not a Q10 map packet")
 
     map_id = int.from_bytes(payload[_MAP_ID_OFFSET : _MAP_ID_OFFSET + 4], "big")
@@ -595,10 +602,9 @@ def parse_map_packet(payload: bytes) -> Q10MapPacket:
     tail = payload[layout_end:]
     erase_zones = _parse_erase_zones(tail)
     carpet_mask, carpet_end = _parse_carpet_block(tail, width, height)
-    trailing_offset = carpet_end if carpet_end is not None else _erase_section_end(tail)
     obstacles: list[Q10Obstacle] = []
     skip_cleaning_points: list[Q10Point] = []
-    historical_trace = None
+    trace_offset = None
     if carpet_end is not None:
         parsed_obstacles, obstacle_end = _parse_counted_points(tail, carpet_end, Q10Obstacle)
         if obstacle_end is not None:
@@ -606,27 +612,22 @@ def parse_map_packet(payload: bytes) -> Q10MapPacket:
             if skip_end is not None:
                 obstacles = parsed_obstacles
                 skip_cleaning_points = parsed_skip_points
-                trailing_offset = skip_end
-                if kind is Q10MapPacketKind.CLEAN_RECORD_DETAIL:
-                    historical_trace, historical_trace_end = _parse_clean_record_trace(tail, skip_end)
-                    if historical_trace_end is not None:
-                        trailing_offset = historical_trace_end
+                trace_offset = skip_end
     header_calibration = _parse_header_calibration(payload)
-    return Q10MapPacket(
+    packet = Q10MapPacket(
+        kind=kind,
         map_id=map_id,
         width=width,
         height=height,
         grid=grid,
-        kind=kind,
         rooms=rooms,
         erase_zones=erase_zones,
         header_calibration=header_calibration,
         carpet_mask=carpet_mask,
         obstacles=obstacles,
         skip_cleaning_points=skip_cleaning_points,
-        historical_trace=historical_trace,
-        trailing_bytes=tail[trailing_offset:],
     )
+    return packet, tail, trace_offset
 
 
 def _parse_header_calibration(payload: bytes) -> Q10HeaderCalibration | None:
@@ -741,11 +742,6 @@ def _parse_carpet_block(tail: bytes, width: int, height: int) -> tuple[bytes | N
     return mask, block_end
 
 
-def _parse_carpet_mask(tail: bytes, width: int, height: int) -> bytes | None:
-    """Decode only the optional carpet mask (compatibility helper)."""
-    return _parse_carpet_block(tail, width, height)[0]
-
-
 def _parse_counted_points(
     tail: bytes,
     offset: int,
@@ -772,7 +768,7 @@ def _parse_counted_points(
 def _parse_clean_record_trace(
     tail: bytes,
     offset: int,
-) -> tuple[Q10HistoricalTracePacket | None, int | None]:
+) -> Q10HistoricalTracePacket | None:
     """Decode the bounded historical path following a ``03 01`` carpet block.
 
     The header and declared point count were validated against a physical ss07
@@ -786,39 +782,29 @@ def _parse_clean_record_trace(
     """
     header_end = offset + _HISTORICAL_TRACE_HEADER_LENGTH
     if header_end > len(tail):
-        return None, None
+        return None
     version = tail[offset]
     reserved = int.from_bytes(
         tail[offset + _HISTORICAL_TRACE_RESERVED_OFFSET : offset + _HISTORICAL_TRACE_RESERVED_OFFSET + 2],
         "big",
     )
     if version != _HISTORICAL_TRACE_VERSION or reserved != 0:
-        return None, None
+        return None
     point_count = int.from_bytes(
         tail[offset + _HISTORICAL_TRACE_POINT_COUNT_OFFSET : offset + _HISTORICAL_TRACE_POINT_COUNT_OFFSET + 4],
         "big",
     )
     points_end = header_end + point_count * 4
     if points_end > len(tail):
-        return None, None
+        return None
     coordinates = struct.iter_unpack(">hh", memoryview(tail)[header_end:points_end])
-    return (
-        Q10HistoricalTracePacket(
-            points=[Q10Point(x=x, y=y) for x, y in coordinates],
-            version=version,
-            opaque_value=int.from_bytes(
-                tail[
-                    offset + _HISTORICAL_TRACE_OPAQUE_VALUE_OFFSET : offset + _HISTORICAL_TRACE_OPAQUE_VALUE_OFFSET + 4
-                ],
-                "big",
-            ),
-            heading=int.from_bytes(
-                tail[offset + _HISTORICAL_TRACE_HEADING_OFFSET : offset + _HISTORICAL_TRACE_HEADING_OFFSET + 2],
-                "big",
-                signed=True,
-            ),
+    return Q10HistoricalTracePacket(
+        points=_drop_stray_leading_point([Q10Point(x=x, y=y) for x, y in coordinates]),
+        heading=int.from_bytes(
+            tail[offset + _HISTORICAL_TRACE_HEADING_OFFSET : offset + _HISTORICAL_TRACE_HEADING_OFFSET + 2],
+            "big",
+            signed=True,
         ),
-        points_end,
     )
 
 

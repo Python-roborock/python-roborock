@@ -1,5 +1,6 @@
 """Trait for fetching the map content from Roborock devices."""
 
+import asyncio
 import logging
 from dataclasses import dataclass
 
@@ -7,6 +8,7 @@ from vacuum_map_parser_base.map_data import MapData
 
 from roborock.data import RoborockBase
 from roborock.devices.traits.v1 import common
+from roborock.exceptions import RoborockParsingException
 from roborock.map.map_parser import MapParser, MapParserConfig
 from roborock.roborock_typing import RoborockCommand
 
@@ -78,6 +80,20 @@ class MapContentConverter(common.V1TraitDataConverter):
             raw_api_response=response,
         )
 
+    async def async_parse_map_content(self, response: bytes) -> MapContent:
+        """Parse the map content from raw bytes asynchronously.
+
+        Args:
+            response: The raw bytes of the map data from the API.
+
+        Returns:
+            MapContent: The parsed map content.
+
+        Raises:
+            RoborockException: If the map data cannot be parsed.
+        """
+        return await asyncio.to_thread(self.parse_map_content, response)
+
 
 @common.map_rpc_channel
 class MapContentTrait(MapContent, common.V1TraitMixin):
@@ -90,3 +106,21 @@ class MapContentTrait(MapContent, common.V1TraitMixin):
         """Initialize MapContentTrait."""
         super().__init__()
         self.converter = MapContentConverter(MapParser(map_parser_config or MapParserConfig()))
+
+    async def refresh(self) -> None:
+        """Refresh the contents of this trait without blocking the event loop."""
+        response = await self.rpc_channel.send_command(self.command)
+        if self.raw_api_response is not None and self.raw_api_response == response:
+            return
+        if not isinstance(response, bytes):
+            raise ValueError(f"Unexpected MapContentTrait response format: {type(response)}")
+        try:
+            new_data = await self.converter.async_parse_map_content(response)
+        except (TypeError, ValueError) as err:
+            raise RoborockParsingException(
+                trait_name=type(self).__name__,
+                command=self.command,
+                payload=response,
+                inner_error=err,
+            ) from err
+        common.merge_trait_values(self, new_data)

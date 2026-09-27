@@ -10,8 +10,9 @@ Wire parsing is separated from state management: :class:`CleanRecordConverter` t
 a ``dpCleanRecord`` envelope into a :class:`CleanRecordPush`, and the trait applies it.
 """
 
+import asyncio
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from roborock.data.b01_q10.b01_q10_code_mappings import (
@@ -22,9 +23,10 @@ from roborock.data.b01_q10.b01_q10_code_mappings import (
     YXStartMethod,
 )
 from roborock.data.b01_q10.b01_q10_containers import Q10CleanRecord
-from roborock.exceptions import RoborockException
+from roborock.exceptions import RoborockException, RoborockTimeout
 from roborock.map.b01_q10_map_parser import (
     B01Q10MapParserConfig,
+    Q10CleanRecordDetail,
     Q10HistoricalTracePacket,
     Q10MapPacket,
     Q10MapPacketKind,
@@ -43,6 +45,7 @@ __all__ = [
 ]
 
 _LOGGER = logging.getLogger(__name__)
+_DETAIL_TIMEOUT = 30.0
 
 _RECORD_FIELD_COUNT = 12
 
@@ -125,25 +128,32 @@ class CleanHistoryTrait(UpdatableTrait):
     or a single ``op:"notify"`` record) rather than a flat data-point-to-field map.
     """
 
+    _command: CommandTrait
+
     def __init__(
         self,
         command: CommandTrait,
         *,
-        map_parser_config: B01Q10MapParserConfig | None = None,
+        map_parser_config: B01Q10MapParserConfig,
     ) -> None:
         """Initialize the clean history trait."""
         UpdatableTrait.__init__(self, command, _LOGGER)
+        self._command = command
         self._converter = CleanRecordConverter()
-        self._map_parser_config = map_parser_config or B01Q10MapParserConfig()
+        self._map_parser_config = map_parser_config
         self.records: list[Q10CleanRecord] = []
         """Decoded clean records, most recent first."""
-        self.detail_packet: Q10MapPacket | None = None
+        self.detail: Q10CleanRecordDetail | None = None
         """Most recently pushed ``03 01`` clean-record map detail."""
         self.detail_record: Q10CleanRecord | None = None
         """Record associated with :attr:`detail_packet`, when requested here."""
         self.detail_image_content: bytes | None = None
         """Rendered clean-record detail image, if decoding succeeded."""
         self._pending_detail_record: Q10CleanRecord | None = None
+        self._detail_response: asyncio.Future[None] | None = None
+        self._detail_task: asyncio.Task[None] | None = None
+        self._detail_requested = False
+        self._discard_detail_response = False
 
     @property
     def last_record(self) -> Q10CleanRecord | None:
@@ -157,8 +167,6 @@ class CleanHistoryTrait(UpdatableTrait):
         asynchronously on the device stream and populate :attr:`records` once
         :meth:`update_from_dps` processes the ``dpCleanRecord`` push.
         """
-        if self._command is None:
-            raise ValueError("Trait is read-only; no command channel was provided")
         await self._command.send(
             B01_Q10_DP.COMMON,
             params={str(B01_Q10_DP.CLEAN_RECORD.code): {"op": "list"}},
@@ -170,37 +178,67 @@ class CleanHistoryTrait(UpdatableTrait):
         The complete 12-field raw record is the firmware's detail identifier;
         the shorter human-facing record ID is not accepted. Only one request
         may be outstanding because ``03 01`` responses carry no correlation ID.
+        Wait up to 30 seconds for its response. Timeout, cancellation, or send
+        failure blocks further selections until a late response is discarded.
+        Reconnecting does not reset this barrier. Other clients selecting
+        records concurrently cannot be distinguished by this protocol.
         """
-        if self._command is None:
-            raise ValueError("Trait is read-only; no command channel was provided")
         if not record.raw or not record.map_len:
             raise RoborockException("The Q10 clean record has no saved map detail")
         if self._pending_detail_record is not None:
             raise RoborockException("A Q10 clean-record detail request is already pending")
-        self._pending_detail_record = record
+        if self._discard_detail_response:
+            raise RoborockException("A previous Q10 clean-record selection is unresolved; wait for its late response")
+        response: asyncio.Future[None] = asyncio.get_running_loop().create_future()
+        self._detail_response = response
+        self._detail_task = asyncio.current_task()
+        self._detail_requested = True
+        self._pending_detail_record = replace(record)
         try:
-            await self._command.send(
-                B01_Q10_DP.COMMON,
-                params={
-                    str(B01_Q10_DP.CLEAN_RECORD.code): {
-                        "op": "select",
-                        "id": record.raw,
-                    }
-                },
-            )
-        except RoborockException:
-            self._pending_detail_record = None
-            raise
+            async with asyncio.timeout(_DETAIL_TIMEOUT):
+                await self._command.send(
+                    B01_Q10_DP.COMMON,
+                    {str(B01_Q10_DP.CLEAN_RECORD.code): {"op": "select", "id": record.raw}},
+                )
+                await response
+        except TimeoutError as ex:
+            raise RoborockTimeout("Q10 archive detail request timed out") from ex
+        finally:
+            if self._detail_response is response:
+                if self._pending_detail_record is not None:
+                    self._discard_detail_response = True
+                self._pending_detail_record = None
+                self._detail_response = None
+                self._detail_task = None
+            if not response.done():
+                response.cancel()
+
+    def close(self) -> None:
+        """Cancel an active archive selection during device teardown."""
+        if self._pending_detail_record is not None:
+            self._discard_detail_response = True
+        if self._detail_task is not None:
+            self._detail_task.cancel()
+        if self._detail_response is not None:
+            self._detail_response.cancel()
+        self._pending_detail_record = None
+        self._detail_response = None
+        self._detail_task = None
+
+    @property
+    def detail_packet(self) -> Q10MapPacket | None:
+        """The map from the most recently received clean-record detail."""
+        return self.detail.map if self.detail else None
 
     @property
     def detail_trace(self) -> Q10HistoricalTracePacket | None:
         """Historical path embedded in the selected clean-record detail."""
-        return self.detail_packet.historical_trace if self.detail_packet else None
+        return self.detail.trace if self.detail else None
 
     @property
     def detail_path(self) -> list[Q10Point]:
         """Historical path points for the selected clean record."""
-        return self.detail_trace.points if self.detail_trace else []
+        return list(self.detail_trace.points) if self.detail_trace else []
 
     @property
     def detail_obstacles(self) -> list[Q10Obstacle]:
@@ -217,23 +255,35 @@ class CleanHistoryTrait(UpdatableTrait):
             return
         self._apply(push)
 
-    def update_from_map_packet(self, packet: Q10MapPacket) -> None:
+    def update_from_detail(self, detail: Q10CleanRecordDetail) -> None:
         """Store and render a pushed clean-record detail map."""
-        if packet.kind is not Q10MapPacketKind.CLEAN_RECORD_DETAIL:
-            raise ValueError(f"Expected a Q10 clean-record detail packet, got {packet.kind.value}")
+        if detail.map.kind is not Q10MapPacketKind.CLEAN_RECORD_DETAIL:
+            raise ValueError(f"Expected a Q10 clean-record detail packet, got {detail.map.kind.value}")
+        if self._discard_detail_response:
+            self._discard_detail_response = False
+            return
+        response = self._detail_response
+        if self._detail_requested and (response is None or response.done()):
+            # Cancellation can finish the future before refresh_detail's
+            # finally block runs. Drain this response in that interval too.
+            if response is not None and response.cancelled():
+                self._pending_detail_record = None
+            return
         self.detail_record = self._pending_detail_record
         self._pending_detail_record = None
-        self.detail_packet = packet
+        self.detail = detail
         try:
             self.detail_image_content = render_q10_map(
-                packet,
-                packet.historical_trace,
+                detail.map,
+                detail.trace,
                 Q10MapOverlays(),
                 config=self._map_parser_config,
             )
         except RoborockException:
             _LOGGER.debug("Failed to render Q10 clean-record detail", exc_info=True)
             self.detail_image_content = None
+        if response is not None and not response.done():
+            response.set_result(None)
         self._notify_update()
 
     def _apply(self, push: CleanRecordPush) -> None:

@@ -13,7 +13,7 @@ from roborock.data.b01_q10.b01_q10_code_mappings import (
 )
 from roborock.data.b01_q10.b01_q10_containers import Q10ReportedRoomCleanSettings, Q10RoomCleanSettings
 from roborock.data.containers import RoborockBase
-from roborock.exceptions import RoborockException, RoborockUnsupportedFeature
+from roborock.exceptions import RoborockException, RoborockTimeout, RoborockUnsupportedFeature
 from roborock.protocols.b01_q10_protocol import (
     Q10RoomCleanUpdate,
     decode_room_clean_settings,
@@ -50,6 +50,8 @@ class RoomCleaningTrait(RoomCleaning, UpdatableTrait):
         self._write_lock = asyncio.Lock()
         self._pending_payload: str | None = None
         self._pending_confirmation: asyncio.Future[None] | None = None
+        self._map_revision = 0
+        self._active_task: asyncio.Task[None] | None = None
 
     def settings_for_room(self, room_id: int) -> Q10ReportedRoomCleanSettings | None:
         """Return the latest settings for a room, if available."""
@@ -66,31 +68,54 @@ class RoomCleaningTrait(RoomCleaning, UpdatableTrait):
     async def set_settings(self, settings: Sequence[Q10RoomCleanSettings]) -> None:
         """Publish customized settings without starting a clean."""
         self._raise_if_unsupported()
-        selected = tuple(settings)
+        selected = tuple(replace(room) for room in settings)
         payload = encode_room_clean_settings(selected)
-        selected = tuple(replace(room) for room in selected)
-        self._validate_room_ids(selected)
+        revision = self._map_revision
         async with self._write_lock:
-            await self._publish_and_confirm(payload, request_complete=True)
+            self._check_map_revision(revision)
+            self._validate_room_ids(selected)
+            self._active_task = asyncio.current_task()
+            try:
+                await self._publish_and_confirm(payload, request_complete=True)
+                self._check_map_revision(revision)
+            finally:
+                self._active_task = None
 
     async def clean(self, settings: Sequence[Q10RoomCleanSettings]) -> None:
         """Apply customized settings and start cleaning those rooms."""
         self._raise_if_unsupported()
-        selected = tuple(settings)
+        selected = tuple(replace(room) for room in settings)
         payload = encode_room_clean_settings(selected)
-        selected = tuple(replace(room) for room in selected)
-        self._validate_room_ids(selected)
+        revision = self._map_revision
         async with self._write_lock:
-            await self._publish_and_confirm(payload)
-            await self._command.send(B01_Q10_DP.CLEAN_MODE, YXCleanType.CUSTOMIZED.code)
-            await self._command.send(
-                B01_Q10_DP.START_CLEAN,
-                {
-                    "cmd": YXDeviceCleanTask.ELECTORAL.code,
-                    # "clean_paramters" is the spelling required by the firmware.
-                    "clean_paramters": [room.room_id for room in selected],
-                },
-            )
+            self._check_map_revision(revision)
+            self._validate_room_ids(selected)
+            self._active_task = asyncio.current_task()
+            try:
+                await self._publish_and_confirm(payload)
+                self._check_map_revision(revision)
+                await self._command.send(B01_Q10_DP.CLEAN_MODE, YXCleanType.CUSTOMIZED.code)
+                self._check_map_revision(revision)
+                await self._command.send(
+                    B01_Q10_DP.START_CLEAN,
+                    {
+                        "cmd": YXDeviceCleanTask.ELECTORAL.code,
+                        # "clean_paramters" is the spelling required by the firmware.
+                        "clean_paramters": [room.room_id for room in selected],
+                    },
+                )
+            finally:
+                self._active_task = None
+
+    def _check_map_revision(self, revision: int) -> None:
+        if revision != self._map_revision:
+            raise RoborockException("Q10 map changed during customized-room cleaning")
+
+    def close(self) -> None:
+        """Invalidate cached settings and cancel an active command sequence."""
+        self.invalidate()
+        if self._active_task is not None:
+            self._active_task.cancel()
 
     async def _publish_and_confirm(self, payload: str, *, request_complete: bool = False) -> None:
         """Publish compact settings and wait for matching device confirmation."""
@@ -98,24 +123,28 @@ class RoomCleaningTrait(RoomCleaning, UpdatableTrait):
         self._pending_payload = payload
         self._pending_confirmation = confirmation
         try:
-            await self._command.send(
-                B01_Q10_DP.COMMON,
-                {str(B01_Q10_DP.CUSTOMER_CLEAN.code): payload},
-            )
-            if request_complete:
+            async with asyncio.timeout(_WRITE_CONFIRMATION_TIMEOUT):
                 await self._command.send(
                     B01_Q10_DP.COMMON,
-                    {str(B01_Q10_DP.CUSTOMER_CLEAN_REQUEST.code): 0},
+                    {str(B01_Q10_DP.CUSTOMER_CLEAN.code): payload},
                 )
-            try:
-                await asyncio.wait_for(asyncio.shield(confirmation), _WRITE_CONFIRMATION_TIMEOUT)
-            except TimeoutError as ex:
-                raise RoborockException("Q10 did not confirm customized-room settings") from ex
+                if request_complete:
+                    await self._command.send(
+                        B01_Q10_DP.COMMON,
+                        {str(B01_Q10_DP.CUSTOMER_CLEAN_REQUEST.code): 0},
+                    )
+                await asyncio.shield(confirmation)
+        except TimeoutError as ex:
+            raise RoborockTimeout("Q10 did not confirm customized-room settings") from ex
         finally:
             self._pending_payload = None
             self._pending_confirmation = None
             if not confirmation.done():
                 confirmation.cancel()
+            elif not confirmation.cancelled():
+                # Invalidation may finish the future while publishing fails or
+                # is cancelled, before this coroutine can await that future.
+                confirmation.exception()
 
     def update_from_dps(self, decoded_dps: dict[B01_Q10_DP, Any]) -> None:
         """Apply a complete settings response or confirm a compact write echo."""
@@ -172,6 +201,7 @@ class RoomCleaningTrait(RoomCleaning, UpdatableTrait):
 
     def invalidate(self) -> None:
         """Discard room settings after a map change."""
+        self._map_revision += 1
         changed = self._settings_available or bool(self._known_settings)
         self._settings_available = False
         self._known_settings = ()
