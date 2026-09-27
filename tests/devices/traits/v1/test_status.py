@@ -2,7 +2,7 @@
 
 import asyncio
 from typing import cast
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, call
 
 import pytest
 
@@ -17,6 +17,8 @@ from roborock import (
 )
 from roborock.data import SHORT_MODEL_TO_ENUM, RoborockProductNickname
 from roborock.data.v1 import (
+    RoborockDockErrorCode,
+    RoborockErrorCode,
     RoborockStateCode,
 )
 from roborock.device_features import DeviceFeatures
@@ -88,6 +90,73 @@ async def test_refresh_status_propagates_exception(status_trait: StatusTrait, mo
 
     with pytest.raises(RoborockException, match="Communication error"):
         await status_trait.refresh()
+
+
+async def test_resolve_error_explicit_code(status_trait: StatusTrait, mock_rpc_channel: AsyncMock) -> None:
+    """Test resolving an explicitly given error code."""
+    mock_rpc_channel.send_command.side_effect = ["ok", STATUS]
+
+    await status_trait.resolve_error(38)
+
+    assert mock_rpc_channel.send_command.mock_calls == [
+        call(RoborockCommand.RESOLVE_ERROR, params={"error_code": 38}),
+        call(RoborockCommand.GET_STATUS),
+    ]
+    assert status_trait.dock_error_status == RoborockDockErrorCode.ok
+
+
+async def test_resolve_error_defaults_to_dock_error(status_trait: StatusTrait, mock_rpc_channel: AsyncMock) -> None:
+    """Test that the current dock error is resolved when no code is given."""
+    mock_rpc_channel.send_command.side_effect = [
+        {**STATUS, "dock_error_status": RoborockDockErrorCode.water_empty.value, "error_code": 38},
+        "ok",
+        STATUS,
+    ]
+    await status_trait.refresh()
+    assert status_trait.dock_error_status == RoborockDockErrorCode.water_empty
+
+    await status_trait.resolve_error()
+
+    assert mock_rpc_channel.send_command.mock_calls[1:] == [
+        call(RoborockCommand.RESOLVE_ERROR, params={"error_code": 38}),
+        call(RoborockCommand.GET_STATUS),
+    ]
+    assert status_trait.dock_error_status == RoborockDockErrorCode.ok
+
+
+async def test_resolve_error_defaults_to_robot_error(status_trait: StatusTrait, mock_rpc_channel: AsyncMock) -> None:
+    """Test that the robot error is resolved when there is no dock error."""
+    mock_rpc_channel.send_command.side_effect = [
+        {**STATUS, "error_code": RoborockErrorCode.clear_water_box_exception.value},
+        "ok",
+        STATUS,
+    ]
+    await status_trait.refresh()
+
+    await status_trait.resolve_error()
+
+    assert mock_rpc_channel.send_command.mock_calls[1:] == [
+        call(RoborockCommand.RESOLVE_ERROR, params={"error_code": RoborockErrorCode.clear_water_box_exception.value}),
+        call(RoborockCommand.GET_STATUS),
+    ]
+
+
+async def test_resolve_error_no_error(status_trait: StatusTrait, mock_rpc_channel: AsyncMock) -> None:
+    """Test that nothing is sent when there is no error to resolve."""
+    mock_rpc_channel.send_command.return_value = STATUS
+    await status_trait.refresh()
+
+    await status_trait.resolve_error()
+
+    mock_rpc_channel.send_command.assert_called_once_with(RoborockCommand.GET_STATUS)
+
+
+async def test_resolve_error_propagates_exception(status_trait: StatusTrait, mock_rpc_channel: AsyncMock) -> None:
+    """Test that exceptions from the RPC channel are propagated."""
+    mock_rpc_channel.send_command.side_effect = RoborockException("invalid params")
+
+    with pytest.raises(RoborockException, match="invalid params"):
+        await status_trait.resolve_error(38)
 
 
 async def test_refresh_status_invalid_format(status_trait: StatusTrait, mock_rpc_channel: AsyncMock) -> None:
