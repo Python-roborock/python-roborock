@@ -14,10 +14,11 @@ from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
 from roborock.data.b01_q10.b01_q10_containers import Q10RoborockPoint
 from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
+    Q10CleanRecordDetail,
     Q10MapPacket,
+    Q10MapPacketKind,
     Q10TracePacket,
-    is_trace_packet,
-    map_packet_kind,
+    parse_clean_record_detail,
     parse_map_packet,
     parse_trace_packet,
 )
@@ -275,7 +276,7 @@ class Q10DpsUpdate:
 # A single decoded message from a Q10 device: a DPS status update, a full map
 # packet, or a live cleaning-path (trace) packet. Map/trace packets arrive as
 # protocol-301 ``MAP_RESPONSE`` pushes; everything else is a DPS update.
-Q10Message = Q10DpsUpdate | Q10MapPacket | Q10TracePacket
+Q10Message = Q10DpsUpdate | Q10MapPacket | Q10TracePacket | Q10CleanRecordDetail
 
 
 def decode_message(message: RoborockMessage) -> Q10Message | None:
@@ -290,9 +291,12 @@ def decode_message(message: RoborockMessage) -> Q10Message | None:
     """
     if message.protocol == RoborockMessageProtocol.MAP_RESPONSE:
         payload = message.payload or b""
-        if map_packet_kind(payload) is not None:
-            return parse_map_packet(payload)
-        if is_trace_packet(payload):
+        kind = Q10MapPacketKind.from_payload(payload)
+        if kind is Q10MapPacketKind.TRACE:
             return parse_trace_packet(payload)
+        if kind is Q10MapPacketKind.CLEAN_RECORD_DETAIL:
+            return parse_clean_record_detail(payload)
+        if kind is not None:
+            return parse_map_packet(payload)
         return None
     return Q10DpsUpdate(dps=decode_rpc_response(message))

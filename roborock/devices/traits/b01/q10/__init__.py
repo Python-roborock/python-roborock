@@ -10,6 +10,7 @@ from roborock.devices.rpc.b01_q10_channel import B01Q10Channel
 from roborock.devices.traits import Trait
 from roborock.map.b01_q10_map_parser import (
     B01Q10MapParserConfig,
+    Q10CleanRecordDetail,
     Q10MapPacket,
     Q10MapPacketKind,
     Q10TracePacket,
@@ -101,7 +102,7 @@ class Q10PropertiesApi(Trait):
         self,
         channel: B01Q10Channel,
         *,
-        map_parser_config: B01Q10MapParserConfig | None = None,
+        map_parser_config: B01Q10MapParserConfig,
     ) -> None:
         """Initialize the B01Props API."""
         self._channel = channel
@@ -148,6 +149,8 @@ class Q10PropertiesApi(Trait):
 
     async def close(self) -> None:
         """Close any resources held by the trait."""
+        self.maps.close()
+        self.clean_history.close()
         await self.vacuum.close()
         if self._subscribe_task is not None:
             self._subscribe_task.cancel()
@@ -177,10 +180,10 @@ class Q10PropertiesApi(Trait):
         if isinstance(message, Q10MapPacket):
             if message.kind is Q10MapPacketKind.CURRENT:
                 self.map.update_from_map_packet(message)
-            elif message.kind is Q10MapPacketKind.CLEAN_RECORD_DETAIL:
-                self.clean_history.update_from_map_packet(message)
             elif message.kind is Q10MapPacketKind.SAVED_MAP_DETAIL:
                 self.maps.update_from_map_packet(message)
+        elif isinstance(message, Q10CleanRecordDetail):
+            self.clean_history.update_from_detail(message)
         elif isinstance(message, Q10TracePacket):
             self.map.update_from_trace_packet(message)
         elif isinstance(message, Q10DpsUpdate):
@@ -207,4 +210,7 @@ def create(
     map_parser_config: B01Q10MapParserConfig | None = None,
 ) -> Q10PropertiesApi:
     """Create traits for B01 devices."""
-    return Q10PropertiesApi(channel, map_parser_config=map_parser_config)
+    return Q10PropertiesApi(
+        channel,
+        map_parser_config=map_parser_config or B01Q10MapParserConfig(),
+    )

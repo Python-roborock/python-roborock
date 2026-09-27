@@ -16,7 +16,7 @@ from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP, YXWaterLevel
 from roborock.data.b01_q10.b01_q10_containers import Q10RoborockPoint
 from roborock.data.code_mappings import completed_warnings
 from roborock.exceptions import RoborockException
-from roborock.map.b01_q10_map_parser import Q10MapPacket, Q10MapPacketKind, Q10TracePacket
+from roborock.map.b01_q10_map_parser import Q10CleanRecordDetail, Q10MapPacket, Q10MapPacketKind, Q10TracePacket
 from roborock.map.b01_q10_overlays import Q10RestrictedZone, Q10RestrictionType, Q10VirtualWall
 from roborock.protocols.b01_q10_protocol import (
     CleanParams,
@@ -361,8 +361,13 @@ def test_decode_message_archived_map_packet(marker: bytes, kind: Q10MapPacketKin
     fixture = MAP_FIXTURE.read_bytes()
     decoded = decode_message(_message(marker + fixture[2:], RoborockMessageProtocol.MAP_RESPONSE))
 
-    assert isinstance(decoded, Q10MapPacket)
-    assert decoded.kind is kind
+    if kind is Q10MapPacketKind.CLEAN_RECORD_DETAIL:
+        assert isinstance(decoded, Q10CleanRecordDetail)
+        assert decoded.map.kind is kind
+        assert decoded.trace is None
+    else:
+        assert isinstance(decoded, Q10MapPacket)
+        assert decoded.kind is kind
 
 
 def test_decode_message_trace_packet() -> None:

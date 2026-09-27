@@ -96,7 +96,7 @@ class HomeTrait(RoborockBase, common.V1TraitMixin, TraitUpdateListener):
             self._discovery_completed = True
             try:
                 self._home_map_content = {
-                    k: self._map_content.converter.parse_map_content(base64.b64decode(v))
+                    k: await self._map_content.converter.async_parse_map_content(base64.b64decode(v))
                     for k, v in (device_cache_data.home_map_content_base64 or {}).items()
                 }
             except (ValueError, RoborockException) as ex:
