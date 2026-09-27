@@ -2,6 +2,31 @@
 
 <!-- version list -->
 
+## v7.12.0 (2026-09-27)
+
+### Bug Fixes
+
+- Preserve immutable Q10 points in model conformance checks
+  ([#936](https://github.com/Python-roborock/python-roborock/pull/936),
+  [`14b4bc6`](https://github.com/Python-roborock/python-roborock/commit/14b4bc69e85794a6b448cc0b41379f1ed4cc31b2))
+
+- Request Q10 maps without starting cleaning
+  ([#936](https://github.com/Python-roborock/python-roborock/pull/936),
+  [`14b4bc6`](https://github.com/Python-roborock/python-roborock/commit/14b4bc69e85794a6b448cc0b41379f1ed4cc31b2))
+
+### Features
+
+- Parse Q10 archived map packets
+  ([#936](https://github.com/Python-roborock/python-roborock/pull/936),
+  [`14b4bc6`](https://github.com/Python-roborock/python-roborock/commit/14b4bc69e85794a6b448cc0b41379f1ed4cc31b2))
+
+### Refactoring
+
+- Give Q10 clean-record maps ownership of historical paths
+  ([#936](https://github.com/Python-roborock/python-roborock/pull/936),
+  [`14b4bc6`](https://github.com/Python-roborock/python-roborock/commit/14b4bc69e85794a6b448cc0b41379f1ed4cc31b2))
+
+
 ## v7.11.1 (2026-09-26)
 
 ### Bug Fixes
