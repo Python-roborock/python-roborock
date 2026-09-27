@@ -751,6 +751,20 @@ async def reset_consumable(ctx, device_id: str, consumable: str):
 
 @session.command()
 @click.option("--device_id", required=True)
+@click.option("--error_code", type=int, help="Error code to resolve. Defaults to the current dock or robot error.")
+@click.pass_context
+@async_command
+async def resolve_error(ctx, device_id: str, error_code: int | None):
+    """Resolve the current dock or robot error, like "Resolved" in the app."""
+    context: RoborockContext = ctx.obj
+    trait = await _v1_trait(context, device_id, lambda v1: v1.status)
+    await trait.refresh()
+    await trait.resolve_error(error_code)
+    click.echo(f"Dock error: {trait.dock_error_status}, error: {trait.error_code}")
+
+
+@session.command()
+@click.option("--device_id", required=True)
 @click.option("--enabled", type=bool, help="Enable (True) or disable (False) the child lock.")
 @click.pass_context
 @async_command
@@ -1369,6 +1383,7 @@ cli.add_command(map_data)
 cli.add_command(q10_position)
 cli.add_command(consumables)
 cli.add_command(reset_consumable)
+cli.add_command(resolve_error)
 cli.add_command(rooms)
 cli.add_command(home)
 cli.add_command(features)
