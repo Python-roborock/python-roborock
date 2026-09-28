@@ -1,3 +1,8 @@
+import asyncio
+from dataclasses import replace
+from pathlib import Path
+from unittest.mock import patch
+
 import pytest
 
 from roborock.data.b01_q10.b01_q10_code_mappings import (
@@ -10,6 +15,15 @@ from roborock.data.b01_q10.b01_q10_code_mappings import (
 from roborock.data.b01_q10.b01_q10_containers import Q10CleanRecord
 from roborock.devices.traits.b01.q10 import Q10PropertiesApi
 from roborock.devices.traits.b01.q10.clean_history import CleanHistoryTrait, CleanRecordConverter
+from roborock.exceptions import RoborockException, RoborockTimeout
+from roborock.map.b01_q10_map_parser import (
+    Q10CleanRecordDetail,
+    Q10HistoricalTracePacket,
+    Q10Obstacle,
+    Q10Point,
+    parse_clean_record_detail,
+    parse_map_packet,
+)
 
 from .conftest import FakeB01Q10Channel
 
@@ -175,3 +189,173 @@ async def test_refresh_sends_op_list(q10_api: Q10PropertiesApi, fake_channel: Fa
         B01_Q10_DP.COMMON,
         {"52": {"op": "list"}},
     )
+
+
+async def test_refresh_detail_sends_full_raw_record(
+    clean_history: CleanHistoryTrait,
+    fake_channel: FakeB01Q10Channel,
+) -> None:
+    record = CleanRecordConverter.parse_record(RECORD_A)
+    assert record is not None
+
+    request = asyncio.create_task(clean_history.refresh_detail(record))
+    await asyncio.sleep(0)
+    fixture = Path("tests/map/testdata/b01_q10_map.bin").read_bytes()
+    clean_history.update_from_detail(parse_clean_record_detail(b"\x03\x01" + fixture[2:]))
+    await request
+
+    assert fake_channel.published_commands == [
+        (
+            B01_Q10_DP.COMMON,
+            {"52": {"op": "select", "id": RECORD_A}},
+        )
+    ]
+
+
+async def test_refresh_detail_rejects_record_without_map(clean_history: CleanHistoryTrait) -> None:
+    record = CleanRecordConverter.parse_record("x_1781226271_1_1_0_0_0_0_2_1_1_0")
+    assert record is not None
+
+    with pytest.raises(RoborockException, match="no saved map detail"):
+        await clean_history.refresh_detail(record)
+
+
+async def test_refresh_detail_rejects_parallel_request(clean_history: CleanHistoryTrait) -> None:
+    record = CleanRecordConverter.parse_record(RECORD_A)
+    assert record is not None
+    request = asyncio.create_task(clean_history.refresh_detail(record))
+    await asyncio.sleep(0)
+    with pytest.raises(RoborockException, match="already pending"):
+        await clean_history.refresh_detail(record)
+    fixture = Path("tests/map/testdata/b01_q10_map.bin").read_bytes()
+    clean_history.update_from_detail(parse_clean_record_detail(b"\x03\x01" + fixture[2:]))
+    await request
+
+
+async def test_detail_response_is_associated_with_pending_record(
+    clean_history: CleanHistoryTrait,
+) -> None:
+    record = CleanRecordConverter.parse_record(RECORD_A)
+    assert record is not None
+    request = asyncio.create_task(clean_history.refresh_detail(record))
+    await asyncio.sleep(0)
+    fixture = Path("tests/map/testdata/b01_q10_map.bin").read_bytes()
+    packet = parse_clean_record_detail(b"\x03\x01" + fixture[2:])
+
+    clean_history.update_from_detail(packet)
+    await request
+
+    assert clean_history.detail_record == record
+    assert clean_history.detail_packet is packet.map
+    assert clean_history.detail is packet
+
+
+@pytest.mark.parametrize("failure", ["timeout", "send_timeout", "cancel", "send_error", "close"])
+async def test_abandoned_detail_is_drained_before_selecting_another_record(
+    q10_api: Q10PropertiesApi,
+    fake_channel: FakeB01Q10Channel,
+    failure: str,
+) -> None:
+    history = q10_api.clean_history
+    first = CleanRecordConverter.parse_record(RECORD_A)
+    second = CleanRecordConverter.parse_record(RECORD_B)
+    assert first is not None and second is not None
+    fixture = Path("tests/map/testdata/b01_q10_map.bin").read_bytes()
+    late = parse_clean_record_detail(b"\x03\x01" + fixture[2:])
+
+    async def send(*args: object) -> None:
+        if failure == "send_error":
+            raise RoborockException("publish failed")
+        if failure in {"send_timeout", "cancel", "close"}:
+            await asyncio.Future()
+
+    with (
+        patch("roborock.devices.traits.b01.q10.clean_history._DETAIL_TIMEOUT", 0.01),
+        patch.object(q10_api.command, "send", side_effect=send),
+    ):
+        request = asyncio.create_task(history.refresh_detail(first))
+        await asyncio.sleep(0)
+        if failure == "cancel":
+            request.cancel()
+        elif failure == "close":
+            await q10_api.close()
+        error = (
+            asyncio.CancelledError
+            if failure in {"cancel", "close"}
+            else (RoborockTimeout if "timeout" in failure else RoborockException)
+        )
+        with pytest.raises(error):
+            await request
+
+    # Teardown does not establish wire correlation or release the barrier.
+    if failure != "close":
+        await q10_api.close()
+    with pytest.raises(RoborockException, match="unresolved"):
+        await history.refresh_detail(second)
+    assert fake_channel.published_commands == []
+    history.update_from_detail(late)
+    assert history.detail is None
+    assert history.detail_record is None
+
+    request = asyncio.create_task(history.refresh_detail(second))
+    await asyncio.sleep(0)
+    assert not request.done()
+    accepted = parse_clean_record_detail(b"\x03\x01" + fixture[2:])
+    history.update_from_detail(accepted)
+    await request
+    assert history.detail_record == second
+    assert history.detail is accepted
+    history.update_from_detail(late)
+    assert history.detail is accepted
+    assert history.detail_record == second
+
+
+async def test_detail_record_is_snapshotted_and_path_list_is_defensive(clean_history: CleanHistoryTrait) -> None:
+    record = CleanRecordConverter.parse_record(RECORD_A)
+    assert record is not None
+    request = asyncio.create_task(clean_history.refresh_detail(record))
+    await asyncio.sleep(0)
+    record.record_id = "changed"
+    fixture = Path("tests/map/testdata/b01_q10_map.bin").read_bytes()
+    detail = parse_clean_record_detail(b"\x03\x01" + fixture[2:])
+    detail.trace = Q10HistoricalTracePacket(points=[Q10Point(x=1, y=2)], heading=0)
+    clean_history.update_from_detail(detail)
+    await request
+    assert clean_history.detail_record is not None
+    assert clean_history.detail_record.record_id == "abc123def456"
+    clean_history.detail_path.clear()
+    assert clean_history.detail_path == [Q10Point(x=1, y=2)]
+
+
+async def test_response_during_cancellation_is_drained(clean_history: CleanHistoryTrait) -> None:
+    record = CleanRecordConverter.parse_record(RECORD_A)
+    assert record is not None
+    fixture = Path("tests/map/testdata/b01_q10_map.bin").read_bytes()
+    detail = parse_clean_record_detail(b"\x03\x01" + fixture[2:])
+    request = asyncio.create_task(clean_history.refresh_detail(record))
+    await asyncio.sleep(0)
+    request.cancel()
+    clean_history.update_from_detail(detail)
+    with pytest.raises(asyncio.CancelledError):
+        await request
+    assert clean_history.detail is None
+    request = asyncio.create_task(clean_history.refresh_detail(record))
+    await asyncio.sleep(0)
+    clean_history.update_from_detail(detail)
+    await request
+    assert clean_history.detail_record == record
+
+
+def test_clean_record_detail_exposes_obstacles(clean_history: CleanHistoryTrait) -> None:
+    fixture = Path("tests/map/testdata/b01_q10_map.bin").read_bytes()
+    packet = replace(
+        parse_map_packet(b"\x03\x01" + fixture[2:]),
+        obstacles=[Q10Obstacle(100, -200), Q10Obstacle(-300, 400)],
+    )
+
+    clean_history.update_from_detail(Q10CleanRecordDetail(map=packet))
+
+    assert clean_history.detail_obstacles == packet.obstacles
+    exposed = clean_history.detail_obstacles
+    exposed.clear()
+    assert clean_history.detail_obstacles == packet.obstacles
