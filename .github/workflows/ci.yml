@@ -38,16 +38,6 @@ jobs:
           - "3.11"
           - "3.14"
     runs-on: ubuntu-latest
-    services:
-      emqx:
-        image: emqx/emqx:6.2.3
-        ports:
-          - 1888:1883
-        options: >-
-          --health-cmd "/opt/emqx/bin/emqx ctl status"
-          --health-interval 5s
-          --health-timeout 25s
-          --health-retries 5
     steps:
       - uses: actions/checkout@v6
       - name: Set up uv
@@ -65,7 +55,38 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: Python-roborock/python-roborock
 
-
+  test-mqtt:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.11"
+          - "3.14"
+    runs-on: ubuntu-latest
+    services:
+      emqx:
+        image: emqx/emqx:6.2.3
+        ports:
+          - 1888:1883
+        options: >-
+          --health-cmd "/opt/emqx/bin/emqx ctl status"
+          --health-interval 5s
+          --health-timeout 25s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+          activate-environment: true
+      - name: Test MQTT with Pytest
+        run: uv run pytest -m mqtt_broker --log-cli-level=DEBUG -vv -s --cov --cov-branch --cov-report=xml
+      - name: Upload results to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: Python-roborock/python-roborock
 
   build:
     name: Build Package
@@ -120,6 +141,7 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - test
+      - test-mqtt
     concurrency: release
     if: github.ref == 'refs/heads/main'
     permissions:

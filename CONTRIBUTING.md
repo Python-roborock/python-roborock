@@ -55,16 +55,24 @@ pre-commit run --all-files
 
 We use `pytest` for testing. Please ensure all tests pass and add new tests for your changes.
 
-MQTT tests require a real EMQX broker at `127.0.0.1:1888`. Start it locally with
-Docker Compose before running the tests. CI provides the broker as a GitHub Actions service.
+Run the standard test suite without Docker:
+
+```bash
+uv run pytest
+```
+
+Real-broker MQTT tests are excluded by default. To run them, start EMQX at
+`127.0.0.1:1888` with Docker Compose and select the `mqtt_broker` marker:
 
 ```bash
 docker compose up -d --wait
-pytest
+uv run pytest -m mqtt_broker
 docker compose down
 ```
 
-To run only the real broker tests, use `pytest -m mqtt_broker`.
+CI runs both suites in separate parallel jobs on Python 3.11 and 3.14, with an
+EMQX service container only in the MQTT job. Each test has a 30-second timeout;
+MQTT connection and message waits have shorter timeouts.
 
 ## Pull Requests
 
