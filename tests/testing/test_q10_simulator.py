@@ -5,6 +5,14 @@ from typing import Any
 
 import pytest
 
+from roborock.data.b01_q10.b01_q10_code_mappings import (
+    Q10CleanCount,
+    Q10RoomCleanType,
+    Q10RoomFanLevel,
+    YXCleanLine,
+    YXWaterLevel,
+)
+from roborock.protocols.b01_q10_protocol import decode_room_clean_settings
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 from roborock.testing import DEFAULT_Q10_STATUS, Q10VacuumSimulator
 
@@ -160,3 +168,95 @@ async def test_setters(q10_sim: Q10VacuumSimulator) -> None:
     last_msg = notified_messages[-1]
     assert last_msg.payload is not None
     assert json.loads(last_msg.payload.decode())["dps"] == {"101": {"26": 50}}
+
+    # Set repeat count (136) to twice.
+    req_payload = {"dps": {"136": 2}}
+    msg = RoborockMessage(
+        protocol=RoborockMessageProtocol.RPC_REQUEST,
+        version=B01_VERSION,
+        payload=json.dumps(req_payload).encode("utf-8"),
+    )
+    await q10_sim._handle_publish(msg, q10_sim.mqtt_channel)
+    assert q10_sim.status[136] == 2
+    last_msg = notified_messages[-1]
+    assert last_msg.payload is not None
+    assert json.loads(last_msg.payload.decode())["dps"] == {"136": 2}
+
+    # Set the deep route (78) through dpCommon.
+    req_payload = {"dps": {"101": {"78": 2}}}
+    msg = RoborockMessage(
+        protocol=RoborockMessageProtocol.RPC_REQUEST,
+        version=B01_VERSION,
+        payload=json.dumps(req_payload).encode("utf-8"),
+    )
+    await q10_sim._handle_publish(msg, q10_sim.mqtt_channel)
+    assert isinstance(q10_sim.status[101], dict)
+    assert q10_sim.status[101][78] == 2
+    last_msg = notified_messages[-1]
+    assert last_msg.payload is not None
+    assert json.loads(last_msg.payload.decode())["dps"] == {"101": {"78": 2}}
+
+
+async def test_customer_clean_compact_write_is_echoed(q10_sim: Q10VacuumSimulator) -> None:
+    """The simulator mirrors the device's compact DP62 write confirmation."""
+    notified_messages = []
+
+    def mock_notify(message: RoborockMessage) -> None:
+        notified_messages.append(message)
+
+    await q10_sim.mqtt_channel.subscribe(mock_notify)
+    req_payload = {"dps": {"101": {"62": "AQMDAwECAg=="}}}
+    msg = RoborockMessage(
+        protocol=RoborockMessageProtocol.RPC_REQUEST,
+        version=B01_VERSION,
+        payload=json.dumps(req_payload).encode("utf-8"),
+    )
+
+    await q10_sim._handle_publish(msg, q10_sim.mqtt_channel)
+
+    assert notified_messages[-1].payload is not None
+    assert json.loads(notified_messages[-1].payload.decode())["dps"] == {"101": {"62": "AQMDAwECAg=="}}
+
+
+async def test_customer_clean_refresh_returns_complete_updated_settings(q10_sim: Q10VacuumSimulator) -> None:
+    """DP63 requests a full DP62 response reflecting earlier compact writes."""
+    notified_messages: list[RoborockMessage] = []
+    await q10_sim.mqtt_channel.subscribe(notified_messages.append)
+
+    for dps in ({"101": {"62": "AQEDAgEBAQ=="}}, {"101": {"63": 0}}):
+        await q10_sim._handle_publish(
+            RoborockMessage(
+                protocol=RoborockMessageProtocol.RPC_REQUEST,
+                version=B01_VERSION,
+                payload=json.dumps({"dps": dps}).encode(),
+            ),
+            q10_sim.mqtt_channel,
+        )
+
+    payload = notified_messages[-1].payload
+    assert payload is not None
+    response = json.loads(payload.decode())
+    decoded = decode_room_clean_settings(response["dps"]["101"]["62"])
+    assert decoded.complete is True
+    assert decoded.settings[0].room_id == 1
+    assert decoded.settings[0].fan_level is Q10RoomFanLevel.TURBO
+    assert decoded.settings[0].water_level is YXWaterLevel.MEDIUM
+    assert decoded.settings[0].clean_type is Q10RoomCleanType.VAC_AND_MOP
+    assert decoded.settings[0].clean_count is Q10CleanCount.ONCE
+    assert decoded.settings[0].clean_line is YXCleanLine.DAILY
+
+
+async def test_customer_clean_malformed_write_is_not_echoed(q10_sim: Q10VacuumSimulator) -> None:
+    notified_messages: list[RoborockMessage] = []
+    await q10_sim.mqtt_channel.subscribe(notified_messages.append)
+
+    await q10_sim._handle_publish(
+        RoborockMessage(
+            protocol=RoborockMessageProtocol.RPC_REQUEST,
+            version=B01_VERSION,
+            payload=b'{"dps":{"101":{"62":"invalid"}}}',
+        ),
+        q10_sim.mqtt_channel,
+    )
+
+    assert notified_messages == []
