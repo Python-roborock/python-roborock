@@ -837,10 +837,10 @@ class B01Q10MapParser:
     def _render(self, packet: Q10MapPacket) -> Image.Image:
         """Render the Q10 grid with the V1 map palette."""
         palette = _build_palette(packet.grid, packet.width)
-        rgba = bytearray()
-        for value in packet.grid:
-            rgba.extend(palette[value])
-        img = Image.frombytes("RGBA", (packet.width, packet.height), bytes(rgba))
+        flat_palette = [channel for color in palette for channel in color]
+        p_img = Image.frombytes("P", (packet.width, packet.height), packet.grid)
+        p_img.putpalette(flat_palette, rawmode="RGBA")
+        img = p_img.convert("RGBA")
         # The ss07 grid is stored top-down (row 0 = top of the home), so it is
         # rendered as-is -- unlike the V1/Q7 convention, no vertical flip.
         scale = self._config.map_scale

@@ -67,6 +67,7 @@ dev = [
     "syrupy>=4.9.1,<6",
     "pdoc>=15.0.4,<17",
     "pytest-cov>=7.0.0",
+    "pytest-benchmark>=5.1.0",
 ]
 
 [tool.hatch.build.targets.sdist]
