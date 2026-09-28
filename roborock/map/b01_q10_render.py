@@ -109,10 +109,9 @@ def render_q10_map(
             # areas disappear (as the app shows).
             render_packet = erased_packet(packet, cells)
 
-    parsed = parser.parsed_from_packet(render_packet)
-    if parsed.image_content is None or parsed.map_data is None:
+    map_data = parser.map_data_from_packet(render_packet)
+    if map_data.image is None:
         raise RoborockException("Failed to render Q10 map image")
-    map_data = parsed.map_data
 
     has_drawables = False
     if trace_calibration is not None and trace is not None:
@@ -128,7 +127,9 @@ def render_q10_map(
     if has_drawables:
         return _draw_map_content(map_data, config=config)
 
-    return parsed.image_content
+    buffer = io.BytesIO()
+    map_data.image.data.save(buffer, format="PNG")
+    return buffer.getvalue()
 
 
 def solve_q10_calibration(
