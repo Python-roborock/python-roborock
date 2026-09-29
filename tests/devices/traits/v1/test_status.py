@@ -366,7 +366,7 @@ def test_current_cleaning_mode_with_main_brush_lift() -> None:
         is_water_slide_mode_supported=True,
     )
     status_trait.fan_power = VacuumModes.OFF.code
-    status_trait.water_box_mode = WaterModes.PURE_WATER_FLOW_MIDDLE.code
+    status_trait.water_box_mode = 235
     status_trait.mop_mode = CleanRoutes.STANDARD.code
 
     assert status_trait.current_cleaning_mode == CleaningMode.MOP
@@ -483,7 +483,7 @@ def test_get_cleaning_mode_parameters_qrevo_edge_2() -> None:
     assert get_cleaning_mode_parameters(CleaningMode.MOP, status_trait._device_features_trait) == [
         {
             "fan_power": VacuumModes.OFF.code,
-            "water_box_mode": WaterModes.PURE_WATER_FLOW_MIDDLE.code,
+            "water_box_mode": 235,
             "mop_mode": CleanRoutes.STANDARD.code,
         }
     ]
@@ -532,17 +532,95 @@ def test_get_cleaning_mode_parameters_water_slide_device() -> None:
     assert get_cleaning_mode_parameters(CleaningMode.VAC_AND_MOP, status_trait._device_features_trait) == [
         {
             "fan_power": VacuumModes.BALANCED.code,
-            "water_box_mode": WaterModes.PURE_WATER_FLOW_MIDDLE.code,
+            "water_box_mode": 235,
             "mop_mode": CleanRoutes.STANDARD.code,
         }
     ]
     assert get_cleaning_mode_parameters(CleaningMode.MOP, status_trait._device_features_trait) == [
         {
             "fan_power": VacuumModes.OFF.code,
-            "water_box_mode": WaterModes.PURE_WATER_FLOW_MIDDLE.code,
+            "water_box_mode": 235,
             "mop_mode": CleanRoutes.STANDARD.code,
         }
     ]
+
+
+@pytest.mark.parametrize("water_box_mode", [221, 225, 235, 245, 248, 250])
+@pytest.mark.parametrize(
+    ("fan_power", "expected_mode"),
+    [(102, CleaningMode.VAC_AND_MOP), (104, CleaningMode.VAC_AND_MOP), (105, CleaningMode.MOP)],
+)
+def test_current_cleaning_mode_water_slide_codes(
+    water_box_mode: int, fan_power: int, expected_mode: CleaningMode
+) -> None:
+    """Classify actual slide wire codes, not the aliased enum's legacy code."""
+    status_trait = _create_cleaning_mode_status_trait(is_water_slide_mode_supported=True)
+    status_trait.fan_power = fan_power
+    status_trait.water_box_mode = water_box_mode
+    status_trait.mop_mode = 303
+
+    assert status_trait.current_cleaning_mode == expected_mode
+    assert status_trait.current_cleaning_mode_name == expected_mode.value
+
+
+@pytest.mark.parametrize("is_water_slide_mode_supported", [False, True])
+@pytest.mark.parametrize(
+    ("water_box_mode", "expected_mode"),
+    [
+        (200, CleaningMode.VACUUM),
+        (201, CleaningMode.VAC_AND_MOP),
+        (202, CleaningMode.VAC_AND_MOP),
+        (203, CleaningMode.VAC_AND_MOP),
+        (None, None),
+        (999, None),
+    ],
+)
+def test_current_cleaning_mode_water_code_fallback(
+    is_water_slide_mode_supported: bool, water_box_mode: int | None, expected_mode: CleaningMode | None
+) -> None:
+    """Preserve legacy water status codes and unknown-code fallback for both device types."""
+    status_trait = _create_cleaning_mode_status_trait(is_water_slide_mode_supported=is_water_slide_mode_supported)
+    status_trait.fan_power = 102
+    status_trait.water_box_mode = water_box_mode
+    status_trait.mop_mode = 300
+
+    assert status_trait.current_cleaning_mode == expected_mode
+
+
+@pytest.mark.parametrize("water_mode", [WaterModes.MEDIUM, WaterModes.PURE_WATER_FLOW_MIDDLE])
+def test_current_cleaning_mode_water_slide_accepts_enums(water_mode: WaterModes) -> None:
+    """Enum inputs remain valid even when they alias a legacy water mode."""
+    status_trait = _create_cleaning_mode_status_trait(is_water_slide_mode_supported=True)
+    assert (
+        get_current_cleaning_mode(102, water_mode, 303, status_trait._device_features_trait) == CleaningMode.VAC_AND_MOP
+    )
+
+
+@pytest.mark.parametrize("is_clean_route_setting_supported", [False, True])
+@pytest.mark.parametrize(
+    ("cleaning_mode", "fan_power", "water_box_mode"),
+    [("vacuum", 102, 200), ("vac_and_mop", 102, 235), ("mop", 105, 235)],
+)
+async def test_set_cleaning_mode_water_slide_wire_payload(
+    mock_rpc_channel: AsyncMock,
+    is_clean_route_setting_supported: bool,
+    cleaning_mode: str,
+    fan_power: int,
+    water_box_mode: int,
+) -> None:
+    """Assert the public trait emits valid slide RPC integers, with optional mop route."""
+    status_trait = _create_cleaning_mode_status_trait(
+        is_water_slide_mode_supported=True,
+        is_clean_route_setting_supported=is_clean_route_setting_supported,
+    )
+    status_trait._rpc_channel = mock_rpc_channel  # type: ignore[assignment]
+
+    await status_trait.set_cleaning_mode(cleaning_mode)
+
+    expected = {"fan_power": fan_power, "water_box_mode": water_box_mode}
+    if is_clean_route_setting_supported:
+        expected["mop_mode"] = 300
+    mock_rpc_channel.send_command.assert_called_once_with(RoborockCommand.SET_CLEAN_MOTOR_MODE, params=[expected])
 
 
 def test_cleaning_mode_options_water_slide_device() -> None:
