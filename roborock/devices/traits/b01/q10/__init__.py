@@ -149,8 +149,6 @@ class Q10PropertiesApi(Trait):
 
     async def close(self) -> None:
         """Close any resources held by the trait."""
-        self.maps.close()
-        self.clean_history.close()
         await self.vacuum.close()
         if self._subscribe_task is not None:
             self._subscribe_task.cancel()

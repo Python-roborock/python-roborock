@@ -605,7 +605,6 @@ _Q10_MAP_PUSH_TIMEOUT = 30.0
 async def _await_q10_map_push(
     properties: Q10PropertiesApi,
     predicate: Callable[[], bool],
-    revision: Callable[[], int],
     *,
     timeout: float = _Q10_MAP_PUSH_TIMEOUT,
     allow_cached_on_timeout: bool = False,
@@ -618,10 +617,9 @@ async def _await_q10_map_push(
     """
     loop = asyncio.get_running_loop()
     updated: asyncio.Future[None] = loop.create_future()
-    initial_revision = revision()
 
     def on_update() -> None:
-        if revision() > initial_revision and predicate() and not updated.done():
+        if predicate() and not updated.done():
             updated.set_result(None)
 
     unsub = properties.map.add_update_listener(on_update)
@@ -651,7 +649,6 @@ async def map_image(ctx, device_id: str, output_file: str):
         await _await_q10_map_push(
             properties,
             lambda: properties.map.image_content is not None,
-            lambda: properties.map.map_revision,
             allow_cached_on_timeout=True,
         )
         image_content = properties.map.image_content
@@ -713,7 +710,6 @@ async def q10_position(ctx, device_id: str, include_path: bool):
     got_trace = await _await_q10_map_push(
         properties,
         lambda: bool(properties.map.path),
-        lambda: properties.map.trace_revision,
     )
     if not got_trace:
         click.echo("No fresh live trace available.")
@@ -893,7 +889,6 @@ async def rooms(ctx, device_id: str):
         await _await_q10_map_push(
             properties,
             lambda: properties.map.image_content is not None,
-            lambda: properties.map.map_revision,
             allow_cached_on_timeout=True,
         )
         click.echo(dump_json({room.id: room.name for room in properties.map.rooms}))

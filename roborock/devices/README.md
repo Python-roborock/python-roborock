@@ -39,3 +39,70 @@ Use `FileCache` or your own `Cache` implementation to persist:
 - `Device Capabilities`: What features your specific model supports.
 
 This speeds up startup time and reduces load on the Roborock cloud APIs.
+
+
+## Q10 archive updates
+
+Q10 traits are push driven. `refresh_detail()` publishes a selection and returns
+when the command has been sent. It does not wait for the map response. Register
+an update listener before requesting data, and read the trait when it notifies
+you. A history listener can also fire for record-list updates; compare the
+received detail with the previous detail to distinguish archive updates.
+
+```python
+import asyncio
+
+from roborock.devices.traits.b01.q10 import Q10PropertiesApi
+
+
+async def request_archive_preview(properties: Q10PropertiesApi) -> bytes | None:
+    history = properties.clean_history
+    previous_detail = history.detail
+    received = asyncio.Event()
+
+    def archive_updated() -> None:
+        if history.detail is not previous_detail:
+            received.set()
+
+    record = history.last_record  # Populated by an earlier history list push.
+    if record is None or not record.map_len:
+        return None
+    unsubscribe = history.add_update_listener(archive_updated)
+    try:
+        # This caller chooses to wait; the trait itself only publishes.
+        async with asyncio.timeout(30):
+            await history.refresh_detail(record)
+            await received.wait()
+        return history.detail_image_content
+    finally:
+        unsubscribe()
+```
+
+For a persistent archive view, keep its listener until the view closes. The
+example is a one-shot caller that waits for its own event with a deadline; that
+waiting policy belongs to the caller. A missing response does not block later
+requests. Publication failures and cancellation propagate to the caller, and
+the publication lock is released.
+The traits do not create response-waiting tasks or futures.
+
+Clean-record detail packets contain no record identifier. `detail` represents
+the latest received archive, including delayed or unsolicited pushes; it cannot
+be reliably attributed to the record passed to `refresh_detail()`. In
+particular, the API does not expose a `detail_record` association. Avoid
+presenting a requested record's label as confirmed metadata for the response.
+Concurrent selections and selections from another client have the same
+limitation.
+
+Saved-map previews follow the same listener pattern via `properties.maps`.
+Call `await properties.maps.refresh_detail(map_id)` for a listed map, or omit
+`map_id` to use the first map in the list. `detail_map_id` comes from the received
+packet itself, so a consumer can check it before displaying a preview. A delayed
+preview can replace the latest saved-map preview; no request ID is available to
+identify which selection produced it. Archive updates never replace the live
+map or trace in `properties.map`.
+
+`properties.as_dict()` includes clean-history records and path data and
+saved-map metadata. Binary map grids and PNG bytes are excluded; access images
+through `detail_image_content`. Live map and trace updates use the usual trait
+listener API without revision counters. The CLI subscribes before requesting a
+push, then waits for an update satisfying its predicate, with a 30-second limit.

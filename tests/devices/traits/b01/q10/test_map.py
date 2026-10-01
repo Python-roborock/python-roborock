@@ -7,21 +7,22 @@ that state management; rendering is tested separately.
 
 import asyncio
 import base64
+import io
+import json
 from collections.abc import AsyncGenerator, Generator
 from dataclasses import replace
 from pathlib import Path
-from typing import cast
 from unittest.mock import Mock, patch
 
 import pytest
+from PIL import Image
 
 from roborock.cli import _await_q10_map_push, cli
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP, YXDeviceState
 from roborock.devices.traits.b01.q10 import Q10PropertiesApi, create
 from roborock.devices.traits.b01.q10.command import CommandTrait
 from roborock.devices.traits.b01.q10.map import MapContentTrait, MapDpsTrait
-from roborock.devices.traits.b01.q10.maps import MapsTrait
-from roborock.exceptions import RoborockException, RoborockTimeout
+from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
     B01Q10MapParserConfig,
     Q10CleanRecordDetail,
@@ -43,7 +44,7 @@ TRACE_SESSION_FIXTURE = Path("tests/map/testdata/b01_q10_trace_session.bin")
 
 def _map_trait(map_dps: MapDpsTrait | None = None) -> MapContentTrait:
     """Create map content for tests that do not perform I/O."""
-    command = cast(CommandTrait, Mock(spec=CommandTrait))
+    command = CommandTrait(FakeB01Q10Channel())
     return MapContentTrait(map_dps or MapDpsTrait(), command)
 
 
@@ -111,83 +112,33 @@ def test_q10_position_is_available_as_top_level_cli_command() -> None:
 # --- CLI push waiting --------------------------------------------------------
 
 
-class _FakeQ10Properties:
-    def __init__(self) -> None:
-        command = cast(CommandTrait, Mock(spec=CommandTrait))
-        self.maps = MapsTrait(command, map_parser_config=B01Q10MapParserConfig())
-        self.maps.update_from_dps(
-            {
-                B01_Q10_DP.MULTI_MAP: {
-                    "data": [{"id": "12345"}],
-                    "op": "list",
-                    "result": 1,
-                }
-            }
-        )
-        self.map = MapContentTrait(MapDpsTrait(), command)
-        self.refresh_count = 0
-
-        async def refresh_map() -> None:
-            self.refresh_count += 1
-
-        self.map.refresh = refresh_map  # type: ignore[method-assign]
+async def test_await_q10_map_push_waits_for_update(q10_api: Q10PropertiesApi, mock_channel: FakeB01Q10Channel) -> None:
+    """Cached state alone does not complete a one-shot CLI wait."""
+    q10_api.map.update_from_trace_packet(Q10TracePacket(points=[Q10Point(1, 2)]))
+    assert not await _await_q10_map_push(q10_api, lambda: bool(q10_api.map.path), timeout=0.01)
+    assert mock_channel.published_commands == [(B01_Q10_DP.REQUEST_DPS, {})]
 
 
-class _FakeQ10PropertiesWithTrace(_FakeQ10Properties):
-    def __init__(self) -> None:
-        super().__init__()
-
-        async def refresh_map() -> None:
-            self.refresh_count += 1
-            self.map.update_from_trace_packet(parse_trace_packet(TRACE_SESSION_FIXTURE.read_bytes()))
-
-        self.map.refresh = refresh_map  # type: ignore[method-assign]
-
-
-async def test_await_q10_map_push_waits_for_fresh_update() -> None:
-    """A cached trace alone is not treated as a successful new map push."""
-    properties = _FakeQ10Properties()
-    properties.map.update_from_trace_packet(Q10TracePacket(points=[Q10Point(1, 2)]))
-
-    got_trace = await _await_q10_map_push(
-        cast(Q10PropertiesApi, properties),
-        lambda: bool(properties.map.path),
-        lambda: properties.map.trace_revision,
-        timeout=0.01,
-    )
-
-    assert got_trace is False
-    assert properties.refresh_count == 1
+async def test_await_q10_map_push_returns_after_listener_update(
+    q10_api: Q10PropertiesApi,
+    mock_channel: FakeB01Q10Channel,
+    message_queue: asyncio.Queue[Q10Message],
+) -> None:
+    request = asyncio.create_task(_await_q10_map_push(q10_api, lambda: bool(q10_api.map.path), timeout=1))
+    await mock_channel.send_started.wait()
+    message_queue.put_nowait(parse_trace_packet(TRACE_SESSION_FIXTURE.read_bytes()))
+    assert await request
+    assert len(q10_api.map.path) == 14
 
 
-async def test_await_q10_map_push_returns_true_after_update() -> None:
-    properties = _FakeQ10PropertiesWithTrace()
-
-    got_trace = await _await_q10_map_push(
-        cast(Q10PropertiesApi, properties),
-        lambda: bool(properties.map.path),
-        lambda: properties.map.trace_revision,
-        timeout=0.01,
-    )
-
-    assert got_trace is True
-    assert len(properties.map.path) == 14
-
-
-async def test_await_q10_map_push_can_fall_back_to_cached_map_on_timeout() -> None:
-    properties = _FakeQ10Properties()
-    properties.map.update_from_map_packet(parse_map_packet(FIXTURE.read_bytes()))
-
-    got_map = await _await_q10_map_push(
-        cast(Q10PropertiesApi, properties),
-        lambda: properties.map.image_content is not None,
-        lambda: properties.map.map_revision,
+async def test_await_q10_map_push_can_fall_back_to_cached_map_on_timeout(q10_api: Q10PropertiesApi) -> None:
+    q10_api.map.update_from_map_packet(parse_map_packet(FIXTURE.read_bytes()))
+    assert await _await_q10_map_push(
+        q10_api,
+        lambda: q10_api.map.image_content is not None,
         timeout=0.01,
         allow_cached_on_timeout=True,
     )
-
-    assert got_map is True
-    assert properties.refresh_count == 1
 
 
 # --- Integration through the Q10PropertiesApi subscribe loop -----------------
@@ -293,28 +244,24 @@ def test_archive_owners_reject_wrong_packet_kinds(q10_api: Q10PropertiesApi) -> 
         q10_api.maps.update_from_map_packet(current)
 
 
-def test_all_q10_map_views_share_the_injected_render_config(
-    fake_channel: FakeB01Q10Channel,
-) -> None:
-    config = B01Q10MapParserConfig(map_scale=2)
-    api = Q10PropertiesApi(fake_channel, map_parser_config=config)
+@pytest.mark.parametrize("scale", [1, 2, 4])
+async def test_all_q10_map_views_render_at_requested_scale(scale: int, fake_channel: FakeB01Q10Channel) -> None:
+    api = create(fake_channel, map_parser_config=B01Q10MapParserConfig(map_scale=scale))
     payload = FIXTURE.read_bytes()
-
-    with (
-        patch("roborock.devices.traits.b01.q10.map.render_q10_map", return_value=b"map") as live_render,
-        patch(
-            "roborock.devices.traits.b01.q10.clean_history.render_q10_map",
-            return_value=b"history",
-        ) as history_render,
-        patch("roborock.devices.traits.b01.q10.maps.render_q10_map", return_value=b"saved") as saved_render,
-    ):
-        api._handle_message(parse_map_packet(payload))
-        api._handle_message(parse_clean_record_detail(b"\x03\x01" + payload[2:]))
-        api._handle_message(parse_map_packet(b"\x04\x01" + payload[2:]))
-
-    assert live_render.call_args.kwargs["config"] is config
-    assert history_render.call_args.kwargs["config"] is config
-    assert saved_render.call_args.kwargs["config"] is config
+    fake_channel.messages_to_stream = [
+        parse_map_packet(payload),
+        parse_clean_record_detail(b"\x03\x01" + payload[2:]),
+        parse_map_packet(b"\x04\x01" + payload[2:]),
+    ]
+    await api.start()
+    try:
+        await _wait_for(lambda: api.maps.detail_image_content is not None)
+        for content in [api.map.image_content, api.clean_history.detail_image_content, api.maps.detail_image_content]:
+            assert content is not None
+            with Image.open(io.BytesIO(content)) as image:
+                assert image.size == (8 * scale, 6 * scale)
+    finally:
+        await api.close()
 
 
 async def test_subscribe_loop_routes_trace_push(
@@ -401,47 +348,22 @@ async def test_map_content_refresh_does_not_require_stored_map_id(
     assert mock_channel.published_commands == [(B01_Q10_DP.REQUEST_DPS, {})]
 
 
-async def test_map_content_refresh_requests_are_not_rate_limited(q10_api: Q10PropertiesApi) -> None:
-    """The caller controls content cadence; each refresh sends a get request."""
-    q10_api.maps.update_from_dps(
-        {
-            B01_Q10_DP.MULTI_MAP: {
-                "data": [{"id": "12345"}],
-                "op": "list",
-                "result": 1,
-            }
-        }
-    )
-    with patch.object(q10_api.command, "send") as send:
-        await q10_api.map.refresh()
-        await q10_api.map.refresh()
-
-    assert send.await_count == 2
+async def test_map_content_refresh_requests_are_not_rate_limited(
+    q10_api: Q10PropertiesApi,
+    mock_channel: FakeB01Q10Channel,
+) -> None:
+    await q10_api.map.refresh()
+    await q10_api.map.refresh()
+    assert mock_channel.published_commands == [(B01_Q10_DP.REQUEST_DPS, {}), (B01_Q10_DP.REQUEST_DPS, {})]
 
 
-async def test_saved_map_detail_refresh_uses_current_map_id(q10_api: Q10PropertiesApi) -> None:
-    """Saved-map detail uses the independently validated select request."""
-    q10_api.maps.update_from_dps(
-        {
-            B01_Q10_DP.MULTI_MAP: {
-                "data": [{"id": "12345"}],
-                "op": "list",
-                "result": 1,
-            }
-        }
-    )
-    with patch.object(q10_api.command, "send") as send:
-        packet = replace(parse_map_packet(b"\x04\x01" + FIXTURE.read_bytes()[2:]), map_id=12345)
-        send.side_effect = lambda *args: q10_api.maps.update_from_map_packet(packet)
-        await q10_api.maps.refresh_detail()
-
-    send.assert_awaited_once_with(
-        B01_Q10_DP.COMMON,
-        {str(B01_Q10_DP.MULTI_MAP.code): {"op": "select", "id": "12345"}},
-    )
-
-
-async def test_saved_map_detail_refresh_accepts_any_listed_map_id(q10_api: Q10PropertiesApi) -> None:
+@pytest.mark.parametrize("selected,expected", [(None, "12345"), ("67890", "67890")])
+async def test_saved_map_detail_refresh_publishes_selection(
+    q10_api: Q10PropertiesApi,
+    mock_channel: FakeB01Q10Channel,
+    selected: str | None,
+    expected: str,
+) -> None:
     q10_api.maps.update_from_dps(
         {
             B01_Q10_DP.MULTI_MAP: {
@@ -451,80 +373,35 @@ async def test_saved_map_detail_refresh_accepts_any_listed_map_id(q10_api: Q10Pr
             }
         }
     )
-    assert [map_info.id for map_info in q10_api.maps.map_list] == ["12345", "67890"]
-
-    with patch.object(q10_api.command, "send") as send:
-        packet = replace(parse_map_packet(b"\x04\x01" + FIXTURE.read_bytes()[2:]), map_id=67890)
-        send.side_effect = lambda *args: q10_api.maps.update_from_map_packet(packet)
-        await q10_api.maps.refresh_detail("67890")
-
-    send.assert_awaited_once_with(
-        B01_Q10_DP.COMMON,
-        {str(B01_Q10_DP.MULTI_MAP.code): {"op": "select", "id": "67890"}},
-    )
+    await q10_api.maps.refresh_detail(selected)
+    assert mock_channel.published_commands == [(B01_Q10_DP.COMMON, {"61": {"op": "select", "id": expected}})]
+    assert q10_api.maps.detail_packet is None
 
 
-async def test_saved_map_detail_refresh_rejects_unknown_or_parallel_request(
-    q10_api: Q10PropertiesApi,
-) -> None:
-    q10_api.maps.update_from_dps(
-        {
-            B01_Q10_DP.MULTI_MAP: {
-                "data": [{"id": "12345"}],
-                "op": "list",
-                "result": 1,
-            }
-        }
-    )
+async def test_saved_map_detail_rejects_unknown_id(q10_api: Q10PropertiesApi, mock_channel: FakeB01Q10Channel) -> None:
+    q10_api.maps.update_from_dps({B01_Q10_DP.MULTI_MAP: {"data": [{"id": "12345"}], "op": "list", "result": 1}})
     with pytest.raises(RoborockException, match="Unknown Q10 saved-map ID"):
         await q10_api.maps.refresh_detail("67890")
-
-    request = asyncio.create_task(q10_api.maps.refresh_detail("12345"))
-    await asyncio.sleep(0)
-    with pytest.raises(RoborockException, match="already pending"):
-        await q10_api.maps.refresh_detail("12345")
-    packet = replace(parse_map_packet(b"\x04\x01" + FIXTURE.read_bytes()[2:]), map_id=12345)
-    q10_api.maps.update_from_map_packet(packet)
-    await request
+    assert mock_channel.published_commands == []
 
 
-async def test_saved_map_detail_correlates_pending_map_id(q10_api: Q10PropertiesApi) -> None:
-    requested_id = str(parse_map_packet(FIXTURE.read_bytes()).map_id)
-    q10_api.maps.update_from_dps(
-        {
-            B01_Q10_DP.MULTI_MAP: {
-                "data": [{"id": requested_id}, {"id": "999"}],
-                "op": "list",
-                "result": 1,
-            }
-        }
-    )
-
-    request = asyncio.create_task(q10_api.maps.refresh_detail("999"))
-    await asyncio.sleep(0)
+async def test_saved_map_details_publish_packet_map_id_and_notify(
+    q10_api: Q10PropertiesApi,
+    mock_channel: FakeB01Q10Channel,
+    message_queue: asyncio.Queue[Q10Message],
+) -> None:
+    updates = []
+    q10_api.maps.add_update_listener(lambda: updates.append(q10_api.maps.detail_map_id))
     packet = parse_map_packet(b"\x04\x01" + FIXTURE.read_bytes()[2:])
-    q10_api.maps.update_from_map_packet(packet)
-    assert q10_api.maps.detail_packet is None
-    assert not request.done()
-    q10_api.maps.update_from_map_packet(replace(packet, map_id=999))
-    await request
-
-    matching = MapsTrait(q10_api.command, map_parser_config=B01Q10MapParserConfig())
-    matching.update_from_dps(
-        {
-            B01_Q10_DP.MULTI_MAP: {
-                "data": [{"id": requested_id}],
-                "op": "list",
-                "result": 1,
-            }
-        }
-    )
-    request = asyncio.create_task(matching.refresh_detail(requested_id))
-    await asyncio.sleep(0)
-    matching.update_from_map_packet(packet)
-    await request
-    assert matching.detail_packet is packet
-    assert matching.detail_map_id == requested_id
+    message_queue.put_nowait(packet)
+    await _wait_for(lambda: bool(updates))
+    assert updates == [str(packet.map_id)]
+    assert q10_api.maps.detail_packet is packet
+    assert q10_api.maps.detail_image_content is not None
+    message_queue.put_nowait(replace(packet, map_id=999))
+    await _wait_for(lambda: len(updates) == 2)
+    assert updates == [str(packet.map_id), "999"]
+    assert q10_api.map.image_content is None
 
 
 async def test_saved_map_detail_refresh_requires_stored_map_id(q10_api: Q10PropertiesApi) -> None:
@@ -788,50 +665,93 @@ def test_map_content_trait_as_dict_camelizes_child_keys() -> None:
     assert data["robotPosition"] == {"x": 25875, "y": 26125}
 
 
-@pytest.mark.parametrize("failure", ["timeout", "send_timeout", "cancel", "send_error", "close"])
-async def test_saved_map_detail_recovers_and_ignores_late_response(
+@pytest.mark.parametrize("failure", ["cancel", "send_error"])
+async def test_saved_map_publication_recovers(
     q10_api: Q10PropertiesApi,
+    mock_channel: FakeB01Q10Channel,
     failure: str,
 ) -> None:
-    packet = parse_map_packet(b"\x04\x01" + FIXTURE.read_bytes()[2:])
-    map_id = str(packet.map_id)
+    q10_api.maps.update_from_dps({B01_Q10_DP.MULTI_MAP: {"data": [{"id": "12345"}], "op": "list", "result": 1}})
+    if failure == "cancel":
+        mock_channel.send_gate = asyncio.Event()
+    else:
+        mock_channel.send_error = RoborockException("publish failed")
+    request = asyncio.create_task(q10_api.maps.refresh_detail("12345"))
+    await mock_channel.send_started.wait()
+    if failure == "cancel":
+        request.cancel()
+    with pytest.raises(asyncio.CancelledError if failure == "cancel" else RoborockException):
+        await request
+    mock_channel.send_gate = None
+    mock_channel.send_error = None
+    await q10_api.maps.refresh_detail("12345")
+    await q10_api.maps.refresh_detail("12345")
+    assert len(mock_channel.published_commands) == 2
+
+
+async def test_saved_map_selections_serialize_publication(
+    q10_api: Q10PropertiesApi,
+    mock_channel: FakeB01Q10Channel,
+) -> None:
     q10_api.maps.update_from_dps(
-        {B01_Q10_DP.MULTI_MAP: {"data": [{"id": map_id}, {"id": "999"}], "op": "list", "result": 1}}
+        {
+            B01_Q10_DP.MULTI_MAP: {
+                "data": [{"id": "12345"}, {"id": "67890"}],
+                "op": "list",
+                "result": 1,
+            }
+        }
     )
-
-    async def send(*args: object) -> None:
-        if failure == "send_error":
-            raise RoborockException("publish failed")
-        if failure in {"send_timeout", "cancel", "close"}:
-            await asyncio.Future()
-
-    with (
-        patch("roborock.devices.traits.b01.q10.maps._DETAIL_TIMEOUT", 0.01),
-        patch.object(q10_api.command, "send", side_effect=send),
-    ):
-        request = asyncio.create_task(q10_api.maps.refresh_detail(map_id))
-        await asyncio.sleep(0)
-        if failure == "cancel":
-            request.cancel()
-        elif failure == "close":
-            q10_api.maps.close()
-        error = (
-            asyncio.CancelledError
-            if failure in {"cancel", "close"}
-            else (RoborockTimeout if "timeout" in failure else RoborockException)
-        )
-        with pytest.raises(error):
-            await request
-
-    q10_api.maps.update_from_map_packet(packet)
-    assert q10_api.maps.detail_packet is None
-    request = asyncio.create_task(q10_api.maps.refresh_detail("999"))
+    gate = asyncio.Event()
+    mock_channel.send_gate = gate
+    first = asyncio.create_task(q10_api.maps.refresh_detail("12345"))
+    await mock_channel.send_started.wait()
+    mock_channel.send_started.clear()
+    second = asyncio.create_task(q10_api.maps.refresh_detail("67890"))
     await asyncio.sleep(0)
+    assert not mock_channel.send_started.is_set()
+    gate.set()
+    await asyncio.gather(first, second)
+    assert [params["61"]["id"] for _, params in mock_channel.published_commands] == ["12345", "67890"]
+
+
+def test_saved_map_diagnostics_exclude_binary_content(q10_api: Q10PropertiesApi) -> None:
+    packet = parse_map_packet(b"\x04\x01" + FIXTURE.read_bytes()[2:])
     q10_api.maps.update_from_map_packet(packet)
-    assert not request.done()
-    accepted = replace(packet, map_id=999)
-    q10_api.maps.update_from_map_packet(accepted)
-    await request
-    q10_api.maps.update_from_map_packet(packet)
-    assert q10_api.maps.detail_map_id == "999"
-    assert q10_api.maps.detail_packet is accepted
+    data = q10_api.as_dict()["maps"]
+    assert data == {"detailMapId": str(packet.map_id)}
+    assert q10_api.maps.detail_image_content is not None
+    assert q10_api.maps.as_dict(exclude={"detail_map_id"}) == {}
+    json.dumps(data)
+
+
+async def test_cli_listener_is_removed_after_timeout(q10_api: Q10PropertiesApi) -> None:
+    calls = []
+
+    def predicate() -> bool:
+        calls.append(True)
+        return False
+
+    assert not await _await_q10_map_push(q10_api, predicate, timeout=0.01)
+    calls.clear()
+    q10_api.map.update_from_trace_packet(Q10TracePacket())
+    assert calls == []
+
+
+async def test_cli_listener_is_removed_after_cancellation(
+    q10_api: Q10PropertiesApi,
+    mock_channel: FakeB01Q10Channel,
+) -> None:
+    calls = []
+
+    def predicate() -> bool:
+        calls.append(True)
+        return False
+
+    request = asyncio.create_task(_await_q10_map_push(q10_api, predicate, timeout=1))
+    await mock_channel.send_started.wait()
+    request.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await request
+    q10_api.map.update_from_trace_packet(Q10TracePacket())
+    assert calls == []
