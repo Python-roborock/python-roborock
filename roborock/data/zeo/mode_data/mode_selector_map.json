@@ -1,0 +1,248 @@
+[
+  {
+    "series": "isH1Lite",
+    "regions": {},
+    "default": 1676
+  },
+  {
+    "series": "isH1LiteResupply",
+    "regions": {},
+    "default": 1677
+  },
+  {
+    "series": "isH1LiteOverseas",
+    "regions": {
+      "tw": 1678,
+      "kr": 1679,
+      "ru": 1680,
+      "no": 1681,
+      "my": 1682
+    },
+    "default": 1683
+  },
+  {
+    "series": "isH1Overseas",
+    "regions": {
+      "jp": 1684,
+      "tw": 1685,
+      "kr": 1686,
+      "ru": 1687,
+      "ch": 1688
+    },
+    "default": 1689
+  },
+  {
+    "series": "isM1|isM1Overseas|isM1Resupply",
+    "regions": {
+      "jp": 1690,
+      "tw": 1691,
+      "kr": 1692,
+      "de": 1693,
+      "au": 1694,
+      "ru": 1695
+    },
+    "default": 1696
+  },
+  {
+    "series": "isH1C",
+    "regions": {},
+    "default": 1697
+  },
+  {
+    "series": "isH1COverseas",
+    "regions": {
+      "my": 1698,
+      "th": 1699,
+      "tw": 1700,
+      "kr": 1701,
+      "ru": 1702
+    },
+    "default": 1703
+  },
+  {
+    "series": "isM1Lite|isM1LiteThirdSupply",
+    "regions": {},
+    "default": 1704
+  },
+  {
+    "series": "isMuse",
+    "regions": {},
+    "default": 1705
+  },
+  {
+    "series": "isMuseOverSeas",
+    "regions": {
+      "my": 1706
+    },
+    "default": 1707
+  },
+  {
+    "series": "isMitty",
+    "regions": {},
+    "default": 1708
+  },
+  {
+    "series": "isMetis",
+    "regions": {},
+    "default": 1709
+  },
+  {
+    "series": "isMetisOverSeas",
+    "regions": {},
+    "default": 1710
+  },
+  {
+    "series": "isHyperion",
+    "regions": {},
+    "default": 1711
+  },
+  {
+    "series": "isHyperionPro",
+    "regions": {},
+    "default": 1712
+  },
+  {
+    "series": "isHyperionPlus",
+    "regions": {},
+    "default": 1713
+  },
+  {
+    "series": "isHyperionOverseas",
+    "regions": {
+      "tw": 1714,
+      "kr": 1715,
+      "de": 1716
+    },
+    "default": 1714
+  },
+  {
+    "series": "isM1LiteOverseas",
+    "regions": {
+      "tw": 1717,
+      "de": 1718,
+      "th": 1719
+    },
+    "default": 1717
+  },
+  {
+    "series": "isPoseidon",
+    "regions": {},
+    "default": 1720
+  },
+  {
+    "series": "isPoseidonPro",
+    "regions": {},
+    "feature": "deep_self_clean",
+    "default": 1721
+  },
+  {
+    "series": "isPoseidonPro",
+    "regions": {},
+    "default": 1722
+  },
+  {
+    "series": "isPoseidonProPlus",
+    "regions": {},
+    "default": 1723
+  },
+  {
+    "series": "isPoseidonOverSeas",
+    "regions": {
+      "tw": 1724,
+      "kr": 1725,
+      "th": 1726,
+      "my": 1727
+    },
+    "default": 1724
+  },
+  {
+    "series": "isM1LitePlus|isM1LitePlusResupply",
+    "regions": {},
+    "default": 1728
+  },
+  {
+    "series": "isM1Plus",
+    "regions": {},
+    "default": 1729
+  },
+  {
+    "series": "isApolloPro|isApolloProOverSeas",
+    "regions": {},
+    "default": 1730
+  },
+  {
+    "series": "isApolloProPlus|isApolloProPlusOverSeas",
+    "regions": {},
+    "default": 1731
+  },
+  {
+    "series": "isHaliaLite",
+    "regions": {},
+    "default": 1732
+  },
+  {
+    "series": "isHalia",
+    "regions": {},
+    "default": 1733
+  },
+  {
+    "series": "isHera",
+    "regions": {},
+    "default": 1734
+  },
+  {
+    "series": "isHeraCe",
+    "regions": {},
+    "default": 1735
+  },
+  {
+    "series": "isHeraNo",
+    "regions": {},
+    "default": 1736
+  },
+  {
+    "series": "isHeraKr",
+    "regions": {},
+    "default": 1737
+  },
+  {
+    "series": "isHeraTw",
+    "regions": {},
+    "default": 1738
+  },
+  {
+    "series": "isPandora",
+    "regions": {},
+    "default": 1739
+  },
+  {
+    "series": "isPandoraCe",
+    "regions": {},
+    "default": 1740
+  },
+  {
+    "series": "isPandoraNo",
+    "regions": {},
+    "default": 1741
+  },
+  {
+    "series": "isPandoraKr",
+    "regions": {},
+    "default": 1742
+  },
+  {
+    "series": "isPandoraTw",
+    "regions": {},
+    "default": 1743
+  },
+  {
+    "series": "isMedusa",
+    "regions": {},
+    "default": 1744
+  },
+  {
+    "series": "fallback",
+    "regions": {},
+    "default": 1745
+  }
+]
