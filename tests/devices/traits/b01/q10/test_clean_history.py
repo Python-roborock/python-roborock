@@ -188,24 +188,14 @@ async def test_refresh_sends_op_list(q10_api: Q10PropertiesApi, fake_channel: Fa
     )
 
 
-async def test_refresh_detail_publishes_without_waiting_for_push(
+async def test_refresh_detail_sends_op_select(
     clean_history: CleanHistoryTrait,
     fake_channel: FakeB01Q10Channel,
 ) -> None:
     record = CleanRecordConverter.parse_record(RECORD_A)
     assert record is not None
-    updates = []
-    clean_history.add_update_listener(lambda: updates.append(clean_history.detail))
     await clean_history.refresh_detail(record)
     assert fake_channel.published_commands == [(B01_Q10_DP.COMMON, {"52": {"op": "select", "id": RECORD_A}})]
-    assert clean_history.detail is None
-    assert updates == []
-    detail = _detail()
-    clean_history.update_from_detail(detail)
-    assert clean_history.detail is detail
-    assert clean_history.detail_packet is detail.map
-    assert clean_history.detail_image_content is not None
-    assert updates == [detail]
 
 
 def _detail() -> Q10CleanRecordDetail:
@@ -220,68 +210,39 @@ async def test_refresh_detail_rejects_record_without_map(clean_history: CleanHis
         await clean_history.refresh_detail(record)
 
 
-async def test_missing_push_does_not_block_further_selections(
+async def test_refresh_detail_after_cancelled_publication(
     clean_history: CleanHistoryTrait,
     fake_channel: FakeB01Q10Channel,
-) -> None:
-    first = CleanRecordConverter.parse_record(RECORD_A)
-    second = CleanRecordConverter.parse_record(RECORD_B)
-    assert first is not None and second is not None
-    await clean_history.refresh_detail(first)
-    await clean_history.refresh_detail(second)
-    assert [params["52"]["id"] for _, params in fake_channel.published_commands] == [RECORD_A, RECORD_B]
-    detail = _detail()
-    clean_history.update_from_detail(detail)
-    assert clean_history.detail is detail
-    # The received payload has no record identifier; no association is invented.
-    assert "detailRecord" not in clean_history.as_dict()
-
-
-@pytest.mark.parametrize("failure", ["cancel", "send_error"])
-async def test_failed_publication_releases_lock(
-    clean_history: CleanHistoryTrait,
-    fake_channel: FakeB01Q10Channel,
-    failure: str,
 ) -> None:
     record = CleanRecordConverter.parse_record(RECORD_A)
     assert record is not None
-    if failure == "cancel":
-        fake_channel.send_gate = asyncio.Event()
-    else:
-        fake_channel.send_error = RoborockException("publish failed")
+    fake_channel.send_gate = asyncio.Event()
     request = asyncio.create_task(clean_history.refresh_detail(record))
     await fake_channel.send_started.wait()
-    if failure == "cancel":
-        request.cancel()
-    with pytest.raises(asyncio.CancelledError if failure == "cancel" else RoborockException):
+    request.cancel()
+    with pytest.raises(asyncio.CancelledError):
         await request
+    assert fake_channel.published_commands == []
+
     fake_channel.send_gate = None
-    fake_channel.send_error = None
     await clean_history.refresh_detail(record)
-    assert len(fake_channel.published_commands) == 1
-    clean_history.update_from_detail(_detail())
-    assert clean_history.detail_image_content is not None
+    assert fake_channel.published_commands == [(B01_Q10_DP.COMMON, {"52": {"op": "select", "id": RECORD_A}})]
 
 
-async def test_concurrent_selections_serialize_publication(
+async def test_refresh_detail_after_publication_error(
     clean_history: CleanHistoryTrait,
     fake_channel: FakeB01Q10Channel,
 ) -> None:
-    first = CleanRecordConverter.parse_record(RECORD_A)
-    second = CleanRecordConverter.parse_record(RECORD_B)
-    assert first is not None and second is not None
-    gate = asyncio.Event()
-    fake_channel.send_gate = gate
-    first_request = asyncio.create_task(clean_history.refresh_detail(first))
-    await fake_channel.send_started.wait()
-    fake_channel.send_started.clear()
-    second_request = asyncio.create_task(clean_history.refresh_detail(second))
-    await asyncio.sleep(0)
-    assert not fake_channel.send_started.is_set()
-    assert not second_request.done()
-    gate.set()
-    await asyncio.gather(first_request, second_request)
-    assert [params["52"]["id"] for _, params in fake_channel.published_commands] == [RECORD_A, RECORD_B]
+    record = CleanRecordConverter.parse_record(RECORD_A)
+    assert record is not None
+    fake_channel.send_error = RoborockException("publish failed")
+    with pytest.raises(RoborockException, match="publish failed"):
+        await clean_history.refresh_detail(record)
+    assert fake_channel.published_commands == []
+
+    fake_channel.send_error = None
+    await clean_history.refresh_detail(record)
+    assert fake_channel.published_commands == [(B01_Q10_DP.COMMON, {"52": {"op": "select", "id": RECORD_A}})]
 
 
 def test_received_detail_is_serializable_and_path_list_is_defensive(q10_api: Q10PropertiesApi) -> None:

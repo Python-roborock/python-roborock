@@ -43,47 +43,38 @@ This speeds up startup time and reduces load on the Roborock cloud APIs.
 
 ## Q10 archive updates
 
-Q10 traits are push driven. `refresh_detail()` publishes a selection and returns
-when the command has been sent. It does not wait for the map response. Register
-an update listener before requesting data, and read the trait when it notifies
-you. A history listener can also fire for record-list updates; compare the
-received detail with the previous detail to distinguish archive updates.
+Archive updates use the same push-driven pattern as all other Q10 traits.
+Register an update listener and update your view's state from the trait when the
+callback runs. `refresh_detail()` publishes a selection; the device sends the
+archive independently through its push stream. A history listener can also fire
+for record-list updates, so read whichever properties your view displays on each
+callback.
 
 ```python
-import asyncio
-
 from roborock.devices.traits.b01.q10 import Q10PropertiesApi
 
 
-async def request_archive_preview(properties: Q10PropertiesApi) -> bytes | None:
-    history = properties.clean_history
-    previous_detail = history.detail
-    received = asyncio.Event()
+class ArchivePreview:
+    def __init__(self, properties: Q10PropertiesApi) -> None:
+        self.history = properties.clean_history
+        self.image_content = self.history.detail_image_content
+        self._unsubscribe = self.history.add_update_listener(self._archive_updated)
 
-    def archive_updated() -> None:
-        if history.detail is not previous_detail:
-            received.set()
+    def _archive_updated(self) -> None:
+        self.image_content = self.history.detail_image_content
+        # Notify your UI to redraw using the latest received image.
 
-    record = history.last_record  # Populated by an earlier history list push.
-    if record is None or not record.map_len:
-        return None
-    unsubscribe = history.add_update_listener(archive_updated)
-    try:
-        # This caller chooses to wait; the trait itself only publishes.
-        async with asyncio.timeout(30):
-            await history.refresh_detail(record)
-            await received.wait()
-        return history.detail_image_content
-    finally:
-        unsubscribe()
+    async def select_latest_record(self) -> None:
+        record = self.history.last_record
+        if record is not None and record.map_len:
+            await self.history.refresh_detail(record)
+
+    def close(self) -> None:
+        self._unsubscribe()
 ```
 
-For a persistent archive view, keep its listener until the view closes. The
-example is a one-shot caller that waits for its own event with a deadline; that
-waiting policy belongs to the caller. A missing response does not block later
-requests. Publication failures and cancellation propagate to the caller, and
-the publication lock is released.
-The traits do not create response-waiting tasks or futures.
+Keep the listener registered while the view is open and unsubscribe when it
+closes. The callback receives updates regardless of which client requested them.
 
 Clean-record detail packets contain no record identifier. `detail` represents
 the latest received archive, including delayed or unsolicited pushes; it cannot
@@ -104,5 +95,4 @@ map or trace in `properties.map`.
 `properties.as_dict()` includes clean-history records and path data and
 saved-map metadata. Binary map grids and PNG bytes are excluded; access images
 through `detail_image_content`. Live map and trace updates use the usual trait
-listener API without revision counters. The CLI subscribes before requesting a
-push, then waits for an update satisfying its predicate, with a 30-second limit.
+listener API.
