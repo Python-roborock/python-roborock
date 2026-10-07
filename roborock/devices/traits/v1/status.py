@@ -15,6 +15,7 @@ from roborock import (
     get_current_cleaning_mode,
     get_water_mode_mapping,
     get_water_modes,
+    get_water_slide_mode_name,
     resolve_cleaning_mode,
 )
 from roborock.devices.traits.common import DpsDataConverter, TraitUpdateListener
@@ -103,6 +104,8 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
     def water_mode_name(self) -> str | None:
         if self.water_box_mode is None:
             return None
+        if self._device_features_trait.is_water_slide_mode_supported:
+            return get_water_slide_mode_name(self.water_box_mode)
         return self.water_mode_mapping.get(self.water_box_mode)
 
     @property
