@@ -88,23 +88,27 @@ class ZeoStatusTrait(RoborockBase, TraitUpdateListener):
         self._converter = DpsDataConverter.from_dataclass(type(self))
 
     def update_from_dps(self, decoded_dps: dict[int, Any]) -> bool:
-        """Update trait fields from raw device DPS data.
+        """Update trait fields from decoded device DPS data.
 
         Meta fields that arrive as JSON strings (``product_info``,
-        ``washing_log``) are parsed before conversion. Returns True if any
-        field changed (and notifies update listeners).
+        ``washing_log``) are parsed into objects before conversion. The parsing
+        writes to a local copy, so the dictionary owned by the caller is never
+        modified. Returns True if any field changed (and notifies update
+        listeners).
         """
         # JSON-string meta fields: parse them into dicts so the converter can
-        # build the typed containers / dicts from them.
+        # build the typed containers / dicts from them. These are parsed into a
+        # copy because the argument belongs to the caller.
+        parsed = dict(decoded_dps)
         for dp in (RoborockZeoProtocol.PRODUCT_INFO, RoborockZeoProtocol.WASHING_LOG):
-            raw = decoded_dps.get(int(dp))
+            raw = parsed.get(int(dp))
             if isinstance(raw, str):
                 try:
-                    decoded_dps[int(dp)] = json.loads(raw)
+                    parsed[int(dp)] = json.loads(raw)
                 except ValueError:
                     _LOGGER.debug("Failed to parse JSON for DP %s", dp, exc_info=True)
 
-        if self._converter.update_from_dps(self, decoded_dps):
+        if self._converter.update_from_dps(self, parsed):
             self._notify_update()
             return True
         return False
