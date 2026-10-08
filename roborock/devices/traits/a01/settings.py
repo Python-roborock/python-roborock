@@ -78,10 +78,11 @@ _FIELD_TO_DP: dict[str, RoborockZeoProtocol] = {
 def build_param_dps(params: ZeoStartParams) -> dict[RoborockZeoProtocol, Any]:
     """Map the params onto their DP ids for a START/preset frame.
 
-    - ``mode``/``program`` are always sent.
-    - Every other optional enum parameter is pushed only when it is non-null.
-    - ``total_time`` (DP 234) is only sent when ``> 0`` — it doubles as the
-      washer/dryer branch selector.
+    Every parameter that is set is sent; ``None`` means "not set" and is
+    omitted.  ``0`` is a real level for some parameters (``soak`` / ``rinse`` /
+    ``steam_volume``), so a zero-valued member is sent rather than dropped.
+    ``total_time`` (DP 234) is additionally only sent when ``> 0`` — it doubles
+    as the washer/dryer branch selector.
     """
     # TODO(program-config): ``total_time`` is a fixed programme-config value
     dps: dict[RoborockZeoProtocol, Any] = {}
@@ -90,11 +91,7 @@ def build_param_dps(params: ZeoStartParams) -> dict[RoborockZeoProtocol, Any]:
         if field_name == "total_time":
             if val is not None and val > 0:
                 dps[dp] = val
-        elif field_name in ("mode", "program"):
-            if val is not None:
-                dps[dp] = val
-        elif val is not None and int(val) != 0:
-            # Skip "empty" enum members (none/empty = 0) for optional parameters.
+        elif val is not None:
             dps[dp] = val
     return dps
 
