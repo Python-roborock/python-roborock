@@ -63,7 +63,7 @@ class ZeoWashLog(RoborockBase):
 
 @dataclass
 class ZeoStartParams(RoborockBase):
-    """All parameters that may be bundled with a START command.
+    """All parameters that may be sent with a START command.
 
     ``mode`` and ``program`` are mandatory for every device.  Every other
     field is optional — when ``None`` it is simply omitted from the MQTT
@@ -92,7 +92,7 @@ class ZeoStartParams(RoborockBase):
     soak: ZeoSoak | None = None
     dry_and_care: ZeoDryAndCare | None = None
 
-    # Feature-gated start options (DP 258 / DP 255). In the Bundle these are
+    # Feature-gated start options (DP 258 / DP 255). These come from
     # the programme's config ``defaultIonStatus`` and the UI's
     # ``wash_dry_linked`` state
     ion_deodorization: bool | None = None

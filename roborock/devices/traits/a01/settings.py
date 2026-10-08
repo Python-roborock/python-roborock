@@ -94,8 +94,7 @@ def build_param_dps(params: ZeoStartParams) -> dict[RoborockZeoProtocol, Any]:
             if val is not None:
                 dps[dp] = val
         elif val is not None and int(val) != 0:
-            # Skip "empty" enum members (null/none/empty = 0), matching the
-            # Bundle's `x != null` guards for optional parameters.
+            # Skip "empty" enum members (none/empty = 0) for optional parameters.
             dps[dp] = val
     return dps
 
