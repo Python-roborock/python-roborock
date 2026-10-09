@@ -17,11 +17,14 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
+from vacuum_map_parser_base.map_data import MapData
+
 from roborock.data import RoborockBase
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP, YXDeviceState
 from roborock.data.b01_q10.b01_q10_containers import Q10RoborockPoint
 from roborock.devices.traits.common import DpsDataConverter, TraitUpdateListener
 from roborock.exceptions import RoborockException
+from roborock.map.b01_grid_layers import GridCalibration
 from roborock.map.b01_q10_map_parser import (
     B01Q10MapParserConfig,
     Q10MapPacket,
@@ -30,7 +33,12 @@ from roborock.map.b01_q10_map_parser import (
     Q10TracePacket,
 )
 from roborock.map.b01_q10_overlays import parse_virtual_wall_blob, parse_zone_blob
-from roborock.map.b01_q10_render import Q10MapOverlays, render_q10_map
+from roborock.map.b01_q10_render import (
+    Q10MapOverlays,
+    build_base_q10_map_data,
+    render_q10_map,
+    solve_q10_calibration,
+)
 
 from .command import CommandTrait
 from .common import UpdatableTrait
@@ -105,6 +113,8 @@ class MapContentTrait(TraitUpdateListener):
         self._map_packet: Q10MapPacket | None = None
         self._trace_packet: Q10TracePacket | None = None
         self._image_content: bytes | None = None
+        self._base_map_data: MapData | None = None
+        self._trace_calibration: GridCalibration | None = None
         self._map_dps.add_update_listener(self._map_dps_updated)
 
     async def refresh(self) -> None:
@@ -151,6 +161,8 @@ class MapContentTrait(TraitUpdateListener):
     def update_from_map_packet(self, packet: Q10MapPacket) -> None:
         """Store a map-protocol update and render the latest sources."""
         self._map_packet = packet
+        self._base_map_data = None
+        self._trace_calibration = None
         self._render()
         self._notify_update()
 
@@ -164,6 +176,8 @@ class MapContentTrait(TraitUpdateListener):
         """Render after the low-level map DPS source changes."""
         if self._map_packet is None:
             return
+        self._base_map_data = None
+        self._trace_calibration = None
         self._render()
         self._notify_update()
 
@@ -172,12 +186,19 @@ class MapContentTrait(TraitUpdateListener):
         if self._map_packet is None:
             return
         try:
+            if self._base_map_data is None:
+                self._base_map_data = build_base_q10_map_data(self._map_packet, config=self._config)
+            trace = self._trace_packet if not self._map_dps.robot_at_dock else None
+            if self._trace_calibration is None and trace is not None:
+                self._trace_calibration = solve_q10_calibration(self._map_packet, trace)
             self._image_content = render_q10_map(
                 self._map_packet,
-                self._trace_packet if not self._map_dps.robot_at_dock else None,
+                trace,
                 self._map_dps.overlays,
                 config=self._config,
                 robot_at_dock=self._map_dps.robot_at_dock,
+                base_map_data=self._base_map_data,
+                trace_calibration=self._trace_calibration,
             )
         except RoborockException as ex:
             _LOGGER.debug("Failed to render Q10 map packet: %s", ex)
