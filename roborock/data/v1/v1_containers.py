@@ -1,5 +1,6 @@
 import datetime
 import logging
+import warnings
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
@@ -71,6 +72,39 @@ class StatusField(FieldNameBase):
     CLEAN_PERCENT = "clean_percent"
     DOCK_ERROR_STATUS = "dock_error_status"
     RDT = "rdt"
+
+
+def get_dock_state(
+    state: RoborockStateCode | int | None,
+    battery: int | None,
+    charge_status: RoborockChargeStatus | int | None = None,
+    *,
+    is_supported_valley_electricity: bool = False,
+) -> RoborockDockState:
+    """Return the dock state, accounting for off-peak charging support."""
+    if state is None or state == RoborockStateCode.unknown:
+        return RoborockDockState.unknown
+
+    # 6. DUSTING
+    if state == RoborockStateCode.emptying_the_bin:
+        return RoborockDockState.dusting
+
+    # 5. FULL
+    if state == RoborockStateCode.charging_complete or (state == RoborockStateCode.charging and battery == 100):
+        return RoborockDockState.full
+
+    # 3 & 4. CHARGING and CHARGE_WAITING
+    if state == RoborockStateCode.charging:
+        if is_supported_valley_electricity and charge_status == RoborockChargeStatus.charge_waiting:
+            return RoborockDockState.off_peak_waiting
+        return RoborockDockState.charging
+
+    # 2. RECHARGING
+    if state in (RoborockStateCode.returning_home, RoborockStateCode.docking):
+        return RoborockDockState.returning
+
+    # 1. IDLE (Not on dock, or doing something else)
+    return RoborockDockState.idle
 
 
 @dataclass
@@ -219,36 +253,26 @@ class StatusV2(RoborockBase):
     def dock_state(self) -> RoborockDockState:
         """A synthesized, high-level dock state reflecting the UI's display.
 
-        This property simplifies integration by handling the complex logic
-        of checking state, charge_status, and battery level simultaneously. It handles
-        newer off-peak charging logic seamlessly while maintaining backwards compatibility
-        with older devices.
+        .. deprecated::
+            Use StatusTrait.dock_state or get_dock_state instead.
         """
-        if self.state is None or self.state == RoborockStateCode.unknown:
-            return RoborockDockState.unknown
+        warnings.warn(
+            "StatusV2.dock_state is deprecated and will be removed in a future release. "
+            "Use StatusTrait.dock_state or get_dock_state instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return get_dock_state(
+            state=self.state,
+            battery=self.battery,
+            charge_status=self.charge_status,
+            is_supported_valley_electricity=True,
+        )
 
-        # 6. DUSTING
-        if self.state == RoborockStateCode.emptying_the_bin:
-            return RoborockDockState.dusting
-
-        # 5. FULL
-        if self.state == RoborockStateCode.charging_complete or (
-            self.state == RoborockStateCode.charging and self.battery == 100
-        ):
-            return RoborockDockState.full
-
-        # 3 & 4. CHARGING and CHARGE_WAITING
-        if self.state == RoborockStateCode.charging:
-            if self.charge_status == RoborockChargeStatus.charge_waiting:
-                return RoborockDockState.off_peak_waiting
-            return RoborockDockState.charging
-
-        # 2. RECHARGING
-        if self.state in (RoborockStateCode.returning_home, RoborockStateCode.docking):
-            return RoborockDockState.returning
-
-        # 1. IDLE (Not on dock, or doing something else)
-        return RoborockDockState.idle
+    @property
+    def is_battery_charging(self) -> bool:
+        """Return whether the battery is actively charging."""
+        return self.dock_state == RoborockDockState.charging
 
     def __repr__(self) -> str:
         return _attr_repr(self)
