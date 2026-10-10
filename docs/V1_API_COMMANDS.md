@@ -1724,15 +1724,17 @@ Example:
 
 ### get_water_box_custom_mode
 
-Description: Get water box mode.
+Description: Get the current water box / flow mode.
 
 Parameters: None
 
-Returns: Enumeration for water box mode. 203
+Returns: Integer code representing the water box mode (e.g. `200`, `201`, `202`, `203`, `209`). See `set_water_box_custom_mode` below for the full mode enumeration.
 
-<!--
-    Not clear what this does - require Enumeration
--->
+**Supported devices:**
+
+* Roborock S7 MaxV Ultra: ✅
+* Roborock S8 Pro Ultra: ✅
+* Roborock S8 MaxV Ultra: ✅
 
 
 ### get_clean_follow_ground_material_status
@@ -1747,16 +1749,37 @@ Parameters: None
 
 ### set_water_box_custom_mode
 
-Description: Set the water box mode.
+Description: Set the water box / mopping water flow mode. Setting mode `200` turns off water dispensing completely (used for vacuum-only cleaning). To perform mop-only cleaning without vacuuming, pair water mode with turning off the vacuum fan (`set_custom_mode` to `105` / `VacuumModes.OFF`).
 
-Parameters: {'water_box_mode': 203}
+Parameters: Integer mode code inside a list or dictionary, e.g. `[200]` or `{'water_box_mode': 200}`.
 
-Returns: ok or error
+CLI Example:
 
-<!--
-    Not clear what this does - require Enumeration
--->
+```bash
+roborock -d command --device_id <DeviceID> --cmd set_water_box_custom_mode --params '[200]'
+```
+
+**Standard Water Box Modes (`WaterModes`):**
+
+| Code | Name | Description |
+| :--- | :--- | :--- |
+| `200` | Off | No water flow (used for vacuum only) |
+| `201` | Low / Mild | Low water flow |
+| `202` | Medium / Standard | Medium water flow |
+| `203` | High / Intense | High water flow |
+| `204` | Customized | Device-customized setting |
+| `205` | Min | Minimum water flow |
+| `206` | Max | Maximum water flow |
+| `207` | Custom | Custom water flow rate |
+| `208` | Extreme | Extreme water flow |
+| `209` | Smart Mode | SmartPlan / AI automated mode |
+
+*Note: Devices with water slide support use positions `221`–`250` (`PURE_WATER_FLOW_*`) for granular slider control.*
+
+Returns: `ok` or error
 
 **Supported devices:**
 
+* Roborock S7 MaxV Ultra: ✅
 * Roborock S8 Pro Ultra: ✅
+* Roborock S8 MaxV Ultra: ✅
