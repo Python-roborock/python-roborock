@@ -1783,4 +1783,3 @@ Returns: `ok` or error
 * Roborock S7 MaxV Ultra: ✅
 * Roborock S8 Pro Ultra: ✅
 * Roborock S8 MaxV Ultra: ✅
-
