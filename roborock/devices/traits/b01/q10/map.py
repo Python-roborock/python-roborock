@@ -25,19 +25,28 @@ from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
     B01Q10MapParserConfig,
     Q10MapPacket,
+    Q10MapPacketKind,
+    Q10Obstacle,
     Q10Point,
     Q10Room,
     Q10TracePacket,
 )
 from roborock.map.b01_q10_overlays import parse_virtual_wall_blob, parse_zone_blob
-from roborock.map.b01_q10_render import Q10MapOverlays, render_q10_map
+from roborock.map.b01_q10_render import Q10MapOverlays, render_q10_map, resolve_q10_current_room
 
 from .command import CommandTrait
 from .common import UpdatableTrait
-from .maps import MapsTrait
 
 _LOGGER = logging.getLogger(__name__)
 _DOCKED_STATES = {YXDeviceState.CHARGING, YXDeviceState.EMPTYING_THE_BIN}
+_CURRENT_ROOM_STATES = {
+    YXDeviceState.CLEANING,
+    YXDeviceState.PAUSED,
+    YXDeviceState.SWEEPING,
+    YXDeviceState.MOPPING,
+    YXDeviceState.SWEEP_AND_MOP,
+    YXDeviceState.TRANSITIONING,
+}
 
 
 @dataclass
@@ -84,15 +93,13 @@ class MapContentTrait(TraitUpdateListener):
     """High-level composed Q10 map view.
 
     The latest map and trace packets are combined with the injected
-    :class:`MapDpsTrait` whenever a source changes. The
-    :class:`MapsTrait` supplies a stored ID only when this trait requests
-    content.
+    :class:`MapDpsTrait` whenever a source changes. Current-map acquisition is
+    independent of the saved-map list.
     """
 
     def __init__(
         self,
         map_dps: MapDpsTrait,
-        maps: MapsTrait,
         command: CommandTrait,
         *,
         map_parser_config: B01Q10MapParserConfig | None = None,
@@ -100,11 +107,13 @@ class MapContentTrait(TraitUpdateListener):
         TraitUpdateListener.__init__(self, logger=_LOGGER)
         self._config = map_parser_config or B01Q10MapParserConfig()
         self._map_dps = map_dps
-        self._maps = maps
         self._command = command
         self._map_packet: Q10MapPacket | None = None
         self._trace_packet: Q10TracePacket | None = None
+        self._current_room_trace_fresh = False
         self._image_content: bytes | None = None
+        self._map_revision = 0
+        self._trace_revision = 0
         self._map_dps.add_update_listener(self._map_dps_updated)
 
     async def refresh(self) -> None:
@@ -122,6 +131,16 @@ class MapContentTrait(TraitUpdateListener):
         return self._image_content
 
     @property
+    def map_revision(self) -> int:
+        """Monotonic revision incremented only by current-map packets."""
+        return self._map_revision
+
+    @property
+    def trace_revision(self) -> int:
+        """Monotonic revision incremented only by live-trace state changes."""
+        return self._trace_revision
+
+    @property
     def rooms(self) -> list[Q10Room]:
         """Rooms reported by the device."""
         return self._map_packet.rooms if self._map_packet else []
@@ -130,6 +149,11 @@ class MapContentTrait(TraitUpdateListener):
     def path(self) -> list[Q10Point]:
         """Full path in the Q10 trace coordinate space used by the map renderer."""
         return self._trace_packet.points if self._trace_packet else []
+
+    @property
+    def obstacles(self) -> list[Q10Obstacle]:
+        """Position-only obstacle markers reported by the current map."""
+        return list(self._map_packet.obstacles) if self._map_packet else []
 
     @property
     def robot_position(self) -> Q10RoborockPoint | None:
@@ -148,20 +172,58 @@ class MapContentTrait(TraitUpdateListener):
         """Current heading for orienting a robot marker on a caller-rendered map."""
         return self._trace_packet.heading if self._trace_packet else None
 
+    @property
+    def current_room(self) -> Q10Room | None:
+        """Room currently occupied during an active or paused cleaning task.
+
+        No authoritative active-segment field has been identified or observed
+        on ss07 firmware. This value is inferred conservatively from the latest
+        live robot position and segmented occupancy grid, and is ``None``
+        outside cleaning states or whenever the position cannot be mapped
+        unambiguously.
+        """
+        if (
+            self._map_dps.status not in _CURRENT_ROOM_STATES
+            or self._map_packet is None
+            or self._trace_packet is None
+            or not self._current_room_trace_fresh
+        ):
+            return None
+        return resolve_q10_current_room(self._map_packet, self._trace_packet)
+
     def update_from_map_packet(self, packet: Q10MapPacket) -> None:
         """Store a map-protocol update and render the latest sources."""
+        if packet.kind is not Q10MapPacketKind.CURRENT:
+            raise ValueError(f"Expected a current Q10 map packet, got {packet.kind.value}")
         self._map_packet = packet
+        self._map_revision += 1
         self._render()
         self._notify_update()
 
     def update_from_trace_packet(self, packet: Q10TracePacket) -> None:
         """Store a trace-protocol update and render the latest sources."""
-        self._trace_packet = packet
+        self._trace_packet = None if self._map_dps.robot_at_dock else packet
+        # A trace can precede the first status push during startup, but a trace
+        # received while an explicitly inactive state is known must never be
+        # reused as the position for a later cleaning session.
+        self._current_room_trace_fresh = self._trace_packet is not None and (
+            self._map_dps.status is None or self._map_dps.status in _CURRENT_ROOM_STATES
+        )
+        self._trace_revision += 1
         self._render()
         self._notify_update()
 
     def _map_dps_updated(self) -> None:
         """Render after the low-level map DPS source changes."""
+        if self._map_dps.status is not None and self._map_dps.status not in _CURRENT_ROOM_STATES:
+            self._current_room_trace_fresh = False
+        if self._map_dps.robot_at_dock and self._trace_packet is not None:
+            # A completed cleaning trace is not the current robot position once
+            # the device is docked. Clear the public live-path state even if the
+            # firmware does not send its usual zero-point trace.
+            self._trace_packet = None
+            self._current_room_trace_fresh = False
+            self._trace_revision += 1
         if self._map_packet is None:
             return
         self._render()
@@ -186,13 +248,16 @@ class MapContentTrait(TraitUpdateListener):
     def as_dict(self, exclude: set[str] | None = None) -> dict[str, Any]:
         """Return the trait data as a dictionary, excluding large binary data."""
         exclude_set = exclude or set()
+        current_room = self.current_room
         data = {
             "rooms": [room.as_dict() for room in self.rooms],
+            "obstacles": [obstacle.as_dict() for obstacle in self.obstacles],
             "path": [point.as_dict() for point in self.path],
             "robotPosition": (
                 {"x": position.x, "y": position.y} if (position := self.robot_position) is not None else None
             ),
             "robotHeading": self.robot_heading,
+            "currentRoom": current_room.as_dict() if current_room is not None else None,
         }
         for key in exclude_set:
             data.pop(key, None)
