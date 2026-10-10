@@ -79,10 +79,11 @@ def build_q10_message(payload: bytes) -> Q10Message:
 
 async def wait_for_attribute_value(obj: Any, attribute: str, value: Any, timeout: float = 2.0) -> None:
     """Wait for an attribute on an object to reach a specific value."""
-    for _ in range(int(timeout / 0.1)):
+    step = 0.005
+    for _ in range(int(timeout / step)):
         if getattr(obj, attribute) == value:
             return
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(step)
     pytest.fail(f"Timeout waiting for {attribute} to become {value} on {obj}")
 
 

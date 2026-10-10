@@ -1,11 +1,24 @@
+import asyncio
+from base64 import b64decode
 from collections.abc import Awaitable, Callable
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 
-from roborock.data.b01_q10.b01_q10_code_mappings import YXCleanType, YXFanLevel
+from roborock.data.b01_q10.b01_q10_code_mappings import (
+    B01_Q10_DP,
+    YXCleanType,
+    YXDeviceCleanTask,
+    YXDeviceState,
+    YXFanLevel,
+)
+from roborock.data.b01_q10.b01_q10_containers import Q10RoborockPoint
 from roborock.devices.traits.b01.q10 import Q10PropertiesApi
+from roborock.devices.traits.b01.q10 import vacuum as vacuum_module
 from roborock.devices.traits.b01.q10.vacuum import VacuumTrait
+from roborock.exceptions import RoborockException
+from roborock.map.b01_q10_map_parser import Q10Point, Q10TracePacket
 
 from .conftest import FakeB01Q10Channel
 
@@ -49,3 +62,177 @@ async def test_vacuum_commands(
 
     assert command.code == dp_code
     assert params == expected_params
+
+
+async def test_clean_zone(
+    vacuum: VacuumTrait,
+    fake_channel: FakeB01Q10Channel,
+) -> None:
+    """Test the source-verified Q10 zone payload."""
+    await vacuum.clean_zone(
+        Q10RoborockPoint(25550, 25600),
+        Q10RoborockPoint(25650, 25700),
+        clean_count=2,
+    )
+
+    command, params = fake_channel.published_commands[0]
+    assert command.code == 201
+    assert params["cmd"] == 3
+    assert b64decode(params["clean_paramters"]) == bytes(
+        (
+            1,
+            2,
+            1,
+            4,
+            0,
+            10,
+            0,
+            20,
+            0,
+            30,
+            0,
+            20,
+            0,
+            30,
+            0,
+            40,
+            0,
+            10,
+            0,
+            40,
+            0,
+            *([0] * 19),
+        )
+    )
+
+
+@pytest.mark.parametrize("clean_count", [0, 4])
+async def test_clean_zone_rejects_invalid_clean_count(
+    vacuum: VacuumTrait,
+    clean_count: int,
+) -> None:
+    """Test that the device clean-count range is validated."""
+    with pytest.raises(ValueError, match="clean_count must be between 1 and 3"):
+        await vacuum.clean_zone(
+            Q10RoborockPoint(25550, 25600),
+            Q10RoborockPoint(25650, 25700),
+            clean_count=clean_count,
+        )
+
+
+async def test_goto_position_pauses_owned_zone_at_target(
+    q10_api: Q10PropertiesApi,
+    fake_channel: FakeB01Q10Channel,
+) -> None:
+    """A goto pauses after its own trace session reaches the target."""
+    q10_api.map.update_from_trace_packet(Q10TracePacket(points=[Q10Point(0, 0)], sequence=1))
+    q10_api.status.clean_task_type = YXDeviceCleanTask.DIVIDE_AREAS
+    q10_api.status.status = YXDeviceState.CLEANING
+
+    await q10_api.vacuum.goto_position(Q10RoborockPoint(29900, 28650))
+    assert q10_api.vacuum._goto_action is not None
+
+    q10_api.map.update_from_trace_packet(Q10TracePacket(points=[Q10Point(1760, 1260)], sequence=2))
+    command_task = q10_api.vacuum._goto_command_task
+    assert command_task is not None
+    await command_task
+
+    assert [command for command, _ in fake_channel.published_commands] == [
+        B01_Q10_DP.START_CLEAN,
+        B01_Q10_DP.PAUSE,
+    ]
+
+
+async def test_goto_position_does_not_pause_replacement_session(
+    q10_api: Q10PropertiesApi,
+    fake_channel: FakeB01Q10Channel,
+) -> None:
+    """A newer trace session is not controlled by an older goto monitor."""
+    q10_api.map.update_from_trace_packet(Q10TracePacket(points=[Q10Point(0, 0)], sequence=1))
+    q10_api.status.clean_task_type = YXDeviceCleanTask.DIVIDE_AREAS
+    q10_api.status.status = YXDeviceState.CLEANING
+
+    await q10_api.vacuum.goto_position(Q10RoborockPoint(29900, 28650))
+    assert q10_api.vacuum._goto_action is not None
+
+    q10_api.map.update_from_trace_packet(Q10TracePacket(points=[Q10Point(100, 100)], sequence=2))
+    await asyncio.sleep(0)
+    q10_api.map.update_from_trace_packet(Q10TracePacket(points=[Q10Point(1760, 1260)], sequence=3))
+    await asyncio.sleep(0)
+
+    assert [command for command, _ in fake_channel.published_commands] == [B01_Q10_DP.START_CLEAN]
+    assert q10_api.vacuum._goto_action is None
+
+
+async def test_goto_position_retries_pause(
+    q10_api: Q10PropertiesApi,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A transient pause failure is retried while the goto is still owned."""
+    q10_api.map.update_from_trace_packet(Q10TracePacket(points=[Q10Point(0, 0)], sequence=1))
+    q10_api.status.clean_task_type = YXDeviceCleanTask.DIVIDE_AREAS
+    q10_api.status.status = YXDeviceState.CLEANING
+    send = AsyncMock(side_effect=[None, RoborockException("pause failed"), None])
+    monkeypatch.setattr(q10_api.vacuum._command, "send", send)
+    monkeypatch.setattr(vacuum_module, "_GOTO_RETRY_INTERVAL", 0)
+
+    await q10_api.vacuum.goto_position(Q10RoborockPoint(29900, 28650))
+    q10_api.map.update_from_trace_packet(Q10TracePacket(points=[Q10Point(1760, 1260)], sequence=2))
+    async with asyncio.timeout(1):
+        while send.await_count < 3:
+            await asyncio.sleep(0)
+
+    assert [call.kwargs["command"] for call in send.await_args_list] == [
+        B01_Q10_DP.START_CLEAN,
+        B01_Q10_DP.PAUSE,
+        B01_Q10_DP.PAUSE,
+    ]
+
+
+async def test_goto_position_stops_owned_zone_after_timeout(
+    q10_api: Q10PropertiesApi,
+    fake_channel: FakeB01Q10Channel,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The safety timeout stops only the zone session owned by the goto."""
+    q10_api.map.update_from_trace_packet(Q10TracePacket(points=[Q10Point(0, 0)], sequence=1))
+    q10_api.status.clean_task_type = YXDeviceCleanTask.DIVIDE_AREAS
+    q10_api.status.status = YXDeviceState.CLEANING
+    monkeypatch.setattr(vacuum_module, "_GOTO_TIMEOUT", 0.01)
+    monkeypatch.setattr(vacuum_module, "_GOTO_RETRY_INTERVAL", 0)
+
+    await q10_api.vacuum.goto_position(Q10RoborockPoint(29900, 28650))
+    q10_api.map.update_from_trace_packet(Q10TracePacket(points=[Q10Point(100, 100)], sequence=2))
+    async with asyncio.timeout(1):
+        while len(fake_channel.published_commands) < 2:
+            await asyncio.sleep(0)
+
+    assert [command for command, _ in fake_channel.published_commands] == [
+        B01_Q10_DP.START_CLEAN,
+        B01_Q10_DP.STOP,
+    ]
+
+
+async def test_goto_position_at_current_position_pauses_owned_zone(
+    q10_api: Q10PropertiesApi,
+    fake_channel: FakeB01Q10Channel,
+) -> None:
+    """An early return pauses an active goto zone instead of orphaning it."""
+    q10_api.map.update_from_trace_packet(Q10TracePacket(points=[Q10Point(0, 0)], sequence=1))
+    q10_api.status.clean_task_type = YXDeviceCleanTask.DIVIDE_AREAS
+    q10_api.status.status = YXDeviceState.CLEANING
+    await q10_api.vacuum.goto_position(Q10RoborockPoint(29900, 28650))
+    timeout_task = q10_api.vacuum._goto_timeout_task
+    assert timeout_task is not None
+
+    q10_api.map.update_from_trace_packet(Q10TracePacket(points=[Q10Point(100, 100)], sequence=2))
+    await asyncio.sleep(0)
+    await q10_api.vacuum.goto_position(Q10RoborockPoint(25750, 25750))
+    await asyncio.sleep(0)
+
+    assert q10_api.vacuum._goto_action is None
+    assert timeout_task.done()
+    assert [command for command, _ in fake_channel.published_commands] == [
+        B01_Q10_DP.START_CLEAN,
+        B01_Q10_DP.PAUSE,
+    ]

@@ -26,7 +26,7 @@ def response_queue_fixture() -> Generator[asyncio.Queue[bytes], None, None]:
     response_queue: asyncio.Queue[bytes] = asyncio.Queue()
     yield response_queue
     if not response_queue.empty():
-        warnings.warn("Some enqueued local device responses were not consumed during the test")
+        warnings.warn("Some enqueued local device responses were not consumed during the test", stacklevel=2)
 
 
 @pytest.fixture(name="local_async_request_handler")

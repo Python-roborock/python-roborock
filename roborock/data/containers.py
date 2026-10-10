@@ -52,7 +52,7 @@ def _attr_repr(obj: Any) -> str:
             continue
         try:
             v = getattr(obj, k)
-        except (RuntimeError, Exception):
+        except Exception:  # noqa: BLE001
             continue
         if callable(v):
             continue
@@ -210,7 +210,7 @@ class Reference(RoborockBase):
     r: str | None = None
     a: str | None = None
     m: str | None = None
-    l: str | None = None
+    l: str | None = None  # noqa: E741
 
 
 @dataclass
@@ -349,6 +349,24 @@ class HomeDataScene(RoborockBase):
 
 
 @dataclass
+class FirmwareInfo(RoborockBase):
+    """Firmware/OTA info from the cloud (`ota/firmware/{duid}/updatev2`)."""
+
+    version: str | None = None
+    """Latest available firmware version."""
+    current_version: str | None = None
+    """Currently installed firmware version."""
+    updatable: bool | None = None
+    """Whether a newer firmware is available to install."""
+    desc: str | None = None
+    """Release notes / description."""
+    release_time: str | None = None
+    """Release date of the available firmware as an ISO-8601 date (``YYYY-MM-DD``)."""
+    force_update: bool | None = None
+    """Whether the update is mandatory (cannot be skipped)."""
+
+
+@dataclass
 class HomeDataSchedule(RoborockBase):
     id: int
     cron: str
@@ -361,9 +379,9 @@ class HomeDataSchedule(RoborockBase):
 class HomeData(RoborockBase):
     id: int
     name: str
-    products: list[HomeDataProduct] = field(default_factory=lambda: [])
-    devices: list[HomeDataDevice] = field(default_factory=lambda: [])
-    received_devices: list[HomeDataDevice] = field(default_factory=lambda: [])
+    products: list[HomeDataProduct] = field(default_factory=list)
+    devices: list[HomeDataDevice] = field(default_factory=list)
+    received_devices: list[HomeDataDevice] = field(default_factory=list)
     lon: Any | None = None
     lat: Any | None = None
     geo_name: Any | None = None

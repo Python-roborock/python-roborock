@@ -57,9 +57,10 @@ class WaterModes(RoborockModeEnum):
     SMART_MODE = ("smart_mode", 209)
     PURE_WATER_FLOW_START = ("slight", 221)
     PURE_WATER_FLOW_SMALL = ("low", 225)
+    PURE_WATER_FLOW_GENTLE = ("gentle", 230)
     PURE_WATER_FLOW_MIDDLE = ("medium", 235)
-    PURE_WATER_FLOW_LARGE = ("moderate", 245)
-    PURE_WATER_SUPER_BEGIN = ("high", 248)
+    PURE_WATER_FLOW_LARGE = ("moderate", 240)
+    PURE_WATER_SUPER_BEGIN = ("high", 245)
     PURE_WATER_FLOW_END = ("extreme", 250)
 
 
@@ -91,11 +92,24 @@ WATER_SLIDE_MODE_MAPPING: dict[int, WaterModes] = {
     200: WaterModes.OFF,
     221: WaterModes.PURE_WATER_FLOW_START,
     225: WaterModes.PURE_WATER_FLOW_SMALL,
+    230: WaterModes.PURE_WATER_FLOW_GENTLE,
     235: WaterModes.PURE_WATER_FLOW_MIDDLE,
-    245: WaterModes.PURE_WATER_FLOW_LARGE,
-    248: WaterModes.PURE_WATER_SUPER_BEGIN,
+    240: WaterModes.PURE_WATER_FLOW_LARGE,
+    245: WaterModes.PURE_WATER_SUPER_BEGIN,
     250: WaterModes.PURE_WATER_FLOW_END,
 }
+
+# Water slide devices report the raw slider position (1-30) as 220 + position.
+# The app groups positions into named ranges, keyed here by their last position.
+_WATER_SLIDE_RANGES: tuple[tuple[int, WaterModes], ...] = (
+    (3, WaterModes.PURE_WATER_FLOW_START),
+    (7, WaterModes.PURE_WATER_FLOW_SMALL),
+    (12, WaterModes.PURE_WATER_FLOW_GENTLE),
+    (17, WaterModes.PURE_WATER_FLOW_MIDDLE),
+    (22, WaterModes.PURE_WATER_FLOW_LARGE),
+    (27, WaterModes.PURE_WATER_SUPER_BEGIN),
+    (30, WaterModes.PURE_WATER_FLOW_END),
+)
 
 ModeEnumT = TypeVar("ModeEnumT", bound=RoborockModeEnum)
 
@@ -181,6 +195,19 @@ def get_water_modes(features: DeviceFeatures) -> list[WaterModes]:
         supported_modes.append(WaterModes.CUSTOMIZED)
 
     return supported_modes
+
+
+def get_water_slide_mode_name(code: int) -> str | None:
+    """Get the app's range name for a water slide code, or None if out of range."""
+    if code == 200:
+        return WaterModes.OFF.value
+    position = code - 220
+    if position < 1:
+        return None
+    for last_position, mode in _WATER_SLIDE_RANGES:
+        if position <= last_position:
+            return mode.value
+    return None
 
 
 def get_water_mode_mapping(features: DeviceFeatures) -> dict[int, str]:

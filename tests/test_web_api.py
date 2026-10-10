@@ -9,6 +9,8 @@ from aioresponses.compat import normalize_url
 from roborock import HomeData, HomeDataRoom, HomeDataScene, UserData
 from roborock.exceptions import RoborockAccountDoesNotExist, RoborockException, RoborockInvalidCredentials
 from roborock.web_api import (
+    DEFAULT_AGREEMENT_MAJOR_VERSION,
+    DEFAULT_AGREEMENT_MINOR_VERSION,
     IotLoginInfo,
     PreparedRequest,
     RoborockApiClient,
@@ -26,7 +28,6 @@ pytest_plugins = [
 @pytest.fixture(autouse=True)
 def auto_mock_rest_fixture(mock_rest: Any) -> None:
     """Auto use the mock rest fixture for all tests in this module."""
-    pass
 
 
 async def test_pass_login_flow() -> None:
@@ -81,6 +82,36 @@ async def test_get_scenes():
     ]
 
 
+async def test_get_firmware_info():
+    """Test that we can get firmware/OTA info for a device."""
+    api = RoborockApiClient(username="test_user@gmail.com")
+    ud = await api.pass_login("password")
+    fw = await api.get_firmware_info(ud, "abc123")
+    assert fw.version == "1.2.3"
+    assert fw.current_version == "1.2.0"
+    assert fw.updatable is True
+    assert fw.desc == "Bug fixes and improvements"
+    assert fw.release_time == "2026-05-01"
+    assert fw.force_update is False
+
+
+async def test_start_firmware_update():
+    """Test that we can trigger a firmware update for a device."""
+    api = RoborockApiClient(username="test_user@gmail.com")
+    ud = await api.pass_login("password")
+    # Should not raise when the API reports success.
+    await api.start_firmware_update(ud, "abc123")
+
+
+async def test_set_silent_ota():
+    """Test that we can toggle automatic firmware updates for a device."""
+    api = RoborockApiClient(username="test_user@gmail.com")
+    ud = await api.pass_login("password")
+    # Should not raise when the API reports success.
+    await api.set_silent_ota(ud, "abc123", True)
+    await api.set_silent_ota(ud, "abc123", False)
+
+
 async def test_execute_scene(mock_rest):
     """Test that we can execute a scene"""
     api = RoborockApiClient(username="test_user@gmail.com")
@@ -95,6 +126,57 @@ async def test_code_login_v4_flow(mock_rest) -> None:
     await api.request_code_v4()
     ud = await api.code_login_v4(4123, "US", 1)
     assert ud == UserData.from_dict(USER_DATA)
+
+
+async def test_code_login_v4_uses_latest_agreement_version(mock_rest) -> None:
+    """Test that the agreement version sent on login is fetched, not hardcoded.
+
+    The login endpoint rejects a stale agreement version with code 3006, and the
+    current version differs per server and country, so it cannot be hardcoded.
+    """
+    mock_rest.get(
+        re.compile(r"https://.*iot\.roborock\.com/api/v3/app/agreement/latest.*"),
+        status=200,
+        payload={"code": 200, "data": {"majorVersion": 19, "minorVersion": 1}, "msg": "success"},
+    )
+
+    api = RoborockApiClient(username="test_user@gmail.com")
+    await api.request_code_v4()
+    await api.code_login_v4(4123, "US", 1)
+
+    login_calls = [
+        (key, call)
+        for key, calls in mock_rest.requests.items()
+        for call in calls
+        if "api/v4/auth/email/login/code" in str(key[1])
+    ]
+    assert login_calls, "expected a v4 login request"
+    data = login_calls[-1][1].kwargs["data"]
+    assert data["majorVersion"] == 19
+    assert data["minorVersion"] == 1
+
+
+async def test_code_login_v4_agreement_version_fallback(mock_rest) -> None:
+    """Test that login still proceeds when the agreement version lookup fails."""
+    mock_rest.get(
+        re.compile(r"https://.*iot\.roborock\.com/api/v3/app/agreement/latest.*"),
+        exception=aiohttp.ClientError("boom"),
+    )
+
+    api = RoborockApiClient(username="test_user@gmail.com")
+    await api.request_code_v4()
+    ud = await api.code_login_v4(4123, "US", 1)
+    assert ud == UserData.from_dict(USER_DATA)
+
+    login_calls = [
+        (key, call)
+        for key, calls in mock_rest.requests.items()
+        for call in calls
+        if "api/v4/auth/email/login/code" in str(key[1])
+    ]
+    data = login_calls[-1][1].kwargs["data"]
+    assert data["majorVersion"] == DEFAULT_AGREEMENT_MAJOR_VERSION
+    assert data["minorVersion"] == DEFAULT_AGREEMENT_MINOR_VERSION
 
 
 async def test_code_login_v4_account_does_not_exist(mock_rest) -> None:

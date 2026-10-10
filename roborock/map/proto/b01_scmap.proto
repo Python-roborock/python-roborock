@@ -1,6 +1,6 @@
 // Checked-in B01/Q7 SCMap schema for the generated runtime protobuf module.
 // Regenerate the checked-in Python module after edits with:
-//   python -m grpc_tools.protoc -I./roborock/map/proto --python_out=./roborock/map/proto roborock/map/proto/b01_scmap.proto
+//   python -m grpc_tools.protoc -I. --python_out=. roborock/map/proto/b01_scmap.proto
 // The generated file `b01_scmap_pb2.py` is checked in for runtime use and should
 // not be edited by hand.
 syntax = "proto2";
@@ -47,6 +47,79 @@ message MapDataInfo {
   optional bytes mapData = 1;
 }
 
+message MapInfo {
+  optional uint32 mapId = 1;
+  optional string mapName = 2;
+}
+
+message DevicePoseDataInfo {
+  optional uint32 update = 1;
+  optional float x = 2;
+  optional float y = 3;
+}
+
+message DeviceHistoryPoseInfo {
+  optional uint32 poseId = 1;
+  repeated DevicePoseDataInfo points = 2;
+}
+
+message DevicePoseInfo {
+  optional float x = 1;
+  optional float y = 2;
+  optional float phi = 3;
+}
+
+message DeviceCurrentPoseInfo {
+  optional uint32 poseId = 1;
+  optional uint32 update = 2;
+  optional float x = 3;
+  optional float y = 4;
+  optional float phi = 5;
+}
+
+message DeviceAreaDataInfo {
+  optional uint32 status = 1;
+  optional uint32 type = 2;
+  optional uint32 areaIndex = 3;
+  repeated DevicePointInfo points = 4;
+}
+
+message RoomMatrixInfo {
+  optional bytes matrix = 1;
+}
+
+message RoomOutlinePointInfo {
+  optional uint32 x = 1;
+  optional uint32 y = 2;
+  optional uint32 value = 3;
+}
+
+message RoomBorderPointInfo {
+  optional uint32 x = 1;
+  optional uint32 y = 2;
+}
+
+message RoomBorderInfo {
+  repeated RoomBorderPointInfo points = 1;
+  repeated uint32 roomIds = 2;
+}
+
+message RoomOutlineInfo {
+  optional uint32 roomId = 1;
+  repeated RoomOutlinePointInfo points = 2;
+  repeated RoomBorderInfo borders = 3;
+}
+
+message CarpetDataInfo {
+  optional uint32 carpetId = 1;
+  optional uint32 type = 2;
+  optional uint32 unknown3 = 3;
+  repeated DevicePointInfo points = 4;
+  optional uint32 enabled = 6;
+  optional uint32 unknown7 = 7;
+  optional uint32 unknown8 = 8;
+}
+
 message RoomDataInfo {
   optional uint32 roomId = 1;
   optional string roomName = 2;
@@ -66,5 +139,13 @@ message RobotMap {
   optional MapExtInfo mapExtInfo = 2;
   optional MapHeadInfo mapHead = 3;
   optional MapDataInfo mapData = 4;
+  repeated MapInfo mapInfo = 5;
+  optional DeviceHistoryPoseInfo historyPose = 6;
+  optional DevicePoseInfo chargeStation = 7;
+  optional DeviceCurrentPoseInfo currentPose = 8;
+  repeated DeviceAreaDataInfo areaInfo = 9;
   repeated RoomDataInfo roomDataInfo = 12;
+  optional RoomMatrixInfo roomMatrix = 13;
+  repeated RoomOutlineInfo roomOutline = 14;
+  repeated CarpetDataInfo carpetInfo = 20;
 }

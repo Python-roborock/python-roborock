@@ -165,7 +165,7 @@ class RoborockMqttSession(MqttSession):
                 await self._connection_task
             except asyncio.CancelledError:
                 _LOGGER.debug("MQTT connection task cancelled")
-            except Exception:
+            except Exception:  # noqa: BLE001
                 # Exceptions are logged and handled in _run_connection.
                 # There is a special case for exceptions on startup where we return
                 # immediately. Otherwise, we let the reconnect loop retry with

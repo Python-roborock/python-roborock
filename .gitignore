@@ -19,3 +19,6 @@ docs/_build/
 
 # GitHub App credentials
 gha-creds-*.json
+
+# pytest-benchmark storage
+.benchmarks/

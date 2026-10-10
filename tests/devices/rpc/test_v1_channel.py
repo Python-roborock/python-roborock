@@ -807,6 +807,7 @@ async def test_v1_channel_subscribe_failure_is_atomic(
     v1_channel: V1Channel,
     mock_mqtt_channel: FakeChannel,
     mock_local_channel: FakeChannel,
+    device_cache: DeviceCache,
 ) -> None:
     """A failure partway through subscribe() leaves the channel re-subscribable.
 
@@ -814,6 +815,11 @@ async def test_v1_channel_subscribe_failure_is_atomic(
     task and a partial subscription, so the next attempt could neither reuse nor
     cleanly recreate the channel.
     """
+    # Pre-populate device cache with network info so local connect is attempted immediately
+    device_cache_data = await device_cache.get()
+    device_cache_data.network_info = TEST_NETWORKING_INFO
+    await device_cache.set(device_cache_data)
+
     # Both transports down: local connect fails and the MQTT subscribe fails.
     mock_local_channel.connect.side_effect = RoborockException("local down")
     mock_mqtt_channel.subscribe.side_effect = RoborockException("mqtt down")

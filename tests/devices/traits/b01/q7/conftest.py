@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import Any
 
 import pytest
@@ -14,6 +15,8 @@ class FakeQ7Channel(Q7RpcChannel, Q7MapRpcChannel):
         self.published_commands: list[tuple[Any, Any]] = []
         self.response_queue: list[Any] = []
         self.side_effect: Exception | None = None
+        self.map_push_callback: Callable[[bytes], None] | None = None
+        self.map_push_subscribe_count = 0
 
     async def send_command(self, command: Any, params: Any = None) -> Any:
         if self.side_effect:
@@ -28,6 +31,15 @@ class FakeQ7Channel(Q7RpcChannel, Q7MapRpcChannel):
         if self.response_queue:
             return self.response_queue.pop(0)
         return b""
+
+    async def subscribe_map_pushes(self, callback: Callable[[bytes], None]) -> Callable[[], None]:
+        self.map_push_subscribe_count += 1
+        self.map_push_callback = callback
+
+        def unsub() -> None:
+            self.map_push_callback = None
+
+        return unsub
 
 
 @pytest.fixture(name="fake_channel")

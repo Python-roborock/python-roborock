@@ -12,6 +12,7 @@ import asyncio
 import json
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 import syrupy
@@ -364,8 +365,9 @@ async def test_l01_device(
     for payload in local_responses:
         local_response_queue.put_nowait(payload)
 
-    # Create the device manager
-    device_manager = await device_manager_factory(TEST_USER_PARAMS)
+    # Create the device manager with short local timeout for L01 fallback test
+    with patch("roborock.devices.transport.local_channel._TIMEOUT", 0.05):
+        device_manager = await device_manager_factory(TEST_USER_PARAMS)
 
     # The mocked Home Data API returns a single v1 device
     devices = await device_manager.get_devices()

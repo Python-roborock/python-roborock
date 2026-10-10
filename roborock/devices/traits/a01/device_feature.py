@@ -143,6 +143,13 @@ _UNSUPPORTED_FEATURE_BITS: frozenset[str] = frozenset(
     }
 )
 
+# Devices known to lack DEFAULT_SETTING (DP 225).
+_UNSUPPORTED_DEFAULT_SETTING: frozenset[str] = frozenset(
+    {
+        "roborock.wm.a63",  # H1
+    }
+)
+
 # Series that support UV light (DP 228).
 _UV_LIGHT_SERIES: frozenset[str] = (
     _H1_LITE_SERIES  # a90, a91, a237
@@ -242,6 +249,13 @@ def supports_feature_bits(model: str | None) -> bool:
     return model not in _UNSUPPORTED_FEATURE_BITS
 
 
+def supports_default_setting(model: str | None) -> bool:
+    """H1 (a63) does not support DP 225 even though it has a softener compartment."""
+    if model is None:
+        return True  # conservative: assume yes
+    return model not in _UNSUPPORTED_DEFAULT_SETTING
+
+
 def supports_remote_control(model: str | None) -> bool:
     """Remote control (DP 232) is supported on all overseas models."""
     if model is None:
@@ -308,6 +322,10 @@ def build_force_load_dp_list(model: str | None) -> list[RoborockZeoProtocol]:
     # ── Strip unsupported FEATURE_BITS ──
     if not supports_feature_bits(model):
         base = [dp for dp in base if dp != RoborockZeoProtocol.FEATURE_BITS]
+
+    # ── Strip unsupported DEFAULT_SETTING ──
+    if not supports_default_setting(model):
+        base = [dp for dp in base if dp != RoborockZeoProtocol.DEFAULT_SETTING]
 
     return base
 

@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\"roborock/map/proto/b01_scmap.proto\x12\tb01.scmap\"\'\n\x0f\x44\x65vicePointInfo\x12\t\n\x01x\x18\x01 \x01(\x02\x12\t\n\x01y\x18\x02 \x01(\x02\"]\n\x0fMapBoundaryInfo\x12\x0e\n\x06mapMd5\x18\x01 \x01(\t\x12\r\n\x05vMinX\x18\x02 \x01(\r\x12\r\n\x05vMaxX\x18\x03 \x01(\r\x12\r\n\x05vMinY\x18\x04 \x01(\r\x12\r\n\x05vMaxY\x18\x05 \x01(\r\"\xd9\x01\n\nMapExtInfo\x12\x15\n\rtaskBeginDate\x18\x01 \x01(\r\x12\x15\n\rmapUploadDate\x18\x02 \x01(\r\x12\x10\n\x08mapValid\x18\x03 \x01(\r\x12\x0e\n\x06radian\x18\x04 \x01(\r\x12\r\n\x05\x66orce\x18\x05 \x01(\r\x12\x11\n\tcleanPath\x18\x06 \x01(\r\x12/\n\x0b\x62oudaryInfo\x18\x07 \x01(\x0b\x32\x1a.b01.scmap.MapBoundaryInfo\x12\x12\n\nmapVersion\x18\x08 \x01(\r\x12\x14\n\x0cmapValueType\x18\t \x01(\r\"\x8a\x01\n\x0bMapHeadInfo\x12\x11\n\tmapHeadId\x18\x01 \x01(\r\x12\r\n\x05sizeX\x18\x02 \x01(\r\x12\r\n\x05sizeY\x18\x03 \x01(\r\x12\x0c\n\x04minX\x18\x04 \x01(\x02\x12\x0c\n\x04minY\x18\x05 \x01(\x02\x12\x0c\n\x04maxX\x18\x06 \x01(\x02\x12\x0c\n\x04maxY\x18\x07 \x01(\x02\x12\x12\n\nresolution\x18\x08 \x01(\x02\"\x1e\n\x0bMapDataInfo\x12\x0f\n\x07mapData\x18\x01 \x01(\x0c\"\x87\x02\n\x0cRoomDataInfo\x12\x0e\n\x06roomId\x18\x01 \x01(\r\x12\x10\n\x08roomName\x18\x02 \x01(\t\x12\x12\n\nroomTypeId\x18\x03 \x01(\r\x12\x12\n\nmeterialId\x18\x04 \x01(\r\x12\x12\n\ncleanState\x18\x05 \x01(\r\x12\x11\n\troomClean\x18\x06 \x01(\r\x12\x16\n\x0eroomCleanIndex\x18\x07 \x01(\r\x12\x30\n\x0croomNamePost\x18\x08 \x01(\x0b\x32\x1a.b01.scmap.DevicePointInfo\x12\x0f\n\x07\x63olorId\x18\n \x01(\r\x12\x17\n\x0f\x66loor_direction\x18\x0b \x01(\r\x12\x12\n\nglobal_seq\x18\x0c \x01(\r\"\xc7\x01\n\x08RobotMap\x12\x0f\n\x07mapType\x18\x01 \x01(\r\x12)\n\nmapExtInfo\x18\x02 \x01(\x0b\x32\x15.b01.scmap.MapExtInfo\x12\'\n\x07mapHead\x18\x03 \x01(\x0b\x32\x16.b01.scmap.MapHeadInfo\x12\'\n\x07mapData\x18\x04 \x01(\x0b\x32\x16.b01.scmap.MapDataInfo\x12-\n\x0croomDataInfo\x18\x0c \x03(\x0b\x32\x17.b01.scmap.RoomDataInfo')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\"roborock/map/proto/b01_scmap.proto\x12\tb01.scmap\"\'\n\x0f\x44\x65vicePointInfo\x12\t\n\x01x\x18\x01 \x01(\x02\x12\t\n\x01y\x18\x02 \x01(\x02\"]\n\x0fMapBoundaryInfo\x12\x0e\n\x06mapMd5\x18\x01 \x01(\t\x12\r\n\x05vMinX\x18\x02 \x01(\r\x12\r\n\x05vMaxX\x18\x03 \x01(\r\x12\r\n\x05vMinY\x18\x04 \x01(\r\x12\r\n\x05vMaxY\x18\x05 \x01(\r\"\xd9\x01\n\nMapExtInfo\x12\x15\n\rtaskBeginDate\x18\x01 \x01(\r\x12\x15\n\rmapUploadDate\x18\x02 \x01(\r\x12\x10\n\x08mapValid\x18\x03 \x01(\r\x12\x0e\n\x06radian\x18\x04 \x01(\r\x12\r\n\x05\x66orce\x18\x05 \x01(\r\x12\x11\n\tcleanPath\x18\x06 \x01(\r\x12/\n\x0b\x62oudaryInfo\x18\x07 \x01(\x0b\x32\x1a.b01.scmap.MapBoundaryInfo\x12\x12\n\nmapVersion\x18\x08 \x01(\r\x12\x14\n\x0cmapValueType\x18\t \x01(\r\"\x8a\x01\n\x0bMapHeadInfo\x12\x11\n\tmapHeadId\x18\x01 \x01(\r\x12\r\n\x05sizeX\x18\x02 \x01(\r\x12\r\n\x05sizeY\x18\x03 \x01(\r\x12\x0c\n\x04minX\x18\x04 \x01(\x02\x12\x0c\n\x04minY\x18\x05 \x01(\x02\x12\x0c\n\x04maxX\x18\x06 \x01(\x02\x12\x0c\n\x04maxY\x18\x07 \x01(\x02\x12\x12\n\nresolution\x18\x08 \x01(\x02\"\x1e\n\x0bMapDataInfo\x12\x0f\n\x07mapData\x18\x01 \x01(\x0c\")\n\x07MapInfo\x12\r\n\x05mapId\x18\x01 \x01(\r\x12\x0f\n\x07mapName\x18\x02 \x01(\t\":\n\x12\x44\x65vicePoseDataInfo\x12\x0e\n\x06update\x18\x01 \x01(\r\x12\t\n\x01x\x18\x02 \x01(\x02\x12\t\n\x01y\x18\x03 \x01(\x02\"V\n\x15\x44\x65viceHistoryPoseInfo\x12\x0e\n\x06poseId\x18\x01 \x01(\r\x12-\n\x06points\x18\x02 \x03(\x0b\x32\x1d.b01.scmap.DevicePoseDataInfo\"3\n\x0e\x44\x65vicePoseInfo\x12\t\n\x01x\x18\x01 \x01(\x02\x12\t\n\x01y\x18\x02 \x01(\x02\x12\x0b\n\x03phi\x18\x03 \x01(\x02\"Z\n\x15\x44\x65viceCurrentPoseInfo\x12\x0e\n\x06poseId\x18\x01 \x01(\r\x12\x0e\n\x06update\x18\x02 \x01(\r\x12\t\n\x01x\x18\x03 \x01(\x02\x12\t\n\x01y\x18\x04 \x01(\x02\x12\x0b\n\x03phi\x18\x05 \x01(\x02\"q\n\x12\x44\x65viceAreaDataInfo\x12\x0e\n\x06status\x18\x01 \x01(\r\x12\x0c\n\x04type\x18\x02 \x01(\r\x12\x11\n\tareaIndex\x18\x03 \x01(\r\x12*\n\x06points\x18\x04 \x03(\x0b\x32\x1a.b01.scmap.DevicePointInfo\" \n\x0eRoomMatrixInfo\x12\x0e\n\x06matrix\x18\x01 \x01(\x0c\";\n\x14RoomOutlinePointInfo\x12\t\n\x01x\x18\x01 \x01(\r\x12\t\n\x01y\x18\x02 \x01(\r\x12\r\n\x05value\x18\x03 \x01(\r\"+\n\x13RoomBorderPointInfo\x12\t\n\x01x\x18\x01 \x01(\r\x12\t\n\x01y\x18\x02 \x01(\r\"Q\n\x0eRoomBorderInfo\x12.\n\x06points\x18\x01 \x03(\x0b\x32\x1e.b01.scmap.RoomBorderPointInfo\x12\x0f\n\x07roomIds\x18\x02 \x03(\r\"~\n\x0fRoomOutlineInfo\x12\x0e\n\x06roomId\x18\x01 \x01(\r\x12/\n\x06points\x18\x02 \x03(\x0b\x32\x1f.b01.scmap.RoomOutlinePointInfo\x12*\n\x07\x62orders\x18\x03 \x03(\x0b\x32\x19.b01.scmap.RoomBorderInfo\"\xa3\x01\n\x0e\x43\x61rpetDataInfo\x12\x10\n\x08\x63\x61rpetId\x18\x01 \x01(\r\x12\x0c\n\x04type\x18\x02 \x01(\r\x12\x10\n\x08unknown3\x18\x03 \x01(\r\x12*\n\x06points\x18\x04 \x03(\x0b\x32\x1a.b01.scmap.DevicePointInfo\x12\x0f\n\x07\x65nabled\x18\x06 \x01(\r\x12\x10\n\x08unknown7\x18\x07 \x01(\r\x12\x10\n\x08unknown8\x18\x08 \x01(\r\"\x87\x02\n\x0cRoomDataInfo\x12\x0e\n\x06roomId\x18\x01 \x01(\r\x12\x10\n\x08roomName\x18\x02 \x01(\t\x12\x12\n\nroomTypeId\x18\x03 \x01(\r\x12\x12\n\nmeterialId\x18\x04 \x01(\r\x12\x12\n\ncleanState\x18\x05 \x01(\r\x12\x11\n\troomClean\x18\x06 \x01(\r\x12\x16\n\x0eroomCleanIndex\x18\x07 \x01(\r\x12\x30\n\x0croomNamePost\x18\x08 \x01(\x0b\x32\x1a.b01.scmap.DevicePointInfo\x12\x0f\n\x07\x63olorId\x18\n \x01(\r\x12\x17\n\x0f\x66loor_direction\x18\x0b \x01(\r\x12\x12\n\nglobal_seq\x18\x0c \x01(\r\"\xcc\x04\n\x08RobotMap\x12\x0f\n\x07mapType\x18\x01 \x01(\r\x12)\n\nmapExtInfo\x18\x02 \x01(\x0b\x32\x15.b01.scmap.MapExtInfo\x12\'\n\x07mapHead\x18\x03 \x01(\x0b\x32\x16.b01.scmap.MapHeadInfo\x12\'\n\x07mapData\x18\x04 \x01(\x0b\x32\x16.b01.scmap.MapDataInfo\x12#\n\x07mapInfo\x18\x05 \x03(\x0b\x32\x12.b01.scmap.MapInfo\x12\x35\n\x0bhistoryPose\x18\x06 \x01(\x0b\x32 .b01.scmap.DeviceHistoryPoseInfo\x12\x30\n\rchargeStation\x18\x07 \x01(\x0b\x32\x19.b01.scmap.DevicePoseInfo\x12\x35\n\x0b\x63urrentPose\x18\x08 \x01(\x0b\x32 .b01.scmap.DeviceCurrentPoseInfo\x12/\n\x08\x61reaInfo\x18\t \x03(\x0b\x32\x1d.b01.scmap.DeviceAreaDataInfo\x12-\n\x0croomDataInfo\x18\x0c \x03(\x0b\x32\x17.b01.scmap.RoomDataInfo\x12-\n\nroomMatrix\x18\r \x01(\x0b\x32\x19.b01.scmap.RoomMatrixInfo\x12/\n\x0broomOutline\x18\x0e \x03(\x0b\x32\x1a.b01.scmap.RoomOutlineInfo\x12-\n\ncarpetInfo\x18\x14 \x03(\x0b\x32\x19.b01.scmap.CarpetDataInfo')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -41,8 +41,32 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_MAPHEADINFO']._serialized_end=544
   _globals['_MAPDATAINFO']._serialized_start=546
   _globals['_MAPDATAINFO']._serialized_end=576
-  _globals['_ROOMDATAINFO']._serialized_start=579
-  _globals['_ROOMDATAINFO']._serialized_end=842
-  _globals['_ROBOTMAP']._serialized_start=845
-  _globals['_ROBOTMAP']._serialized_end=1044
+  _globals['_MAPINFO']._serialized_start=578
+  _globals['_MAPINFO']._serialized_end=619
+  _globals['_DEVICEPOSEDATAINFO']._serialized_start=621
+  _globals['_DEVICEPOSEDATAINFO']._serialized_end=679
+  _globals['_DEVICEHISTORYPOSEINFO']._serialized_start=681
+  _globals['_DEVICEHISTORYPOSEINFO']._serialized_end=767
+  _globals['_DEVICEPOSEINFO']._serialized_start=769
+  _globals['_DEVICEPOSEINFO']._serialized_end=820
+  _globals['_DEVICECURRENTPOSEINFO']._serialized_start=822
+  _globals['_DEVICECURRENTPOSEINFO']._serialized_end=912
+  _globals['_DEVICEAREADATAINFO']._serialized_start=914
+  _globals['_DEVICEAREADATAINFO']._serialized_end=1027
+  _globals['_ROOMMATRIXINFO']._serialized_start=1029
+  _globals['_ROOMMATRIXINFO']._serialized_end=1061
+  _globals['_ROOMOUTLINEPOINTINFO']._serialized_start=1063
+  _globals['_ROOMOUTLINEPOINTINFO']._serialized_end=1122
+  _globals['_ROOMBORDERPOINTINFO']._serialized_start=1124
+  _globals['_ROOMBORDERPOINTINFO']._serialized_end=1167
+  _globals['_ROOMBORDERINFO']._serialized_start=1169
+  _globals['_ROOMBORDERINFO']._serialized_end=1250
+  _globals['_ROOMOUTLINEINFO']._serialized_start=1252
+  _globals['_ROOMOUTLINEINFO']._serialized_end=1378
+  _globals['_CARPETDATAINFO']._serialized_start=1381
+  _globals['_CARPETDATAINFO']._serialized_end=1544
+  _globals['_ROOMDATAINFO']._serialized_start=1547
+  _globals['_ROOMDATAINFO']._serialized_end=1810
+  _globals['_ROBOTMAP']._serialized_start=1813
+  _globals['_ROBOTMAP']._serialized_end=2401
 # @@protoc_insertion_point(module_scope)

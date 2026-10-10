@@ -255,7 +255,7 @@ async def create_device_manager(
                 )
             case DeviceVersion.A01:
                 channel = create_mqtt_channel(user_data, mqtt_params, mqtt_session, device)
-                trait = a01.create(product, channel)
+                trait = a01.create(product, channel, device_status=device.device_status)
             case DeviceVersion.B01:
                 mqtt_channel = create_mqtt_channel(user_data, mqtt_params, mqtt_session, device)
                 model_part = product.model.split(".")[-1]

@@ -2,16 +2,20 @@
 
 import json
 import logging
+from base64 import b64encode
 from dataclasses import dataclass
+from struct import pack
 from typing import Any
 
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
+from roborock.data.b01_q10.b01_q10_containers import Q10RoborockPoint
 from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
+    Q10CleanRecordDetail,
     Q10MapPacket,
+    Q10MapPacketKind,
     Q10TracePacket,
-    is_map_packet,
-    is_trace_packet,
+    parse_clean_record_detail,
     parse_map_packet,
     parse_trace_packet,
 )
@@ -24,6 +28,51 @@ _LOGGER = logging.getLogger(__name__)
 
 B01_VERSION = b"B01"
 ParamsType = list | dict | int | None
+_Q10_ZONE_NAME_FIELD_LENGTH = 19
+
+
+@dataclass(frozen=True)
+class CleanParams:
+    """Parameters for one rectangular Q10 zone-clean task."""
+
+    first_corner: Q10RoborockPoint
+    second_corner: Q10RoborockPoint
+    clean_count: int = 1
+
+    @property
+    def points(self) -> tuple[Q10RoborockPoint, ...]:
+        """Return rectangle vertices sorted into canonical wire order."""
+        min_x, max_x = sorted((self.first_corner.x, self.second_corner.x))
+        min_y, max_y = sorted((self.first_corner.y, self.second_corner.y))
+        return (
+            Q10RoborockPoint(min_x, min_y),
+            Q10RoborockPoint(max_x, min_y),
+            Q10RoborockPoint(max_x, max_y),
+            Q10RoborockPoint(min_x, max_y),
+        )
+
+
+def encode_clean_params(params: CleanParams) -> str:
+    """Encode Q10 zone-clean parameters for ``dpStartClean`` task type 3."""
+    if not isinstance(params, CleanParams):
+        raise ValueError("params must be CleanParams")
+    if not isinstance(params.first_corner, Q10RoborockPoint) or not isinstance(params.second_corner, Q10RoborockPoint):
+        raise ValueError("zone corners must be Q10RoborockPoint values")
+    if isinstance(params.clean_count, bool) or not 1 <= params.clean_count <= 3:
+        raise ValueError("clean_count must be between 1 and 3")
+    if params.first_corner.x == params.second_corner.x or params.first_corner.y == params.second_corner.y:
+        raise ValueError("zone corners must enclose an area")
+
+    points = params.points
+    payload = bytearray((1, params.clean_count, 1, len(points)))
+    for point in points:
+        payload.extend(pack(">hh", *point.to_vector()))
+
+    # The app protocol reserves a fixed 19-byte UTF-8 name field per zone. An
+    # unnamed zone is encoded as a zero length followed by zero padding.
+    payload.append(0)
+    payload.extend(bytes(_Q10_ZONE_NAME_FIELD_LENGTH))
+    return b64encode(payload).decode()
 
 
 def encode_mqtt_payload(command: B01_Q10_DP, params: ParamsType) -> RoborockMessage:
@@ -107,24 +156,27 @@ class Q10DpsUpdate:
 # A single decoded message from a Q10 device: a DPS status update, a full map
 # packet, or a live cleaning-path (trace) packet. Map/trace packets arrive as
 # protocol-301 ``MAP_RESPONSE`` pushes; everything else is a DPS update.
-Q10Message = Q10DpsUpdate | Q10MapPacket | Q10TracePacket
+Q10Message = Q10DpsUpdate | Q10MapPacket | Q10TracePacket | Q10CleanRecordDetail
 
 
 def decode_message(message: RoborockMessage) -> Q10Message | None:
     """Decode a pushed Q10 ``RoborockMessage`` into a typed message.
 
-    ``MAP_RESPONSE`` (protocol 301) payloads carry the binary map (``01 01``) or
-    trace (``02 01``) packets, which are parsed by the map parser; any other
-    ``MAP_RESPONSE`` marker is unrecognized and yields ``None``. Every other
-    protocol is treated as a DPS status update.
+    ``MAP_RESPONSE`` (protocol 301) payloads carry binary current-map (``01
+    01``), trace (``02 01``), clean-record detail (``03 01``), or saved-map
+    detail (``04 01``) packets. Any other marker is unrecognized and yields
+    ``None``. Every other protocol is treated as a DPS status update.
 
     Raises ``RoborockException`` if a recognized payload fails to parse.
     """
     if message.protocol == RoborockMessageProtocol.MAP_RESPONSE:
         payload = message.payload or b""
-        if is_map_packet(payload):
-            return parse_map_packet(payload)
-        if is_trace_packet(payload):
+        kind = Q10MapPacketKind.from_payload(payload)
+        if kind is Q10MapPacketKind.TRACE:
             return parse_trace_packet(payload)
+        if kind is Q10MapPacketKind.CLEAN_RECORD_DETAIL:
+            return parse_clean_record_detail(payload)
+        if kind is not None:
+            return parse_map_packet(payload)
         return None
     return Q10DpsUpdate(dps=decode_rpc_response(message))

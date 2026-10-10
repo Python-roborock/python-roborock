@@ -198,7 +198,7 @@ def solve_calibration(
             min_sx, max_sx, min_sy, max_sy = min(sx), max(sx), min(sy), max(sy)
             if (max_sx - min_sx) >= w or (max_sy - min_sy) >= h:
                 continue  # path wider/taller than the map at this resolution
-            pts = list(zip(sx, sy))
+            pts = list(zip(sx, sy, strict=True))
             # Slide so every point stays in-bounds: px = px_f + ox in [0, w), py = oy - py_f in [0, h).
             for ox in range(ceil(-min_sx), ceil(w - max_sx)):
                 for oy in range(ceil(max_sy), ceil(h + min_sy)):

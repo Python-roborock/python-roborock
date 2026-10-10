@@ -2,7 +2,7 @@
 
 import asyncio
 from typing import cast
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, call
 
 import pytest
 
@@ -18,7 +18,9 @@ from roborock import (
 from roborock.data import SHORT_MODEL_TO_ENUM, RoborockProductNickname
 from roborock.data.v1 import (
     RoborockChargeStatus,
+    RoborockDockErrorCode,
     RoborockDockState,
+    RoborockErrorCode,
     RoborockStateCode,
 )
 from roborock.device_features import DeviceFeatures
@@ -90,6 +92,73 @@ async def test_refresh_status_propagates_exception(status_trait: StatusTrait, mo
 
     with pytest.raises(RoborockException, match="Communication error"):
         await status_trait.refresh()
+
+
+async def test_resolve_error_explicit_code(status_trait: StatusTrait, mock_rpc_channel: AsyncMock) -> None:
+    """Test resolving an explicitly given error code."""
+    mock_rpc_channel.send_command.side_effect = ["ok", STATUS]
+
+    await status_trait.resolve_error(38)
+
+    assert mock_rpc_channel.send_command.mock_calls == [
+        call(RoborockCommand.RESOLVE_ERROR, params={"error_code": 38}),
+        call(RoborockCommand.GET_STATUS),
+    ]
+    assert status_trait.dock_error_status == RoborockDockErrorCode.ok
+
+
+async def test_resolve_error_defaults_to_dock_error(status_trait: StatusTrait, mock_rpc_channel: AsyncMock) -> None:
+    """Test that the current dock error is resolved when no code is given."""
+    mock_rpc_channel.send_command.side_effect = [
+        {**STATUS, "dock_error_status": RoborockDockErrorCode.water_empty.value, "error_code": 38},
+        "ok",
+        STATUS,
+    ]
+    await status_trait.refresh()
+    assert status_trait.dock_error_status == RoborockDockErrorCode.water_empty
+
+    await status_trait.resolve_error()
+
+    assert mock_rpc_channel.send_command.mock_calls[1:] == [
+        call(RoborockCommand.RESOLVE_ERROR, params={"error_code": 38}),
+        call(RoborockCommand.GET_STATUS),
+    ]
+    assert status_trait.dock_error_status == RoborockDockErrorCode.ok
+
+
+async def test_resolve_error_defaults_to_robot_error(status_trait: StatusTrait, mock_rpc_channel: AsyncMock) -> None:
+    """Test that the robot error is resolved when there is no dock error."""
+    mock_rpc_channel.send_command.side_effect = [
+        {**STATUS, "error_code": RoborockErrorCode.clear_water_box_exception.value},
+        "ok",
+        STATUS,
+    ]
+    await status_trait.refresh()
+
+    await status_trait.resolve_error()
+
+    assert mock_rpc_channel.send_command.mock_calls[1:] == [
+        call(RoborockCommand.RESOLVE_ERROR, params={"error_code": RoborockErrorCode.clear_water_box_exception.value}),
+        call(RoborockCommand.GET_STATUS),
+    ]
+
+
+async def test_resolve_error_no_error(status_trait: StatusTrait, mock_rpc_channel: AsyncMock) -> None:
+    """Test that nothing is sent when there is no error to resolve."""
+    mock_rpc_channel.send_command.return_value = STATUS
+    await status_trait.refresh()
+
+    await status_trait.resolve_error()
+
+    mock_rpc_channel.send_command.assert_called_once_with(RoborockCommand.GET_STATUS)
+
+
+async def test_resolve_error_propagates_exception(status_trait: StatusTrait, mock_rpc_channel: AsyncMock) -> None:
+    """Test that exceptions from the RPC channel are propagated."""
+    mock_rpc_channel.send_command.side_effect = RoborockException("invalid params")
+
+    with pytest.raises(RoborockException, match="invalid params"):
+        await status_trait.resolve_error(38)
 
 
 async def test_refresh_status_invalid_format(status_trait: StatusTrait, mock_rpc_channel: AsyncMock) -> None:
@@ -552,15 +621,17 @@ def test_water_slide_mode_mapping() -> None:
         200: "off",
         221: "slight",
         225: "low",
+        230: "gentle",
         235: "medium",
-        245: "moderate",
-        248: "high",
+        240: "moderate",
+        245: "high",
         250: "extreme",
     }
     assert [mode.value for mode in status_trait.water_mode_options] == [
         "off",
         "slight",
         "low",
+        "gentle",
         "medium",
         "moderate",
         "high",
@@ -571,6 +642,38 @@ def test_water_slide_mode_mapping() -> None:
     assert status_trait.water_mode_name == "low"
     status_trait.water_box_mode = 200
     assert status_trait.water_mode_name == "off"
+
+
+@pytest.mark.parametrize(
+    ("water_box_mode", "expected_name"),
+    [
+        (200, "off"),
+        (221, "slight"),
+        (223, "slight"),
+        (224, "low"),
+        (227, "low"),
+        (228, "gentle"),
+        (232, "gentle"),
+        (233, "medium"),
+        (236, "medium"),
+        (237, "medium"),
+        (238, "moderate"),
+        (242, "moderate"),
+        (243, "high"),
+        (247, "high"),
+        (248, "extreme"),
+        (250, "extreme"),
+        (220, None),
+        (251, None),
+        (999, None),
+    ],
+)
+def test_water_slide_mode_name_covers_slider_positions(water_box_mode: int, expected_name: str | None) -> None:
+    """Every slider position resolves to the label of its range in the Roborock app."""
+    status_trait = _create_cleaning_mode_status_trait(is_water_slide_mode_supported=True)
+    status_trait.water_box_mode = water_box_mode
+
+    assert status_trait.water_mode_name == expected_name
 
 
 def test_update_from_dps(status_trait: StatusTrait) -> None:

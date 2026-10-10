@@ -5,7 +5,7 @@ import logging
 from collections.abc import Callable
 from urllib.parse import urlparse
 
-from construct import (  # type: ignore
+from construct import (  # type: ignore[import-untyped]
     Bytes,
     Checksum,
     ChecksumError,
@@ -65,7 +65,7 @@ class Utils:
     @staticmethod
     def encode_timestamp(_timestamp: int) -> bytes:
         hex_value = f"{_timestamp:x}".zfill(8)
-        return "".join(list(map(lambda idx: hex_value[idx], [5, 6, 3, 7, 1, 2, 0, 4]))).encode()
+        return "".join([hex_value[idx] for idx in [5, 6, 3, 7, 1, 2, 0, 4]]).encode()
 
     @staticmethod
     def md5(data: bytes) -> bytes:
@@ -470,7 +470,7 @@ class _Parser:
                 }
             )
         return self.con.build(
-            {"messages": [message for message in messages], "remaining": b""},
+            {"messages": list(messages), "remaining": b""},
             local_key=local_key,
             prefixed=prefixed,
             connect_nonce=connect_nonce,

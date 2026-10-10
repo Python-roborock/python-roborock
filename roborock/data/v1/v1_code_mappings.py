@@ -151,7 +151,7 @@ class RoborockDssCodes(RoborockEnum):
     def _missing_(cls: type[Self], key) -> Self:
         # If the calculated value is not provided, then it should be viewed as okay.
         # As the math will sometimes result in you getting numbers that don't matter.
-        return cls.okay  # type: ignore
+        return cls.okay  # type: ignore[attr-defined]
 
 
 class ClearWaterBoxStatus(RoborockDssCodes):

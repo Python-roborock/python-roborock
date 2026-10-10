@@ -293,3 +293,60 @@ async def test_send_command_general_exception(
 
     with pytest.raises(RuntimeError, match="Generic publish crash"):
         await channel.send_command("prop.get", {"property": ["status"]})
+
+
+async def test_subscribe_map_pushes_delivers_decoded_frames(
+    device: HomeDataDevice,
+    product: HomeDataProduct,
+    fake_channel: FakeChannel,
+    message_builder: B01MessageBuilder,
+) -> None:
+    """Unsolicited MAP_RESPONSE frames are decoded and delivered to the callback."""
+    channel = create_b01_q7_channel(device, product, fake_channel)  # type: ignore[arg-type]
+
+    received: list[bytes] = []
+    unsub = await channel.subscribe_map_pushes(received.append)
+
+    with patch(
+        "roborock.devices.rpc.b01_q7_channel.decode_map_payload",
+        return_value=b"inflated-payload",
+    ):
+        fake_channel.notify_subscribers(message_builder.build_map_response(b"raw-map-payload"))
+
+    assert received == [b"inflated-payload"]
+
+    # Non-map messages are filtered out.
+    fake_channel.notify_subscribers(message_builder.build({"status": 1}))
+    assert received == [b"inflated-payload"]
+
+    # After unsubscribing, further frames are not delivered.
+    unsub()
+    with patch(
+        "roborock.devices.rpc.b01_q7_channel.decode_map_payload",
+        return_value=b"inflated-payload",
+    ):
+        fake_channel.notify_subscribers(message_builder.build_map_response(b"raw-map-payload"))
+    assert received == [b"inflated-payload"]
+
+
+async def test_subscribe_map_pushes_skips_undecodable_frames(
+    device: HomeDataDevice,
+    product: HomeDataProduct,
+    fake_channel: FakeChannel,
+    message_builder: B01MessageBuilder,
+) -> None:
+    """Frames that fail map decoding are skipped without breaking the subscription."""
+    channel = create_b01_q7_channel(device, product, fake_channel)  # type: ignore[arg-type]
+
+    received: list[bytes] = []
+    await channel.subscribe_map_pushes(received.append)
+
+    fake_channel.notify_subscribers(message_builder.build_map_response(b"!!! not base64 !!!"))
+    assert received == []
+
+    with patch(
+        "roborock.devices.rpc.b01_q7_channel.decode_map_payload",
+        return_value=b"inflated-payload",
+    ):
+        fake_channel.notify_subscribers(message_builder.build_map_response(b"raw-map-payload"))
+    assert received == [b"inflated-payload"]

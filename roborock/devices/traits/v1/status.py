@@ -16,6 +16,7 @@ from roborock import (
     get_current_cleaning_mode,
     get_water_mode_mapping,
     get_water_modes,
+    get_water_slide_mode_name,
     resolve_cleaning_mode,
 )
 from roborock.devices.traits.common import DpsDataConverter, TraitUpdateListener
@@ -111,6 +112,8 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
     def water_mode_name(self) -> str | None:
         if self.water_box_mode is None:
             return None
+        if self._device_features_trait.is_water_slide_mode_supported:
+            return get_water_slide_mode_name(self.water_box_mode)
         return self.water_mode_mapping.get(self.water_box_mode)
 
     @property
@@ -140,6 +143,23 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
             RoborockCommand.SET_CLEAN_MOTOR_MODE,
             params=get_cleaning_mode_parameters(resolve_cleaning_mode(cleaning_mode), self._device_features_trait),
         )
+
+    async def resolve_error(self, error_code: int | None = None) -> None:
+        """Resolve an error, like tapping "Resolved" in the Roborock app.
+
+        Without an explicit code this resolves the current dock error if there is one,
+        otherwise the current robot error. A dock error such as water_empty stays latched
+        on the device until it is resolved, even after the cause has been fixed.
+        """
+        if error_code is None:
+            if self.dock_error_status:
+                error_code = int(self.dock_error_status)
+            elif self.error_code:
+                error_code = int(self.error_code)
+            else:
+                return
+        await self.rpc_channel.send_command(RoborockCommand.RESOLVE_ERROR, params={"error_code": error_code})
+        await self.refresh()
 
     def update_from_dps(self, decoded_dps: dict[RoborockDataProtocol, Any]) -> None:
         """Update the trait from data protocol push message data.

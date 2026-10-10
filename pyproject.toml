@@ -1,6 +1,6 @@
 [project]
 name = "python-roborock"
-version = "7.0.1"
+version = "7.12.2"
 description = "A package to control Roborock vacuums."
 authors = [{ name = "humbertogontijo", email = "humbertogontijo@users.noreply.github.com" }, {name="Lash-L"}, {name="allenporter"}]
 requires-python = ">=3.11, <4"
@@ -67,6 +67,8 @@ dev = [
     "syrupy>=4.9.1,<6",
     "pdoc>=15.0.4,<17",
     "pytest-cov>=7.0.0",
+    "zmqtt>=0.2.0,<0.3.0",
+    "pytest-benchmark>=5.1.0",
 ]
 
 [tool.hatch.build.targets.sdist]
@@ -106,20 +108,48 @@ allowed_tags = [
 major_tags= ["refactor"]
 
 [tool.ruff]
-lint.ignore = ["F403", "E741"]
-lint.select=["E", "F", "UP", "I"]
+lint.ignore = []
+# TODO: Enable ASYNC (flake8-async) in a dedicated follow-up PR once async open() and timeout parameters are refactored.
+lint.select = [
+    "A",
+    "B",
+    "BLE",
+    "C4",
+    "E",
+    "F",
+    "FA",
+    "I",
+    "ICN",
+    "ISC",
+    "PGH",
+    "PIE",
+    "UP",
+    "W",
+    "YTT",
+]
 line-length = 120
 extend-exclude = ["roborock/map/proto/*_pb2.py"]
 
 [tool.ruff.lint.per-file-ignores]
 "*/__init__.py" = ["F401"]
+"roborock/__init__.py" = ["F403"]
+"roborock/data/__init__.py" = ["F403"]
+"roborock/data/b01_q7/__init__.py" = ["F403"]
+"roborock/data/b01_q10/__init__.py" = ["F403"]
+"roborock/data/dyad/__init__.py" = ["F403"]
+"roborock/data/mower/__init__.py" = ["F403"]
+"roborock/data/v1/__init__.py" = ["F403"]
+"roborock/data/zeo/__init__.py" = ["F403"]
 "roborock/map/proto/*_pb2.py" = ["E501", "I001", "UP009"]
+"tests/*" = ["B010"]
 
 [[tool.mypy.overrides]]
 module = ["roborock.map.proto.*"]
 ignore_errors = true
 
 [tool.pytest.ini_options]
+addopts = "-m 'not mqtt_broker'"
+markers = ["mqtt_broker: tests requiring a real MQTT broker"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 timeout = 30

@@ -34,7 +34,9 @@ and you certify that you have the right to submit it under that license.
 
 ## Development Workflow
 
-### Code Style
+### Code Style & Architecture
+
+Before writing code or opening pull requests, please review our [Repository Engineering Guidelines](AGENTS.md) for our standards on typing (`RoborockBase` dataclasses), value-returning state helpers, protocol isolation, and test suite consolidation.
 
 We use several tools to enforce code quality and consistency. These are configured via `pre-commit` and generally run automatically.
 
@@ -53,10 +55,24 @@ pre-commit run --all-files
 
 We use `pytest` for testing. Please ensure all tests pass and add new tests for your changes.
 
+Run the standard test suite without Docker:
+
 ```bash
-# Run tests
-pytest
+uv run pytest
 ```
+
+Real-broker MQTT tests are excluded by default. To run them, start EMQX at
+`127.0.0.1:1888` with Docker Compose and select the `mqtt_broker` marker:
+
+```bash
+docker compose up -d --wait
+uv run pytest -m mqtt_broker
+docker compose down
+```
+
+CI runs both suites in separate parallel jobs on Python 3.11 and 3.14, with an
+EMQX service container only in the MQTT job. Each test has a 30-second timeout;
+MQTT connection and message waits have shorter timeouts.
 
 ## Pull Requests
 
