@@ -97,6 +97,37 @@ async def test_get_clean_summary_success(
     )
 
 
+@pytest.mark.parametrize(
+    "records",
+    [
+        [1700000000, 1700000400, 1700000800],
+        [1700000800, 1700000400, 1700000000],
+        [1700000400, 1700000800, 1700000000],
+        [1700000800],
+    ],
+    ids=["ascending", "descending", "unordered", "single"],
+)
+async def test_get_clean_summary_latest_record(
+    clean_summary_trait: CleanSummaryTrait, mock_rpc_channel: AsyncMock, records: list[int]
+) -> None:
+    """Load the latest cleaning regardless of the order returned by the device."""
+    mock_rpc_channel.send_command.side_effect = [
+        [3600, 1000000, len(records), records],
+        [[1700000800, 1700000900, 100, 1000000]],
+    ]
+
+    await clean_summary_trait.refresh()
+
+    assert mock_rpc_channel.send_command.call_args_list == [
+        call(RoborockCommand.GET_CLEAN_SUMMARY),
+        call(RoborockCommand.GET_CLEAN_RECORD, params=[1700000800]),
+    ]
+    assert clean_summary_trait.records == records
+    assert clean_summary_trait.last_clean_record is not None
+    assert clean_summary_trait.last_clean_record.begin == 1700000800
+    assert clean_summary_trait.last_clean_record.end == 1700000900
+
+
 async def test_get_clean_summary_clean_time_only(
     clean_summary_trait: CleanSummaryTrait, mock_rpc_channel: AsyncMock, sample_clean_summary: CleanSummary
 ) -> None:
