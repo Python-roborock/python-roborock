@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v7.12.2 (2026-10-10)
+
+### Bug Fixes
+
+- Select latest V1 cleaning record regardless of response order
+  ([#978](https://github.com/Python-roborock/python-roborock/pull/978),
+  [`88fbe7b`](https://github.com/Python-roborock/python-roborock/commit/88fbe7b7dd3fc20275bfecc15adf27b5abc2c5bd))
+
+
 ## v7.12.1 (2026-10-07)
 
 ### Bug Fixes
