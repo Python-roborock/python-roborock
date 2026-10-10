@@ -1,6 +1,7 @@
 """Tests for the StatusTrait class."""
 
 import asyncio
+import warnings
 from typing import cast
 from unittest.mock import AsyncMock, call
 
@@ -208,8 +209,10 @@ def test_feature_aware_dock_and_charging_state(
     status_trait.charge_status = charge_status
     status_trait.battery = battery
 
-    assert status_trait.dock_state == expected_dock_state
-    assert status_trait.is_battery_charging is expected_is_battery_charging
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+        assert status_trait.dock_state == expected_dock_state
+        assert status_trait.is_battery_charging is expected_is_battery_charging
 
 
 def test_options(status_trait: StatusTrait) -> None:

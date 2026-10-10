@@ -14,6 +14,7 @@ from roborock import (
     get_cleaning_mode_options,
     get_cleaning_mode_parameters,
     get_current_cleaning_mode,
+    get_dock_state,
     get_water_mode_mapping,
     get_water_modes,
     get_water_slide_mode_name,
@@ -70,9 +71,17 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
     @property
     def dock_state(self) -> RoborockDockState:
         """Return the feature-aware dock state used by the Roborock app."""
-        return self.get_dock_state(
-            is_supported_valley_electricity=self._device_features_trait.is_supported_valley_electricity
+        return get_dock_state(
+            state=self.state,
+            battery=self.battery,
+            charge_status=self.charge_status,
+            is_supported_valley_electricity=self._device_features_trait.is_supported_valley_electricity,
         )
+
+    @property
+    def is_battery_charging(self) -> bool:
+        """Return whether the battery is actively charging."""
+        return self.dock_state == RoborockDockState.charging
 
     @cached_property
     def fan_speed_options(self) -> list[VacuumModes]:
