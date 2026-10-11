@@ -2,6 +2,7 @@
 
 from .b01_q7 import *
 from .b01_q10 import *
+from .camera import *
 from .code_mappings import *
 from .containers import *
 from .dyad import *
