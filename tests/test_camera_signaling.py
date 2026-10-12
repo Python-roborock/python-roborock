@@ -62,18 +62,36 @@ def test_camera_quality_values() -> None:
     """Test CameraQuality enum values and string behavior."""
     assert CameraQuality.HD == "HD"
     assert CameraQuality.SD == "SD"
+    assert CameraQuality.FHD == "FHD"
+    assert CameraQuality.AUTO == "auto"
     assert str(CameraQuality.HD) == "HD"
     assert CameraQuality("HD") is CameraQuality.HD
     assert CameraQuality("SD") is CameraQuality.SD
+    assert CameraQuality("FHD") is CameraQuality.FHD
+    assert CameraQuality("auto") is CameraQuality.AUTO
 
 
-def test_camera_quality_from_str() -> None:
-    """Test CameraQuality.from_str case insensitivity and error handling."""
-    assert CameraQuality.from_str("hd") is CameraQuality.HD
-    assert CameraQuality.from_str("HD") is CameraQuality.HD
-    assert CameraQuality.from_str("sd") is CameraQuality.SD
-    assert CameraQuality.from_str("  SD  ") is CameraQuality.SD
+@pytest.mark.parametrize(
+    ("input_str", "expected"),
+    [
+        ("hd", CameraQuality.HD),
+        ("HD", CameraQuality.HD),
+        ("sd", CameraQuality.SD),
+        ("  SD  ", CameraQuality.SD),
+        ("fhd", CameraQuality.FHD),
+        ("FHD", CameraQuality.FHD),
+        ("auto", CameraQuality.AUTO),
+        ("AUTO", CameraQuality.AUTO),
+        ("  auto  ", CameraQuality.AUTO),
+    ],
+)
+def test_camera_quality_from_str(input_str: str, expected: CameraQuality) -> None:
+    """Test CameraQuality.from_str case insensitivity and whitespace trimming."""
+    assert CameraQuality.from_str(input_str) is expected
 
+
+def test_camera_quality_from_str_invalid() -> None:
+    """Test CameraQuality.from_str error handling for invalid values."""
     with pytest.raises(ValueError, match="Invalid camera quality"):
         CameraQuality.from_str("4K")
 
@@ -167,6 +185,18 @@ def test_camera_turn_server_invalid_payloads() -> None:
 
     with pytest.raises(ValueError, match="Invalid ICE server URL scheme"):
         CameraTurnServer.from_dict({"url": "http://invalidscheme.com"})
+
+    with pytest.raises(ValueError, match="TURN server URL cannot be empty"):
+        CameraTurnServer.from_dict({"url": ""})
+
+    with pytest.raises(ValueError, match="TURN server 'urls' list cannot be empty"):
+        CameraTurnServer.from_dict({"urls": []})
+
+    with pytest.raises(TypeError, match="Expected str for username"):
+        CameraTurnServer.from_dict({"url": "turn:example.com", "user": 123})  # type: ignore[dict-item]
+
+    with pytest.raises(TypeError, match="Expected str for credential"):
+        CameraTurnServer.from_dict({"url": "turn:example.com", "pwd": 456})  # type: ignore[dict-item]
 
 
 # ============================================================================
@@ -262,14 +292,12 @@ def test_parse_ice_candidate_mdns_hostname() -> None:
 
 def test_parse_ice_candidate_prefixes_and_extra_attrs() -> None:
     """Test candidate with a= prefix, no prefix, CRLF, and extra SDP attributes like generation."""
-    # a=candidate: prefix and trailing CRLF
     cand1 = parse_ice_candidate("a=candidate:1 1 udp 100 1.2.3.4 5000 typ host generation 0 network-id 1\r\n")
     assert cand1.foundation == "1"
     assert cand1.candidate_type == "host"
     assert cand1.ip == "1.2.3.4"
     assert cand1.extensions == {"generation": "0", "network-id": "1"}
 
-    # Bare tokens without candidate: prefix
     cand2 = parse_ice_candidate("1 1 udp 100 1.2.3.4 5000 typ host")
     assert cand2.foundation == "1"
     assert cand2.candidate_type == "host"
@@ -277,37 +305,31 @@ def test_parse_ice_candidate_prefixes_and_extra_attrs() -> None:
 
 def test_parse_ice_candidate_numeric_and_lexical_bounds() -> None:
     """Test strict RFC 8839 / RFC 8445 component, priority, and foundation bounds."""
-    # Component: valid boundary 1 and 256
     c1 = parse_ice_candidate("candidate:1 1 udp 100 1.1.1.1 200 typ host")
     assert c1.component == 1
     c256 = parse_ice_candidate("candidate:1 256 udp 100 1.1.1.1 200 typ host")
     assert c256.component == 256
 
-    # Component: out of bounds (0 or 257)
     with pytest.raises(ValueError, match="RFC 8839 range"):
         parse_ice_candidate("candidate:1 0 udp 100 1.1.1.1 200 typ host")
     with pytest.raises(ValueError, match="RFC 8839 range"):
         parse_ice_candidate("candidate:1 257 udp 100 1.1.1.1 200 typ host")
 
-    # Priority: valid boundary 1 and 2147483647
     p1 = parse_ice_candidate("candidate:1 1 udp 1 1.1.1.1 200 typ host")
     assert p1.priority == 1
     p_max = parse_ice_candidate("candidate:1 1 udp 2147483647 1.1.1.1 200 typ host")
     assert p_max.priority == 2147483647
 
-    # Priority: out of bounds (0 or 2147483648)
     with pytest.raises(ValueError, match="RFC 8445 range"):
         parse_ice_candidate("candidate:1 1 udp 0 1.1.1.1 200 typ host")
     with pytest.raises(ValueError, match="RFC 8445 range"):
         parse_ice_candidate("candidate:1 1 udp 2147483648 1.1.1.1 200 typ host")
 
-    # Non-decimal syntax: plus signs or underscores rejected
     with pytest.raises(ValueError, match="ASCII decimal digits"):
         parse_ice_candidate("candidate:1 +1 udp 100 1.1.1.1 200 typ host")
     with pytest.raises(ValueError, match="ASCII decimal digits"):
         parse_ice_candidate("candidate:1 1 udp 1_000 1.1.1.1 200 typ host")
 
-    # Foundation: must be 1-32 ice characters
     with pytest.raises(ValueError, match="Invalid ICE foundation"):
         parse_ice_candidate(f"candidate:{'a' * 33} 1 udp 100 1.1.1.1 200 typ host")
     with pytest.raises(ValueError, match="Invalid ICE foundation"):
@@ -316,19 +338,15 @@ def test_parse_ice_candidate_numeric_and_lexical_bounds() -> None:
 
 def test_parse_ice_candidate_invariants() -> None:
     """Test RFC 6544 TCP and RFC 8839 related address invariants."""
-    # TCP candidate requires tcptype
     with pytest.raises(ValueError, match="TCP ICE candidate must specify 'tcptype'"):
         parse_ice_candidate("candidate:1 1 tcp 100 1.1.1.1 9 typ host")
 
-    # Invalid tcptype
     with pytest.raises(ValueError, match="Invalid ICE TCP type"):
         parse_ice_candidate("candidate:1 1 tcp 100 1.1.1.1 9 typ host tcptype invalid")
 
-    # raddr without rport
     with pytest.raises(ValueError, match="must have both 'raddr' and 'rport' specified together"):
         parse_ice_candidate("candidate:1 1 udp 100 1.1.1.1 200 typ srflx raddr 2.2.2.2")
 
-    # rport without raddr
     with pytest.raises(ValueError, match="must have both 'raddr' and 'rport' specified together"):
         parse_ice_candidate("candidate:1 1 udp 100 1.1.1.1 200 typ srflx rport 5000")
 
@@ -354,6 +372,24 @@ def test_candidate_to_signaling_dict() -> None:
     }
 
 
+def test_candidate_mutation_reflected_in_to_sdp() -> None:
+    """Verify that mutating a parsed candidate updates to_sdp output (no stale raw cached)."""
+    cand = parse_ice_candidate("candidate:1 1 udp 100 192.168.1.100 5000 typ host")
+    assert cand.port == 5000
+    assert cand.to_sdp() == "candidate:1 1 udp 100 192.168.1.100 5000 typ host"
+
+    cand.port = 9999
+    assert cand.to_sdp() == "candidate:1 1 udp 100 192.168.1.100 9999 typ host"
+
+
+def test_candidate_equality_and_to_sdp_consistency() -> None:
+    """Verify candidates that compare equal produce identical to_sdp output."""
+    cand1 = parse_ice_candidate("candidate:1 1 udp 100 1.2.3.4 5000 typ host")
+    cand2 = parse_ice_candidate("candidate:1 1 udp 100 1.2.3.4 5000 typ host")
+    assert cand1 == cand2
+    assert cand1.to_sdp() == cand2.to_sdp()
+
+
 # ============================================================================
 # hash_camera_password tests
 # ============================================================================
@@ -363,11 +399,8 @@ def test_hash_camera_password_valid() -> None:
     """Test deriving lowercase hex MD5 of digits."""
     # 1234 -> 81dc9bdb52d04dc20036dbd8313ed055
     assert hash_camera_password("1234") == "81dc9bdb52d04dc20036dbd8313ed055"
-    assert hash_camera_password(1234) == "81dc9bdb52d04dc20036dbd8313ed055"
-
     # 9876 -> 912e79cd13c64069d91da65d62fbb78c
     assert hash_camera_password("9876") == "912e79cd13c64069d91da65d62fbb78c"
-
     # Leading zero in digits preserved
     assert hash_camera_password("0123") == "eb62f6b9306db575c2d596b1279627a4"
 
@@ -387,10 +420,13 @@ def test_hash_camera_password_invalid() -> None:
     with pytest.raises(ValueError, match="only ASCII digits"):
         hash_camera_password("password")
 
-    with pytest.raises(TypeError, match="must be a str or int"):
+    with pytest.raises(TypeError, match="must be a str"):
         hash_camera_password(None)  # type: ignore[arg-type]
 
-    with pytest.raises(TypeError, match="must be a str or int"):
+    with pytest.raises(TypeError, match="must be a str"):
+        hash_camera_password(1234)  # type: ignore[arg-type]
+
+    with pytest.raises(TypeError, match="must be a str"):
         hash_camera_password(["1", "2", "3", "4"])  # type: ignore[arg-type]
 
 
@@ -404,26 +440,21 @@ def test_encode_sdp_offer_and_decode_sdp_answer_roundtrip() -> None:
     raw_sdp = "v=0\r\no=- 12345 2 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\n"
     encoded_offer = encode_sdp_offer(raw_sdp)
 
-    # Offer decoded from base64 JSON
     decoded_json = json.loads(base64.b64decode(encoded_offer).decode("utf-8"))
     assert decoded_json == {"sdp": raw_sdp, "type": "offer"}
 
-    # Simulate device answer payload
     answer_payload = {
         "sdp": "v=0\r\no=- 67890 2 IN IP4 127.0.0.1\r\ns=-\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\n",
         "type": "answer",
     }
     answer_b64 = base64.b64encode(json.dumps(answer_payload).encode("utf-8")).decode("ascii")
 
-    # Decode from bare string
     res_str = decode_sdp_answer(answer_b64)
     assert res_str == answer_payload
 
-    # Decode from device dict response: {"dev_sdp": "..."}
     res_dict = decode_sdp_answer({"dev_sdp": answer_b64})
     assert res_dict == answer_payload
 
-    # Decode from device single-item list response: [{"dev_sdp": "..."}]
     res_list = decode_sdp_answer([{"dev_sdp": answer_b64}])
     assert res_list == answer_payload
 
@@ -497,17 +528,14 @@ def test_decode_sdp_answer_errors_and_edge_cases() -> None:
     with pytest.raises(ValueError, match="Failed to decode base64 JSON"):
         decode_sdp_answer("invalid_base64!@#$")
 
-    # Valid base64, but invalid JSON
     invalid_json_b64 = base64.b64encode(b"not json").decode("ascii")
     with pytest.raises(ValueError, match="Failed to decode base64 JSON"):
         decode_sdp_answer(invalid_json_b64)
 
-    # Valid JSON, but not an object
     not_obj_b64 = base64.b64encode(b"[1, 2, 3]").decode("ascii")
     with pytest.raises(ValueError, match="must be an object"):
         decode_sdp_answer(not_obj_b64)
 
-    # Valid JSON object, but missing 'sdp'
     missing_sdp_b64 = base64.b64encode(b'{"type": "answer"}').decode("ascii")
     with pytest.raises(ValueError, match="missing or empty 'sdp' field"):
         decode_sdp_answer(missing_sdp_b64)
@@ -534,23 +562,19 @@ def test_encode_ice_candidate_and_decode_roundtrip() -> None:
 
     encoded = encode_ice_candidate(cand)
 
-    # Verify JSON structure inside base64
     obj = json.loads(base64.b64decode(encoded).decode("utf-8"))
     assert obj["candidate"] == cand.to_sdp()
     assert obj["sdpMid"] == "0"
     assert obj["sdpMLineIndex"] == 0
 
-    # Decode from list of base64 strings
     decoded_list = decode_ice_candidates([encoded])
     assert len(decoded_list) == 1
     assert decoded_list[0] == cand
 
-    # Decode from get_device_ice dict: {"dev_ice": [...]}
     decoded_dict = decode_ice_candidates({"dev_ice": [encoded]})
     assert len(decoded_dict) == 1
     assert decoded_dict[0] == cand
 
-    # Decode from get_device_ice single-item list: [{"dev_ice": [...]}]
     decoded_resp = decode_ice_candidates([{"dev_ice": [encoded]}])
     assert len(decoded_resp) == 1
     assert decoded_resp[0] == cand
@@ -565,12 +589,10 @@ def test_encode_ice_candidate_from_str_and_dict() -> None:
     assert obj["sdpMid"] == "1"
     assert obj["sdpMLineIndex"] == 1
 
-    # From string without candidate: prefix
     b64_str2 = encode_ice_candidate("1 1 udp 100 1.1.1.1 200 typ host")
     obj2 = json.loads(base64.b64decode(b64_str2).decode("utf-8"))
     assert obj2["candidate"] == raw_sdp
 
-    # From dict
     dict_cand = {"candidate": raw_sdp, "sdpMid": "0", "sdpMLineIndex": 0}
     b64_dict = encode_ice_candidate(dict_cand)
     obj3 = json.loads(base64.b64decode(b64_dict).decode("utf-8"))
@@ -608,9 +630,6 @@ def test_decode_ice_candidates_errors() -> None:
     with pytest.raises(ValueError, match="missing 'candidate' string"):
         decode_ice_candidates([{"sdpMid": "0"}])
 
-    with pytest.raises(TypeError, match="Expected list in 'dev_ice'"):
-        decode_ice_candidates([{"dev_ice": "not_a_list"}])
-
 
 def test_encode_ice_candidate_errors() -> None:
     """Test error handling in encode_ice_candidate."""
@@ -626,110 +645,87 @@ def test_encode_ice_candidate_errors() -> None:
 
 def test_decode_ice_candidates_edge_cases() -> None:
     """Test edge cases in decode_ice_candidates."""
-    # Single string directly
     cand_str = "candidate:1 1 udp 100 1.2.3.4 5000 typ host"
     res1 = decode_ice_candidates(cand_str)
     assert len(res1) == 1
     assert res1[0].foundation == "1"
 
-    # Dict without dev_ice (single candidate dict)
     res2 = decode_ice_candidates({"candidate": cand_str, "sdpMid": "0", "sdpMLineIndex": 0})
     assert len(res2) == 1
     assert res2[0].foundation == "1"
 
-    # Item is already CameraIceCandidate
     existing_cand = parse_ice_candidate(cand_str)
     res3 = decode_ice_candidates([existing_cand])
     assert res3 == [existing_cand]
 
-    # Item is raw dict
     res4 = decode_ice_candidates([{"candidate": cand_str, "sdpMid": "video", "sdpMLineIndex": 1}])
     assert len(res4) == 1
     assert res4[0].sdp_mid == "video"
     assert res4[0].sdp_mline_index == 1
 
-    # Empty string in list ignored
     res5 = decode_ice_candidates(["", "   "])
     assert res5 == []
 
-    # Non-base64 raw candidate string in list
     res6 = decode_ice_candidates([cand_str])
     assert len(res6) == 1
     assert res6[0].foundation == "1"
 
-    # Corrupted base64 payload starting with ey raises ValueError
-    bad_base64_json = "eyJjYW5kaWRhdGUiOiA="  # incomplete json
+    bad_base64_json = "eyJjYW5kaWRhdGUiOiA="
     with pytest.raises(ValueError, match="Failed to decode base64 JSON"):
         decode_ice_candidates([bad_base64_json])
 
-    # ignore_invalid skips bad candidate
     res7 = decode_ice_candidates([bad_base64_json, cand_str], ignore_invalid=True)
     assert len(res7) == 1
     assert res7[0].foundation == "1"
 
 
-def test_parse_ice_candidate_dangling_token() -> None:
-    """Test candidate with an odd trailing token (dangling attribute name)."""
-    cand = parse_ice_candidate("candidate:1 1 udp 100 1.2.3.4 5000 typ host dangling_token")
-    assert cand.foundation == "1"
-    assert cand.candidate_type == "host"
-
-
-def test_candidate_to_sdp_manual_without_raw() -> None:
-    """Test to_sdp formatting when candidate is manually constructed without raw."""
-    cand = CameraIceCandidate(
-        foundation="1",
-        component=1,
-        protocol="udp",
-        priority=100,
-        ip="1.2.3.4",
-        port=5000,
-        candidate_type="srflx",
-        related_address="10.0.0.1",
-        related_port=5000,
-        extensions={"generation": "0"},
-        raw=None,
-    )
-    assert cand.to_sdp() == "candidate:1 1 udp 100 1.2.3.4 5000 typ srflx raddr 10.0.0.1 rport 5000 generation 0"
-
-
-def test_camera_turn_server_empty_urls_error() -> None:
-    """Test empty URL string or empty list in CameraTurnServer raises ValueError."""
-    with pytest.raises(ValueError, match="Missing 'url' or 'urls'"):
-        CameraTurnServer.from_dict({"url": ""})
-
-    with pytest.raises(ValueError, match="Missing 'url' or 'urls'"):
-        CameraTurnServer.from_dict({"urls": []})
+def test_parse_ice_candidate_dangling_token_rejected() -> None:
+    """Test candidate with an odd trailing token raises ValueError."""
+    with pytest.raises(ValueError, match="odd number of tokens"):
+        parse_ice_candidate("candidate:1 1 udp 100 1.2.3.4 5000 typ host dangling_token")
 
 
 def test_encode_ice_candidate_mline_string_and_errors() -> None:
     """Test sdp_mline_index coercion and error handling."""
     raw_sdp = "candidate:1 1 udp 100 1.1.1.1 200 typ host"
-    # string integer
     b64_str = encode_ice_candidate(raw_sdp, sdp_mline_index="1")  # type: ignore[arg-type]
     obj = json.loads(base64.b64decode(b64_str).decode("utf-8"))
     assert obj["sdpMLineIndex"] == 1
 
-    # invalid string
     with pytest.raises(ValueError, match="Invalid sdpMLineIndex"):
         encode_ice_candidate(raw_sdp, sdp_mline_index="not_a_number")  # type: ignore[arg-type]
 
 
-def test_decode_ice_candidates_ignore_invalid_variations() -> None:
-    """Test ignore_invalid handles bad candidate dicts and bad strings."""
-    # Dict missing candidate string with ignore_invalid=True
+def test_decode_ice_candidates_ignore_invalid_variations(caplog: pytest.LogCaptureFixture) -> None:
+    """Test ignore_invalid handles bad candidate dicts, bad strings, and TypeError from malformed mline."""
     res1 = decode_ice_candidates([{"sdpMid": "0"}], ignore_invalid=True)
     assert res1 == []
 
-    # Dict with invalid candidate string with ignore_invalid=True
     res2 = decode_ice_candidates([{"candidate": "not a candidate"}], ignore_invalid=True)
     assert res2 == []
 
-    # Raw string with invalid candidate and ignore_invalid=True
     res3 = decode_ice_candidates(["not a candidate"], ignore_invalid=True)
     assert res3 == []
 
+    # TypeError from non-int coercible sdpMLineIndex (e.g. list)
+    res4 = decode_ice_candidates(
+        [{"candidate": "candidate:1 1 udp 100 1.2.3.4 5000 typ host", "sdpMLineIndex": [1]}],
+        ignore_invalid=True,
+    )
+    assert res4 == []
+
+    # Valid base64 that decodes to non-dict JSON (e.g. JSON list)
+    non_dict_json_b64 = base64.b64encode(b"[1, 2, 3]").decode("ascii")
+    with pytest.raises(ValueError, match="Failed to decode base64 JSON"):
+        decode_ice_candidates([non_dict_json_b64])
+
+    res5 = decode_ice_candidates([non_dict_json_b64], ignore_invalid=True)
+    assert res5 == []
+
     # Base64 JSON missing candidate key
     no_cand_json = base64.b64encode(b'{"sdpMid": "0"}').decode("ascii")
-    with pytest.raises(ValueError, match="missing 'candidate' string"):
+    with pytest.raises(ValueError, match="Failed to decode base64 JSON"):
         decode_ice_candidates([no_cand_json])
+
+    # Check that caplog captured warnings
+    assert any("Skipping" in record.message for record in caplog.records)

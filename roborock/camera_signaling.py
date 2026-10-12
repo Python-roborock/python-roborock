@@ -1,7 +1,7 @@
 """Camera signaling models, ICE parsing utilities, and payload serialization for Roborock vacuums.
 
-This module provides pure Python standard library data models and helpers for Roborock
-camera live view WebRTC signaling, including TURN server mapping, ICE candidate parsing/formatting,
+This module provides data models and helpers for Roborock camera live view WebRTC
+signaling, including TURN server mapping, ICE candidate parsing/formatting,
 password hashing, and base64-JSON payload encoding/decoding.
 """
 
@@ -16,6 +16,8 @@ import re
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, Self
+
+from .data.containers import RoborockBase
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,21 +44,25 @@ class CameraQuality(StrEnum):
 
     HD = "HD"
     SD = "SD"
+    FHD = "FHD"
+    AUTO = "auto"
 
     @classmethod
     def from_str(cls, value: str) -> Self:
         """Parse CameraQuality case-insensitively."""
         if not isinstance(value, str):
             raise TypeError(f"Expected str for camera quality, got {type(value).__name__}")
-        normalized = value.strip().upper()
-        try:
-            return cls(normalized)
-        except ValueError as err:
-            raise ValueError(f"Invalid camera quality: {value!r}. Expected 'HD' or 'SD'.") from err
+        normalized = value.strip()
+        # "auto" is lowercase in the Roborock app enum, while HD/SD/FHD are uppercase
+        for member in cls:
+            if member.value.lower() == normalized.lower():
+                return member
+        valid = ", ".join(repr(m.value) for m in cls)
+        raise ValueError(f"Invalid camera quality: {value!r}. Expected one of {valid}.")
 
 
 @dataclass
-class CameraTurnServer:
+class CameraTurnServer(RoborockBase):
     """Ephemeral TURN server credentials for WebRTC peer connection relay."""
 
     urls: list[str]
@@ -80,8 +86,11 @@ class CameraTurnServer:
         if not isinstance(data, dict):
             raise TypeError(f"Expected dict or list of dicts for TURN server, got {type(data).__name__}")
 
-        urls_val = data.get("urls") or data.get("url")
-        if not urls_val:
+        if "urls" in data:
+            urls_val = data["urls"]
+        elif "url" in data:
+            urls_val = data["url"]
+        else:
             raise ValueError("Missing 'url' or 'urls' in TURN server response")
 
         urls: list[str] = []
@@ -91,12 +100,12 @@ class CameraTurnServer:
                 raise ValueError("TURN server URL cannot be empty")
             urls = [urls_clean]
         elif isinstance(urls_val, list):
+            if not urls_val:
+                raise ValueError("TURN server 'urls' list cannot be empty")
             for u in urls_val:
                 if not isinstance(u, str) or not u.strip():
                     raise ValueError(f"Each URL in 'urls' must be a non-empty string, got {u!r}")
                 urls.append(u.strip())
-            if not urls:
-                raise ValueError("TURN server 'urls' list cannot be empty")
         else:
             raise TypeError(f"Expected str or list for urls, got {type(urls_val).__name__}")
 
@@ -108,13 +117,15 @@ class CameraTurnServer:
         user_val = data.get("username") if "username" in data else data.get("user")
         pwd_val = data.get("credential") if "credential" in data else data.get("pwd")
 
-        username = str(user_val) if user_val is not None else None
-        credential = str(pwd_val) if pwd_val is not None else None
+        if user_val is not None and not isinstance(user_val, str):
+            raise TypeError(f"Expected str for username, got {type(user_val).__name__}")
+        if pwd_val is not None and not isinstance(pwd_val, str):
+            raise TypeError(f"Expected str for credential, got {type(pwd_val).__name__}")
 
         return cls(
             urls=urls,
-            username=username,
-            credential=credential,
+            username=user_val,
+            credential=pwd_val,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -144,13 +155,9 @@ class CameraIceCandidate:
     sdp_mid: str | None = None
     sdp_mline_index: int | None = None
     extensions: dict[str, str] = field(default_factory=dict)
-    raw: str | None = field(default=None, repr=False, compare=False)
 
     def to_sdp(self) -> str:
         """Format candidate as an SDP attribute line value (RFC 5245 / RFC 8839)."""
-        if self.raw is not None:
-            return self.raw
-
         parts = [
             f"candidate:{self.foundation}",
             str(self.component),
@@ -196,17 +203,9 @@ def parse_ice_candidate(
     if not isinstance(candidate_str, str):
         raise TypeError(f"Expected str for ICE candidate, got {type(candidate_str).__name__}")
 
-    # Strip trailing \r\n and whitespace
     cand_clean = candidate_str.rstrip("\r\n").strip()
     if not cand_clean:
         raise ValueError("Empty ICE candidate string")
-
-    # Preserve canonical SDP candidate string for raw attribute
-    raw_sdp: str = cand_clean
-    if raw_sdp.startswith("a="):
-        raw_sdp = raw_sdp[2:].strip()
-    if not raw_sdp.startswith("candidate:"):
-        raw_sdp = f"candidate:{raw_sdp}"
 
     tokens_str = cand_clean
     if tokens_str.startswith("a="):
@@ -261,11 +260,15 @@ def parse_ice_candidate(
     tcp_type: str | None = None
     extensions: dict[str, str] = {}
 
+    if (len(tokens) - 8) % 2 != 0:
+        raise ValueError(
+            f"Malformed ICE candidate extension attributes: odd number of tokens ({len(tokens) - 8}) "
+            f"after candidate type: {candidate_str!r}"
+        )
+
     i = 8
     while i < len(tokens):
         attr_name = tokens[i].lower()
-        if i + 1 >= len(tokens):
-            break
         attr_val = tokens[i + 1]
         if attr_name == "raddr":
             related_address = attr_val
@@ -305,29 +308,25 @@ def parse_ice_candidate(
         sdp_mid=sdp_mid,
         sdp_mline_index=sdp_mline_index,
         extensions=extensions,
-        raw=raw_sdp,
     )
 
 
-def hash_camera_password(password: str | int) -> str:
+def hash_camera_password(password: str) -> str:
     """Derive the lowercase hexadecimal MD5 digest of camera password digits.
 
     The Roborock camera password is a PIN or 3x3 pattern lock represented as
     a sequence of numeric ASCII digits (e.g. '1234').
     """
-    if isinstance(password, int):
-        password_str = str(password)
-    elif isinstance(password, str):
-        password_str = password.strip()
-    else:
-        raise TypeError(f"Camera password must be a str or int, got {type(password).__name__}")
+    if not isinstance(password, str):
+        raise TypeError(f"Camera password must be a str, got {type(password).__name__}")
 
+    password_str = password.strip()
     if not password_str:
         raise ValueError("Camera password cannot be empty")
     if not (password_str.isascii() and password_str.isdigit()):
         raise ValueError(f"Camera password must contain only ASCII digits, got {password!r}")
 
-    return hashlib.md5(password_str.encode("utf-8"), usedforsecurity=False).hexdigest().lower()
+    return hashlib.md5(password_str.encode("utf-8"), usedforsecurity=False).hexdigest()
 
 
 def encode_sdp_offer(sdp: str | dict[str, Any]) -> str:
@@ -429,47 +428,56 @@ def encode_ice_candidate(
     Accepts a CameraIceCandidate, raw candidate string, or dict.
     Returns the base64-encoded string to be passed under the 'app_ice' parameter.
     """
-    candidate_str: str
-    mid: str | None = sdp_mid
-    mline: int | None = sdp_mline_index
-
     if isinstance(candidate, CameraIceCandidate):
-        candidate_str = candidate.to_sdp()
-        if mid is None:
-            mid = candidate.sdp_mid
-        if mline is None:
-            mline = candidate.sdp_mline_index
+        # Override mid/mline if explicitly passed to encode_ice_candidate
+        payload = candidate.to_signaling_dict()
+        if sdp_mid is not None:
+            payload["sdpMid"] = str(sdp_mid)
+        if sdp_mline_index is not None:
+            if not isinstance(sdp_mline_index, int):
+                try:
+                    sdp_mline_index = int(sdp_mline_index)
+                except (ValueError, TypeError) as err:
+                    raise ValueError(f"Invalid sdpMLineIndex {sdp_mline_index!r}: must be an integer") from err
+            payload["sdpMLineIndex"] = sdp_mline_index
     elif isinstance(candidate, dict):
         cand_val = candidate.get("candidate")
         if not isinstance(cand_val, str) or not cand_val.strip():
             raise ValueError(f"Candidate dict missing or invalid 'candidate' string: {candidate}")
         candidate_str = cand_val.strip()
-        if mid is None:
-            mid = candidate.get("sdpMid")
-        if mline is None:
-            mline = candidate.get("sdpMLineIndex")
+        mid = sdp_mid if sdp_mid is not None else candidate.get("sdpMid")
+        mline = sdp_mline_index if sdp_mline_index is not None else candidate.get("sdpMLineIndex")
+        if not candidate_str.startswith("candidate:"):
+            candidate_str = f"candidate:{candidate_str}"
+        if mline is not None and not isinstance(mline, int):
+            try:
+                mline = int(mline)
+            except (ValueError, TypeError) as err:
+                raise ValueError(f"Invalid sdpMLineIndex {mline!r}: must be an integer") from err
+        payload = {
+            "candidate": candidate_str,
+            "sdpMid": str(mid) if mid is not None else "0",
+            "sdpMLineIndex": mline if mline is not None else 0,
+        }
     elif isinstance(candidate, str):
         candidate_str = candidate.strip()
+        if not candidate_str:
+            raise ValueError("ICE candidate string cannot be empty")
+        if not candidate_str.startswith("candidate:"):
+            candidate_str = f"candidate:{candidate_str}"
+        mline = sdp_mline_index
+        if mline is not None and not isinstance(mline, int):
+            try:
+                mline = int(mline)
+            except (ValueError, TypeError) as err:
+                raise ValueError(f"Invalid sdpMLineIndex {mline!r}: must be an integer") from err
+        payload = {
+            "candidate": candidate_str,
+            "sdpMid": str(sdp_mid) if sdp_mid is not None else "0",
+            "sdpMLineIndex": mline if mline is not None else 0,
+        }
     else:
         raise TypeError(f"Expected CameraIceCandidate, dict, or str, got {type(candidate).__name__}")
-
-    if not candidate_str:
-        raise ValueError("ICE candidate string cannot be empty")
-
-    if not candidate_str.startswith("candidate:"):
-        candidate_str = f"candidate:{candidate_str}"
-
-    if mline is not None and not isinstance(mline, int):
-        try:
-            mline = int(mline)
-        except (ValueError, TypeError) as err:
-            raise ValueError(f"Invalid sdpMLineIndex {mline!r}: must be an integer") from err
-
-    payload: dict[str, Any] = {
-        "candidate": candidate_str,
-        "sdpMid": str(mid) if mid is not None else "0",
-        "sdpMLineIndex": mline if mline is not None else 0,
-    }
 
     json_bytes = json.dumps(payload, separators=(",", ":")).encode("utf-8")
     return base64.b64encode(json_bytes).decode("ascii")
@@ -484,7 +492,7 @@ def decode_ice_candidates(
 
     Accepts the raw device response list/dict (e.g. [{'dev_ice': ['...']}]) or a list of base64 strings.
     Returns a list of parsed CameraIceCandidate objects.
-    If ignore_invalid is True, invalid candidates are logged and skipped rather than raising ValueError.
+    If ignore_invalid is True, invalid candidates are logged and skipped rather than raising ValueError or TypeError.
     """
     raw_list: list[Any]
     if isinstance(payload, list):
@@ -523,14 +531,17 @@ def decode_ice_candidates(
             mid = item.get("sdpMid")
             mline = item.get("sdpMLineIndex")
             try:
+                mline_int: int | None = None
+                if mline is not None:
+                    mline_int = int(mline)
                 candidates.append(
                     parse_ice_candidate(
                         cand_val,
                         sdp_mid=str(mid) if mid is not None else None,
-                        sdp_mline_index=int(mline) if mline is not None else None,
+                        sdp_mline_index=mline_int,
                     )
                 )
-            except ValueError as err:
+            except (ValueError, TypeError) as err:
                 if ignore_invalid:
                     _LOGGER.warning("Skipping invalid ICE candidate: %s", err)
                     continue
@@ -546,20 +557,23 @@ def decode_ice_candidates(
             try:
                 decoded_bytes = base64.b64decode(item_str, validate=True)
                 data = json.loads(decoded_bytes.decode("utf-8"))
-                if isinstance(data, dict):
-                    if "candidate" not in data or not isinstance(data["candidate"], str):
-                        raise ValueError(f"Decoded candidate JSON missing 'candidate' string: {data}")
-                    cand_str_to_parse = data["candidate"]
-                    mid = data.get("sdpMid")
-                    mline = data.get("sdpMLineIndex")
-                    sdp_mid_to_parse = str(mid) if mid is not None else None
-                    sdp_mline_to_parse = int(mline) if mline is not None else None
-            except (binascii.Error, ValueError, json.JSONDecodeError, UnicodeDecodeError) as err:
+                if not isinstance(data, dict):
+                    raise ValueError(f"Decoded candidate JSON must be a dict object, got {type(data).__name__}")
+                if "candidate" not in data or not isinstance(data["candidate"], str):
+                    raise ValueError(f"Decoded candidate JSON missing 'candidate' string: {data}")
+                cand_str_to_parse = data["candidate"]
+                mid = data.get("sdpMid")
+                mline = data.get("sdpMLineIndex")
+                sdp_mid_to_parse = str(mid) if mid is not None else None
+                sdp_mline_to_parse = int(mline) if mline is not None else None
+            except (binascii.Error, ValueError, json.JSONDecodeError, UnicodeDecodeError, TypeError) as err:
                 # If this was clearly an attempted base64 JSON payload (starts with 'ey'),
-                # don't fall back to treating it as a raw candidate string
-                if item_str.startswith("ey"):
+                # or valid base64 that decoded to non-dict, do not fall back to treating it as raw candidate
+                if item_str.startswith("ey") or (
+                    not isinstance(err, binascii.Error) and not isinstance(err, UnicodeDecodeError)
+                ):
                     if ignore_invalid:
-                        _LOGGER.warning("Skipping corrupted base64 ICE candidate payload: %s", err)
+                        _LOGGER.warning("Skipping invalid base64 JSON ICE candidate payload: %s", err)
                         continue
                     raise ValueError(f"Failed to decode base64 JSON ICE candidate: {err}") from err
                 cand_str_to_parse = item_str
@@ -572,7 +586,7 @@ def decode_ice_candidates(
                         sdp_mline_index=sdp_mline_to_parse,
                     )
                 )
-            except ValueError as err:
+            except (ValueError, TypeError) as err:
                 if ignore_invalid:
                     _LOGGER.warning("Skipping invalid ICE candidate: %s", err)
                     continue
