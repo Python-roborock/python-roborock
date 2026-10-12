@@ -801,12 +801,17 @@ async def test_set_clean_then_mop(
     status_trait.mop_mode = 300
     status_trait.seq_type = 0 if enabled else 1
 
+    event = asyncio.Event()
+    unsubscribe = status_trait.add_update_listener(event.set)
+
     await status_trait.set_clean_then_mop(enabled)
 
     mock_rpc_channel.send_command.assert_called_once_with(
         RoborockCommand.APP_SET_CLEAN_SEQUENCE_TYPE, params=expected_params
     )
     assert status_trait.clean_then_mop is enabled
+    assert event.is_set()
+    unsubscribe()
 
 
 async def test_set_clean_then_mop_unsupported(mock_rpc_channel: AsyncMock) -> None:
@@ -815,6 +820,17 @@ async def test_set_clean_then_mop_unsupported(mock_rpc_channel: AsyncMock) -> No
     status_trait._rpc_channel = mock_rpc_channel  # type: ignore[assignment]
 
     with pytest.raises(RoborockUnsupportedFeature):
+        await status_trait.set_clean_then_mop(True)
+
+    mock_rpc_channel.send_command.assert_not_called()
+
+
+async def test_set_clean_then_mop_requires_loaded_status(mock_rpc_channel: AsyncMock) -> None:
+    """The setter needs the current motor modes, so it refuses to run before a refresh."""
+    status_trait = _create_cleaning_mode_status_trait(is_clean_then_mop_mode_supported=True)
+    status_trait._rpc_channel = mock_rpc_channel  # type: ignore[assignment]
+
+    with pytest.raises(RoborockException, match="refresh"):
         await status_trait.set_clean_then_mop(True)
 
     mock_rpc_channel.send_command.assert_not_called()
