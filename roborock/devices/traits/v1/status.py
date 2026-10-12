@@ -21,7 +21,7 @@ from roborock import (
     resolve_cleaning_mode,
 )
 from roborock.devices.traits.common import DpsDataConverter, TraitUpdateListener
-from roborock.exceptions import RoborockUnsupportedFeature
+from roborock.exceptions import RoborockException, RoborockUnsupportedFeature
 from roborock.roborock_message import RoborockDataProtocol
 from roborock.roborock_typing import RoborockCommand
 
@@ -145,8 +145,15 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
         This is a separate axis from ``current_cleaning_mode``. The cleaning
         mode is derived from ``fan_power``, ``water_box_mode`` and ``mop_mode``
         and describes *what* the robot does in a room (vacuum, mop, both). This
-        flag describes the *order* when it does both. Changing one leaves the
-        other untouched; set it with ``set_clean_then_mop``.
+        flag describes the *order* when it does both. On the device the two are
+        stored independently: writing one leaves the other untouched. Set it
+        with ``set_clean_then_mop``.
+
+        The vendor app presents it as a fourth choice next to "vacuum and mop",
+        "mop only" and "vacuum only", and clears it when one of those is picked.
+        A consumer that wants the same experience should turn this off when it
+        selects a cleaning mode other than vacuum and mop; this library does
+        not do that implicitly.
 
         ``None`` means the device does not support the feature.
         """
@@ -201,8 +208,10 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
         """
         if not self._device_features_trait.is_clean_then_mop_mode_supported:
             raise RoborockUnsupportedFeature("Clean then mop is not supported")
+        if self.fan_power is None or self.water_box_mode is None:
+            raise RoborockException("Status is not loaded, call refresh() first")
         seq_type = _SEQ_TYPE_CLEAN_THEN_MOP if enabled else 0
-        params: dict[str, int | None] = {
+        params: dict[str, int] = {
             "type": seq_type,
             "fan_power": self.fan_power,
             "water_box_mode": self.water_box_mode,
@@ -213,6 +222,7 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
             params["repeat"] = 1
         await self.rpc_channel.send_command(RoborockCommand.APP_SET_CLEAN_SEQUENCE_TYPE, params=params)
         self.seq_type = seq_type
+        self._notify_update()
 
     def update_from_dps(self, decoded_dps: dict[RoborockDataProtocol, Any]) -> None:
         """Update the trait from data protocol push message data.
