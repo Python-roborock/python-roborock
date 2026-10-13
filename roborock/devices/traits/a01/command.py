@@ -50,16 +50,11 @@ class ZeoCommandTrait:
         self._features = features
         self._custom_mode = custom_mode
 
-    async def start_with(self, params: ZeoStartParams) -> dict[RoborockZeoProtocol, Any]:
+    async def start_with(self, params: ZeoStartParams) -> None:
         """Start the device with the given programme parameters.
 
         This is the primary start API: the caller needs to provide the
         parameters like mode/program/options/etc.
-
-        Returns the full DPS frame that was sent, including DPs this method
-        adds on its own (auto-dosing and feature-gated). Exposed so callers can
-        inspect/validate the frame — e.g. against the programme-config template
-        (not yet implemented) that defines valid parameter sets.
         """
         dps: dict[RoborockZeoProtocol, Any] = {RoborockZeoProtocol.START: 1}
         dps.update(build_param_dps(params))
@@ -71,7 +66,6 @@ class ZeoCommandTrait:
             qos=MqttQos.AT_LEAST_ONCE,
             value_encoder=lambda x: x,
         )
-        return dps
 
     def _build_auto_dosing_dps(self) -> dict[RoborockZeoProtocol, Any]:
         """Map the settings' auto-dosing toggles to wire DPs (211/212).
@@ -110,7 +104,7 @@ class ZeoCommandTrait:
                     dps[dp] = 1 if value else 0
         return dps
 
-    async def start_with_custom_mode(self) -> dict[RoborockZeoProtocol, Any]:
+    async def start_with_custom_mode(self) -> None:
         """Start the device using its saved custom programme.
 
         Reads the device's custom programme (DP 222, see
@@ -123,9 +117,9 @@ class ZeoCommandTrait:
         if custom is None:
             raise ValueError("Device has no saved custom programme (DP 222)")
         params = _custom_mode_to_start_params(custom)
-        return await self.start_with(params)
+        await self.start_with(params)
 
-    async def preset_with(self, params: ZeoStartParams, minutes: int) -> dict[RoborockZeoProtocol, Any]:
+    async def preset_with(self, params: ZeoStartParams, minutes: int) -> None:
         """Schedule a delayed start with full programme parameters.
 
         ``COUNTDOWN`` (DP 217) is the **last** DP in the payload,
@@ -138,8 +132,6 @@ class ZeoCommandTrait:
         enter the delay-start countdown state. Smaller values (e.g. 20) cause
         the machine to start immediately instead. The caller is responsible
         for ensuring *minutes* satisfies this constraint.
-
-        Returns the full DPS frame that was sent (see :meth:`start_with`).
         """
         if minutes <= 0:
             cancel_dps: dict[RoborockZeoProtocol, Any] = {RoborockZeoProtocol.COUNTDOWN: 0}
@@ -149,7 +141,7 @@ class ZeoCommandTrait:
                 qos=MqttQos.AT_LEAST_ONCE,
                 value_encoder=lambda x: x,
             )
-            return cancel_dps
+            return
         dps: dict[RoborockZeoProtocol, Any] = {RoborockZeoProtocol.START: 1}
         dps.update(build_param_dps(params))
         dps.update(self._build_auto_dosing_dps())
@@ -161,7 +153,6 @@ class ZeoCommandTrait:
             qos=MqttQos.AT_LEAST_ONCE,
             value_encoder=lambda x: x,
         )
-        return dps
 
     async def pause(self) -> None:
         """Pause the current programme (DP 201 = 1)."""
