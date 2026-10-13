@@ -25,6 +25,7 @@ import math
 import statistics
 import struct
 from dataclasses import dataclass, field, replace
+from functools import cached_property
 
 from PIL import Image
 from vacuum_map_parser_base.config.color import ColorsPalette, SupportedColor
@@ -238,7 +239,7 @@ class Q10MapPacket:
     the same (top-down) pixel space as :attr:`grid`, where a non-zero cell is
     carpet (the value is the carpet kind). ``None`` if the packet carried none."""
 
-    @property
+    @cached_property
     def layers(self) -> GridLayers:
         """Split the occupancy grid into separable grid-pixel layers."""
         rooms = [(room.id, room.name, room.pixel_value, room.pixel_count) for room in self.rooms]
@@ -801,8 +802,8 @@ class B01Q10MapParser:
         """
         return self.parsed_from_packet(packet)
 
-    def parsed_from_packet(self, packet: Q10MapPacket) -> ParsedMapData:
-        """Render a (possibly erase-modified) packet into a PNG + ``MapData``."""
+    def map_data_from_packet(self, packet: Q10MapPacket) -> MapData:
+        """Build MapData with a rendered base image, without PNG serialization."""
         image = self._render(packet)
 
         map_data = MapData()
@@ -830,8 +831,14 @@ class B01Q10MapParser:
         if packet.carpet_mask is not None:
             map_data.carpet_map = {i for i, value in enumerate(packet.carpet_mask) if value}
 
+        return map_data
+
+    def parsed_from_packet(self, packet: Q10MapPacket) -> ParsedMapData:
+        """Render a (possibly erase-modified) packet into a PNG + ``MapData``."""
+        map_data = self.map_data_from_packet(packet)
         image_bytes = io.BytesIO()
-        image.save(image_bytes, format=_MAP_FILE_FORMAT)
+        if map_data.image is not None:
+            map_data.image.data.save(image_bytes, format=_MAP_FILE_FORMAT)
         return ParsedMapData(image_content=image_bytes.getvalue(), map_data=map_data)
 
     def _render(self, packet: Q10MapPacket) -> Image.Image:
