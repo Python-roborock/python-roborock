@@ -16,11 +16,12 @@ from roborock import (
     get_current_cleaning_mode,
     resolve_cleaning_mode,
 )
-from roborock.data import SHORT_MODEL_TO_ENUM, RoborockProductNickname
+from roborock.data import SHORT_MODEL_TO_ENUM, HomeDataDevice, RoborockProductNickname
 from roborock.data.v1 import (
     RoborockChargeStatus,
     RoborockDockErrorCode,
     RoborockDockState,
+    RoborockDockTypeCode,
     RoborockErrorCode,
     RoborockStateCode,
 )
@@ -85,6 +86,35 @@ async def test_refresh_status_dict_response(status_trait: StatusTrait, mock_rpc_
     assert status_trait.battery == 100
     assert status_trait.state == RoborockStateCode.charging
     mock_rpc_channel.send_command.assert_called_once_with(RoborockCommand.GET_STATUS)
+
+
+@pytest.mark.parametrize("device_info", [HomeDataDevice.from_dict(mock_data.P30_PRO_DEVICE_DATA)])
+@pytest.mark.parametrize(
+    ("water_box_mode", "expected_name"),
+    [(210, "smart_water"), (230, "gentle")],
+)
+async def test_refresh_status_p30_pro(
+    device_info: HomeDataDevice,
+    discover_features_fixture: None,
+    status_trait: StatusTrait,
+    mock_rpc_channel: AsyncMock,
+    water_box_mode: int,
+    expected_name: str,
+) -> None:
+    """Test refreshing P30 Pro status with smart water or a manual slider value."""
+    mock_rpc_channel.send_command.return_value = [
+        {**STATUS, "fan_power": 103, "water_box_mode": water_box_mode, "mop_mode": 300, "dock_type": 49}
+    ]
+
+    await status_trait.refresh()
+
+    assert status_trait.fan_speed_name == "turbo"
+    assert status_trait.water_box_mode == water_box_mode
+    assert status_trait.water_mode_name == expected_name
+    assert status_trait.mop_route_name == "standard"
+    assert status_trait.current_cleaning_mode == CleaningMode.VAC_AND_MOP
+    assert status_trait.dock_type == RoborockDockTypeCode.type_49_dock
+    mock_rpc_channel.send_command.assert_awaited_once_with(RoborockCommand.GET_STATUS)
 
 
 async def test_refresh_status_propagates_exception(status_trait: StatusTrait, mock_rpc_channel: AsyncMock) -> None:
@@ -651,6 +681,7 @@ def test_water_slide_mode_mapping() -> None:
     ("water_box_mode", "expected_name"),
     [
         (200, "off"),
+        (210, "smart_water"),
         (221, "slight"),
         (223, "slight"),
         (224, "low"),

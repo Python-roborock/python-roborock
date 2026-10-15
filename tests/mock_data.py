@@ -147,6 +147,7 @@ Q7_DEVICE_DATA = DEVICES["home_data_device_q7.json"]
 Q10_DEVICE_DATA = DEVICES["home_data_device_q10.json"]
 ZEO_ONE_DEVICE_DATA = DEVICES["home_data_device_zeo_one.json"]
 SAROS_10R_DEVICE_DATA = DEVICES["home_data_device_saros_10r.json"]
+P30_PRO_DEVICE_DATA = DEVICES["home_data_device_p30_pro.json"]
 
 # All testdata devices joined with their matching product (keyed by device filename).
 # Devices whose productId has no corresponding product file are omitted.
@@ -176,6 +177,7 @@ PRODUCT_DOCK_TYPE_MAP: dict[str, RoborockDockTypeCode] = {
     "product-id-a123": RoborockDockTypeCode.pearl_plus_dock,  # PearlS Lite / Q Revo (Wash/Empty)
     "product-saros-10": RoborockDockTypeCode.o4_dock,  # Saros 10 / Q Revo Pro (Wash/Empty/Auto Fluid)
     "product-saros-10r": RoborockDockTypeCode.o6_dock,  # JC / Q Revo Master (Wash/Empty/Hot water)
+    "product-id-a306": RoborockDockTypeCode.type_49_dock,  # P30 Pro (Wash/Empty/Dry)
 }
 
 

@@ -298,6 +298,7 @@ async def test_from_dict_rejects_legacy_missing_capabilities(caplog: pytest.LogC
         (RoborockDockTypeCode.f1s_dock, True, True),
         (RoborockDockTypeCode.o7h_dock, True, True),
         (RoborockDockTypeCode.f1c_dock, True, True),
+        (RoborockDockTypeCode.type_49_dock, True, True),
     ],
 )
 def test_dock_features(dock_type: RoborockDockTypeCode, is_collectable: bool, is_washable: bool) -> None:
@@ -318,7 +319,8 @@ def test_all_rr_api_dock_types_are_mapped() -> None:
         if dock_type is not RoborockDockTypeCode.unknown
     }
 
-    assert mapped_docks == RR_API_DOCK_TYPES
+    observed_docks = {49: "type_49_dock"}  # P30 Pro; not present in the older RR_API snapshot.
+    assert mapped_docks == RR_API_DOCK_TYPES | observed_docks
 
 
 def test_dock_feature_flags_from_rr_api() -> None:

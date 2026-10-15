@@ -55,6 +55,7 @@ class WaterModes(RoborockModeEnum):
     CUSTOM = ("custom_water_flow", 207)
     EXTREME = ("extreme", 208)
     SMART_MODE = ("smart_mode", 209)
+    SMART_WATER = ("smart_water", 210)
     PURE_WATER_FLOW_START = ("slight", 221)
     PURE_WATER_FLOW_SMALL = ("low", 225)
     PURE_WATER_FLOW_GENTLE = ("gentle", 230)
@@ -201,6 +202,8 @@ def get_water_slide_mode_name(code: int) -> str | None:
     """Get the app's range name for a water slide code, or None if out of range."""
     if code == 200:
         return WaterModes.OFF.value
+    if code == WaterModes.SMART_WATER.code:
+        return WaterModes.SMART_WATER.value
     position = code - 220
     if position < 1:
         return None
