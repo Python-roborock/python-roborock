@@ -1,0 +1,17 @@
+{
+    "duid": "device-id-a306",
+    "name": "P30 Pro",
+    "localKey": "key123key123key1",
+    "productId": "product-id-a306",
+    "fv": "02.23.52",
+    "online": true,
+    "pv": "1.0",
+    "featureSet": "4499197267967999",
+    "newFeatureSet": "000002637C3FBF1DCEDD7FFDA8E8B6FD5BBFAF7F7EFEFFFF",
+    "deviceStatus": {
+        "121": 8,
+        "122": 100,
+        "123": 103,
+        "124": 210
+    }
+}

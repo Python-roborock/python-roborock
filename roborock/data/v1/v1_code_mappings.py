@@ -386,6 +386,7 @@ class RoborockDockTypeCode(RoborockEnum):
     f1s_dock = 44
     o7h_dock = 45
     f1c_dock = 46
+    type_49_dock = 49
 
 
 class RoborockDockDustCollectionModeCode(RoborockEnum):
