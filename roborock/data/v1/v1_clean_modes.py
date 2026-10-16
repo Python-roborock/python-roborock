@@ -199,14 +199,20 @@ def get_water_modes(features: DeviceFeatures) -> list[WaterModes]:
 
 def get_water_slide_mode_name(code: int) -> str | None:
     """Get the app's range name for a water slide code, or None if out of range."""
+    mode = _resolve_water_slide_mode(code)
+    return mode.value if mode is not None else None
+
+
+def _resolve_water_slide_mode(code: int) -> WaterModes | None:
+    """Resolve a raw slider code to the water mode for its app range."""
     if code == 200:
-        return WaterModes.OFF.value
+        return WaterModes.OFF
     position = code - 220
     if position < 1:
         return None
     for last_position, mode in _WATER_SLIDE_RANGES:
         if position <= last_position:
-            return mode.value
+            return mode
     return None
 
 
@@ -345,7 +351,7 @@ def get_current_cleaning_mode(
     clean_mode_enum = _resolve_clean_mode(clean_mode, features)
     water_mode_enum = _resolve_mode_code(water_mode, WaterModes)
     if features.is_water_slide_mode_supported and isinstance(water_mode, int):
-        water_mode_enum = WATER_SLIDE_MODE_MAPPING.get(water_mode, water_mode_enum)
+        water_mode_enum = _resolve_water_slide_mode(water_mode) or water_mode_enum
     mop_mode_enum = _resolve_mode_code(mop_mode, CleanRoutes)
     if clean_mode_enum is None or water_mode_enum is None:
         return None

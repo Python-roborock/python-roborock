@@ -583,7 +583,7 @@ def test_get_cleaning_mode_parameters_water_slide_device() -> None:
     ]
 
 
-@pytest.mark.parametrize("water_box_mode", [221, 225, 235, 245, 248, 250])
+@pytest.mark.parametrize("water_box_mode", range(221, 251))
 @pytest.mark.parametrize(
     ("fan_power", "expected_mode"),
     [(102, CleaningMode.VAC_AND_MOP), (104, CleaningMode.VAC_AND_MOP), (105, CleaningMode.MOP)],
@@ -591,7 +591,7 @@ def test_get_cleaning_mode_parameters_water_slide_device() -> None:
 def test_current_cleaning_mode_water_slide_codes(
     water_box_mode: int, fan_power: int, expected_mode: CleaningMode
 ) -> None:
-    """Classify actual slide wire codes, not the aliased enum's legacy code."""
+    """Classify every raw slider position without changing the reported water code."""
     status_trait = _create_cleaning_mode_status_trait(is_water_slide_mode_supported=True)
     status_trait.fan_power = fan_power
     status_trait.water_box_mode = water_box_mode
@@ -599,6 +599,46 @@ def test_current_cleaning_mode_water_slide_codes(
 
     assert status_trait.current_cleaning_mode == expected_mode
     assert status_trait.current_cleaning_mode_name == expected_mode.value
+    assert status_trait.water_box_mode == water_box_mode
+
+
+@pytest.mark.parametrize(
+    ("water_box_mode", "expected_mode"),
+    [
+        (200, CleaningMode.VACUUM),
+        (204, CleaningMode.CUSTOM),
+        (209, CleaningMode.SMART_MODE),
+        (220, None),
+        (251, None),
+        (999, None),
+        (None, None),
+    ],
+)
+def test_current_cleaning_mode_water_slide_legacy_codes(
+    water_box_mode: int | None, expected_mode: CleaningMode | None
+) -> None:
+    """Keep legacy and unknown status decoding on water-slide devices."""
+    status_trait = _create_cleaning_mode_status_trait(is_water_slide_mode_supported=True)
+    status_trait.fan_power = 102
+    status_trait.water_box_mode = water_box_mode
+    status_trait.mop_mode = 300
+
+    assert status_trait.current_cleaning_mode == expected_mode
+    assert status_trait.current_cleaning_mode_name == (expected_mode.value if expected_mode is not None else None)
+    assert status_trait.water_box_mode == water_box_mode
+
+
+@pytest.mark.parametrize("water_box_mode", [222, 223, 248])
+def test_current_cleaning_mode_without_water_slide_support(water_box_mode: int) -> None:
+    """Do not interpret slider positions without the water-slide capability."""
+    status_trait = _create_cleaning_mode_status_trait(is_water_slide_mode_supported=False)
+    status_trait.fan_power = 102
+    status_trait.water_box_mode = water_box_mode
+    status_trait.mop_mode = 300
+
+    assert status_trait.current_cleaning_mode is None
+    assert status_trait.current_cleaning_mode_name is None
+    assert status_trait.water_box_mode == water_box_mode
 
 
 @pytest.mark.parametrize("is_water_slide_mode_supported", [False, True])
