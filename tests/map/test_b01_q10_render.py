@@ -16,8 +16,10 @@ from vacuum_map_parser_base.map_data import MapData, Point
 from roborock.map.b01_grid_layers import GridCalibration
 from roborock.map.b01_q10_map_parser import (
     B01Q10MapParserConfig,
+    Q10CleanRecordDetail,
     Q10EraseZone,
     Q10HeaderCalibration,
+    Q10HistoricalTracePacket,
     Q10MapPacket,
     Q10Point,
     Q10TracePacket,
@@ -58,7 +60,7 @@ def _packet() -> Q10MapPacket:
 def _render(
     packet: Q10MapPacket | None = None,
     *,
-    trace: Q10TracePacket | None = None,
+    trace: Q10TracePacket | Q10HistoricalTracePacket | None = None,
     overlays: Q10MapOverlays | None = None,
 ) -> bytes:
     return render_q10_map(
@@ -115,6 +117,16 @@ def test_render_draws_path_and_position() -> None:
     assert rendered.size == (8 * 4, 6 * 4)
     # The shared V1 robot glyph has a white body at its center.
     assert rendered.getpixel(image_position) == (255, 255, 255, 255)
+
+
+def test_render_accepts_historical_trace() -> None:
+    """A validated clean-record path uses the same calibrated drawing path."""
+    packet, live_trace = _calibrated_inputs()
+    historical = Q10HistoricalTracePacket(points=live_trace.points, heading=live_trace.heading)
+
+    archived = Q10CleanRecordDetail(map=packet, trace=historical)
+    assert _render(archived.map, trace=archived.trace) == _render(packet, trace=live_trace)
+    assert _render(archived.map) != _render(archived.map, trace=archived.trace)
 
 
 def test_render_draws_zones_and_virtual_walls() -> None:

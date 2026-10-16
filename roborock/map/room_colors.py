@@ -23,23 +23,31 @@ def adjacency_aware_room_colors(
     if width <= 0:
         return {}
 
+    lut = [room_id_from_cell(i) for i in range(256)]
     room_ids: set[int] = set()
     neighbors: dict[int, set[int]] = {}
     for index, value in enumerate(grid):
-        room_id = room_id_from_cell(value)
+        room_id = lut[value] if 0 <= value < 256 else room_id_from_cell(value)
         if room_id is None:
             continue
         room_ids.add(room_id)
         neighbors.setdefault(room_id, set())
 
-        for neighbor_index in (index - 1 if index % width else -1, index - width):
-            if neighbor_index < 0:
-                continue
-            neighbor_id = room_id_from_cell(grid[neighbor_index])
-            if neighbor_id is None or neighbor_id == room_id:
-                continue
-            neighbors[room_id].add(neighbor_id)
-            neighbors.setdefault(neighbor_id, set()).add(room_id)
+        if index % width:
+            left_val = grid[index - 1]
+            if left_val != value:
+                neighbor_id = lut[left_val] if 0 <= left_val < 256 else room_id_from_cell(left_val)
+                if neighbor_id is not None and neighbor_id != room_id:
+                    neighbors[room_id].add(neighbor_id)
+                    neighbors.setdefault(neighbor_id, set()).add(room_id)
+
+        if index >= width:
+            up_val = grid[index - width]
+            if up_val != value:
+                neighbor_id = lut[up_val] if 0 <= up_val < 256 else room_id_from_cell(up_val)
+                if neighbor_id is not None and neighbor_id != room_id:
+                    neighbors[room_id].add(neighbor_id)
+                    neighbors.setdefault(neighbor_id, set()).add(room_id)
 
     candidates: list[Color] = []
     for palette_id in map(int, ColorsPalette.ROOM_COLORS):

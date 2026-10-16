@@ -2,6 +2,137 @@
 
 <!-- version list -->
 
+## v7.12.3 (2026-10-12)
+
+### Bug Fixes
+
+- Fix charging for off peak ([#922](https://github.com/Python-roborock/python-roborock/pull/922),
+  [`17a3857`](https://github.com/Python-roborock/python-roborock/commit/17a3857e7b1779ec4538130f3b011d0e3c419765))
+
+
+## v7.12.2 (2026-10-10)
+
+### Bug Fixes
+
+- Select latest V1 cleaning record regardless of response order
+  ([#978](https://github.com/Python-roborock/python-roborock/pull/978),
+  [`88fbe7b`](https://github.com/Python-roborock/python-roborock/commit/88fbe7b7dd3fc20275bfecc15adf27b5abc2c5bd))
+
+
+## v7.12.1 (2026-10-07)
+
+### Bug Fixes
+
+- Map water slide positions to the app's flow ranges
+  ([#975](https://github.com/Python-roborock/python-roborock/pull/975),
+  [`5420f8d`](https://github.com/Python-roborock/python-roborock/commit/5420f8d369f0b7434989019eb4d2fcf04e188743))
+
+### Chores
+
+- **tests**: Address MQTT broker test review
+  ([#950](https://github.com/Python-roborock/python-roborock/pull/950),
+  [`840139a`](https://github.com/Python-roborock/python-roborock/commit/840139aedf91f314f971ead37af70398656d2d94))
+
+- **tests**: Cover mqtt e2e scenarios for MqttSession
+  ([#950](https://github.com/Python-roborock/python-roborock/pull/950),
+  [`840139a`](https://github.com/Python-roborock/python-roborock/commit/840139aedf91f314f971ead37af70398656d2d94))
+
+
+## v7.12.0 (2026-09-27)
+
+### Bug Fixes
+
+- Preserve immutable Q10 points in model conformance checks
+  ([#936](https://github.com/Python-roborock/python-roborock/pull/936),
+  [`14b4bc6`](https://github.com/Python-roborock/python-roborock/commit/14b4bc69e85794a6b448cc0b41379f1ed4cc31b2))
+
+- Request Q10 maps without starting cleaning
+  ([#936](https://github.com/Python-roborock/python-roborock/pull/936),
+  [`14b4bc6`](https://github.com/Python-roborock/python-roborock/commit/14b4bc69e85794a6b448cc0b41379f1ed4cc31b2))
+
+### Features
+
+- Parse Q10 archived map packets
+  ([#936](https://github.com/Python-roborock/python-roborock/pull/936),
+  [`14b4bc6`](https://github.com/Python-roborock/python-roborock/commit/14b4bc69e85794a6b448cc0b41379f1ed4cc31b2))
+
+### Refactoring
+
+- Give Q10 clean-record maps ownership of historical paths
+  ([#936](https://github.com/Python-roborock/python-roborock/pull/936),
+  [`14b4bc6`](https://github.com/Python-roborock/python-roborock/commit/14b4bc69e85794a6b448cc0b41379f1ed4cc31b2))
+
+
+## v7.11.1 (2026-09-26)
+
+### Bug Fixes
+
+- Offload map parsing to worker thread to prevent event loop blocking
+  ([#966](https://github.com/Python-roborock/python-roborock/pull/966),
+  [`dd7b4e7`](https://github.com/Python-roborock/python-roborock/commit/dd7b4e7e64f3ebbf8728a7e2fd7293ff570bc6a0))
+
+
+## v7.11.0 (2026-09-26)
+
+### Features
+
+- Add resolve_error to StatusTrait
+  ([#968](https://github.com/Python-roborock/python-roborock/pull/968),
+  [`38c2675`](https://github.com/Python-roborock/python-roborock/commit/38c2675441c59aa0b00b9a6d83ae9f6e2b7b3c0c))
+
+
+## v7.10.0 (2026-09-25)
+
+### Features
+
+- **q7**: Add set_button_light trait method
+  ([#843](https://github.com/Python-roborock/python-roborock/pull/843),
+  [`d26173e`](https://github.com/Python-roborock/python-roborock/commit/d26173ec1ed57bbe51b1568b4447ffaa29b3d259))
+
+- **q7**: Add set_button_lights trait method
+  ([#843](https://github.com/Python-roborock/python-roborock/pull/843),
+  [`d26173e`](https://github.com/Python-roborock/python-roborock/commit/d26173ec1ed57bbe51b1568b4447ffaa29b3d259))
+
+### Refactoring
+
+- **q7**: Rename set_button_light to set_button_lights
+  ([#843](https://github.com/Python-roborock/python-roborock/pull/843),
+  [`d26173e`](https://github.com/Python-roborock/python-roborock/commit/d26173ec1ed57bbe51b1568b4447ffaa29b3d259))
+
+
+## v7.9.0 (2026-09-21)
+
+### Features
+
+- Add MopDryerTrait for controlling the dock mop dryer
+  ([#952](https://github.com/Python-roborock/python-roborock/pull/952),
+  [`48f793f`](https://github.com/Python-roborock/python-roborock/commit/48f793fcb1ae13a4b2d21b939150fa464bae7879))
+
+### Refactoring
+
+- Back MopDryerTrait with the dryer setting instead of device status
+  ([#952](https://github.com/Python-roborock/python-roborock/pull/952),
+  [`48f793f`](https://github.com/Python-roborock/python-roborock/commit/48f793fcb1ae13a4b2d21b939150fa464bae7879))
+
+
+## v7.8.2 (2026-09-20)
+
+### Bug Fixes
+
+- Fetch the latest user agreement version instead of hardcoding it
+  ([#960](https://github.com/Python-roborock/python-roborock/pull/960),
+  [`f6a40f8`](https://github.com/Python-roborock/python-roborock/commit/f6a40f8795d7991b85a2e5e99c5dee7bba97aaa5))
+
+
+## v7.8.1 (2026-09-17)
+
+### Bug Fixes
+
+- Preserve immutable Q10 points in model conformance checks
+  ([#965](https://github.com/Python-roborock/python-roborock/pull/965),
+  [`386e4c5`](https://github.com/Python-roborock/python-roborock/commit/386e4c50fe9ca29d7a4caa85a3662c3c104b26f2))
+
+
 ## v7.8.0 (2026-09-13)
 
 ### Features

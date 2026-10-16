@@ -1,0 +1,137 @@
+# serializer version: 1
+# name: test_parse_v1_fixtures[s5_fw1886_with_forbidden_zones_and_virtual_walls.bin]
+  dict({
+    'additional_parameters': dict({
+      'is_valid': True,
+      'major_version': 1,
+      'map_index': 875,
+      'map_sequence': 64,
+      'minor_version': 0,
+    }),
+    'charger': Point(x=25612, y=25254, a=None),
+    'goto': None,
+    'goto_path_points': 0,
+    'image_format': 'PNG',
+    'image_size': tuple(
+      1048,
+      952,
+    ),
+    'no_go_areas': list([
+      Area(x0=27000, y0=28750, x1=28850, y1=28750, x2=28850, y2=28100, x3=27000, y3=28100),
+    ]),
+    'no_mopping_areas': None,
+    'path_points': 55,
+    'predicted_path_points': 0,
+    'rooms': dict({
+    }),
+    'vacuum_position': Point(x=28697, y=26764, a=0),
+    'walls': list([
+      Wall(x0=25300, y0=27850, x1=25300, y1=26850),
+    ]),
+    'zones': list([
+      Zone(x0=27289, y0=25480, x1=28919, y1=27358),
+    ]),
+  })
+# ---
+# name: test_parse_v1_fixtures[s5_fw1886_with_goto_target.bin]
+  dict({
+    'additional_parameters': dict({
+      'is_valid': True,
+      'major_version': 1,
+      'map_index': 876,
+      'map_sequence': 84,
+      'minor_version': 0,
+    }),
+    'charger': Point(x=25612, y=25254, a=None),
+    'goto': Point(x=25874, y=26218, a=None),
+    'goto_path_points': 0,
+    'image_format': 'PNG',
+    'image_size': tuple(
+      1052,
+      1048,
+    ),
+    'no_go_areas': list([
+    ]),
+    'no_mopping_areas': None,
+    'path_points': 32,
+    'predicted_path_points': 3,
+    'rooms': dict({
+    }),
+    'vacuum_position': Point(x=26139, y=26459, a=0),
+    'walls': list([
+    ]),
+    'zones': None,
+  })
+# ---
+# name: test_parse_v1_fixtures[s5_fw2008_with_segments.bin]
+  dict({
+    'additional_parameters': dict({
+      'is_valid': True,
+      'major_version': 1,
+      'map_index': 919,
+      'map_sequence': 814,
+      'minor_version': 1,
+    }),
+    'charger': Point(x=25652, y=25222, a=98),
+    'goto': None,
+    'goto_path_points': 0,
+    'image_format': 'PNG',
+    'image_size': tuple(
+      1024,
+      964,
+    ),
+    'no_go_areas': list([
+    ]),
+    'no_mopping_areas': None,
+    'path_points': 933,
+    'predicted_path_points': 0,
+    'rooms': dict({
+      1: Room(x0=23250, y0=24950, x1=26550, y1=26400, number=1, name=None, pos_x=None, pos_y=None),
+      2: Room(x0=25150, y0=26400, x1=26600, y1=29950, number=2, name=None, pos_x=None, pos_y=None),
+    }),
+    'vacuum_position': Point(x=25642, y=25401, a=-88),
+    'walls': list([
+    ]),
+    'zones': list([
+    ]),
+  })
+# ---
+# name: test_parse_v1_fixtures[s6_fw2652_with_active_segment_and_no_mop_zone.bin]
+  dict({
+    'additional_parameters': dict({
+      'is_valid': True,
+      'major_version': 1,
+      'map_index': 804,
+      'map_sequence': 43,
+      'minor_version': 0,
+    }),
+    'charger': Point(x=25273, y=25603, a=-1),
+    'goto': None,
+    'goto_path_points': 0,
+    'image_format': 'PNG',
+    'image_size': tuple(
+      1644,
+      1344,
+    ),
+    'no_go_areas': list([
+      Area(x0=25000, y0=28000, x1=27200, y1=28000, x2=27200, y2=27100, x3=25000, y3=27100),
+    ]),
+    'no_mopping_areas': list([
+      Area(x0=29750, y0=27400, x1=32400, y1=27400, x2=32400, y2=25950, x3=29750, y3=25950),
+    ]),
+    'path_points': 78,
+    'predicted_path_points': 0,
+    'rooms': dict({
+      16: Room(x0=29550, y0=29550, x1=30450, y1=30900, number=16, name=None, pos_x=None, pos_y=None),
+      17: Room(x0=29000, y0=24550, x1=33100, y1=29400, number=17, name=None, pos_x=None, pos_y=None),
+      18: Room(x0=30550, y0=29400, x1=34750, y1=31250, number=18, name=None, pos_x=None, pos_y=None),
+      19: Room(x0=25050, y0=24550, x1=28950, y1=29650, number=19, name=None, pos_x=None, pos_y=None),
+      20: Room(x0=25150, y0=29350, x1=28150, y1=30950, number=20, name=None, pos_x=None, pos_y=None),
+      21: Room(x0=33350, y0=24500, x1=35300, y1=29400, number=21, name=None, pos_x=None, pos_y=None),
+    }),
+    'vacuum_position': Point(x=30550, y=26455, a=-92),
+    'walls': list([
+    ]),
+    'zones': None,
+  })
+# ---

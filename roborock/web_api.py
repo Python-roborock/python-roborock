@@ -38,6 +38,10 @@ BASE_URLS = [
     "https://ruiot.roborock.com",
 ]
 
+# Fallback user agreement version, used only if the latest version cannot be fetched.
+DEFAULT_AGREEMENT_MAJOR_VERSION = 14
+DEFAULT_AGREEMENT_MINOR_VERSION = 0
+
 
 @dataclass
 class IotLoginInfo:
@@ -292,6 +296,34 @@ class RoborockApiClient:
 
         return code_response["data"]["k"]
 
+    async def _get_agreement_version(self, country: str) -> dict[str, int]:
+        """Get the latest user agreement version for the given country.
+
+        The login endpoint rejects a stale agreement version with code 3006. The
+        current version differs per server and per country, so it must be looked
+        up rather than hardcoded. Falls back to the previously hardcoded values
+        if the lookup fails so that login is never blocked by this request.
+        """
+        try:
+            base_url = await self.base_url
+            agreement_request = PreparedRequest(base_url, self.session, {"header_clientlang": "en"})
+            response = await agreement_request.request(
+                "get",
+                "/api/v3/app/agreement/latest",
+                params={"country": country},
+            )
+            if response is not None and response.get("code") == 200:
+                data = response.get("data") or {}
+                major = data.get("majorVersion")
+                minor = data.get("minorVersion")
+                if isinstance(major, int) and isinstance(minor, int):
+                    _LOGGER.debug("Using user agreement version %s.%s for %s", major, minor, country)
+                    return {"majorVersion": major, "minorVersion": minor}
+            _LOGGER.debug("Unexpected agreement version response: %s", response)
+        except RoborockException as err:
+            _LOGGER.debug("Could not fetch latest user agreement version: %s", err)
+        return {"majorVersion": DEFAULT_AGREEMENT_MAJOR_VERSION, "minorVersion": DEFAULT_AGREEMENT_MINOR_VERSION}
+
     async def code_login_v4(
         self, code: int | str, country: str | None = None, country_code: int | None = None
     ) -> UserData:
@@ -334,10 +366,7 @@ class RoborockApiClient:
                 "countryCode": country_code,
                 "email": self._username,
                 "code": code,
-                # Major and minor version are the user agreement version, we will need to see if this needs to be
-                # dynamic https://usiot.roborock.com/api/v3/app/agreement/latest?country=US
-                "majorVersion": 14,
-                "minorVersion": 0,
+                **await self._get_agreement_version(country),
             },
         )
         if login_response is None:

@@ -82,7 +82,8 @@ class CleanSummaryTrait(CleanSummaryWithDetail, common.V1TraitMixin):
             _LOGGER.debug("No clean records available in clean summary.")
             self.last_clean_record = None
             return
-        last_record_id = self.records[0]
+        # Record IDs are start timestamps; devices may return them in either order.
+        last_record_id = max(self.records)
         self.last_clean_record = await self.get_clean_record(last_record_id)
 
     async def get_clean_record(self, record_id: int) -> CleanRecord:

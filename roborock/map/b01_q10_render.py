@@ -34,6 +34,7 @@ from .b01_q10_map_parser import (
     B01Q10MapParser,
     B01Q10MapParserConfig,
     Q10EraseZone,
+    Q10HistoricalTracePacket,
     Q10MapPacket,
     Q10TracePacket,
     erased_packet,
@@ -62,7 +63,6 @@ _MIN_CALIBRATION_POINTS = 20
 # a much shorter path suffices to confirm it (early in a clean, not just a dense
 # one). See :func:`solve_calibration_with_origin`.
 _MIN_HEADER_CALIBRATION_POINTS = 4
-
 _Q10_DRAWABLE_TYPES = {
     Drawable.CHARGER,
     Drawable.NO_GO_AREAS,
@@ -84,7 +84,7 @@ class Q10MapOverlays:
 
 def render_q10_map(
     packet: Q10MapPacket,
-    trace: Q10TracePacket | None,
+    trace: Q10TracePacket | Q10HistoricalTracePacket | None,
     overlays: Q10MapOverlays,
     *,
     config: B01Q10MapParserConfig,
@@ -133,7 +133,7 @@ def render_q10_map(
 
 def solve_q10_calibration(
     packet: Q10MapPacket,
-    trace: Q10TracePacket | None,
+    trace: Q10TracePacket | Q10HistoricalTracePacket | None,
 ) -> GridCalibration | None:
     """Derive world-to-pixel calibration from a map and its current trace.
 
@@ -232,7 +232,7 @@ def _erased_cells(
 def _place_trace(
     map_data: MapData,
     calibration: GridCalibration,
-    trace: Q10TracePacket,
+    trace: Q10TracePacket | Q10HistoricalTracePacket,
     *,
     charger_heading: int | None = None,
 ) -> None:

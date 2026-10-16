@@ -1,0 +1,10 @@
+services:
+  emqx:
+    image: emqx/emqx:6.2.3
+    ports:
+      - "127.0.0.1:1888:1883"
+    healthcheck:
+      test: ["CMD", "/opt/emqx/bin/emqx", "ctl", "status"]
+      interval: 5s
+      timeout: 25s
+      retries: 5

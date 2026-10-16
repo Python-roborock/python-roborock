@@ -23,6 +23,7 @@ from roborock.data.v1.v1_containers import (
     Consumable,
     DnDTimer,
     StatusV2,
+    get_dock_state,
 )
 from tests.mock_data import (
     CLEAN_RECORD,
@@ -141,36 +142,54 @@ def test_current_map() -> None:
 
 
 @pytest.mark.parametrize(
-    "state, charge_status, battery, expected_dock_state",
+    "state, charge_status, battery, is_supported_valley_electricity, expected_dock_state",
     [
-        (RoborockStateCode.emptying_the_bin, None, 50, RoborockDockState.dusting),
-        (RoborockStateCode.charging_complete, None, 100, RoborockDockState.full),
-        (RoborockStateCode.charging, None, 100, RoborockDockState.full),
-        (RoborockStateCode.charging, RoborockChargeStatus.charging.value, 90, RoborockDockState.charging),
-        (RoborockStateCode.charging, RoborockChargeStatus.charge_waiting.value, 50, RoborockDockState.off_peak_waiting),
-        (RoborockStateCode.charging, None, 50, RoborockDockState.charging),
-        (RoborockStateCode.returning_home, None, 20, RoborockDockState.returning),
-        (RoborockStateCode.docking, None, 15, RoborockDockState.returning),
-        (RoborockStateCode.cleaning, None, 80, RoborockDockState.idle),
-        (RoborockStateCode.paused, None, 80, RoborockDockState.idle),
-        (RoborockStateCode.unknown, None, 100, RoborockDockState.unknown),
-        (None, None, 100, RoborockDockState.unknown),
+        (RoborockStateCode.emptying_the_bin, None, 50, False, RoborockDockState.dusting),
+        (RoborockStateCode.charging_complete, None, 100, False, RoborockDockState.full),
+        (RoborockStateCode.charging, None, 100, False, RoborockDockState.full),
+        (RoborockStateCode.charging, RoborockChargeStatus.charging.value, 90, False, RoborockDockState.charging),
+        (
+            RoborockStateCode.charging,
+            RoborockChargeStatus.charge_waiting.value,
+            50,
+            True,
+            RoborockDockState.off_peak_waiting,
+        ),
+        (RoborockStateCode.charging, RoborockChargeStatus.charge_waiting.value, 50, False, RoborockDockState.charging),
+        (RoborockStateCode.charging, None, 50, False, RoborockDockState.charging),
+        (RoborockStateCode.returning_home, None, 20, False, RoborockDockState.returning),
+        (RoborockStateCode.docking, None, 15, False, RoborockDockState.returning),
+        (RoborockStateCode.cleaning, None, 80, False, RoborockDockState.idle),
+        (RoborockStateCode.paused, None, 80, False, RoborockDockState.idle),
+        (RoborockStateCode.unknown, None, 100, False, RoborockDockState.unknown),
+        (None, None, 100, False, RoborockDockState.unknown),
     ],
 )
-def test_dock_state(
+def test_get_dock_state(
     state: RoborockStateCode | None,
     charge_status: int | None,
     battery: int,
+    is_supported_valley_electricity: bool,
     expected_dock_state: RoborockDockState,
 ) -> None:
-    """Test that dock_state correctly synthesizes UI state."""
-    status = copy.deepcopy(STATUS)
-    status["state"] = state
-    status["charge_status"] = charge_status
-    status["battery"] = battery
+    """Test that get_dock_state correctly synthesizes UI state."""
+    assert (
+        get_dock_state(
+            state=state,
+            battery=battery,
+            charge_status=charge_status,
+            is_supported_valley_electricity=is_supported_valley_electricity,
+        )
+        == expected_dock_state
+    )
 
+
+def test_status_v2_dock_state_deprecated() -> None:
+    """Test that accessing StatusV2.dock_state issues a DeprecationWarning."""
+    status = copy.deepcopy(STATUS)
     s = StatusV2.from_dict(status)
-    assert s.dock_state == expected_dock_state
+    with pytest.deprecated_call():
+        assert s.dock_state == RoborockDockState.full
 
 
 def test_status_v2() -> None:

@@ -1,5 +1,7 @@
 """Tests for Q10 data containers."""
 
+from dataclasses import FrozenInstanceError
+
 import pytest
 
 from roborock.data.b01_q10.b01_q10_containers import Q10RoborockPoint
@@ -47,3 +49,15 @@ def test_q10_roborock_point_rejects_invalid_vector_coordinates(
     """Outbound vector coordinates must fit the signed wire grid exactly."""
     with pytest.raises(ValueError):
         point.to_vector()
+
+
+@pytest.mark.parametrize("field", ["x", "y"])
+def test_roborock_point_preserves_immutable_value_contract(field: str) -> None:
+    point = Q10RoborockPoint(25500, 25500)
+    original_hash = hash(point)
+    with pytest.raises(FrozenInstanceError):
+        setattr(point, field, 0)
+    with pytest.raises(FrozenInstanceError):
+        delattr(point, field)
+    assert point == Q10RoborockPoint(25500, 25500)
+    assert hash(point) == original_hash
