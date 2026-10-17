@@ -37,7 +37,9 @@ from roborock.map.b01_q10_map_parser import (
     Q10MapPacketKind,
     Q10Room,
     parse_map_packet,
+    parse_trace_packet,
 )
+from roborock.map.b01_q10_render import Q10MapOverlays, render_q10_map
 from roborock.map.map_parser import MapParser, MapParserConfig, ParsedMapData
 
 if TYPE_CHECKING:
@@ -63,6 +65,7 @@ _TESTDATA_DIR = Path(__file__).resolve().parent / "testdata"
 _V1_S5_MAP = _TESTDATA_DIR / "v1" / "s5_fw2008_with_segments.bin"
 _V1_S6_MAP = _TESTDATA_DIR / "v1" / "s6_fw2652_with_active_segment_and_no_mop_zone.bin"
 _Q10_MAP = _TESTDATA_DIR / "b01_q10_map.bin"
+_Q10_TRACE = _TESTDATA_DIR / "b01_q10_trace_session.bin"
 
 
 def _build_synthetic_q10_grid(width: int = 200, height: int = 200) -> Q10MapPacket:
@@ -98,14 +101,15 @@ def _build_synthetic_q10_grid(width: int = 200, height: int = 200) -> Q10MapPack
 
 
 def _validate_image(
-    result: ParsedMapData | None,
+    result: ParsedMapData | bytes | None,
     expected_size: tuple[int, int] | None = None,
 ) -> None:
     """Validate rendered PNG image integrity and pixel bounds outside the timed benchmark."""
     assert result is not None
-    assert result.image_content is not None
-    assert len(result.image_content) > 0
-    image = Image.open(io.BytesIO(result.image_content))
+    image_bytes = result if isinstance(result, bytes) else result.image_content
+    assert image_bytes is not None
+    assert len(image_bytes) > 0
+    image = Image.open(io.BytesIO(image_bytes))
     assert image.format == "PNG"
     assert image.mode == "RGBA"
     assert image.getbbox() is not None  # Image has non-empty drawn content
@@ -203,6 +207,17 @@ def test_benchmark_q10_map_full_scale_render_scale_4(benchmark: BenchmarkFixture
     _validate_image(result, (800, 800))
 
 
+def test_benchmark_q10_map_render_with_trace(benchmark: BenchmarkFixture) -> None:
+    """Benchmark Q10 render_q10_map end-to-end composite pipeline with trace overlay."""
+    map_bytes = _Q10_MAP.read_bytes()
+    trace_bytes = _Q10_TRACE.read_bytes()
+    packet = parse_map_packet(map_bytes)
+    trace = parse_trace_packet(trace_bytes)
+    config = B01Q10MapParserConfig(map_scale=4)
+    result = benchmark(render_q10_map, packet, trace=trace, overlays=Q10MapOverlays(), config=config)
+    _validate_image(result, (32, 24))
+
+
 # ---------------------------------------------------------------------------
 # Standalone CLI Benchmark & Profiler
 # ---------------------------------------------------------------------------
@@ -225,6 +240,11 @@ def _run_benchmarks(iterations: int, warmup: int, profile: bool) -> None:
     p_q10_scale1 = B01Q10MapParser(B01Q10MapParserConfig(map_scale=1))
     p_q10_scale4 = B01Q10MapParser(B01Q10MapParserConfig(map_scale=4))
 
+    q10_trace_data = _Q10_TRACE.read_bytes()
+    q10_map_packet = parse_map_packet(q10_data)
+    q10_trace_packet = parse_trace_packet(q10_trace_data)
+    q10_render_config = B01Q10MapParserConfig(map_scale=4)
+
     benchmarks: list[tuple[str, Callable[[], Any]]] = [
         ("V1 S5 Map (Scale 4, Default)", lambda: p_v1_s5.parse(v1_s5_data)),
         ("V1 S6 Map (Scale 4, Default)", lambda: p_v1_s6_scale4.parse(v1_s6_data)),
@@ -236,6 +256,15 @@ def _run_benchmarks(iterations: int, warmup: int, profile: bool) -> None:
         ("Q10 Small Map (Scale 1)", lambda: p_q10_small.parse(q10_data)),
         ("Q10 200x200 Map (Scale 1)", lambda: p_q10_scale1.parse_packet(q10_packet_200)),
         ("Q10 200x200 Map (Scale 4)", lambda: p_q10_scale4.parse_packet(q10_packet_200)),
+        (
+            "Q10 Render with Trace",
+            lambda: render_q10_map(
+                q10_map_packet,
+                trace=q10_trace_packet,
+                overlays=Q10MapOverlays(),
+                config=q10_render_config,
+            ),
+        ),
     ]
 
     print(f"\nRunning {len(benchmarks)} benchmarks ({warmup} warmup, {iterations} timed iterations)...\n")
@@ -255,7 +284,7 @@ def _run_benchmarks(iterations: int, warmup: int, profile: bool) -> None:
         min_ms = timings[0]
         mean_ms = sum(timings) / len(timings)
         med_ms = timings[len(timings) // 2]
-        p95_ms = timings[int(len(timings) * 0.95)]
+        p95_ms = timings[max(0, int((len(timings) - 1) * 0.95))]
         ops_per_sec = 1000.0 / mean_ms if mean_ms > 0 else float("inf")
 
         results.append((name, min_ms, med_ms, mean_ms, p95_ms, ops_per_sec))

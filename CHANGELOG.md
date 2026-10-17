@@ -2,6 +2,33 @@
 
 <!-- version list -->
 
+## v7.12.4 (2026-10-17)
+
+### Bug Fixes
+
+- Classify in-between water slide positions in cleaning mode
+  ([#961](https://github.com/Python-roborock/python-roborock/pull/961),
+  [`edc2e49`](https://github.com/Python-roborock/python-roborock/commit/edc2e4980ee0d2c911da1bda168084682065a0fa))
+
+- Preserve water-slide codes in cleaning-mode commands and status
+  ([#961](https://github.com/Python-roborock/python-roborock/pull/961),
+  [`edc2e49`](https://github.com/Python-roborock/python-roborock/commit/edc2e4980ee0d2c911da1bda168084682065a0fa))
+
+### Documentation
+
+- Document camera live view WebRTC signaling protocol for V1 vacuums
+  ([#980](https://github.com/Python-roborock/python-roborock/pull/980),
+  [`6a0aab0`](https://github.com/Python-roborock/python-roborock/commit/6a0aab0543d6812c3eafa92571605444ab74cdb3))
+
+- Document water_box_custom_mode values (fixes #225)
+  ([#979](https://github.com/Python-roborock/python-roborock/pull/979),
+  [`d68fbad`](https://github.com/Python-roborock/python-roborock/commit/d68fbad365e0139b8810edf9daff69995e550ef3))
+
+- Fix end of file in V1_API_COMMANDS.md
+  ([#979](https://github.com/Python-roborock/python-roborock/pull/979),
+  [`d68fbad`](https://github.com/Python-roborock/python-roborock/commit/d68fbad365e0139b8810edf9daff69995e550ef3))
+
+
 ## v7.12.3 (2026-10-12)
 
 ### Bug Fixes
