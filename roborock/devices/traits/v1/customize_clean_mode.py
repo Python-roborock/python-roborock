@@ -91,26 +91,37 @@ class CustomizeCleanModeTrait(CustomizeCleanModes, common.V1TraitMixin):
         *,
         fan_power: int,
         water_box_mode: int,
-        mop_mode: int | None = None,
+        mop_mode: int,
         repeat: int | None = None,
     ) -> None:
         """Set whether a single room is vacuumed fully before it is mopped.
 
         The firmware requires the room's full clean mode alongside the
         sequence type, not the flag on its own, so callers pass through the
-        fan power / water box mode (and optionally mop mode / repeat) that
-        room already cleans with - typically read from `StatusTrait` - so
-        this call only changes the order, not the settings.
+        fan power / water box mode / mop mode that room already cleans with
+        - typically read from the room's existing `SegmentCleanMode` (via
+        `by_segment`) or, if the room has no override yet, from `StatusTrait`
+        - so this call only changes the order, not the settings.
+
+        `fan_power`, `water_box_mode` and `mop_mode` are all required: the
+        device rejects the request outright (`Param error, no mop_mode`) if
+        `mop_mode` is left out, confirmed against a real device - this isn't
+        a case where a missing field is silently defaulted.
+
+        `repeat` is the one genuinely optional field, but omitting it is NOT
+        a no-op: the device resets it to its own default (observed: 1)
+        rather than preserving whatever the room's `repeat` was set to
+        before this call - also confirmed against a real device. Pass the
+        room's current `repeat` explicitly if you want it preserved.
         """
         seq_type = _SEQ_TYPE_CLEAN_THEN_MOP if enabled else 0
         entry: dict[str, int] = {
             "segment": segment,
             "fan_power": fan_power,
             "water_box_mode": water_box_mode,
+            "mop_mode": mop_mode,
             "seq_type": seq_type,
         }
-        if mop_mode is not None:
-            entry["mop_mode"] = mop_mode
         if repeat is not None:
             entry["repeat"] = repeat
         await self.rpc_channel.send_command(RoborockCommand.SET_CUSTOMIZE_CLEAN_MODE, params=[entry])

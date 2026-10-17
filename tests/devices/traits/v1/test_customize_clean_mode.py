@@ -78,31 +78,30 @@ def test_clean_then_mop(seq_type: int | None, expected: bool | None) -> None:
 
 
 @pytest.mark.parametrize(
-    ("enabled", "mop_mode", "repeat", "expected_params"),
+    ("enabled", "repeat", "expected_params"),
     [
         (
             True,
-            300,
             1,
-            {"segment": 7, "fan_power": 101, "water_box_mode": 203, "seq_type": 1, "mop_mode": 300, "repeat": 1},
+            {"segment": 7, "fan_power": 101, "water_box_mode": 203, "mop_mode": 300, "seq_type": 1, "repeat": 1},
         ),
-        (True, None, None, {"segment": 7, "fan_power": 101, "water_box_mode": 203, "seq_type": 1}),
-        (False, 300, None, {"segment": 7, "fan_power": 101, "water_box_mode": 203, "seq_type": 0, "mop_mode": 300}),
+        (True, None, {"segment": 7, "fan_power": 101, "water_box_mode": 203, "mop_mode": 300, "seq_type": 1}),
+        (False, None, {"segment": 7, "fan_power": 101, "water_box_mode": 203, "mop_mode": 300, "seq_type": 0}),
     ],
 )
 async def test_set_clean_then_mop(
     customize_clean_mode_trait: CustomizeCleanModeTrait,
     mock_rpc_channel: AsyncMock,
     enabled: bool,
-    mop_mode: int | None,
     repeat: int | None,
     expected_params: dict[str, int],
 ) -> None:
-    """The setter sends the room's full clean mode alongside the sequence type, then refreshes."""
+    """The setter always sends mop_mode (the device rejects the request without it) alongside
+    the room's other settings and the sequence type, then refreshes."""
     mock_rpc_channel.send_command.side_effect = ["ok", CUSTOMIZE_CLEAN_MODE_DATA]
 
     await customize_clean_mode_trait.set_clean_then_mop(
-        7, enabled, fan_power=101, water_box_mode=203, mop_mode=mop_mode, repeat=repeat
+        7, enabled, fan_power=101, water_box_mode=203, mop_mode=300, repeat=repeat
     )
 
     assert mock_rpc_channel.send_command.mock_calls == [
