@@ -97,5 +97,5 @@ Evaluate every change against the repository's three core layers in strict prior
 
 Portable agent skills following the [Agent Skills specification](https://agentskills.io/specification) are located under `.agents/skills/`:
 
-- **Code Review Skill** (`.agents/skills/review/SKILL.md`):
-  A structured, interactive review workflow for evaluating pull requests and diffs against the repository's architectural hierarchy, typing rules, and testing standards. To invoke during interactive sessions, refer to [.agents/skills/review/SKILL.md](.agents/skills/review/SKILL.md).
+- **Code Review Skill** (`.agents/skills/code-review/SKILL.md`):
+  A structured, interactive review workflow for evaluating pull requests and diffs against the repository's architectural hierarchy, typing rules, and testing standards. To invoke during interactive sessions, refer to [.agents/skills/code-review/SKILL.md](.agents/skills/code-review/SKILL.md).

@@ -1,5 +1,5 @@
 ---
-name: review
+name: code-review
 description: Conduct authoritative code review on python-roborock changes against repository architectural hierarchy, typing standards, and maintainer conventions.
 ---
 
