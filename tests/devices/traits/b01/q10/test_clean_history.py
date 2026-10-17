@@ -1,3 +1,7 @@
+import asyncio
+import json
+from pathlib import Path
+
 import pytest
 
 from roborock.data.b01_q10.b01_q10_code_mappings import (
@@ -9,7 +13,14 @@ from roborock.data.b01_q10.b01_q10_code_mappings import (
 )
 from roborock.data.b01_q10.b01_q10_containers import Q10CleanRecord
 from roborock.devices.traits.b01.q10 import Q10PropertiesApi
-from roborock.devices.traits.b01.q10.clean_history import CleanHistoryTrait, CleanRecordConverter
+from roborock.devices.traits.b01.q10.clean_history import CleanHistory, CleanHistoryTrait, CleanRecordConverter
+from roborock.exceptions import RoborockException
+from roborock.map.b01_q10_map_parser import (
+    Q10CleanRecordDetail,
+    Q10HistoricalTracePacket,
+    Q10Point,
+    parse_clean_record_detail,
+)
 
 from .conftest import FakeB01Q10Channel
 
@@ -175,3 +186,90 @@ async def test_refresh_sends_op_list(q10_api: Q10PropertiesApi, fake_channel: Fa
         B01_Q10_DP.COMMON,
         {"52": {"op": "list"}},
     )
+
+
+async def test_refresh_detail_sends_op_select(
+    clean_history: CleanHistoryTrait,
+    fake_channel: FakeB01Q10Channel,
+) -> None:
+    record = CleanRecordConverter.parse_record(RECORD_A)
+    assert record is not None
+    await clean_history.refresh_detail(record)
+    assert fake_channel.published_commands == [(B01_Q10_DP.COMMON, {"52": {"op": "select", "id": RECORD_A}})]
+
+
+def _detail() -> Q10CleanRecordDetail:
+    fixture = Path("tests/map/testdata/b01_q10_map.bin").read_bytes()
+    return parse_clean_record_detail(b"\x03\x01" + fixture[2:])
+
+
+async def test_refresh_detail_rejects_record_without_map(clean_history: CleanHistoryTrait) -> None:
+    record = CleanRecordConverter.parse_record("x_1781226271_1_1_0_0_0_0_2_1_1_0")
+    assert record is not None
+    with pytest.raises(RoborockException, match="no saved map detail"):
+        await clean_history.refresh_detail(record)
+
+
+async def test_refresh_detail_after_cancelled_publication(
+    clean_history: CleanHistoryTrait,
+    fake_channel: FakeB01Q10Channel,
+) -> None:
+    record = CleanRecordConverter.parse_record(RECORD_A)
+    assert record is not None
+    fake_channel.send_gate = asyncio.Event()
+    request = asyncio.create_task(clean_history.refresh_detail(record))
+    await fake_channel.send_started.wait()
+    request.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await request
+    assert fake_channel.published_commands == []
+
+    fake_channel.send_gate = None
+    await clean_history.refresh_detail(record)
+    assert fake_channel.published_commands == [(B01_Q10_DP.COMMON, {"52": {"op": "select", "id": RECORD_A}})]
+
+
+async def test_refresh_detail_after_publication_error(
+    clean_history: CleanHistoryTrait,
+    fake_channel: FakeB01Q10Channel,
+) -> None:
+    record = CleanRecordConverter.parse_record(RECORD_A)
+    assert record is not None
+    fake_channel.send_error = RoborockException("publish failed")
+    with pytest.raises(RoborockException, match="publish failed"):
+        await clean_history.refresh_detail(record)
+    assert fake_channel.published_commands == []
+
+    fake_channel.send_error = None
+    await clean_history.refresh_detail(record)
+    assert fake_channel.published_commands == [(B01_Q10_DP.COMMON, {"52": {"op": "select", "id": RECORD_A}})]
+
+
+def test_received_detail_is_serializable_and_path_list_is_defensive(q10_api: Q10PropertiesApi) -> None:
+    history = q10_api.clean_history
+    history.update_from_dps(_list_push(RECORD_A))
+    detail = _detail()
+    detail.trace = Q10HistoricalTracePacket(points=[Q10Point(x=1, y=2)], heading=0)
+    history.update_from_detail(detail)
+    history.detail_path.clear()
+    assert history.detail_path == [Q10Point(x=1, y=2)]
+    assert isinstance(history, CleanHistory)
+    data = q10_api.as_dict()["clean_history"]
+    assert data["records"][0]["recordId"] == "abc123def456"
+    assert data["detailPath"] == [{"x": 1, "y": 2}]
+    assert "detailImageContent" not in data
+    assert "detail" not in data
+    json.dumps(data)
+    assert history.as_dict(exclude={"records", "detail_path"}) == {}
+
+
+def test_unsolicited_and_repeated_details_notify_listeners(clean_history: CleanHistoryTrait) -> None:
+    updates = []
+    unsubscribe = clean_history.add_update_listener(lambda: updates.append(clean_history.detail))
+    first, second = _detail(), _detail()
+    clean_history.update_from_detail(first)
+    clean_history.update_from_detail(second)
+    assert updates == [first, second]
+    unsubscribe()
+    clean_history.update_from_detail(first)
+    assert updates == [first, second]
