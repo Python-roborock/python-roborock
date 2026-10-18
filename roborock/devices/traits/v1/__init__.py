@@ -74,6 +74,7 @@ from . import (
     command,
     common,
     consumeable,
+    customize_clean_mode,
     device_features,
     do_not_disturb,
     dust_collection_mode,
@@ -98,6 +99,7 @@ from .clean_summary import CleanSummaryTrait
 from .command import CommandTrait
 from .common import V1TraitMixin
 from .consumeable import ConsumableTrait
+from .customize_clean_mode import CustomizeCleanModeTrait
 from .device_features import DeviceFeaturesTrait
 from .do_not_disturb import DoNotDisturbTrait
 from .dust_collection_mode import DustCollectionModeTrait
@@ -126,6 +128,7 @@ __all__ = [
     "command",
     "common",
     "consumeable",
+    "customize_clean_mode",
     "device_features",
     "do_not_disturb",
     "dust_collection_mode",
@@ -179,6 +182,7 @@ class PropertiesApi(Trait):
     smart_wash_params: SmartWashParamsTrait | None = None
     obstacle_photos: ObstaclePhotoTrait | None = None
     mop_dryer: MopDryerTrait | None = None
+    customize_clean_mode: CustomizeCleanModeTrait | None = None
 
     def __init__(
         self,
