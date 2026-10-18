@@ -69,6 +69,16 @@ async def test_refresh_bad_format(
         await customize_clean_mode_trait.refresh()
 
 
+async def test_refresh_bad_list_entry(
+    customize_clean_mode_trait: CustomizeCleanModeTrait, mock_rpc_channel: AsyncMock
+) -> None:
+    """A malformed entry inside the list is a parsing error, not silently dropped."""
+    mock_rpc_channel.send_command.side_effect = [["ok"]]
+
+    with pytest.raises(RoborockParsingException):
+        await customize_clean_mode_trait.refresh()
+
+
 @pytest.mark.parametrize(("seq_type", "expected"), [(1, True), (0, False), (None, None)])
 def test_clean_then_mop(seq_type: int | None, expected: bool | None) -> None:
     """seq_type reports whether a room is vacuumed before it is mopped."""
@@ -82,11 +92,19 @@ def test_clean_then_mop(seq_type: int | None, expected: bool | None) -> None:
     [
         (
             True,
-            1,
-            {"segment": 7, "fan_power": 101, "water_box_mode": 203, "mop_mode": 300, "seq_type": 1, "repeat": 1},
+            2,
+            {"segment": 7, "fan_power": 101, "water_box_mode": 203, "mop_mode": 300, "repeat": 2, "seq_type": 1},
         ),
-        (True, None, {"segment": 7, "fan_power": 101, "water_box_mode": 203, "mop_mode": 300, "seq_type": 1}),
-        (False, None, {"segment": 7, "fan_power": 101, "water_box_mode": 203, "mop_mode": 300, "seq_type": 0}),
+        (
+            True,
+            None,
+            {"segment": 7, "fan_power": 101, "water_box_mode": 203, "mop_mode": 300, "repeat": 1, "seq_type": 1},
+        ),
+        (
+            False,
+            None,
+            {"segment": 7, "fan_power": 101, "water_box_mode": 203, "mop_mode": 300, "repeat": 1, "seq_type": 0},
+        ),
     ],
 )
 async def test_set_clean_then_mop(
@@ -96,13 +114,15 @@ async def test_set_clean_then_mop(
     repeat: int | None,
     expected_params: dict[str, int],
 ) -> None:
-    """The setter always sends mop_mode (the device rejects the request without it) alongside
+    """The setter always sends mop_mode and repeat (the device rejects a request missing
+    mop_mode, and silently resets repeat to 1 rather than preserving it if left out) alongside
     the room's other settings and the sequence type, then refreshes."""
     mock_rpc_channel.send_command.side_effect = ["ok", CUSTOMIZE_CLEAN_MODE_DATA]
+    kwargs = {"fan_power": 101, "water_box_mode": 203, "mop_mode": 300}
+    if repeat is not None:
+        kwargs["repeat"] = repeat
 
-    await customize_clean_mode_trait.set_clean_then_mop(
-        7, enabled, fan_power=101, water_box_mode=203, mop_mode=300, repeat=repeat
-    )
+    await customize_clean_mode_trait.set_clean_then_mop(7, enabled, **kwargs)
 
     assert mock_rpc_channel.send_command.mock_calls == [
         call(RoborockCommand.SET_CUSTOMIZE_CLEAN_MODE, params=[expected_params]),
