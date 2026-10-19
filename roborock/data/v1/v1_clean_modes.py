@@ -57,12 +57,12 @@ class WaterModes(RoborockModeEnum):
     SMART_MODE = ("smart_mode", 209)
     SMART_WATER = ("smart_water", 210)
     PURE_WATER_FLOW_START = ("slight", 221)
-    PURE_WATER_FLOW_SMALL = ("low", 225)
+    PURE_WATER_FLOW_SMALL = ("pure_water_flow_small", 225, "low")
     PURE_WATER_FLOW_GENTLE = ("gentle", 230)
-    PURE_WATER_FLOW_MIDDLE = ("medium", 235)
+    PURE_WATER_FLOW_MIDDLE = ("pure_water_flow_middle", 235, "medium")
     PURE_WATER_FLOW_LARGE = ("moderate", 240)
-    PURE_WATER_SUPER_BEGIN = ("high", 245)
-    PURE_WATER_FLOW_END = ("extreme", 250)
+    PURE_WATER_SUPER_BEGIN = ("pure_water_super_begin", 245, "high")
+    PURE_WATER_FLOW_END = ("pure_water_flow_end", 250, "extreme")
 
 
 class WashTowelModes(RoborockModeEnum):
@@ -89,16 +89,16 @@ class CleaningMode(StrEnum):
     SMART_MODE = "smart_mode"
 
 
-WATER_SLIDE_MODE_MAPPING: dict[int, WaterModes] = {
-    200: WaterModes.OFF,
-    221: WaterModes.PURE_WATER_FLOW_START,
-    225: WaterModes.PURE_WATER_FLOW_SMALL,
-    230: WaterModes.PURE_WATER_FLOW_GENTLE,
-    235: WaterModes.PURE_WATER_FLOW_MIDDLE,
-    240: WaterModes.PURE_WATER_FLOW_LARGE,
-    245: WaterModes.PURE_WATER_SUPER_BEGIN,
-    250: WaterModes.PURE_WATER_FLOW_END,
-}
+_WATER_SLIDE_MODES: tuple[WaterModes, ...] = (
+    WaterModes.OFF,
+    WaterModes.PURE_WATER_FLOW_START,
+    WaterModes.PURE_WATER_FLOW_SMALL,
+    WaterModes.PURE_WATER_FLOW_GENTLE,
+    WaterModes.PURE_WATER_FLOW_MIDDLE,
+    WaterModes.PURE_WATER_FLOW_LARGE,
+    WaterModes.PURE_WATER_SUPER_BEGIN,
+    WaterModes.PURE_WATER_FLOW_END,
+)
 
 # Water slide devices report the raw slider position (1-30) as 220 + position.
 # The app groups positions into named ranges, keyed here by their last position.
@@ -177,7 +177,7 @@ def get_water_modes(features: DeviceFeatures) -> list[WaterModes]:
     """Get the valid water modes for the device - also known as 'water flow' or 'water level'"""
     # Water slide mode supports a separate set of water flow codes.
     if features.is_water_slide_mode_supported:
-        return list(WATER_SLIDE_MODE_MAPPING.values())
+        return list(_WATER_SLIDE_MODES)
 
     supported_modes = [WaterModes.OFF]
     if features.is_mop_shake_module_supported:
@@ -201,7 +201,7 @@ def get_water_modes(features: DeviceFeatures) -> list[WaterModes]:
 def get_water_slide_mode_name(code: int) -> str | None:
     """Get the app's range name for a water slide code, or None if out of range."""
     mode = _resolve_water_slide_mode(code)
-    return mode.value if mode is not None else None
+    return mode.display_name if mode is not None else None
 
 
 def _resolve_water_slide_mode(code: int) -> WaterModes | None:
@@ -222,13 +222,10 @@ def _resolve_water_slide_mode(code: int) -> WaterModes | None:
 def get_water_mode_mapping(features: DeviceFeatures) -> dict[int, str]:
     """Get water mode mapping by supported feature set.
 
-    WaterModes contains aliases for multiple codes that share the same value
-    string (e.g. low can be 201 or 225). For water slide mode devices we need
-    explicit code mapping to preserve those slide-specific codes.
+    Water slide modes share user-facing names with legacy modes (e.g. "low" is
+    201 or 225), so the mapping uses display_name rather than the enum value.
     """
-    if features.is_water_slide_mode_supported:
-        return {code: mode.value for code, mode in WATER_SLIDE_MODE_MAPPING.items()}
-    return {mode.code: mode.value for mode in get_water_modes(features)}
+    return {mode.code: mode.display_name for mode in get_water_modes(features)}
 
 
 def get_cleaning_mode_options(features: DeviceFeatures) -> list[CleaningMode]:
@@ -309,14 +306,7 @@ def get_cleaning_mode_parameters(cleaning_mode: CleaningMode, features: DeviceFe
         raise RoborockUnsupportedFeature(f"Cleaning mode {cleaning_mode.value!r} is not supported")
 
     fan_power, water_box_mode, mop_mode = _get_clean_motor_mode_params(cleaning_mode, features)
-    water_code = water_box_mode.code
-    if features.is_water_slide_mode_supported:
-        # Aliased water enums retain legacy codes; the device mapping preserves
-        # slide-specific wire values without changing the user-facing names.
-        water_code = next(
-            code for code, name in get_water_mode_mapping(features).items() if name == water_box_mode.value
-        )
-    params: dict[str, int] = {"fan_power": fan_power.code, "water_box_mode": water_code}
+    params: dict[str, int] = {"fan_power": fan_power.code, "water_box_mode": water_box_mode.code}
     if features.is_clean_route_setting_supported:
         params["mop_mode"] = mop_mode.code
     return [params]
@@ -342,6 +332,15 @@ def _resolve_clean_mode(value: int | VacuumModes | None, features: DeviceFeature
     return VacuumModes.from_code_optional(value)
 
 
+def _resolve_water_mode(value: int | WaterModes | None, features: DeviceFeatures) -> WaterModes | None:
+    """Resolve a water mode code, mapping raw slider positions on water slide devices."""
+    if value is None or isinstance(value, WaterModes):
+        return value
+    if features.is_water_slide_mode_supported:
+        return _resolve_water_slide_mode(value) or WaterModes.from_code_optional(value)
+    return WaterModes.from_code_optional(value)
+
+
 def get_current_cleaning_mode(
     clean_mode: int | VacuumModes | None,
     water_mode: int | WaterModes | None,
@@ -352,9 +351,7 @@ def get_current_cleaning_mode(
     if not features.is_support_water_mode:
         return None
     clean_mode_enum = _resolve_clean_mode(clean_mode, features)
-    water_mode_enum = _resolve_mode_code(water_mode, WaterModes)
-    if features.is_water_slide_mode_supported and isinstance(water_mode, int):
-        water_mode_enum = _resolve_water_slide_mode(water_mode) or water_mode_enum
+    water_mode_enum = _resolve_water_mode(water_mode, features)
     mop_mode_enum = _resolve_mode_code(mop_mode, CleanRoutes)
     if clean_mode_enum is None or water_mode_enum is None:
         return None
