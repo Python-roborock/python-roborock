@@ -50,7 +50,7 @@ except ImportError as err:
     ) from err
 
 from roborock import RoborockCommand
-from roborock.data import RoborockBase, UserData
+from roborock.data import HomeDataSchedule, RoborockBase, UserData
 from roborock.data.b01_q10.b01_q10_code_mappings import (
     B01_Q10_DP,
     YXCleanType,
@@ -426,6 +426,61 @@ async def execute_scene(ctx, scene_id):
 
     client = RoborockApiClient(connection_cache.email)
     await client.execute_scene(connection_cache.user_data, scene_id)
+
+
+def _load_job_file(ctx: click.Context, param: click.Parameter, value: Path) -> HomeDataSchedule:
+    """Read a complete job replacement without coercing user-supplied JSON types."""
+    try:
+        data = json.loads(value.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as err:
+        raise click.BadParameter(f"Could not read job JSON: {err}") from err
+    if not isinstance(data, dict):
+        raise click.BadParameter("Expected a JSON object")
+    required = {"id", "cron", "repeated", "enabled", "param"}
+    if missing := required - data.keys():
+        raise click.BadParameter(f"Complete job required; missing fields: {', '.join(sorted(missing))}")
+    if unknown := data.keys() - required:
+        raise click.BadParameter(f"Unknown job fields: {', '.join(sorted(unknown))}")
+    if type(data["id"]) is not int:
+        raise click.BadParameter("'id' must be an integer")
+    if not isinstance(data["cron"], str) or not data["cron"].strip():
+        raise click.BadParameter("'cron' must be a nonempty string")
+    for field in ("repeated", "enabled"):
+        if not isinstance(data[field], bool):
+            raise click.BadParameter(f"'{field}' must be a boolean")
+    if not isinstance(data["param"], dict):
+        raise click.BadParameter("'param' must be an object")
+    return HomeDataSchedule(
+        id=data["id"], cron=data["cron"], repeated=data["repeated"], enabled=data["enabled"], param=data["param"]
+    )
+
+
+@click.command()
+@click.option("--device_id", required=True)
+@click.option(
+    "--job-file",
+    "job",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, readable=True, path_type=Path),
+    callback=_load_job_file,
+    help="JSON file containing id, cron, repeated, enabled, and param (object).",
+)
+@click.pass_context
+@async_command
+async def update_job(ctx: click.Context, device_id: str, job: HomeDataSchedule) -> None:
+    """Replace a cloud job using a complete schedule JSON file.
+
+    Include all existing settings in the file, including unchanged cleaning parameters.
+    """
+    context: RoborockContext = ctx.obj
+    try:
+        connection_cache = context.connection_cache()
+        client = RoborockApiClient(connection_cache.email)
+        await client.update_job(connection_cache.user_data, device_id, job)
+    except RoborockException as err:
+        click.echo(f"Error: {err}", err=True)
+        raise SystemExit(1) from err
+    click.echo(f"Updated job {job.id} for device {device_id}")
 
 
 async def _v1_trait(context: RoborockContext, device_id: str, display_func: Callable[[], V1TraitMixin]) -> Trait:
@@ -1366,6 +1421,7 @@ cli.add_command(discover)
 cli.add_command(list_devices)
 cli.add_command(list_scenes)
 cli.add_command(execute_scene)
+cli.add_command(update_job)
 cli.add_command(status)
 cli.add_command(command)
 cli.add_command(parser)
