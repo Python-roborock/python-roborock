@@ -768,6 +768,31 @@ class RoborockApiClient:
             raise RoborockException(response)
         return response
 
+    async def update_job(self, user_data: UserData, device_id: str, job: HomeDataSchedule) -> None:
+        """Replace an existing cloud job with the full supplied schedule.
+
+        Pass a schedule returned by :meth:`get_schedules` with the desired changes.
+        The job ID identifies the URL; all other fields are sent as the replacement body.
+        """
+        rriot = user_data.rriot
+        if rriot is None:
+            raise RoborockException("rriot is none")
+        if rriot.r.a is None:
+            raise RoborockException("Missing field 'a' in rriot reference")
+        path = f"/user/devices/{device_id}/jobs/{job.id}"
+        body = job.as_dict(exclude={"id"})
+        job_request = PreparedRequest(
+            rriot.r.a,
+            self.session,
+            {
+                "Authorization": _get_hawk_authentication(rriot, path, body=body),
+                "Content-Type": "application/json",
+            },
+        )
+        response = await job_request.request("put", path, data=_compact_json(body).encode())
+        if not response or not response.get("success"):
+            raise RoborockException(response)
+
     async def get_products(self, user_data: UserData) -> ProductResponse:
         """Gets all products and their schemas, good for determining status codes and model numbers."""
         base_url = await self.base_url
