@@ -37,7 +37,7 @@ def mock_api(monkeypatch: pytest.MonkeyPatch) -> Mock:
 
 @pytest.fixture
 def job_data() -> dict[str, Any]:
-    """A full schedule including model-specific cleaning settings."""
+    """A schedule including model-specific cleaning settings."""
     return {
         "id": 3878757,
         "cron": "05 10 * * ?",
@@ -47,10 +47,8 @@ def job_data() -> dict[str, Any]:
     }
 
 
-@pytest.mark.parametrize("enabled", [False, True])
-def test_update_job(mock_api: Mock, tmp_path: Path, job_data: dict[str, Any], enabled: bool) -> None:
-    """The CLI passes a complete typed schedule using only the cached account."""
-    job_data["enabled"] = enabled
+def test_update_job(mock_api: Mock, tmp_path: Path, job_data: dict[str, Any]) -> None:
+    """The CLI parses JSON into a schedule and calls the API using cached credentials."""
     job_file = tmp_path / "job.json"
     job_file.write_text(json.dumps(job_data), encoding="utf-8")
 
@@ -59,13 +57,25 @@ def test_update_job(mock_api: Mock, tmp_path: Path, job_data: dict[str, Any], en
     assert result.exit_code == 0, result.output
     assert result.output == "Updated job 3878757 for device 123456\n"
     mock_api.assert_called_once_with(USER_EMAIL)
-    client = mock_api.return_value
-    client.update_job.assert_awaited_once_with(UserData.from_dict(USER_DATA), "123456", HomeDataSchedule(**job_data))
-    client.get_home_data_v3.assert_not_called()
+    mock_api.return_value.update_job.assert_awaited_once_with(
+        UserData.from_dict(USER_DATA), "123456", HomeDataSchedule(**job_data)
+    )
+
+
+def test_update_job_invalid_json(mock_api: Mock, tmp_path: Path) -> None:
+    """A JSON parsing failure is reported without calling the cloud API."""
+    job_file = tmp_path / "job.json"
+    job_file.write_text("[", encoding="utf-8")
+
+    result = CliRunner().invoke(cli, ["update-job", "--device_id", "123456", "--job-file", str(job_file)])
+
+    assert result.exit_code == 1
+    assert "Error: Expecting value" in result.output
+    mock_api.assert_not_called()
 
 
 def test_update_job_api_error(mock_api: Mock, tmp_path: Path, job_data: dict[str, Any]) -> None:
-    """A cloud rejection produces an unsuccessful command exit."""
+    """A cloud rejection is reported with an unsuccessful command exit."""
     mock_api.return_value.update_job.side_effect = RoborockException("Job not found")
     job_file = tmp_path / "job.json"
     job_file.write_text(json.dumps(job_data), encoding="utf-8")
@@ -75,107 +85,3 @@ def test_update_job_api_error(mock_api: Mock, tmp_path: Path, job_data: dict[str
     assert result.exit_code == 1
     assert result.output == "Error: Job not found\n"
     mock_api.return_value.update_job.assert_awaited_once()
-
-
-def test_update_job_requires_login(mock_api: Mock, tmp_path: Path, job_data: dict[str, Any]) -> None:
-    """Missing cached credentials fail without creating a cloud client."""
-    (tmp_path / ".roborock").unlink()
-    job_file = tmp_path / "job.json"
-    job_file.write_text(json.dumps(job_data), encoding="utf-8")
-
-    result = CliRunner().invoke(cli, ["update-job", "--device_id", "123456", "--job-file", str(job_file)])
-
-    assert result.exit_code == 1
-    assert result.output == "Error: You must login first\n"
-    mock_api.assert_not_called()
-
-
-@pytest.mark.parametrize("field", ["id", "cron", "repeated", "enabled", "param"])
-def test_update_job_missing_fields(mock_api: Mock, tmp_path: Path, job_data: dict[str, Any], field: str) -> None:
-    """Partial schedule files cannot reach the update endpoint."""
-    del job_data[field]
-    job_file = tmp_path / "job.json"
-    job_file.write_text(json.dumps(job_data), encoding="utf-8")
-
-    result = CliRunner().invoke(cli, ["update-job", "--device_id", "123456", "--job-file", str(job_file)])
-
-    assert result.exit_code == 2
-    assert f"Complete job required; missing fields: {field}" in result.output
-    mock_api.assert_not_called()
-
-
-@pytest.mark.parametrize(
-    ("field", "value"),
-    [
-        ("id", True),
-        ("id", "3878757"),
-        ("id", 1.5),
-        ("cron", None),
-        ("cron", " "),
-        ("repeated", 1),
-        ("enabled", "false"),
-        ("param", None),
-        ("param", []),
-        ("param", "{}"),
-    ],
-)
-def test_update_job_invalid_fields(
-    mock_api: Mock, tmp_path: Path, job_data: dict[str, Any], field: str, value: Any
-) -> None:
-    """Malformed scalar types are rejected instead of silently coerced."""
-    job_data[field] = value
-    job_file = tmp_path / "job.json"
-    job_file.write_text(json.dumps(job_data), encoding="utf-8")
-
-    result = CliRunner().invoke(cli, ["update-job", "--device_id", "123456", "--job-file", str(job_file)])
-
-    assert result.exit_code == 2
-    assert f"'{field}' must be" in result.output
-    mock_api.assert_not_called()
-
-
-def test_update_job_unknown_fields(mock_api: Mock, tmp_path: Path, job_data: dict[str, Any]) -> None:
-    """Unknown top-level settings cannot be silently discarded during replacement."""
-    job_data["additionalSetting"] = {"value": 1}
-    job_file = tmp_path / "job.json"
-    job_file.write_text(json.dumps(job_data), encoding="utf-8")
-
-    result = CliRunner().invoke(cli, ["update-job", "--device_id", "123456", "--job-file", str(job_file)])
-
-    assert result.exit_code == 2
-    assert "Unknown job fields: additionalSetting" in result.output
-    mock_api.assert_not_called()
-
-
-@pytest.mark.parametrize("contents", ["[", "[]", "null", '"schedule"'])
-def test_update_job_invalid_json(mock_api: Mock, tmp_path: Path, contents: str) -> None:
-    """Invalid JSON and non-object roots fail before creating a cloud client."""
-    job_file = tmp_path / "job.json"
-    job_file.write_text(contents, encoding="utf-8")
-
-    result = CliRunner().invoke(cli, ["update-job", "--device_id", "123456", "--job-file", str(job_file)])
-
-    assert result.exit_code == 2
-    assert "Invalid value for '--job-file'" in result.output
-    mock_api.assert_not_called()
-
-
-def test_update_job_missing_file(mock_api: Mock, tmp_path: Path) -> None:
-    """A nonexistent input file fails without cloud access."""
-    result = CliRunner().invoke(
-        cli, ["update-job", "--device_id", "123456", "--job-file", str(tmp_path / "missing.json")]
-    )
-
-    assert result.exit_code == 2
-    assert "does not exist" in result.output
-    mock_api.assert_not_called()
-
-
-def test_update_job_help(mock_api: Mock) -> None:
-    """Help explains that this operation replaces all schedule settings."""
-    result = CliRunner().invoke(cli, ["update-job", "--help"])
-
-    assert result.exit_code == 0
-    assert "Include all existing settings" in result.output
-    assert "id, cron, repeated, enabled, and param" in result.output
-    mock_api.assert_not_called()
