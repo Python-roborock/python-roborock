@@ -141,7 +141,7 @@ See also [V1_API_COMMANDS.md](V1_API_COMMANDS.md) for general V1 device RPC refe
 | `check_homesec_password` | `{"password": "<md5_hash>"}` | `["ok"]` | Validates the camera security PIN/pattern hash. |
 | `start_camera_preview` | `{"client_id": "...", "quality": "HD", "password": "<md5_hash>"}` | `["ok"]` | Activates camera preview mode on the robot. |
 | `stop_camera_preview` | `[]` | `["ok"]` | Deactivates camera preview and powers down the camera sensor. |
-| `switch_video_quality` | `{"quality": "HD"}` or `{"quality": "SD"}` | `["ok"]` | Switches streaming resolution (`HD` or `SD`). |
+| `switch_video_quality` | `{"quality": "HD"}` / `{"quality": "SD"}` / `{"quality": "FHD"}` / `{"quality": "auto"}` | `["ok"]` | Switches streaming resolution (`HD`, `SD`, `FHD`, or `auto`). |
 
 ### WebRTC Signaling
 
