@@ -13,6 +13,7 @@ low-level pixel work (erase-zone blanking, world->pixel overlay placement, path
 drawing) and the calibration policy live here, next to the rest of the map code.
 """
 
+import copy
 import io
 import math
 from collections.abc import Sequence
@@ -82,6 +83,23 @@ class Q10MapOverlays:
     virtual_walls: Sequence[Q10Zone] = ()
 
 
+def build_base_q10_map_data(
+    packet: Q10MapPacket,
+    *,
+    config: B01Q10MapParserConfig,
+    trace_calibration: GridCalibration | None = None,
+) -> MapData:
+    """Build reusable MapData containing the rendered base grid image."""
+    parser = B01Q10MapParser(config)
+    vector_calibration = _vector_calibration(packet, trace_calibration)
+    render_packet = packet
+    if vector_calibration is not None:
+        cells = _erased_cells(packet.layers, packet.erase_zones, vector_calibration)
+        if cells:
+            render_packet = erased_packet(packet, cells)
+    return parser.map_data_from_packet(render_packet)
+
+
 def render_q10_map(
     packet: Q10MapPacket,
     trace: Q10TracePacket | Q10HistoricalTracePacket | None,
@@ -89,6 +107,8 @@ def render_q10_map(
     *,
     config: B01Q10MapParserConfig,
     robot_at_dock: bool = False,
+    base_map_data: MapData | None = None,
+    trace_calibration: GridCalibration | None = None,
 ) -> bytes:
     """Compose the latest map, trace and DPS inputs into one PNG image.
 
@@ -97,21 +117,19 @@ def render_q10_map(
     available trace and DPS overlays are projected and drawn in pixel space.
     Raises :class:`RoborockException` if map rendering fails.
     """
-    parser = B01Q10MapParser(config)
-    trace_calibration = solve_q10_calibration(packet, trace)
+    if trace_calibration is None:
+        trace_calibration = solve_q10_calibration(packet, trace)
     vector_calibration = _vector_calibration(packet, trace_calibration)
 
-    render_packet = packet
-    if vector_calibration is not None:
-        cells = _erased_cells(packet.layers, packet.erase_zones, vector_calibration)
-        if cells:
-            # Blank the erase-zone cells before parsing the raster so phantom
-            # areas disappear (as the app shows).
-            render_packet = erased_packet(packet, cells)
+    if base_map_data is None:
+        base_map_data = build_base_q10_map_data(packet, config=config, trace_calibration=trace_calibration)
 
-    map_data = parser.map_data_from_packet(render_packet)
-    if map_data.image is None:
+    if base_map_data.image is None:
         raise RoborockException("Failed to render Q10 map image")
+
+    map_data = copy.copy(base_map_data)
+    map_data.image = copy.copy(base_map_data.image)
+    map_data.image.data = base_map_data.image.data.copy()
 
     has_drawables = False
     if trace_calibration is not None and trace is not None:

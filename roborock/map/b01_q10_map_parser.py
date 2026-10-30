@@ -25,6 +25,7 @@ import math
 import statistics
 import struct
 from dataclasses import dataclass, field, replace
+from functools import cached_property
 
 from PIL import Image
 from vacuum_map_parser_base.config.color import ColorsPalette, SupportedColor
@@ -238,7 +239,7 @@ class Q10MapPacket:
     the same (top-down) pixel space as :attr:`grid`, where a non-zero cell is
     carpet (the value is the carpet kind). ``None`` if the packet carried none."""
 
-    @property
+    @cached_property
     def layers(self) -> GridLayers:
         """Split the occupancy grid into separable grid-pixel layers."""
         rooms = [(room.id, room.name, room.pixel_value, room.pixel_count) for room in self.rooms]

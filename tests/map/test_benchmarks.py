@@ -39,7 +39,12 @@ from roborock.map.b01_q10_map_parser import (
     parse_map_packet,
     parse_trace_packet,
 )
-from roborock.map.b01_q10_render import Q10MapOverlays, render_q10_map
+from roborock.map.b01_q10_render import (
+    Q10MapOverlays,
+    build_base_q10_map_data,
+    render_q10_map,
+    solve_q10_calibration,
+)
 from roborock.map.map_parser import MapParser, MapParserConfig, ParsedMapData
 
 if TYPE_CHECKING:
@@ -218,6 +223,27 @@ def test_benchmark_q10_map_render_with_trace(benchmark: BenchmarkFixture) -> Non
     _validate_image(result, (32, 24))
 
 
+def test_benchmark_q10_map_render_with_trace_cached(benchmark: BenchmarkFixture) -> None:
+    """Benchmark Q10 render_q10_map on trace updates using cached base MapData and calibration."""
+    map_bytes = _Q10_MAP.read_bytes()
+    trace_bytes = _Q10_TRACE.read_bytes()
+    packet = parse_map_packet(map_bytes)
+    trace = parse_trace_packet(trace_bytes)
+    config = B01Q10MapParserConfig(map_scale=4)
+    trace_calibration = solve_q10_calibration(packet, trace)
+    base_map_data = build_base_q10_map_data(packet, config=config, trace_calibration=trace_calibration)
+    result = benchmark(
+        render_q10_map,
+        packet,
+        trace=trace,
+        overlays=Q10MapOverlays(),
+        config=config,
+        base_map_data=base_map_data,
+        trace_calibration=trace_calibration,
+    )
+    _validate_image(result, (32, 24))
+
+
 # ---------------------------------------------------------------------------
 # Standalone CLI Benchmark & Profiler
 # ---------------------------------------------------------------------------
@@ -244,6 +270,8 @@ def _run_benchmarks(iterations: int, warmup: int, profile: bool) -> None:
     q10_map_packet = parse_map_packet(q10_data)
     q10_trace_packet = parse_trace_packet(q10_trace_data)
     q10_render_config = B01Q10MapParserConfig(map_scale=4)
+    q10_trace_cal = solve_q10_calibration(q10_map_packet, q10_trace_packet)
+    q10_base_map = build_base_q10_map_data(q10_map_packet, config=q10_render_config, trace_calibration=q10_trace_cal)
 
     benchmarks: list[tuple[str, Callable[[], Any]]] = [
         ("V1 S5 Map (Scale 4, Default)", lambda: p_v1_s5.parse(v1_s5_data)),
@@ -263,6 +291,17 @@ def _run_benchmarks(iterations: int, warmup: int, profile: bool) -> None:
                 trace=q10_trace_packet,
                 overlays=Q10MapOverlays(),
                 config=q10_render_config,
+            ),
+        ),
+        (
+            "Q10 Render with Trace (Cached)",
+            lambda: render_q10_map(
+                q10_map_packet,
+                trace=q10_trace_packet,
+                overlays=Q10MapOverlays(),
+                config=q10_render_config,
+                base_map_data=q10_base_map,
+                trace_calibration=q10_trace_cal,
             ),
         ),
     ]
