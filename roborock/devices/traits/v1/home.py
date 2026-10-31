@@ -36,6 +36,12 @@ from .status import StatusTrait
 _LOGGER = logging.getLogger(__name__)
 
 MAP_SLEEP = 3
+_MAP_LOADING_STATES = (RoborockStateCode.idle, RoborockStateCode.charging, RoborockStateCode.charging_complete)
+
+
+def _has_map_image(content: MapContent) -> bool:
+    """Return whether content contains a usable map rather than a placeholder."""
+    return content.map_data is not None and content.map_data.image is not None and not content.map_data.image.is_empty
 
 
 class HomeTrait(RoborockBase, common.V1TraitMixin, TraitUpdateListener):
@@ -83,9 +89,9 @@ class HomeTrait(RoborockBase, common.V1TraitMixin, TraitUpdateListener):
 
         This will be a no-op if the home cache is already populated.
 
-        This cannot be called while the device is cleaning, as that would interrupt the
-        cleaning process. This will raise `RoborockDeviceBusy` if the device is
-        currently cleaning.
+        This cannot switch maps while the device is busy, as that would interrupt
+        its current task. This will raise `RoborockDeviceBusy` unless the device
+        is idle or charging with no cleaning or return operation in progress.
 
         After discovery, the home cache will be populated and can be accessed via the `home_map_info` property.
         """
@@ -103,11 +109,24 @@ class HomeTrait(RoborockBase, common.V1TraitMixin, TraitUpdateListener):
                 _LOGGER.warning("Failed to parse cached home map content, will re-discover: %s", ex)
                 self._home_map_content = {}
             else:
+                # Older versions may have persisted a validly parsed "NO MAP" image.
+                self._home_map_content = {k: v for k, v in self._home_map_content.items() if _has_map_image(v)}
+                if len(self._home_map_content) != len(device_cache_data.home_map_content_base64 or {}):
+                    device_cache_data.home_map_content_base64 = {
+                        k: v
+                        for k, v in (device_cache_data.home_map_content_base64 or {}).items()
+                        if k in self._home_map_content
+                    }
+                    await self._device_cache.set(device_cache_data)
                 self._notify_update()
                 return
 
-        if self._status_trait.state == RoborockStateCode.cleaning:
-            raise RoborockDeviceBusy("Cannot perform home discovery while the device is cleaning")
+        if (
+            self._status_trait.state not in _MAP_LOADING_STATES
+            or self._status_trait.in_cleaning
+            or self._status_trait.in_returning
+        ):
+            raise RoborockDeviceBusy("Cannot perform home discovery while the device is busy")
 
         await self._maps_trait.refresh()
         if self._maps_trait.current_map_info is None:
@@ -141,8 +160,26 @@ class HomeTrait(RoborockBase, common.V1TraitMixin, TraitUpdateListener):
             rooms=list(rooms_map.values()),
         )
 
-    async def _refresh_map_content(self) -> MapContent:
+    async def _refresh_map_content(self, *, recover_missing: bool = True) -> MapContent:
         """Refresh the map content trait to get the latest map data."""
+        # A device can retain the selected map ID without having its map loaded.
+        # Reload that saved map before fetching an otherwise valid "NO MAP" image.
+        # Restrict recovery to idle states so it cannot interrupt an active task.
+        if (
+            recover_missing
+            and self._status_trait.map_present == 0
+            and not self._status_trait.in_cleaning
+            and not self._status_trait.in_returning
+            and self._status_trait.state in _MAP_LOADING_STATES
+            and (current_map_info := self._maps_trait.current_map_info) is not None
+        ):
+            _LOGGER.debug("Reloading missing selected map %s", current_map_info.map_flag)
+            try:
+                await self._maps_trait.set_current_map(current_map_info.map_flag)
+            except RoborockInvalidStatus as ex:
+                raise RoborockDeviceBusy("Cannot reload selected map right now (device action locked)") from ex
+            await asyncio.sleep(MAP_SLEEP)
+
         await self._map_content.refresh()
         return MapContent(
             image_content=self._map_content.image_content,
@@ -176,7 +213,8 @@ class HomeTrait(RoborockBase, common.V1TraitMixin, TraitUpdateListener):
                     raise RoborockDeviceBusy("Cannot switch maps right now (device action locked)") from ex
                 await asyncio.sleep(MAP_SLEEP)
 
-            map_content = await self._refresh_map_content()
+            # Multi-map discovery has already loaded this map and waited above.
+            map_content = await self._refresh_map_content(recover_missing=len(sorted_map_infos) == 1)
             home_map_content[map_info.map_flag] = map_content
 
             combined_map_info = await self._refresh_map_info(map_info)
@@ -190,6 +228,7 @@ class HomeTrait(RoborockBase, common.V1TraitMixin, TraitUpdateListener):
         active maps or re-discover the home. It is expected that this will keep
         information up to date for the current map as users switch to that map.
         """
+        recover_missing = True
         if not self._discovery_completed:
             # Running initial discovery also populates all of the same information
             # as below so we can just call that method. If the device is busy
@@ -198,7 +237,8 @@ class HomeTrait(RoborockBase, common.V1TraitMixin, TraitUpdateListener):
                 await self.discover_home()
                 return
             except RoborockDeviceBusy:
-                _LOGGER.debug("Cannot refresh home data while device is busy cleaning")
+                _LOGGER.debug("Cannot discover home data while device is busy")
+                recover_missing = False
 
         # Refresh the list of map names/info
         await self._maps_trait.refresh()
@@ -210,7 +250,11 @@ class HomeTrait(RoborockBase, common.V1TraitMixin, TraitUpdateListener):
             return
 
         # Refresh the map content to ensure we have the latest image and object positions
-        new_map_content = await self._refresh_map_content()
+        try:
+            new_map_content = await self._refresh_map_content(recover_missing=recover_missing)
+        except RoborockDeviceBusy:
+            _LOGGER.debug("Cannot reload selected map while device is busy; refreshing current map only")
+            new_map_content = await self._refresh_map_content(recover_missing=False)
         # Refresh the current map's room data
         combined_map_info = await self._refresh_map_info(current_map_info)
         await self._update_current_map(
@@ -268,6 +312,7 @@ class HomeTrait(RoborockBase, common.V1TraitMixin, TraitUpdateListener):
         self, home_map_info: dict[int, CombinedMapInfo], home_map_content: dict[int, MapContent]
     ) -> None:
         """Update the entire home cache with new map info and content."""
+        home_map_content = {k: v for k, v in home_map_content.items() if _has_map_image(v)}
         device_cache_data = await self._device_cache.get()
         device_cache_data.home_map_info = home_map_info
         device_cache_data.home_map_content_base64 = {
@@ -296,7 +341,7 @@ class HomeTrait(RoborockBase, common.V1TraitMixin, TraitUpdateListener):
             if device_cache_data.home_map_info is None:
                 device_cache_data.home_map_info = {}
             device_cache_data.home_map_info[map_flag] = map_info
-            if map_content.raw_api_response:
+            if _has_map_image(map_content) and map_content.raw_api_response:
                 if device_cache_data.home_map_content_base64 is None:
                     device_cache_data.home_map_content_base64 = {}
                 device_cache_data.home_map_content_base64[map_flag] = base64.b64encode(
@@ -310,5 +355,6 @@ class HomeTrait(RoborockBase, common.V1TraitMixin, TraitUpdateListener):
 
         if self._home_map_content is None:
             self._home_map_content = {}
-        self._home_map_content[map_flag] = map_content
+        if _has_map_image(map_content):
+            self._home_map_content[map_flag] = map_content
         self._notify_update()
