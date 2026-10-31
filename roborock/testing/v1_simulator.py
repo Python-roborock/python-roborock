@@ -5,6 +5,7 @@ machine and JSON RPC commands for V1 vacuum cleaners.
 """
 
 import gzip
+import hashlib
 import json
 import logging
 import struct
@@ -171,10 +172,12 @@ DEFAULT_LAST_CLEAN_RECORD = CleanRecord(
 # Eight character endpoint, matching the width of the map response header field.
 MAP_ENDPOINT = "fakeendp"
 
-# Side length in cells of the simulated map image.
+# Minimum side length in cells of the simulated map image.
 MAP_IMAGE_SIZE = 32
 
 _MAP_FILE_HEADER_LEN = 20
+_MAP_CELL_SIZE_MM = 50
+_MAP_IMAGE_PADDING = 2
 _IMAGE_BLOCK_TYPE = 2
 _PATH_BLOCK_TYPE = 3
 _POSE_BLOCK_TYPE = 8
@@ -247,6 +250,7 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
             "reset_consumable": self._handle_reset_consumable,
             "app_get_init_status": self._handle_app_get_init_status,
             "get_network_info": self._handle_get_network_info,
+            "get_map_v1": lambda params: self.build_map_bytes(),
         }
 
         # The simulated robot's own view of its map. Tests extend the path
@@ -393,23 +397,28 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
 
     def build_map_bytes(self) -> bytes:
         """Build a decompressed map file reflecting the current robot state."""
+        # Full-map image offsets are cells; path and robot coordinates are millimetres.
+        points = [self.robot_position[:2], *struct.iter_unpack("<HH", self.path_payload(0, self.path_length))]
+        xs = [x // _MAP_CELL_SIZE_MM for x, _ in points]
+        ys = [y // _MAP_CELL_SIZE_MM for _, y in points]
+        left = max(0, min(xs) - _MAP_IMAGE_PADDING)
+        top = max(0, min(ys) - _MAP_IMAGE_PADDING)
+        width = max(MAP_IMAGE_SIZE, max(xs) - left + _MAP_IMAGE_PADDING + 1)
+        height = max(MAP_IMAGE_SIZE, max(ys) - top + _MAP_IMAGE_PADDING + 1)
         image = _block(
             _IMAGE_BLOCK_TYPE,
-            bytes([_MAP_INSIDE]) * (MAP_IMAGE_SIZE * MAP_IMAGE_SIZE),
-            struct.pack("<IIII", 0, 0, MAP_IMAGE_SIZE, MAP_IMAGE_SIZE),
+            bytes([_MAP_INSIDE]) * (width * height),
+            struct.pack("<Iiiii", 0, top, left, height, width),
         )
-        header = b"rr" + struct.pack("<H", _MAP_FILE_HEADER_LEN) + bytes(_MAP_FILE_HEADER_LEN - 4)
-        return (
-            header
-            + image
-            + self._path_blocks(0, self.path_length)
-            + self._pose_block()
-            + _block(_DIGEST_BLOCK_TYPE, bytes(20))
-        )
+        body = image + self._path_blocks(0, self.path_length) + self._pose_block()
+        digest_header = struct.pack("<HHI", _DIGEST_BLOCK_TYPE, 8, 20)
+        header = struct.pack("<2sHIHHII", b"rr", _MAP_FILE_HEADER_LEN, len(body) + len(digest_header) + 20, 1, 0, 0, 0)
+        data = header + body + digest_header
+        return data + hashlib.sha1(data, usedforsecurity=False).digest()
 
-    def _map_response_message(self, request_id: int) -> RoborockMessage:
+    def _map_response_message(self, request_id: int, map_bytes: bytes) -> RoborockMessage:
         """Frame the map as the encrypted binary response the device sends."""
-        body = Utils.encrypt_cbc(gzip.compress(self.build_map_bytes()), self.security_data.nonce)
+        body = Utils.encrypt_cbc(gzip.compress(map_bytes), self.security_data.nonce)
         header = struct.pack("<8s8sH6s", self.security_data.endpoint.encode(), bytes(8), request_id & 0xFFFF, bytes(6))
         return RoborockMessage(protocol=RoborockMessageProtocol.MAP_RESPONSE, payload=header + body)
 
@@ -430,11 +439,6 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
             _LOGGER.debug("Failed to parse plaintext JSON RPC payload: %s", e, exc_info=True)
             return
 
-        if method == "get_map_v1":
-            # The map arrives as an encrypted binary frame rather than a JSON result.
-            channel.notify_subscribers(self._map_response_message(msg_id))
-            return
-
         result = None
         error = None
 
@@ -448,6 +452,11 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
                 _LOGGER.debug("Error executing command handler for %s: %s", method, e, exc_info=True)
         else:
             result = "ok"
+
+        if method == "get_map_v1" and error is None and isinstance(result, bytes):
+            # Custom handlers return decompressed map bytes, just like the default.
+            channel.notify_subscribers(self._map_response_message(msg_id, result))
+            return
 
         response_data = {
             "dps": {"102": json.dumps({"id": msg_id, "result": result, "error": error})},
