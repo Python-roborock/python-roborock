@@ -4,6 +4,12 @@
     'child_lock': dict({
       'childLock': False,
     }),
+    'clean_history': dict({
+      'detailPath': list([
+      ]),
+      'records': list([
+      ]),
+    }),
     'consumable': dict({
       'filterLife': 0,
       'mainBrushLife': 0,
@@ -384,6 +390,12 @@
       'child_lock': dict({
         'childLock': False,
       }),
+      'clean_history': dict({
+        'detailPath': list([
+        ]),
+        'records': list([
+        ]),
+      }),
       'consumable': dict({
         'filterLife': 0,
         'mainBrushLife': 0,
@@ -472,6 +484,12 @@
 # name: test_q10_properties_as_dict_empty
   dict({
     'child_lock': dict({
+    }),
+    'clean_history': dict({
+      'detailPath': list([
+      ]),
+      'records': list([
+      ]),
     }),
     'consumable': dict({
     }),

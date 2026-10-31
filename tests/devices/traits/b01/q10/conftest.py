@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncGenerator
 from typing import Any
 
@@ -24,6 +25,9 @@ class FakeB01Q10Channel(B01Q10Channel):
     def __init__(self) -> None:
         self.published_commands: list[tuple[Any, Any]] = []
         self.messages_to_stream: list[Q10Message] = []
+        self.send_started = asyncio.Event()
+        self.send_gate: asyncio.Event | None = None
+        self.send_error: Exception | None = None
 
     @property
     def is_connected(self) -> bool:
@@ -41,6 +45,11 @@ class FakeB01Q10Channel(B01Q10Channel):
             yield msg
 
     async def send_command(self, command: Any, params: Any = None) -> None:
+        self.send_started.set()
+        if self.send_gate is not None:
+            await self.send_gate.wait()
+        if self.send_error is not None:
+            raise self.send_error
         self.published_commands.append((command, params))
 
 
