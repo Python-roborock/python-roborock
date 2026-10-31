@@ -183,8 +183,9 @@ class NonceTable:
     """Decoded block 34: identities of the base map and its dynamic elements.
 
     Nonces are opaque 32-bit identities. Only equality is meaningful. They are
-    decoded unsigned so they compare equal to the decimal values the device
-    reports in JSON responses.
+    decoded unsigned to preserve all 32 bits. JSON values may use a signed
+    representation, as the app's binary reader does. Callers must normalize
+    JSON nonces with ``value & 0xFFFFFFFF`` before comparing them to this table.
     """
 
     map_nonce: int | None
