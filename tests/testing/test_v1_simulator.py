@@ -274,3 +274,31 @@ async def test_multiple_devices_network_info_override():
     await device2.v1_properties.network_info.refresh()
     assert device2.v1_properties.network_info.ip == "192.168.1.50"
     assert device2.v1_properties.network_info.ssid == "custom_wifi"
+
+
+# --- Map content ---------------------------------------------------------------
+
+
+def _path_points(device) -> list[tuple[float, float]]:
+    """The rendered path, as the map card would receive it."""
+    map_data = device.v1_properties.map_content.map_data
+    assert map_data is not None and map_data.path is not None
+    return [(point.x, point.y) for point in map_data.path.path[0]]
+
+
+async def test_full_map_refresh_from_simulator():
+    """The simulated map decodes through the real map channel and parser."""
+    cloud = FakeRoborockCloud()
+    simulator = V1VacuumSimulator(duid="s7_map")
+    simulator.advance_path(40)
+    simulator.robot_position = (31000, 32000, 180)
+    device = await _create_connected_device(cloud, simulator)
+
+    await device.v1_properties.map_content.refresh()
+
+    map_content = device.v1_properties.map_content
+    assert map_content.image_content is not None
+    assert map_content.image_content.startswith(b"\x89PNG")
+    assert len(_path_points(device)) == 40
+    assert map_content.map_data is not None and map_content.map_data.vacuum_position is not None
+    assert (map_content.map_data.vacuum_position.x, map_content.map_data.vacuum_position.y) == (31000, 32000)
