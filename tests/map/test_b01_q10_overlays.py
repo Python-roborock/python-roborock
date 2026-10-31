@@ -2,11 +2,14 @@
 
 import base64
 
+import pytest
+
 from roborock.map.b01_q10_overlays import (
     ZONE_TYPE_NO_GO,
     ZONE_TYPE_NO_MOP,
     ZONE_TYPE_THRESHOLD,
     ZONE_TYPE_VIRTUAL_WALL,
+    is_replaceable_zone_blob,
     parse_virtual_wall_blob,
     parse_zone_blob,
 )
@@ -59,7 +62,24 @@ def test_parse_zone_blob_accepts_base64() -> None:
 def test_parse_zone_blob_empty_variants() -> None:
     assert parse_zone_blob(None) == []
     assert parse_zone_blob("AA==") == []  # base64 of 0x00
+    assert parse_zone_blob("AQA=") == []  # version=1, count=0
     assert parse_zone_blob("AQAA") == []  # version=1, count=0
+
+
+@pytest.mark.parametrize(
+    "blob",
+    ["AQA=", "AQAA", _encoded(_blob(1, [_rect(0, [(0, 0), (1, 0), (1, 1), (0, 1)])]))],
+)
+def test_replaceable_zone_blob_accepts_supported_snapshots(blob: str) -> None:
+    assert is_replaceable_zone_blob(blob)
+
+
+@pytest.mark.parametrize(
+    "blob",
+    [None, "not-base64", "AQE=", _encoded(_blob(1, [_rect(0, [(0, 0)] * 5)]))],
+)
+def test_replaceable_zone_blob_rejects_missing_or_unsupported_snapshots(blob: str | None) -> None:
+    assert not is_replaceable_zone_blob(blob)
 
 
 def test_parse_zone_blob_skips_malformed_record() -> None:
