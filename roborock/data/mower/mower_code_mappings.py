@@ -131,10 +131,7 @@ class MowerEnum(RoborockModeEnum):
         """Resolve a wire value by name, string value, or integer code."""
         if (member := cls.from_any_optional(code)) is not None:
             return member
-        for candidate in cls:
-            if candidate.code <= 0 and candidate.name.startswith("UNKNOWN"):
-                return cast(Self, candidate)
-        raise ValueError(f"{code!r} is not a valid value for {cls.__name__}")
+        return cast(Self, cls.UNKNOWN)  # type: ignore[attr-defined]
 
 
 class MowerMowType(MowerEnum):
