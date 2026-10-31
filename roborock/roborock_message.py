@@ -15,6 +15,7 @@ class RoborockMessageProtocol(RoborockEnum):
     GENERAL_RESPONSE = 5
     RPC_REQUEST = 101
     RPC_RESPONSE = 102
+    MAP_RESPONSE_PART = 300  # Non-final part of a map response split into multiple messages
     MAP_RESPONSE = 301
 
 

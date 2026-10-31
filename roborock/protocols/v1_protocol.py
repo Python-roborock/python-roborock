@@ -306,16 +306,29 @@ def create_blob_response_decoder() -> Callable[[RoborockMessage], BlobResponse |
     return _decode_blob_response
 
 
-def create_map_response_decoder(security_data: SecurityData) -> Callable[[RoborockMessage], MapResponse | None]:
-    """Create a decoder for V1 map response messages."""
+_MAX_PENDING_MAP_RESPONSES = 4
+"""Number of incomplete multi-part map responses kept while waiting for missing parts."""
 
-    def _decode_map_response(message: RoborockMessage) -> MapResponse | None:
-        """Decode a V1 map response message."""
-        if not message.payload or len(message.payload) < 24:
+
+def create_map_response_decoder(security_data: SecurityData) -> Callable[[RoborockMessage], MapResponse | None]:
+    """Create a decoder for V1 map response messages.
+
+    Large maps are split into multiple messages that share the same ``random``
+    and ``timestamp`` and are numbered by ``seq``. All parts except the last
+    one use protocol ``MAP_RESPONSE_PART`` (300), the last one uses
+    ``MAP_RESPONSE`` (301). Only the first part starts with the map header.
+    Parts may arrive out of order, so they are buffered until complete.
+    """
+    endpoint_bytes = security_data.endpoint.encode()
+    # (random, timestamp) -> seq -> (is last part, payload)
+    pending: dict[tuple[int, int], dict[int, tuple[bool, bytes]]] = {}
+
+    def _decode_payload(payload: bytes) -> MapResponse | None:
+        if len(payload) < 24:
             raise RoborockException("Invalid V1 map response format: missing payload")
-        header, body = message.payload[:24], message.payload[24:]
+        header, body = payload[:24], payload[24:]
         [endpoint, _, request_id, _] = struct.unpack("<8s8sH6s", header)
-        if not endpoint.decode().startswith(security_data.endpoint):
+        if not endpoint.startswith(endpoint_bytes):
             _LOGGER.debug("Received map response not requested by this device, ignoring.")
             return None
         try:
@@ -324,6 +337,39 @@ def create_map_response_decoder(security_data: SecurityData) -> Callable[[Roboro
             raise RoborockException("Failed to decode map message payload") from err
         decompressed = Utils.decompress(decrypted)
         return MapResponse(request_id=request_id, data=decompressed)
+
+    def _remember(key: tuple[int, int], parts: dict[int, tuple[bool, bytes]]) -> None:
+        pending[key] = parts
+        while len(pending) > _MAX_PENDING_MAP_RESPONSES:
+            del pending[next(iter(pending))]
+
+    def _add_part(key: tuple[int, int], seq: int, is_last: bool, payload: bytes) -> MapResponse | None:
+        parts = pending.pop(key, {})
+        parts[seq] = (is_last, payload)
+        seqs = sorted(parts)
+        complete = (
+            parts[seqs[-1]][0]
+            and seqs == list(range(seqs[0], seqs[-1] + 1))
+            and parts[seqs[0]][1].startswith(endpoint_bytes)
+        )
+        if not complete:
+            _remember(key, parts)
+            return None
+        return _decode_payload(b"".join(parts[s][1] for s in seqs))
+
+    def _decode_map_response(message: RoborockMessage) -> MapResponse | None:
+        """Decode a V1 map response message."""
+        if not message.payload:
+            raise RoborockException("Invalid V1 map response format: missing payload")
+        payload = message.payload
+        key = (message.random, message.timestamp)
+        is_last = message.protocol == RoborockMessageProtocol.MAP_RESPONSE
+        if message.protocol == RoborockMessageProtocol.MAP_RESPONSE_PART or (is_last and key in pending):
+            return _add_part(key, message.seq, is_last, payload)
+        if is_last and not payload.startswith(endpoint_bytes):
+            # Possibly the last part of a multi-part response that arrived first.
+            _remember(key, {message.seq: (True, payload)})
+        return _decode_payload(payload)
 
     return _decode_map_response
 

@@ -1,8 +1,10 @@
 """Tests for the v1 protocol message encoding and decoding."""
 
+import gzip
 import json
 import logging
 import pathlib
+import random
 from collections.abc import Generator
 from unittest.mock import patch
 
@@ -227,6 +229,67 @@ def test_create_map_response_decoder_invalid_payload():
 
     with pytest.raises(RoborockException, match="Invalid V1 map response format: missing payload"):
         decoder(message)
+
+
+def _multipart_map_messages(test_data: bytes, split_at: int) -> tuple[RoborockMessage, RoborockMessage]:
+    """Build a map response split into two messages like large maps sent over MQTT."""
+    header = TEST_ENDPOINT_BYTES + b"\x00" * 8 + b"\xdc\xad" + b"\x00" * 6
+    payload = header + Utils.encrypt_cbc(gzip.compress(test_data), SECURITY_DATA.nonce)
+    first = RoborockMessage(
+        protocol=RoborockMessageProtocol.MAP_RESPONSE_PART,
+        payload=payload[:split_at],
+        seq=1,
+        version=b"1.0",
+        random=1248,
+        timestamp=1792857010,
+    )
+    last = RoborockMessage(
+        protocol=RoborockMessageProtocol.MAP_RESPONSE,
+        payload=payload[split_at:],
+        seq=2,
+        version=b"1.0",
+        random=1248,
+        timestamp=1792857010,
+    )
+    return first, last
+
+
+@pytest.mark.parametrize("last_first", [False, True], ids=["in_order", "out_of_order"])
+def test_create_map_response_decoder_multipart(last_first: bool):
+    """Test that a map response split into multiple messages is reassembled."""
+    test_data = random.Random(0).randbytes(4000)  # incompressible, so both parts carry data
+    first, last = _multipart_map_messages(test_data, split_at=1000)
+    messages = [last, first] if last_first else [first, last]
+
+    decoder = create_map_response_decoder(SECURITY_DATA)
+    assert decoder(messages[0]) is None
+    result = decoder(messages[1])
+    assert result is not None
+    assert result.request_id == 44508
+    assert result.data == test_data
+
+
+def test_create_map_response_decoder_multipart_incomplete():
+    """Test that a lone first part of a multi-part map response is buffered, not decoded."""
+    first, _ = _multipart_map_messages(b"some map\n" * 100, split_at=100)
+
+    decoder = create_map_response_decoder(SECURITY_DATA)
+    assert decoder(first) is None
+
+
+def test_create_map_response_decoder_non_utf8_header():
+    """Test that a map response part without header does not raise on non UTF-8 bytes."""
+    message = RoborockMessage(
+        protocol=RoborockMessageProtocol.MAP_RESPONSE,
+        payload=b'\x9bv9\x15\x8e;"R' + b"\xff" * 40,
+        seq=2,
+        version=b"1.0",
+        random=1248,
+        timestamp=1792857010,
+    )
+
+    decoder = create_map_response_decoder(SECURITY_DATA)
+    assert decoder(message) is None
 
 
 @pytest.mark.parametrize(
