@@ -11,18 +11,20 @@ from roborock.roborock_message import RoborockZeoProtocol
     [
         ("roborock.wm.a63", False),  # H1
         ("roborock.wm.a102", True),  # H1 Overseas
-        ("roborock.wm.a90", True),  # H1 Lite
+        ("roborock.wm.a90", False),  # H1 Lite / H1 Neo
+        ("roborock.wm.a91", True),  # H1 Lite Overseas
         (None, True),  # unknown model: assume supported
     ],
 )
 def test_supports_default_setting(model: str | None, expected: bool) -> None:
-    """DP 225 is unsupported on H1 (a63) only."""
+    """DP 225 is unsupported on H1 (a63) and H1 Lite (a90)."""
     assert supports_default_setting(model) is expected
 
 
-def test_force_load_omits_default_setting_for_h1() -> None:
-    """H1 (a63) has a softener compartment but must not be queried for DP 225."""
-    dp_list = build_force_load_dp_list("roborock.wm.a63")
+@pytest.mark.parametrize("model", ["roborock.wm.a63", "roborock.wm.a90"])
+def test_force_load_omits_default_setting_for_h1(model: str) -> None:
+    """H1 variants have a softener compartment but must not be queried for DP 225."""
+    dp_list = build_force_load_dp_list(model)
 
     assert RoborockZeoProtocol.DEFAULT_SETTING not in dp_list
     # The remaining softener DPs are still queried.

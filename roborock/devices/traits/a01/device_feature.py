@@ -143,10 +143,13 @@ _UNSUPPORTED_FEATURE_BITS: frozenset[str] = frozenset(
     }
 )
 
-# Devices known to lack DEFAULT_SETTING (DP 225).
+# Devices known to lack DEFAULT_SETTING (DP 225). These models have a softener
+# compartment but never answer the DP 225 query, so requesting it stalls the
+# force-load until it times out.
 _UNSUPPORTED_DEFAULT_SETTING: frozenset[str] = frozenset(
     {
         "roborock.wm.a63",  # H1
+        "roborock.wm.a90",  # H1 Lite / H1 Neo
     }
 )
 
@@ -250,7 +253,7 @@ def supports_feature_bits(model: str | None) -> bool:
 
 
 def supports_default_setting(model: str | None) -> bool:
-    """H1 (a63) does not support DP 225 even though it has a softener compartment."""
+    """H1 (a63) and H1 Lite (a90) do not support DP 225 despite having a softener compartment."""
     if model is None:
         return True  # conservative: assume yes
     return model not in _UNSUPPORTED_DEFAULT_SETTING
