@@ -23,6 +23,7 @@ stays with the map parser (full maps) and the dynamic element merge logic.
 import struct
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
+from typing import Self
 
 from roborock.exceptions import RoborockException
 
@@ -69,9 +70,9 @@ class MapBlock:
         """Total header length ``H`` written to the common header."""
         return COMMON_HEADER_LEN + len(self.extra_header)
 
-    def with_payload(self, payload: bytes) -> "MapBlock":
+    def with_payload(self, payload: bytes) -> Self:
         """Return a copy carrying ``payload`` and the same type and header fields."""
-        return MapBlock(self.block_type, payload, self.extra_header)
+        return type(self)(self.block_type, payload, self.extra_header)
 
     def encode(self) -> bytes:
         """Serialize the block with a regenerated common header."""

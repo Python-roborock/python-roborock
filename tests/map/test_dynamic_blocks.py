@@ -141,6 +141,7 @@ def test_replace_block_ordering(blocks: list[MapBlock], new_block: MapBlock, exp
     result = replace_block(blocks, new_block)
     assert [block.block_type for block in result] == expected_types
     assert find_block(result, new_block.block_type) == new_block
+    assert find_block(result, 999) is None
     assert blocks is not result, "input list must not be mutated"
 
 
