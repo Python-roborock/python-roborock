@@ -51,6 +51,11 @@ All reviews are evaluated against the engineering conventions defined in [AGENTS
    - Do assertions verify public behavior rather than private `_state` variables?
 
 6. **Format Review Output**:
+   Structure review comments with clear rationale and actionable code recommendations:
+   - **Priority Level & File Reference**
+   - **Issue / Anti-Pattern Identified**
+   - **Grounded Rationale** (citing protocol resilience, consumer stability, or maintainability)
+   - **Concrete Before / After Diff or Suggested Fix**
    Keep feedback high-signal: focus on architectural violations, state/concurrency bugs, protocol safety, and test gaps; avoid nitpicking formatting or style already enforced by Ruff and Mypy.
    - **Interactive / Summary Reviews**: Group findings by Priority Layer (1 → 3) with file references, the anti-pattern identified, grounded rationale (citing protocol resilience, consumer stability, or maintainability), and a concrete before/after diff or suggested fix.
    - **Inline PR Review Comments**: State the issue, grounded rationale (citing `AGENTS.md` conventions), and suggested fix concisely right on the affected lines.
