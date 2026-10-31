@@ -1,6 +1,9 @@
+import hashlib
+import struct
 from dataclasses import replace
 
 import pytest
+from vacuum_map_parser_base.config.drawable import Drawable
 
 from roborock.data import UserData
 from roborock.data.v1 import RoborockStateCode
@@ -9,6 +12,7 @@ from roborock.devices.cache import InMemoryCache
 from roborock.devices.device_manager import UserParams, create_device_manager
 from roborock.devices.traits.v1.consumeable import ConsumableAttribute
 from roborock.exceptions import RoborockException
+from roborock.map.map_parser import MapParser, MapParserConfig
 from roborock.testing import (
     DEFAULT_NETWORK_INFO,
     DEFAULT_STATUS,
@@ -274,3 +278,104 @@ async def test_multiple_devices_network_info_override():
     await device2.v1_properties.network_info.refresh()
     assert device2.v1_properties.network_info.ip == "192.168.1.50"
     assert device2.v1_properties.network_info.ssid == "custom_wifi"
+
+
+# --- Map content ---------------------------------------------------------------
+
+
+def _path_points(device) -> list[tuple[float, float]]:
+    """The rendered path, as the map card would receive it."""
+    map_data = device.v1_properties.map_content.map_data
+    assert map_data is not None and map_data.path is not None
+    return [(point.x, point.y) for point in map_data.path.path[0]]
+
+
+async def test_full_map_refresh_from_simulator():
+    """The simulated map decodes through the real map channel and parser."""
+    cloud = FakeRoborockCloud()
+    simulator = V1VacuumSimulator(duid="s7_map")
+    simulator.advance_path(40)
+    simulator.robot_position = (31000, 32000, 180)
+    device = await _create_connected_device(cloud, simulator)
+
+    await device.v1_properties.map_content.refresh()
+
+    map_content = device.v1_properties.map_content
+    assert map_content.image_content is not None
+    assert map_content.image_content.startswith(b"\x89PNG")
+    assert len(_path_points(device)) == 40
+    assert map_content.map_data is not None and map_content.map_data.vacuum_position is not None
+    assert (map_content.map_data.vacuum_position.x, map_content.map_data.vacuum_position.y) == (31000, 32000)
+
+
+@pytest.mark.parametrize("count", [0, 40, 400])
+def test_simulated_map_length_and_digest(count: int) -> None:
+    """Synthetic maps satisfy the app's full-file length and SHA-1 checks."""
+    simulator = V1VacuumSimulator()
+    simulator.advance_path(count)
+    raw = simulator.build_map_bytes()
+    magic, header_length, payload_length, major, minor = struct.unpack_from("<2sHIHH", raw)
+    assert magic == b"rr"
+    assert (major, minor) == (1, 0)
+    assert header_length + payload_length == len(raw)
+    assert struct.unpack_from("<HHI", raw, len(raw) - 28) == (1024, 8, 20)
+    assert raw[-20:] == hashlib.sha1(raw[:-20], usedforsecurity=False).digest()
+
+
+@pytest.mark.parametrize("position", [(25000, 24000, 90), (31000, 32000, 180), (0, 0, 0)])
+@pytest.mark.parametrize("count", [0, 40, 400])
+def test_simulated_map_contains_robot_and_path(position: tuple[int, int, int], count: int) -> None:
+    """Map geometry keeps all simulated overlays inside the rendered image."""
+    simulator = V1VacuumSimulator()
+    simulator.robot_position = position
+    simulator.advance_path(count)
+    parsed = MapParser(MapParserConfig()).parse(simulator.build_map_bytes())
+    assert parsed is not None and parsed.map_data is not None
+    data = parsed.map_data
+    assert data.image is not None and data.vacuum_position is not None and data.path is not None
+    width, height = data.image.data.size
+    for point in [data.vacuum_position, *data.path.path[0]]:
+        pixel = point.to_img(data.image.dimensions)
+        assert 0 <= pixel.x < width
+        assert 0 <= pixel.y < height
+
+
+@pytest.mark.parametrize("drawable", [Drawable.PATH, Drawable.VACUUM_POSITION])
+def test_simulated_map_renders_overlays(drawable: Drawable) -> None:
+    """Each overlay changes the image rather than silently being clipped away."""
+    simulator = V1VacuumSimulator()
+    simulator.advance_path(40)
+    raw = simulator.build_map_bytes()
+    background = MapParser(MapParserConfig(drawables=[])).parse(raw)
+    rendered = MapParser(MapParserConfig(drawables=[drawable])).parse(raw)
+    assert background is not None and rendered is not None
+    assert rendered.image_content != background.image_content
+
+
+async def test_map_custom_handler_override() -> None:
+    """A custom map travels through the same binary response path as the default."""
+    custom_simulator = V1VacuumSimulator()
+    custom_simulator.advance_path(7)
+    custom_simulator.robot_position = (31000, 32000, 180)
+    custom_map = custom_simulator.build_map_bytes()
+
+    def get_map(params):
+        assert params == []
+        return custom_map
+
+    simulator = V1VacuumSimulator(custom_handlers={"get_map_v1": get_map})
+    device = await _create_connected_device(FakeRoborockCloud(), simulator)
+    await device.v1_properties.map_content.refresh()
+    assert device.v1_properties.map_content.raw_api_response == custom_map
+    assert len(_path_points(device)) == 7
+
+
+async def test_map_custom_handler_error() -> None:
+    """A failing override emits an RPC error instead of a successful default map."""
+
+    def get_map(params):
+        raise RoborockException("map unavailable")
+
+    simulator = V1VacuumSimulator(custom_handlers={"get_map_v1": get_map})
+    with pytest.raises(RoborockException, match="map unavailable"):
+        await simulator.v1_channel.mqtt_rpc_channel.send_command("get_map_v1")

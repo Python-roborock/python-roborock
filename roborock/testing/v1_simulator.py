@@ -4,8 +4,11 @@ This module provides `V1VacuumSimulator` which simulates the firmware state
 machine and JSON RPC commands for V1 vacuum cleaners.
 """
 
+import gzip
+import hashlib
 import json
 import logging
+import struct
 import time
 from collections.abc import Callable
 from dataclasses import asdict, replace
@@ -37,6 +40,7 @@ from roborock.data.v1.v1_containers import (
 )
 from roborock.devices.cache import DeviceCache, InMemoryCache
 from roborock.devices.rpc.v1_channel import V1Channel
+from roborock.protocol import Utils
 from roborock.protocols.v1_protocol import SecurityData
 from roborock.roborock_message import RoborockDataProtocol, RoborockMessage, RoborockMessageProtocol
 from roborock.testing.channel import FakeChannel
@@ -165,6 +169,33 @@ DEFAULT_LAST_CLEAN_RECORD = CleanRecord(
 )
 
 
+# Eight character endpoint, matching the width of the map response header field.
+MAP_ENDPOINT = "fakeendp"
+
+# Minimum side length in cells of the simulated map image.
+MAP_IMAGE_SIZE = 32
+
+_MAP_FILE_HEADER_LEN = 20
+_MAP_CELL_SIZE_MM = 50
+_MAP_IMAGE_PADDING = 2
+_IMAGE_BLOCK_TYPE = 2
+_PATH_BLOCK_TYPE = 3
+_POSE_BLOCK_TYPE = 8
+_MOP_BLOCK_TYPE = 18
+_DIGEST_BLOCK_TYPE = 1024
+_MAP_INSIDE = 0xFF
+
+
+def _path_point(index: int) -> bytes:
+    """A deterministic path point, so tests can assert on exact bytes."""
+    return struct.pack("<HH", 20000 + index * 10, 21000 + index * 7)
+
+
+def _block(block_type: int, payload: bytes, extra_header: bytes = b"") -> bytes:
+    """Frame one map block: type, header length, payload length, header, payload."""
+    return struct.pack("<HHI", block_type, 8 + len(extra_header), len(payload)) + extra_header + payload
+
+
 class V1VacuumSimulator(RoborockDeviceSimulator):
     """Firmware simulator for a V1/L01 vacuum device.
 
@@ -219,10 +250,18 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
             "reset_consumable": self._handle_reset_consumable,
             "app_get_init_status": self._handle_app_get_init_status,
             "get_network_info": self._handle_get_network_info,
+            "get_map_v1": lambda params: self.build_map_bytes(),
         }
 
+        # The simulated robot's own view of its map. Tests extend the path
+        # with advance_path() and move the robot via robot_position.
+        self.path_length = 0
+        self.robot_position = (25000, 24000, 90)
+
         self.device_cache = DeviceCache(self.duid, InMemoryCache())
-        self.security_data = SecurityData(endpoint="fake_endpoint", nonce=b"fake_nonce_16bytes")
+        # The endpoint must fit the eight byte map response header field and the
+        # nonce must be a valid sixteen byte AES key for map responses to decode.
+        self.security_data = SecurityData(endpoint=MAP_ENDPOINT, nonce=b"fake_nonce_16byt")
         local_session = Mock(return_value=self.local_channel)
 
         self._v1_channel = V1Channel(
@@ -333,6 +372,56 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
     def _handle_get_network_info(self, params: Any) -> dict[str, Any]:
         return _serialize_dataclass(self.network_info)
 
+    # --- Simulated map -------------------------------------------------
+
+    def advance_path(self, count: int) -> None:
+        """Extend the current path, as the robot does while it cleans."""
+        self.path_length += count
+
+    def path_payload(self, start: int, count: int) -> bytes:
+        """The point records for a range of the current path."""
+        return b"".join(_path_point(i) for i in range(start, start + count))
+
+    def mop_payload(self, start: int, count: int) -> bytes:
+        """The mop flags for a range of the current path, alternating per point."""
+        return bytes(i % 2 for i in range(start, start + count))
+
+    def _pose_block(self) -> bytes:
+        return _block(_POSE_BLOCK_TYPE, struct.pack("<iii", *self.robot_position))
+
+    def _path_blocks(self, start: int, count: int) -> bytes:
+        """Blocks 3 and 18 for a range of the path, as both a map and a page carry them."""
+        return _block(_PATH_BLOCK_TYPE, self.path_payload(start, count), struct.pack("<III", count, 4, 0)) + _block(
+            _MOP_BLOCK_TYPE, self.mop_payload(start, count)
+        )
+
+    def build_map_bytes(self) -> bytes:
+        """Build a decompressed map file reflecting the current robot state."""
+        # Full-map image offsets are cells; path and robot coordinates are millimetres.
+        points = [self.robot_position[:2], *struct.iter_unpack("<HH", self.path_payload(0, self.path_length))]
+        xs = [x // _MAP_CELL_SIZE_MM for x, _ in points]
+        ys = [y // _MAP_CELL_SIZE_MM for _, y in points]
+        left = max(0, min(xs) - _MAP_IMAGE_PADDING)
+        top = max(0, min(ys) - _MAP_IMAGE_PADDING)
+        width = max(MAP_IMAGE_SIZE, max(xs) - left + _MAP_IMAGE_PADDING + 1)
+        height = max(MAP_IMAGE_SIZE, max(ys) - top + _MAP_IMAGE_PADDING + 1)
+        image = _block(
+            _IMAGE_BLOCK_TYPE,
+            bytes([_MAP_INSIDE]) * (width * height),
+            struct.pack("<Iiiii", 0, top, left, height, width),
+        )
+        body = image + self._path_blocks(0, self.path_length) + self._pose_block()
+        digest_header = struct.pack("<HHI", _DIGEST_BLOCK_TYPE, 8, 20)
+        header = struct.pack("<2sHIHHII", b"rr", _MAP_FILE_HEADER_LEN, len(body) + len(digest_header) + 20, 1, 0, 0, 0)
+        data = header + body + digest_header
+        return data + hashlib.sha1(data, usedforsecurity=False).digest()
+
+    def _map_response_message(self, request_id: int, map_bytes: bytes) -> RoborockMessage:
+        """Frame the map as the encrypted binary response the device sends."""
+        body = Utils.encrypt_cbc(gzip.compress(map_bytes), self.security_data.nonce)
+        header = struct.pack("<8s8sH6s", self.security_data.endpoint.encode(), bytes(8), request_id & 0xFFFF, bytes(6))
+        return RoborockMessage(protocol=RoborockMessageProtocol.MAP_RESPONSE, payload=header + body)
+
     async def _handle_publish(self, message: RoborockMessage, channel: FakeChannel) -> None:
         if not message.payload:
             return
@@ -363,6 +452,11 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
                 _LOGGER.debug("Error executing command handler for %s: %s", method, e, exc_info=True)
         else:
             result = "ok"
+
+        if method == "get_map_v1" and error is None and isinstance(result, bytes):
+            # Custom handlers return decompressed map bytes, just like the default.
+            channel.notify_subscribers(self._map_response_message(msg_id, result))
+            return
 
         response_data = {
             "dps": {"102": json.dumps({"id": msg_id, "result": result, "error": error})},
