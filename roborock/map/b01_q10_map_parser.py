@@ -25,9 +25,11 @@ import math
 import statistics
 import struct
 from dataclasses import dataclass, field, replace
+from typing import TypeVar
 
 from PIL import Image
 from vacuum_map_parser_base.config.color import ColorsPalette, SupportedColor
+from vacuum_map_parser_base.config.drawable import Drawable
 from vacuum_map_parser_base.config.image_config import ImageConfig
 from vacuum_map_parser_base.map_data import ImageData, MapData, Point
 
@@ -127,6 +129,8 @@ class Q10Room(RoborockBase):
     @property
     def name(self) -> str:
         """User friendly room name (firmware ``rr_`` defaults are normalized)."""
+        if not self.raw_name.startswith("rr_"):
+            return self.raw_name
         return self.raw_name.removeprefix("rr_").replace("_", " ").strip().title()
 
 
@@ -237,6 +241,10 @@ class Q10MapPacket:
     """Carpet mask decoded from the packet tail: a full ``width*height`` grid in
     the same (top-down) pixel space as :attr:`grid`, where a non-zero cell is
     carpet (the value is the carpet kind). ``None`` if the packet carried none."""
+    obstacles: list["Q10Obstacle"] = field(default_factory=list)
+    """Obstacle markers embedded after the carpet block (50 raw units/pixel)."""
+    skip_cleaning_points: list["Q10Point"] = field(default_factory=list)
+    """Firmware skip-clean markers embedded after obstacles (10 raw units/pixel)."""
 
     @property
     def layers(self) -> GridLayers:
@@ -256,6 +264,19 @@ class Q10Point(RoborockBase):
     def to_roborock(self) -> Q10RoborockPoint:
         """Convert this trace point to common Roborock coordinates."""
         return Q10RoborockPoint.from_trace(self.x, self.y)
+
+
+@dataclass
+class Q10Obstacle(Q10Point):
+    """A Q10 map obstacle marker in its raw map-package coordinate frame.
+
+    The map package supplies positions only: there is no validated type,
+    confidence, or photo identifier on this model. Fifty raw units equal one
+    occupancy-grid pixel; placement is anchored by the map header origin.
+    """
+
+
+_PointType = TypeVar("_PointType", bound=Q10Point)
 
 
 @dataclass
@@ -345,12 +366,11 @@ _TRACE_SEQUENCE_OFFSET = 3
 _TRACE_POINT_COUNT_OFFSET = 8
 _TRACE_HEADING_OFFSET = 10
 
-_HISTORICAL_TRACE_HEADER_LENGTH = 14
-_HISTORICAL_TRACE_PREFIX_LENGTH = 1
+_HISTORICAL_TRACE_HEADER_LENGTH = 13
 _HISTORICAL_TRACE_VERSION = 1
-_HISTORICAL_TRACE_POINT_COUNT_OFFSET = 6
-_HISTORICAL_TRACE_HEADING_OFFSET = 10
-_HISTORICAL_TRACE_RESERVED_OFFSET = 12
+_HISTORICAL_TRACE_POINT_COUNT_OFFSET = 5
+_HISTORICAL_TRACE_HEADING_OFFSET = 9
+_HISTORICAL_TRACE_RESERVED_OFFSET = 11
 
 # Some cleans still prepend a single near-origin sentinel as the first real
 # point (e.g. ~(5, 76) / (-3, 0) when the path proper starts near (-1700, -800));
@@ -582,6 +602,17 @@ def _parse_map_layout(payload: bytes) -> tuple[Q10MapPacket, bytes, int | None]:
     tail = payload[layout_end:]
     erase_zones = _parse_erase_zones(tail)
     carpet_mask, carpet_end = _parse_carpet_block(tail, width, height)
+    obstacles: list[Q10Obstacle] = []
+    skip_cleaning_points: list[Q10Point] = []
+    trace_offset = None
+    if carpet_end is not None:
+        parsed_obstacles, obstacle_end = _parse_counted_points(tail, carpet_end, Q10Obstacle)
+        if obstacle_end is not None:
+            parsed_skip_points, skip_end = _parse_counted_points(tail, obstacle_end, Q10Point)
+            if skip_end is not None:
+                obstacles = parsed_obstacles
+                skip_cleaning_points = parsed_skip_points
+                trace_offset = skip_end
     header_calibration = _parse_header_calibration(payload)
     packet = Q10MapPacket(
         kind=kind,
@@ -593,8 +624,10 @@ def _parse_map_layout(payload: bytes) -> tuple[Q10MapPacket, bytes, int | None]:
         erase_zones=erase_zones,
         header_calibration=header_calibration,
         carpet_mask=carpet_mask,
+        obstacles=obstacles,
+        skip_cleaning_points=skip_cleaning_points,
     )
-    return packet, tail, carpet_end
+    return packet, tail, trace_offset
 
 
 def _parse_header_calibration(payload: bytes) -> Q10HeaderCalibration | None:
@@ -709,6 +742,29 @@ def _parse_carpet_block(tail: bytes, width: int, height: int) -> tuple[bytes | N
     return mask, block_end
 
 
+def _parse_counted_points(
+    tail: bytes,
+    offset: int,
+    point_type: type[_PointType],
+) -> tuple[list[_PointType], int | None]:
+    """Decode one bounded ``u8 count`` + signed-BE ``(x, y)`` point table.
+
+    Obstacle and skip-clean sections use the same framing but different
+    coordinate scales. The caller owns those semantics; this helper only
+    validates and decodes the table atomically. A truncated table returns no
+    points and no end offset, preventing later sections from being misaligned.
+    """
+    if offset >= len(tail):
+        return [], None
+    count = tail[offset]
+    points_start = offset + 1
+    points_end = points_start + count * 4
+    if points_end > len(tail):
+        return [], None
+    coordinates = struct.iter_unpack(">hh", memoryview(tail)[points_start:points_end])
+    return ([point_type(x=x, y=y) for x, y in coordinates], points_end)
+
+
 def _parse_clean_record_trace(
     tail: bytes,
     offset: int,
@@ -717,20 +773,17 @@ def _parse_clean_record_trace(
 
     The header and declared point count were validated against a physical ss07
     clean-record response and its point bytes match captured prefixes of the
-    corresponding live trace exactly. One observed zero byte precedes the path;
-    its meaning is unknown, so a non-zero value makes the entire section opaque.
-    Any unsupported version, non-zero reserved word, or truncated point table is
-    likewise left completely opaque. Bytes after the declared points are
-    deliberately not consumed: the observed 12-byte suffix appears structured,
-    but there is not enough controlled evidence to name or decode it safely.
+    corresponding live trace exactly. The caller first consumes the obstacle
+    and skip-clean point tables; ``offset`` therefore starts at the one-byte
+    path version. Any unsupported version, non-zero reserved word, or truncated
+    point table is left completely opaque. Bytes after the declared points are
+    deliberately not consumed: the observed invariant 12-byte suffix appears
+    structured, but controlled captures disprove it as per-clean obstacles.
     """
-    if offset >= len(tail) or tail[offset] != 0:
-        return None
-    offset += _HISTORICAL_TRACE_PREFIX_LENGTH
     header_end = offset + _HISTORICAL_TRACE_HEADER_LENGTH
     if header_end > len(tail):
         return None
-    version = int.from_bytes(tail[offset : offset + 2], "big")
+    version = tail[offset]
     reserved = int.from_bytes(
         tail[offset + _HISTORICAL_TRACE_RESERVED_OFFSET : offset + _HISTORICAL_TRACE_RESERVED_OFFSET + 2],
         "big",
@@ -776,6 +829,8 @@ class B01Q10MapParserConfig:
 
     map_scale: int = 4
     """Scale factor for the rendered map image."""
+    drawables: list[Drawable] | None = None
+    """Enabled map overlays, or ``None`` for the Q10 defaults."""
 
 
 class B01Q10MapParser:
