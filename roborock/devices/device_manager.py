@@ -19,6 +19,7 @@ from roborock.data import (
 from roborock.devices.device import DeviceReadyCallback, RoborockDevice
 from roborock.diagnostics import Diagnostics, redact_device_data
 from roborock.exceptions import RoborockException
+from roborock.map.b01_q10_map_parser import B01Q10MapParserConfig
 from roborock.map.map_parser import MapParserConfig
 from roborock.mqtt.roborock_session import create_lazy_mqtt_session
 from roborock.mqtt.session import MqttSession, SessionUnauthorizedHook
@@ -262,7 +263,18 @@ async def create_device_manager(
                 if "ss" in model_part:
                     b01_q10_channel = create_b01_q10_channel(mqtt_channel)
                     channel = b01_q10_channel
-                    trait = b01.q10.create(channel)
+                    trait = b01.q10.create(
+                        channel,
+                        model=product.model,
+                        map_parser_config=(
+                            B01Q10MapParserConfig(
+                                map_scale=map_parser_config.map_scale,
+                                drawables=map_parser_config.drawables,
+                            )
+                            if map_parser_config
+                            else None
+                        ),
+                    )
                 elif "sc" in model_part:
                     # Q7 devices start with 'sc' in their model naming.
                     b01_q7_channel = create_b01_q7_channel(device, product, mqtt_channel)

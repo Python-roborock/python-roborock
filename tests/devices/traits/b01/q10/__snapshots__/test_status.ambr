@@ -24,6 +24,9 @@
       'dustSwitch': True,
     }),
     'map': dict({
+      'currentRoom': None,
+      'obstacles': list([
+      ]),
       'path': list([
       ]),
       'robotHeading': None,
@@ -40,6 +43,12 @@
         'signal': -50,
         'wifiName': 'wifi-network-name',
       }),
+    }),
+    'room_cleaning': dict({
+      'settings': tuple(
+      ),
+      'settingsAvailable': False,
+      'supported': True,
     }),
     'status': dict({
       'addCleanState': False,
@@ -404,6 +413,9 @@
         'dustSwitch': True,
       }),
       'map': dict({
+        'currentRoom': None,
+        'obstacles': list([
+        ]),
         'path': list([
         ]),
         'robotHeading': None,
@@ -420,6 +432,12 @@
           'signal': -50,
           'wifiName': '**REDACTED**',
         }),
+      }),
+      'room_cleaning': dict({
+        'settings': tuple(
+        ),
+        'settingsAvailable': False,
+        'supported': True,
       }),
       'status': dict({
         'addCleanState': False,
@@ -480,6 +498,9 @@
     'dust_collection': dict({
     }),
     'map': dict({
+      'currentRoom': None,
+      'obstacles': list([
+      ]),
       'path': list([
       ]),
       'robotHeading': None,
@@ -490,6 +511,12 @@
     'maps': dict({
     }),
     'network_info': dict({
+    }),
+    'room_cleaning': dict({
+      'settings': tuple(
+      ),
+      'settingsAvailable': False,
+      'supported': True,
     }),
     'status': dict({
     }),
