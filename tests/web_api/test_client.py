@@ -22,12 +22,6 @@ def test_legacy_module_exports() -> None:
         "PreparedRequest",
         "RoborockApiClient",
         "UserWebApiClient",
-        "_compact_json",
-        "_get_hawk_authentication",
-        "_LOGGER",
-        "aiohttp",
-        "secrets",
-        "time",
     ):
         assert hasattr(web_api, name), name
 

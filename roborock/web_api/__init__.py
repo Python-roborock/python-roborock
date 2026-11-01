@@ -7,21 +7,7 @@ Endpoints are grouped by resource into submodules (``auth``, ``homes``, ``device
 ``roborock.web_api`` module is re-exported here for backwards compatibility.
 """
 
-# Modules and the logger the former single-file module exposed. Re-exported so that
-# existing patch targets such as ``roborock.web_api.time.time`` keep resolving.
-import base64
-import hashlib
-import hmac
-import json
-import math
-import secrets
-import string
-import time
-
-import aiohttp
-
-from ._base import _LOGGER, BASE_URLS, IotLoginInfo, RoborockApiBase
-from ._hawk import _compact_json, _get_hawk_authentication, _process_extra_hawk_values
+from ._base import BASE_URLS, IotLoginInfo, RoborockApiBase
 from ._request import PreparedRequest
 from .auth import DEFAULT_AGREEMENT_MAJOR_VERSION, DEFAULT_AGREEMENT_MINOR_VERSION, AuthApi
 from .client import RoborockApiClient, UserWebApiClient
