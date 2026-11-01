@@ -306,8 +306,8 @@ def create_blob_response_decoder() -> Callable[[RoborockMessage], BlobResponse |
     return _decode_blob_response
 
 
+# Number of incomplete multi-part map responses kept while waiting for missing parts.
 _MAX_PENDING_MAP_RESPONSES = 4
-"""Number of incomplete multi-part map responses kept while waiting for missing parts."""
 
 
 def create_map_response_decoder(security_data: SecurityData) -> Callable[[RoborockMessage], MapResponse | None]:
