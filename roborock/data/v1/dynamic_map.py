@@ -1,4 +1,10 @@
-"""Wire models for the V1 dynamic map diff commands.
+"""Wire models for incremental updates to V1 vacuum maps.
+
+A full map is a snapshot of the floor plan, cleaning path, and robot position.
+Dynamic map commands report changes since that snapshot so a client can fetch
+the changed parts and keep the displayed path and position current during a
+clean, without downloading the whole map each time. The client falls back to
+a full map when incremental updates cannot be applied.
 
 These dataclasses describe the JSON results of ``get_dynamic_map_diff`` and
 ``get_dynamic_data`` after ordinary command-response decoding, plus the
