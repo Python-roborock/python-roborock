@@ -1,7 +1,9 @@
 """Tests for the Home related functionality."""
 
 import base64
+import copy
 from collections.abc import Iterator
+from dataclasses import dataclass, field
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
@@ -196,9 +198,11 @@ async def test_discover_home_empty_cache(
     """Test discovering home when cache is empty."""
     # Setup mocks for the discovery process
     mock_rpc_channel.send_command.side_effect = [
-        UPDATED_STATUS_MAP_123,  # Status after switching to map 123
+        UPDATED_STATUS_MAP_123,  # Status right after switching to map 123
+        UPDATED_STATUS_MAP_123,  # Status once map 123 has loaded
         ROOM_MAPPING_DATA_MAP_123,  # Rooms for map 123
-        UPDATED_STATUS_MAP_0,  # Status after switching back to map 0
+        UPDATED_STATUS_MAP_0,  # Status right after switching back to map 0
+        UPDATED_STATUS_MAP_0,  # Status once map 0 has loaded
         ROOM_MAPPING_DATA_MAP_0,  # Rooms for map 0
     ]
     mock_mqtt_rpc_channel.send_command.side_effect = [
@@ -458,9 +462,11 @@ async def test_current_map_data_property(
     """Test current_map_data property returns correct data."""
     # Setup discovery
     mock_rpc_channel.send_command.side_effect = [
-        UPDATED_STATUS_MAP_123,  # Status after switching to map 123
+        UPDATED_STATUS_MAP_123,  # Status right after switching to map 123
+        UPDATED_STATUS_MAP_123,  # Status once map 123 has loaded
         ROOM_MAPPING_DATA_MAP_123,  # Rooms for map 123
-        UPDATED_STATUS_MAP_0,  # Status after switching back to map 0
+        UPDATED_STATUS_MAP_0,  # Status right after switching back to map 0
+        UPDATED_STATUS_MAP_0,  # Status once map 0 has loaded
         ROOM_MAPPING_DATA_MAP_0,  # Rooms for map 0
     ]
     mock_mqtt_rpc_channel.send_command.side_effect = [
@@ -558,9 +564,11 @@ async def test_discover_home_device_busy_cleaning(
 
     # Setup mocks for the discovery process
     mock_rpc_channel.send_command.side_effect = [
-        UPDATED_STATUS_MAP_123,  # Status after switching to map 123
+        UPDATED_STATUS_MAP_123,  # Status right after switching to map 123
+        UPDATED_STATUS_MAP_123,  # Status once map 123 has loaded
         ROOM_MAPPING_DATA_MAP_123,  # Rooms for map 123
-        UPDATED_STATUS_MAP_0,  # Status after switching back to map 0
+        UPDATED_STATUS_MAP_0,  # Status right after switching back to map 0
+        UPDATED_STATUS_MAP_0,  # Status once map 0 has loaded
         ROOM_MAPPING_DATA_MAP_0,  # Rooms for map 0
     ]
     mock_mqtt_rpc_channel.send_command.side_effect = [
@@ -907,11 +915,65 @@ async def test_empty_map_does_not_replace_saved_map(
     assert home_trait.home_map_content[0].image_content == TEST_IMAGE_CONTENT_2
 
 
-async def test_discover_discards_previously_cached_empty_map(
-    home_trait: HomeTrait,
-    device_cache: DeviceCache,
-) -> None:
-    """Remove placeholders cached by earlier library versions while keeping good maps."""
+@dataclass
+class TwoFloorDevice:
+    """State of the simulated vacuum set up by `simulate_two_floor_device`."""
+
+    map_bytes: dict[int, bytes]
+    status_lags: bool = False
+    map_flag: int = 0
+    status_stale: bool = False
+    loaded_maps: list[int] = field(default_factory=list)
+
+    def load(self, map_flag: int) -> None:
+        """Record a LOAD_MULTI_MAP command."""
+        self.map_flag = map_flag
+        self.status_stale = self.status_lags
+        self.loaded_maps.append(map_flag)
+
+
+def simulate_two_floor_device(
+    mock_rpc_channel: AsyncMock,
+    mock_mqtt_rpc_channel: AsyncMock,
+    mock_map_rpc_channel: AsyncMock,
+    map_bytes: dict[int, bytes],
+    *,
+    status_lags: bool = False,
+) -> TwoFloorDevice:
+    """Answer commands like a vacuum with floors 0 and 123 that serves the given map bytes per floor.
+
+    With `status_lags` the first status read after a map load still reports no map present,
+    as a vacuum can do while the map is loading.
+    """
+    device = TwoFloorDevice(map_bytes=map_bytes, status_lags=status_lags)
+
+    def mqtt_response(command: RoborockCommand, params: object = None) -> object:
+        if command == RoborockCommand.GET_MULTI_MAPS_LIST:
+            return MULTI_MAP_LIST_DATA
+        assert command == RoborockCommand.LOAD_MULTI_MAP
+        assert isinstance(params, list)
+        device.load(params[0])
+        return {}
+
+    def rpc_response(command: RoborockCommand, params: object = None) -> object:
+        if command == RoborockCommand.GET_STATUS:
+            map_present = 0 if device.status_stale else 1
+            device.status_stale = False
+            return {**UPDATED_STATUS_MAP_0, "map_status": device.map_flag * 4 + 3, "map_present": map_present}
+        assert command == RoborockCommand.GET_ROOM_MAPPING
+        return ROOM_MAPPING_DATA_MAP_0 if device.map_flag == 0 else ROOM_MAPPING_DATA_MAP_123
+
+    def map_response(command: RoborockCommand, params: object = None) -> bytes:
+        return device.map_bytes[device.map_flag]
+
+    mock_mqtt_rpc_channel.send_command.side_effect = mqtt_response
+    mock_rpc_channel.send_command.side_effect = rpc_response
+    mock_map_rpc_channel.send_command.side_effect = map_response
+    return device
+
+
+async def seed_cache_with_placeholder(device_cache: DeviceCache) -> None:
+    """Cache two floors the way an older library version left them: floor 0 holds a "NO MAP" placeholder."""
     cache_data = await device_cache.get()
     cache_data.home_map_info = {
         0: CombinedMapInfo(map_flag=0, name="Ground Floor", rooms=[]),
@@ -923,14 +985,186 @@ async def test_discover_discards_previously_cached_empty_map(
     }
     await device_cache.set(cache_data)
 
+
+async def test_discover_rediscovers_previously_cached_empty_map(
+    home_trait: HomeTrait,
+    device_cache: DeviceCache,
+    mock_rpc_channel: AsyncMock,
+    mock_mqtt_rpc_channel: AsyncMock,
+    mock_map_rpc_channel: AsyncMock,
+) -> None:
+    """A placeholder cached by an earlier library version is replaced by a real map on an idle device."""
+    await seed_cache_with_placeholder(device_cache)
+    device = simulate_two_floor_device(
+        mock_rpc_channel,
+        mock_mqtt_rpc_channel,
+        mock_map_rpc_channel,
+        {0: MAP_BYTES_RESPONSE_1, 123: MAP_BYTES_RESPONSE_2},
+    )
+
+    await home_trait.discover_home()
+
+    assert device.loaded_maps == [123, 0]
+    assert home_trait.home_map_content
+    assert home_trait.home_map_content[0].image_content == TEST_IMAGE_CONTENT_1
+    assert home_trait.home_map_content[123].image_content == TEST_IMAGE_CONTENT_2
+    cache_data = await device_cache.get()
+    assert cache_data.home_map_content_base64 == {
+        0: base64.b64encode(MAP_BYTES_RESPONSE_1).decode(),
+        123: base64.b64encode(MAP_BYTES_RESPONSE_2).decode(),
+    }
+
+
+async def test_placeholder_rediscovery_resumes_after_busy(
+    status_trait: StatusTrait,
+    home_trait: HomeTrait,
+    device_cache: DeviceCache,
+    mock_rpc_channel: AsyncMock,
+    mock_mqtt_rpc_channel: AsyncMock,
+    mock_map_rpc_channel: AsyncMock,
+) -> None:
+    """A floor cached as a placeholder is rediscovered by the first idle refresh after a busy one."""
+    await seed_cache_with_placeholder(device_cache)
+    cache_before = copy.deepcopy(await device_cache.get())
+    device = simulate_two_floor_device(
+        mock_rpc_channel,
+        mock_mqtt_rpc_channel,
+        mock_map_rpc_channel,
+        {0: EMPTY_MAP_BYTES, 123: MAP_BYTES_RESPONSE_2},
+    )
+
+    # While cleaning, no map is loaded. The good cached floor stays available, and the
+    # saved cache is left exactly as it was so the missing floor is still owed.
+    status_trait.state = RoborockStateCode.cleaning
+    await home_trait.refresh()
+
+    assert device.loaded_maps == []
+    assert home_trait.home_map_content
+    assert home_trait.home_map_content.keys() == {123}
+    assert home_trait.home_map_content[123].image_content == TEST_IMAGE_CONTENT_2
+    assert await device_cache.get() == cache_before
+
+    # The next refresh finds the vacuum idle and discovers the missing floor.
+    status_trait.state = RoborockStateCode.charging
+    device.map_bytes[0] = MAP_BYTES_RESPONSE_1
+    await home_trait.refresh()
+
+    assert device.loaded_maps == [123, 0]
+    assert home_trait.home_map_content.keys() == {0, 123}
+    assert home_trait.home_map_content[0].image_content == TEST_IMAGE_CONTENT_1
+    assert home_trait.home_map_content[123].image_content == TEST_IMAGE_CONTENT_2
+    cache_data = await device_cache.get()
+    assert cache_data.home_map_content_base64 == {
+        0: base64.b64encode(MAP_BYTES_RESPONSE_1).decode(),
+        123: base64.b64encode(MAP_BYTES_RESPONSE_2).decode(),
+    }
+
+    # Discovery is complete, so later refreshes load nothing.
+    await home_trait.refresh()
+    assert device.loaded_maps == [123, 0]
+
+
+async def test_placeholder_rediscovery_without_current_map_keeps_cache(
+    home_trait: HomeTrait,
+    device_cache: DeviceCache,
+    mock_mqtt_rpc_channel: AsyncMock,
+) -> None:
+    """Rediscovery that cannot start for lack of a current map leaves the saved home alone."""
+    await seed_cache_with_placeholder(device_cache)
+    cache_before = copy.deepcopy(await device_cache.get())
+    mock_mqtt_rpc_channel.send_command.side_effect = [
+        [{"max_multi_map": 0, "max_bak_map": 0, "multi_map_count": 0, "map_info": []}],
+    ]
+
+    await home_trait.discover_home()
+
+    assert await device_cache.get() == cache_before
+
+
+async def test_rediscovery_keeps_good_cached_map_when_device_answers_placeholder(
+    home_trait: HomeTrait,
+    device_cache: DeviceCache,
+    mock_rpc_channel: AsyncMock,
+    mock_mqtt_rpc_channel: AsyncMock,
+    mock_map_rpc_channel: AsyncMock,
+) -> None:
+    """A floor that answers rediscovery with a placeholder keeps its last good cached image."""
+    await seed_cache_with_placeholder(device_cache)
+    simulate_two_floor_device(
+        mock_rpc_channel,
+        mock_mqtt_rpc_channel,
+        mock_map_rpc_channel,
+        {0: MAP_BYTES_RESPONSE_1, 123: EMPTY_MAP_BYTES},
+    )
+
     await home_trait.discover_home()
 
     assert home_trait.home_map_content
-    assert home_trait.home_map_content.keys() == {123}
+    assert home_trait.home_map_content.keys() == {0, 123}
+    assert home_trait.home_map_content[123].image_content == TEST_IMAGE_CONTENT_2
     cache_data = await device_cache.get()
-    assert cache_data.home_map_content_base64 == {123: base64.b64encode(MAP_BYTES_RESPONSE_2).decode()}
-    assert cache_data.home_map_info is not None
-    assert cache_data.home_map_info.keys() == {0, 123}
+    assert cache_data.home_map_content_base64 == {
+        0: base64.b64encode(MAP_BYTES_RESPONSE_1).decode(),
+        123: base64.b64encode(MAP_BYTES_RESPONSE_2).decode(),
+    }
+
+
+async def test_missing_map_recovery_reads_status_after_loading(
+    status_trait: StatusTrait,
+    home_trait: HomeTrait,
+    mock_rpc_channel: AsyncMock,
+    mock_mqtt_rpc_channel: AsyncMock,
+    mock_map_rpc_channel: AsyncMock,
+) -> None:
+    """The status read right after a reload still shows no map, so a later read must settle it."""
+    status_trait.map_present = 0
+    still_loading = {**UPDATED_STATUS_MAP_0, "map_present": 0}
+    loaded = {**UPDATED_STATUS_MAP_0, "map_present": 1}
+    mock_mqtt_rpc_channel.send_command.side_effect = [
+        MULTI_MAP_LIST_SINGLE_MAP_DATA,
+        {},  # LOAD_MULTI_MAP
+        MULTI_MAP_LIST_SINGLE_MAP_DATA,
+    ]
+    mock_rpc_channel.send_command.side_effect = [
+        still_loading,  # Status right after LOAD_MULTI_MAP
+        loaded,  # Status once the map has loaded
+        ROOM_MAPPING_DATA_MAP_0,
+        ROOM_MAPPING_DATA_MAP_0,
+    ]
+    mock_map_rpc_channel.send_command.return_value = MAP_BYTES_RESPONSE_1
+
+    await home_trait.refresh()
+    assert status_trait.map_present == 1
+
+    await home_trait.refresh()
+
+    assert (
+        mock_mqtt_rpc_channel.send_command.call_args_list.count(call(RoborockCommand.LOAD_MULTI_MAP, params=[0])) == 1
+    )
+
+
+async def test_multi_map_discovery_reads_status_after_loading(
+    status_trait: StatusTrait,
+    home_trait: HomeTrait,
+    mock_rpc_channel: AsyncMock,
+    mock_mqtt_rpc_channel: AsyncMock,
+    mock_map_rpc_channel: AsyncMock,
+) -> None:
+    """Discovery leaves a settled status behind, so the next refresh does not reload the current map."""
+    device = simulate_two_floor_device(
+        mock_rpc_channel,
+        mock_mqtt_rpc_channel,
+        mock_map_rpc_channel,
+        {0: MAP_BYTES_RESPONSE_1, 123: MAP_BYTES_RESPONSE_2},
+        status_lags=True,
+    )
+
+    await home_trait.discover_home()
+    assert status_trait.map_present == 1
+
+    await home_trait.refresh()
+
+    assert device.loaded_maps == [123, 0]
 
 
 async def test_multi_map_discovery_does_not_reload_twice(
@@ -1075,7 +1309,9 @@ async def test_home_trait_listener_notifications(
     # 1. Test notification on empty cache discovery
     mock_rpc_channel.send_command.side_effect = [
         UPDATED_STATUS_MAP_123,
+        UPDATED_STATUS_MAP_123,
         ROOM_MAPPING_DATA_MAP_123,
+        UPDATED_STATUS_MAP_0,
         UPDATED_STATUS_MAP_0,
         ROOM_MAPPING_DATA_MAP_0,
     ]
