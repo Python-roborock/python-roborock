@@ -105,35 +105,62 @@ def test_camera_turn_server_without_credentials() -> None:
     assert turn.as_dict() == {"urls": ["turn:turn.example.com:3478"]}
 
 
-def test_camera_turn_server_invalid_payloads() -> None:
-    """Test invalid payloads raise appropriate errors."""
+def test_camera_turn_server_empty_response_list() -> None:
+    """An empty RPC response list is rejected."""
     with pytest.raises(ValueError, match="Empty TURN server data list"):
         CameraTurnServer.from_dict([])
 
+
+def test_camera_turn_server_missing_urls() -> None:
+    """A response without URL fields is rejected."""
     with pytest.raises(ValueError, match="Missing 'url' or 'urls'"):
         CameraTurnServer.from_dict({"user": "user_only"})
 
+
+def test_camera_turn_server_invalid_urls_type() -> None:
+    """URLs must be a string or a list."""
     with pytest.raises(TypeError, match="Expected str or list for urls"):
         CameraTurnServer.from_dict({"urls": 12345})
 
+
+def test_camera_turn_server_empty_url_in_list() -> None:
+    """URL lists cannot contain empty strings."""
     with pytest.raises(ValueError, match="non-empty string"):
         CameraTurnServer.from_dict({"urls": [""]})
 
+
+def test_camera_turn_server_null_url_in_list() -> None:
+    """URL lists cannot contain null values."""
     with pytest.raises(ValueError, match="non-empty string"):
         CameraTurnServer.from_dict({"urls": [None]})
 
+
+def test_camera_turn_server_invalid_url_scheme() -> None:
+    """ICE server URLs must use a supported scheme."""
     with pytest.raises(ValueError, match="Invalid ICE server URL scheme"):
         CameraTurnServer.from_dict({"url": "http://invalidscheme.com"})
 
+
+def test_camera_turn_server_empty_url() -> None:
+    """A single URL cannot be empty."""
     with pytest.raises(ValueError, match="TURN server URL cannot be empty"):
         CameraTurnServer.from_dict({"url": ""})
 
+
+def test_camera_turn_server_empty_urls_list() -> None:
+    """The URL list must contain at least one server."""
     with pytest.raises(ValueError, match="TURN server 'urls' list cannot be empty"):
         CameraTurnServer.from_dict({"urls": []})
 
+
+def test_camera_turn_server_invalid_username_type() -> None:
+    """Usernames must be strings."""
     with pytest.raises(TypeError, match="Expected str for username"):
         CameraTurnServer.from_dict({"url": "turn:example.com", "user": 123})
 
+
+def test_camera_turn_server_invalid_credential_type() -> None:
+    """Credentials must be strings."""
     with pytest.raises(TypeError, match="Expected str for credential"):
         CameraTurnServer.from_dict({"url": "turn:example.com", "pwd": 456})
 
