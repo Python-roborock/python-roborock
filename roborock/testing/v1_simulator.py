@@ -10,7 +10,7 @@ import json
 import logging
 import struct
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import asdict, replace
 from enum import Enum
 from typing import Any
@@ -45,6 +45,7 @@ from roborock.protocols.v1_protocol import SecurityData
 from roborock.roborock_message import RoborockDataProtocol, RoborockMessage, RoborockMessageProtocol
 from roborock.testing.channel import FakeChannel
 from roborock.testing.simulator import RoborockDeviceSimulator
+from roborock.util import get_next_int
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -255,8 +256,12 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
 
         # The simulated robot's own view of its map. Tests extend the path
         # with advance_path() and move the robot via robot_position.
+        # Set map_parts > 1 (and optionally map_part_order) to split map
+        # responses across MAP_RESPONSE_PART (300) and MAP_RESPONSE (301) frames.
         self.path_length = 0
         self.robot_position = (25000, 24000, 90)
+        self.map_parts = 1
+        self.map_part_order: Sequence[int] | None = None
 
         self.device_cache = DeviceCache(self.duid, InMemoryCache())
         # The endpoint must fit the eight byte map response header field and the
@@ -416,11 +421,44 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
         data = header + body + digest_header
         return data + hashlib.sha1(data, usedforsecurity=False).digest()
 
-    def _map_response_message(self, request_id: int, map_bytes: bytes) -> RoborockMessage:
-        """Frame the map as the encrypted binary response the device sends."""
+    def _map_response_messages(self, request_id: int, map_bytes: bytes) -> list[RoborockMessage]:
+        """Frame the map as one or more encrypted binary messages as the device sends."""
+        if self.map_parts < 1:
+            raise ValueError("map_parts must be at least 1")
         body = Utils.encrypt_cbc(gzip.compress(map_bytes), self.security_data.nonce)
         header = struct.pack("<8s8sH6s", self.security_data.endpoint.encode(), bytes(8), request_id & 0xFFFF, bytes(6))
-        return RoborockMessage(protocol=RoborockMessageProtocol.MAP_RESPONSE, payload=header + body)
+        if self.map_parts == 1:
+            if self.map_part_order is not None and list(self.map_part_order) != [0]:
+                raise ValueError("map_part_order must be a permutation of range(map_parts)")
+            return [RoborockMessage(protocol=RoborockMessageProtocol.MAP_RESPONSE, payload=header + body)]
+        if self.map_parts > len(body):
+            raise ValueError("map_parts cannot exceed encrypted map body length")
+
+        # Keep the 24-byte header intact on the first part and split the encrypted
+        # body evenly into map_parts non-empty contiguous slices.
+        total = len(body)
+        boundaries = [(i * total) // self.map_parts for i in range(self.map_parts + 1)]
+        chunks = [body[boundaries[i] : boundaries[i + 1]] for i in range(self.map_parts)]
+        chunks[0] = header + chunks[0]
+        random_id = get_next_int(10000, 99999)
+        timestamp = int(time.time())
+        messages = [
+            RoborockMessage(
+                protocol=RoborockMessageProtocol.MAP_RESPONSE
+                if idx == len(chunks) - 1
+                else RoborockMessageProtocol.MAP_RESPONSE_PART,
+                payload=chunk,
+                seq=idx + 1,
+                random=random_id,
+                timestamp=timestamp,
+            )
+            for idx, chunk in enumerate(chunks)
+        ]
+        if self.map_part_order is not None:
+            if sorted(self.map_part_order) != list(range(self.map_parts)):
+                raise ValueError("map_part_order must be a permutation of range(map_parts)")
+            messages = [messages[i] for i in self.map_part_order]
+        return messages
 
     async def _handle_publish(self, message: RoborockMessage, channel: FakeChannel) -> None:
         if not message.payload:
@@ -455,7 +493,8 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
 
         if method == "get_map_v1" and error is None and isinstance(result, bytes):
             # Custom handlers return decompressed map bytes, just like the default.
-            channel.notify_subscribers(self._map_response_message(msg_id, result))
+            for map_msg in self._map_response_messages(msg_id, result):
+                channel.notify_subscribers(map_msg)
             return
 
         response_data = {
