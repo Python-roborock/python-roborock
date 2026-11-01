@@ -1064,21 +1064,56 @@ async def test_placeholder_rediscovery_resumes_after_busy(
     assert device.loaded_maps == [123, 0]
 
 
-async def test_placeholder_rediscovery_without_current_map_keeps_cache(
+async def test_placeholder_rediscovery_waits_for_current_map(
+    status_trait: StatusTrait,
     home_trait: HomeTrait,
     device_cache: DeviceCache,
+    mock_rpc_channel: AsyncMock,
     mock_mqtt_rpc_channel: AsyncMock,
+    mock_map_rpc_channel: AsyncMock,
 ) -> None:
-    """Rediscovery that cannot start for lack of a current map leaves the saved home alone."""
+    """Rediscovery that cannot start for lack of a current map leaves the saved home alone and stays pending."""
     await seed_cache_with_placeholder(device_cache)
     cache_before = copy.deepcopy(await device_cache.get())
-    mock_mqtt_rpc_channel.send_command.side_effect = [
-        [{"max_multi_map": 0, "max_bak_map": 0, "multi_map_count": 0, "map_info": []}],
+    device = simulate_two_floor_device(
+        mock_rpc_channel,
+        mock_mqtt_rpc_channel,
+        mock_map_rpc_channel,
+        {0: MAP_BYTES_RESPONSE_1, 123: MAP_BYTES_RESPONSE_2},
+    )
+    two_floor_response = mock_mqtt_rpc_channel.send_command.side_effect
+
+    # The vacuum temporarily reports no maps. Nothing is loaded and the saved home is untouched.
+    mock_mqtt_rpc_channel.send_command.side_effect = None
+    mock_mqtt_rpc_channel.send_command.return_value = [
+        {"max_multi_map": 0, "max_bak_map": 0, "multi_map_count": 0, "map_info": []}
     ]
+    with pytest.raises(RoborockDeviceBusy):
+        await home_trait.discover_home()
+    await home_trait.refresh()
 
-    await home_trait.discover_home()
-
+    assert device.loaded_maps == []
     assert await device_cache.get() == cache_before
+
+    # Floor 123 becomes the current map. The next ordinary refresh rediscovers the other floor.
+    mock_mqtt_rpc_channel.send_command.side_effect = two_floor_response
+    status_trait.map_status = 123 * 4 + 3
+    device.map_flag = 123
+    await home_trait.refresh()
+
+    assert device.loaded_maps == [0, 123]
+    assert home_trait.home_map_content
+    assert home_trait.home_map_content.keys() == {0, 123}
+    assert home_trait.home_map_content[0].image_content == TEST_IMAGE_CONTENT_1
+    cache_data = await device_cache.get()
+    assert cache_data.home_map_content_base64 == {
+        0: base64.b64encode(MAP_BYTES_RESPONSE_1).decode(),
+        123: base64.b64encode(MAP_BYTES_RESPONSE_2).decode(),
+    }
+
+    # Discovery is complete, so later refreshes load nothing.
+    await home_trait.refresh()
+    assert device.loaded_maps == [0, 123]
 
 
 async def test_rediscovery_keeps_good_cached_map_when_device_answers_placeholder(

@@ -94,7 +94,9 @@ class HomeTrait(RoborockBase, common.V1TraitMixin, TraitUpdateListener):
 
         This cannot switch maps while the device is busy, as that would interrupt
         its current task. This will raise `RoborockDeviceBusy` unless the device
-        is idle or charging with no cleaning or return operation in progress.
+        is idle or charging with no cleaning or return operation in progress. It
+        also raises it when a cache with placeholders needs rediscovery but the
+        device reports no current map yet.
 
         After discovery, the home cache will be populated and can be accessed via the `home_map_info` property.
         """
@@ -134,12 +136,13 @@ class HomeTrait(RoborockBase, common.V1TraitMixin, TraitUpdateListener):
 
         await self._maps_trait.refresh()
         if self._maps_trait.current_map_info is None:
+            if keep_cached_home:
+                # A floor is still owed from the cache. Stay pending so a later refresh,
+                # once a current map exists, can finish discovery.
+                raise RoborockDeviceBusy("Cannot rediscover the cached home without current map info")
             _LOGGER.debug("Cannot perform home discovery without current map info")
             self._discovery_completed = True
-            if keep_cached_home:
-                self._notify_update()
-            else:
-                await self._update_home_cache({}, {})
+            await self._update_home_cache({}, {})
             return
 
         home_map_info, home_map_content = await self._build_home_map_info()
