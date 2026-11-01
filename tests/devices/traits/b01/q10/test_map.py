@@ -388,6 +388,47 @@ def test_render_failure_clears_stale_image(render_map: Mock) -> None:
     assert trait.image_content is None
 
 
+def test_trace_updates_reuse_cached_base_map_and_calibration() -> None:
+    """Subsequent trace updates reuse the rendered base map without rebuilding it."""
+    map_dps = MapDpsTrait()
+    trait = _map_trait(map_dps)
+    packet = parse_map_packet(FIXTURE.read_bytes())
+    trace1 = parse_trace_packet(TRACE_SESSION_FIXTURE.read_bytes())
+    trace2 = Q10TracePacket(points=[*trace1.points, Q10Point(100, 100)], sequence=trace1.sequence + 1)
+
+    with (
+        patch(
+            "roborock.devices.traits.b01.q10.map.build_base_q10_map_data",
+            wraps=None,
+        ) as mock_build_base,
+        patch(
+            "roborock.devices.traits.b01.q10.map.solve_q10_calibration",
+            wraps=None,
+        ) as mock_solve_cal,
+        patch("roborock.devices.traits.b01.q10.map.render_q10_map", return_value=b"png") as mock_render,
+    ):
+        mock_build_base.return_value = Mock()
+        mock_solve_cal.return_value = Mock()
+
+        trait.update_from_map_packet(packet)
+        assert mock_build_base.call_count == 1
+        assert mock_solve_cal.call_count == 0
+
+        trait.update_from_trace_packet(trace1)
+        assert mock_build_base.call_count == 1
+        assert mock_solve_cal.call_count == 1
+
+        trait.update_from_trace_packet(trace2)
+        assert mock_build_base.call_count == 1
+        assert mock_solve_cal.call_count == 1
+        assert mock_render.call_count == 3
+
+        # A DPS update or new map packet invalidates the cached base map.
+        map_dps.update_from_dps({B01_Q10_DP.RESTRICTED_ZONE_UP: _zone_blob()})
+        assert mock_build_base.call_count == 2
+        assert mock_solve_cal.call_count == 2
+
+
 # --- Overlays ----------------------------------------------------------------
 
 
