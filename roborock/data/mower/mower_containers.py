@@ -37,7 +37,7 @@ __all__ = [
 
 @dataclass
 class MowerGpsCoordinate(RoborockBase):
-    """Mower GPS position (``GpsCoordinateDpValue``)."""
+    """Mower GPS position."""
 
     latitude: float | None = None
     longitude: float | None = None
@@ -45,24 +45,12 @@ class MowerGpsCoordinate(RoborockBase):
 
 @dataclass
 class MowerStatus(RoborockBase):
-    """Core mower status backed by mower DPS updates (data points 120-145).
-
-    Absent values mean the device has not reported that data point; for example
-    a missing battery is unknown, not zero.
-    """
+    """Core mower status backed by mower DPS updates (data points 120-145)."""
 
     error_code: MowerErrorCode | None = field(default=None, metadata={"dps": RoborockMowerDataProtocol.ERROR_CODE})
     battery: int | None = field(default=None, metadata={"dps": RoborockMowerDataProtocol.BATTERY})
-    """Battery percentage."""
     mow_type: MowerMowType | None = field(default=None, metadata={"dps": RoborockMowerDataProtocol.MOW_TYPE})
     mow_state: MowerDetailState | None = field(default=None, metadata={"dps": RoborockMowerDataProtocol.MOW_STATE})
-    """Task state on data point 123.
-
-    The protocol declares this data point as the compact ``MowStateDpValue``
-    domain, but captured devices report the detailed ``RobotDetailState``
-    domain here (for example ``58`` = ``MOW_SUSPEND``), so the detailed enum is
-    used.
-    """
     mapping_type: MowerMappingType | None = field(
         default=None, metadata={"dps": RoborockMowerDataProtocol.MAPPING_TYPE}
     )
@@ -84,20 +72,16 @@ class MowerStatus(RoborockBase):
     )
     mow_eff_mode: MowerEffMode | None = field(default=None, metadata={"dps": RoborockMowerDataProtocol.MOW_EFF_MODE})
     mow_height: int | None = field(default=None, metadata={"dps": RoborockMowerDataProtocol.MOW_HEIGHT})
-    """Reported cutting height in device units."""
     mow_direction_angle: int | None = field(
         default=None, metadata={"dps": RoborockMowerDataProtocol.MOW_DIRECTION_ANGLE}
     )
-    """Reported mowing direction in degrees."""
     mow_pattern: MowerPattern | None = field(default=None, metadata={"dps": RoborockMowerDataProtocol.MOW_PATTERN})
     mow_conf_mode: MowerConfMode | None = field(default=None, metadata={"dps": RoborockMowerDataProtocol.MOW_CONF_MODE})
     offline_status: MowerOfflineStatus | None = field(
         default=None, metadata={"dps": RoborockMowerDataProtocol.OFFLINE_STATUS}
     )
     mow_progress: int | None = field(default=None, metadata={"dps": RoborockMowerDataProtocol.MOW_PROGRESS})
-    """Compact task progress in a model-specific scale."""
     blade_lifespan: int | None = field(default=None, metadata={"dps": RoborockMowerDataProtocol.BLADE_LIFESPAN})
-    """Blade usage or lifespan in reported units."""
     fc_state: MowerFcState | None = field(default=None, metadata={"dps": RoborockMowerDataProtocol.FC_STATE})
     gps_coordinate: MowerGpsCoordinate | None = field(
         default=None, metadata={"dps": RoborockMowerDataProtocol.GPS_COORDINATE}
@@ -112,10 +96,7 @@ class MowerStatus(RoborockBase):
 
     @classmethod
     def from_dps(cls, dps: dict[int | str, Any] | None) -> Self:
-        """Create typed status from integer or string DPS keys.
-
-        Unknown and malformed keys are ignored, matching the existing factory.
-        """
+        """Create typed status from integer or string DPS keys."""
         field_by_dps = {
             int(field_info.metadata["dps"]): field_info.name
             for field_info in fields(cls)

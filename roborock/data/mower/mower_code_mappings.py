@@ -1,23 +1,8 @@
-"""Code mappings for Roborock mower devices.
-
-Status data points carry integer values, while structured ``remote_pb`` JSON
-replies use protobuf enum names. The compact mowing state and detailed robot
-task state are separate numeric domains and must not be interchanged.
-
-The new enums are :class:`RoborockModeEnum` classes whose string value is the
-protobuf enum name and whose ``code`` is the integer wire value. The existing
-integer-valued :class:`RoborockMowerStateCode` remains available for callers
-using its original names and values.
-
-Enums whose protocol domain has no unknown value additionally define a
-synthetic ``UNKNOWN = ("UNKNOWN", -1)`` member. It is never sent on the wire;
-:meth:`MowerEnum.from_code` resolves unrecognized firmware values to it so
-consumers always see an explicit unknown rather than a stale or missing value.
-"""
+"""Code mappings for Roborock mower devices."""
 
 from typing import Self, cast
 
-from roborock.data.code_mappings import RoborockEnum, RoborockModeEnum
+from roborock.data.code_mappings import RoborockModeEnum
 
 __all__ = [
     "MowerAfsStatus",
@@ -42,89 +27,11 @@ __all__ = [
     "MowerPendType",
     "MowerRemoteState",
     "MowerStartType",
-    "RoborockMowerStateCode",
 ]
 
 
-class RoborockMowerStateCode(RoborockEnum):
-    """Legacy detailed state codes, retained with their original names and values."""
-
-    unknown = -999
-    idle = 0
-
-    map_initializing = 1
-    map_undocking = 2
-    map_undock_fault = 3
-    map_locating = 4
-    map_prepare_boundary = 5
-    map_prepare_island = 6
-    map_prepare_path = 7
-    map_boundary = 8
-    map_island = 9
-    map_path = 10
-    map_boundary_auto = 11
-    map_erasing = 12
-    map_save = 13
-    map_wait = 14
-    map_recoverable_fault = 15
-    map_fault = 16
-    map_emergency_stop = 17
-    map_waiting_fault = 18
-
-    mow_initializing = 51
-    mow_undocking = 52
-    mow_locating = 53
-    mow_adjust_cutter = 54
-    mow_zig_zag = 55
-    mow_edge = 56
-    mow_goto = 57
-    mow_suspend = 58
-    mow_recoverable_fault = 59
-    mow_fault = 60
-    mow_docked_rainfall = 61
-    mow_docked_do_not_disturb = 62
-    mow_docked_low_battery = 63
-    mow_wait = 64
-    mow_prepare_remote = 65
-    mow_remote = 66
-    mow_emergency_stop = 67
-    mow_docked_manual = 68
-    mow_dock_fault = 69
-    mow_remote_undocking = 70
-    mow_to_dock_initializing = 71
-    mow_to_dock_locating = 72
-    mow_to_dock_recoverable_fault = 73
-    mow_to_dock_fault = 74
-    mow_to_dock_emergency_stop = 75
-    mow_to_dock_charging = 76
-    mow_to_dock_charge_completed = 77
-
-    free = 101
-    free_initializing = 102
-    free_locating = 103
-    free_docked_manual = 104
-    free_docked_mow_end = 105
-    free_docked_plan_end = 106
-    free_emergency_stop = 107
-    free_recoverable_fault = 108
-    free_fault = 109
-
-    charge_charging = 151
-    charge_completed = 152
-    charge_waiting = 153
-    charge_fault = 154
-
-
 class MowerEnum(RoborockModeEnum):
-    """Base for mower enums parsed from the JSON route.
-
-    Wire data carries the protobuf member name (``"DAILY"``), occasionally the
-    integer code, or the code as a decimal string. ``from_code`` accepts all
-    three so model fields parse through the standard conversion path, and it
-    maps unrecognized values to the enum's unknown member when it has one (the
-    member whose name starts with ``UNKNOWN`` and whose code is zero or
-    negative), following the Q7 ``WorkStatusMapping`` precedent.
-    """
+    """Base for mower enums."""
 
     @classmethod
     def from_code(cls, code: int | str) -> Self:
@@ -135,391 +42,357 @@ class MowerEnum(RoborockModeEnum):
 
 
 class MowerMowType(MowerEnum):
-    """Mowing task selection reported by DPS 122 (``MowTypeDpValue.Type``)."""
+    """Mowing task selection reported by DPS 122."""
 
-    UNKNOWN = ("UNKNOWN", -1)
-    """Library-side fallback for unrecognized wire values; never sent."""
-    NONE = ("NONE", 0)
-    GLOBAL = ("GLOBAL", 1)
-    EDGE = ("EDGE", 2)
-    SELECTION = ("SELECTION", 3)
-    ZONING = ("ZONING", 4)
-    REMOTE = ("REMOTE", 5)
-    RANDOM = ("RANDOM", 6)
+    UNKNOWN = ("unknown", -1)
+    NONE = ("none", 0)
+    GLOBAL = ("global", 1)
+    EDGE = ("edge", 2)
+    SELECTION = ("selection", 3)
+    ZONING = ("zoning", 4)
+    REMOTE = ("remote", 5)
+    RANDOM = ("random", 6)
 
 
 class MowerMowState(MowerEnum):
-    """Compact mowing state (``MowStateDpValue.Type``).
+    """Compact mowing state (MowStateDpValue.Type)."""
 
-    This is the documented compact domain for DPS 123. Live captures report the
-    detailed :class:`MowerDetailState` on that data point instead, which is why
-    ``MowerStatus.mow_state`` uses the detailed enum; this enum remains for the
-    structured ``dp_points`` payloads that carry ``mow_state.type``.
-    """
-
-    UNKNOWN = ("UNKNOWN", -1)
-    """Library-side fallback for unrecognized wire values; never sent."""
-    IDLE = ("IDLE", 0)
-    ZIGZAG_MOWING = ("ZIGZAG_MOWING", 1)
-    EDGE_MOWING = ("EDGE_MOWING", 2)
-    TRANSITION = ("TRANSITION", 3)
-    SUSPENDED = ("SUSPENDED", 4)
-    REMOTE_WALKING = ("REMOTE_WALKING", 5)
-    REMOTE_MOWING = ("REMOTE_MOWING", 6)
+    UNKNOWN = ("unknown", -1)
+    IDLE = ("idle", 0)
+    ZIGZAG_MOWING = ("zigzag_mowing", 1)
+    EDGE_MOWING = ("edge_mowing", 2)
+    TRANSITION = ("transition", 3)
+    SUSPENDED = ("suspended", 4)
+    REMOTE_WALKING = ("remote_walking", 5)
+    REMOTE_MOWING = ("remote_mowing", 6)
 
 
 class MowerMappingType(MowerEnum):
-    """Mapping operation reported by DPS 124 (``MappingTypeDpValue.Type``)."""
+    """Mapping operation reported by DPS 124."""
 
-    UNKNOWN = ("UNKNOWN", -1)
-    """Library-side fallback for unrecognized wire values; never sent."""
-    NONE = ("NONE", 0)
-    LAWN_MAPPING = ("LAWN_MAPPING", 1)
-    FORBIDDEN_ZONE_MAPPING = ("FORBIDDEN_ZONE_MAPPING", 2)
-    CHANNEL_MAPPING = ("CHANNEL_MAPPING", 3)
-    SPLIT_WORKSPACE = ("SPLIT_WORKSPACE", 4)
-    MERGE_WORKSPACE = ("MERGE_WORKSPACE", 5)
-    BOUNDARY_MODIFY = ("BOUNDARY_MODIFY", 6)
+    UNKNOWN = ("unknown", -1)
+    NONE = ("none", 0)
+    LAWN_MAPPING = ("lawn_mapping", 1)
+    FORBIDDEN_ZONE_MAPPING = ("forbidden_zone_mapping", 2)
+    CHANNEL_MAPPING = ("channel_mapping", 3)
+    SPLIT_WORKSPACE = ("split_workspace", 4)
+    MERGE_WORKSPACE = ("merge_workspace", 5)
+    BOUNDARY_MODIFY = ("boundary_modify", 6)
 
 
 class MowerMappingState(MowerEnum):
-    """Mapping activity reported by DPS 125 (``MappingStateDpValue.Type``)."""
+    """Mapping activity reported by DPS 125."""
 
-    UNKNOWN = ("UNKNOWN", -1)
-    """Library-side fallback for unrecognized wire values; never sent."""
-    IDLE = ("IDLE", 0)
-    AUTO_MAPPING = ("AUTO_MAPPING", 1)
-    TRACK_ERASE = ("TRACK_ERASE", 2)
-    SUSPENDED = ("SUSPENDED", 3)
-    SAVING_MAP = ("SAVING_MAP", 4)
-    REMOTE_WALKING = ("REMOTE_WALKING", 5)
-    REMOTE_MAPPING = ("REMOTE_MAPPING", 6)
+    UNKNOWN = ("unknown", -1)
+    IDLE = ("idle", 0)
+    AUTO_MAPPING = ("auto_mapping", 1)
+    TRACK_ERASE = ("track_erase", 2)
+    SUSPENDED = ("suspended", 3)
+    SAVING_MAP = ("saving_map", 4)
+    REMOTE_WALKING = ("remote_walking", 5)
+    REMOTE_MAPPING = ("remote_mapping", 6)
 
 
 class MowerOtaState(MowerEnum):
-    """Firmware update state reported by DPS 126 (``OtaStateDpValue.Type``)."""
+    """Firmware update state reported by DPS 126."""
 
-    UNKNOWN = ("UNKNOWN", -1)
-    """Library-side fallback for unrecognized wire values; never sent."""
-    IDLE = ("IDLE", 0)
-    DOWNLOADING = ("DOWNLOADING", 1)
-    INSTALLING = ("INSTALLING", 2)
-    REBOOTING = ("REBOOTING", 3)
+    UNKNOWN = ("unknown", -1)
+    IDLE = ("idle", 0)
+    DOWNLOADING = ("downloading", 1)
+    INSTALLING = ("installing", 2)
+    REBOOTING = ("rebooting", 3)
 
 
 class MowerChargeState(MowerEnum):
-    """Charging state reported by DPS 127 (``ChargeStateDpValue.Type``)."""
+    """Charging state reported by DPS 127."""
 
-    UNKNOWN = ("UNKNOWN", -1)
-    """Library-side fallback for unrecognized wire values; never sent."""
-    NOT_CHARGING = ("NOT_CHARGING", 0)
-    CHARGING = ("CHARGING", 1)
-    CHARGE_COMPLETED = ("CHARGE_COMPLETED", 2)
-    WAITING_CHARGE = ("WAITING_CHARGE", 3)
-    LOW_POWER = ("LOW_POWER", 4)
-    CHARGE_ERROR = ("CHARGE_ERROR", 5)
+    UNKNOWN = ("unknown", -1)
+    NOT_CHARGING = ("not_charging", 0)
+    CHARGING = ("charging", 1)
+    CHARGE_COMPLETED = ("charge_completed", 2)
+    WAITING_CHARGE = ("waiting_charge", 3)
+    LOW_POWER = ("low_power", 4)
+    CHARGE_ERROR = ("charge_error", 5)
 
 
 class MowerDockState(MowerEnum):
-    """Return-to-dock state reported by DPS 128 (``DockStateDpValue.Type``)."""
+    """Return-to-dock state reported by DPS 128."""
 
-    UNKNOWN = ("UNKNOWN", -1)
-    """Library-side fallback for unrecognized wire values; never sent."""
-    IDLE = ("IDLE", 0)
-    MOVING_TO_TARGET = ("MOVING_TO_TARGET", 1)
-    DOCKING = ("DOCKING", 2)
-    SUSPENDED = ("SUSPENDED", 3)
+    UNKNOWN = ("unknown", -1)
+    IDLE = ("idle", 0)
+    MOVING_TO_TARGET = ("moving_to_target", 1)
+    DOCKING = ("docking", 2)
+    SUSPENDED = ("suspended", 3)
 
 
 class MowerChargeType(MowerEnum):
-    """Why the mower returned to charge, DPS 129 (``ChargeTypeDpValue.Type``)."""
+    """Reason for returning to charge reported by DPS 129."""
 
-    UNKNOWN = ("UNKNOWN", 0)
-    MANUAL_DOCK = ("MANUAL_DOCK", 1)
-    RAIN_DOCK = ("RAIN_DOCK", 2)
-    DO_NOT_DISTURB_DOCK = ("DO_NOT_DISTURB_DOCK", 3)
-    STANDBY_TIMEOUT_DOCK = ("STANDBY_TIMEOUT_DOCK", 4)
-    LOW_BATTERY_DOCK = ("LOW_BATTERY_DOCK", 5)
-    TASK_FINISHED_DOCK = ("TASK_FINISHED_DOCK", 6)
-    MOW_FAULT_DOCK = ("MOW_FAULT_DOCK", 7)
+    UNKNOWN = ("unknown", 0)
+    MANUAL_DOCK = ("manual_dock", 1)
+    RAIN_DOCK = ("rain_dock", 2)
+    DO_NOT_DISTURB_DOCK = ("do_not_disturb_dock", 3)
+    STANDBY_TIMEOUT_DOCK = ("standby_timeout_dock", 4)
+    LOW_BATTERY_DOCK = ("low_battery_dock", 5)
+    TASK_FINISHED_DOCK = ("task_finished_dock", 6)
+    MOW_FAULT_DOCK = ("mow_fault_dock", 7)
 
 
 class MowerPendType(MowerEnum):
-    """Pause or interruption reason, DPS 130 (``PendTypeDpValue.Type``)."""
+    """Pause or interruption reason reported by DPS 130."""
 
-    UNKNOWN = ("UNKNOWN", -1)
-    """Library-side fallback for unrecognized wire values; never sent."""
-    NOT_SUSPENDED = ("NOT_SUSPENDED", 0)
-    APP_PAUSE = ("APP_PAUSE", 1)
-    BUTTON_EMERGENCY_STOP = ("BUTTON_EMERGENCY_STOP", 2)
-    FAULT = ("FAULT", 3)
-    BREAKPOINT_PAUSE = ("BREAKPOINT_PAUSE", 4)
-    OTHER = ("OTHER", 5)
+    UNKNOWN = ("unknown", -1)
+    NOT_SUSPENDED = ("not_suspended", 0)
+    APP_PAUSE = ("app_pause", 1)
+    BUTTON_EMERGENCY_STOP = ("button_emergency_stop", 2)
+    FAULT = ("fault", 3)
+    BREAKPOINT_PAUSE = ("breakpoint_pause", 4)
+    OTHER = ("other", 5)
 
 
 class MowerRemoteState(MowerEnum):
-    """Remote control state, DPS 131 (``RemoteStateDpValue.Type``)."""
+    """Remote control state reported by DPS 131."""
 
-    UNKNOWN = ("UNKNOWN", -1)
-    """Library-side fallback for unrecognized wire values; never sent."""
-    IDLE = ("IDLE", 0)
-    VIDEO_REMOTE = ("VIDEO_REMOTE", 1)
-    REMOTE_WALKING = ("REMOTE_WALKING", 2)
+    UNKNOWN = ("unknown", -1)
+    IDLE = ("idle", 0)
+    VIDEO_REMOTE = ("video_remote", 1)
+    REMOTE_WALKING = ("remote_walking", 2)
 
 
 class MowerStartType(MowerEnum):
-    """How the current task was started, DPS 132 (``MowStartTypeDpValue.Type``)."""
+    """Task start trigger reported by DPS 132."""
 
-    UNKNOWN = ("UNKNOWN", -1)
-    """Library-side fallback for unrecognized wire values; never sent."""
-    DEFAULT = ("DEFAULT", 0)
-    APP_START = ("APP_START", 1)
-    BUTTON_START = ("BUTTON_START", 2)
-    SCHEDULE_START = ("SCHEDULE_START", 3)
+    UNKNOWN = ("unknown", -1)
+    DEFAULT = ("default", 0)
+    APP_START = ("app_start", 1)
+    BUTTON_START = ("button_start", 2)
+    SCHEDULE_START = ("schedule_start", 3)
 
 
 class MowerEffMode(MowerEnum):
-    """Reported efficiency mode, DPS 133 (``MowEffModeDpValue.Type``).
+    """Reported efficiency mode on DPS 133."""
 
-    This is not the same enumeration as the ``effective`` preference setting.
-    """
-
-    UNKNOWN = ("UNKNOWN", 0)
-    DAILY = ("DAILY", 1)
-    PRECISE = ("PRECISE", 2)
-    FAST = ("FAST", 3)
+    UNKNOWN = ("unknown", 0)
+    DAILY = ("daily", 1)
+    PRECISE = ("precise", 2)
+    FAST = ("fast", 3)
 
 
 class MowerPattern(MowerEnum):
-    """Reported mowing pattern, DPS 136 (``MowPattenDpValue.Type``)."""
+    """Reported mowing pattern on DPS 136."""
 
-    UNKNOWN = ("UNKNOWN", 0)
-    ZIGZAG = ("ZIGZAG", 1)
-    WELL = ("WELL", 2)
-    DIAMOND = ("DIAMOND", 3)
-    TRIANGLE = ("TRIANGLE", 4)
-    AUTO_DEFLECT = ("AUTO_DEFLECT", 5)
-    RANDOM = ("RANDOM", 6)
+    UNKNOWN = ("unknown", 0)
+    ZIGZAG = ("zigzag", 1)
+    WELL = ("well", 2)
+    DIAMOND = ("diamond", 3)
+    TRIANGLE = ("triangle", 4)
+    AUTO_DEFLECT = ("auto_deflect", 5)
+    RANDOM = ("random", 6)
 
 
 class MowerConfMode(MowerEnum):
-    """Preference configuration scope, DPS 137 (``MowConfModeDpValue.Type``)."""
+    """Preference configuration scope on DPS 137."""
 
-    UNKNOWN = ("UNKNOWN", 0)
-    GLOBAL_CONFIG = ("GLOBAL_CONFIG", 1)
-    ZONE_CUSTOM = ("ZONE_CUSTOM", 2)
+    UNKNOWN = ("unknown", 0)
+    GLOBAL_CONFIG = ("global_config", 1)
+    ZONE_CUSTOM = ("zone_custom", 2)
 
 
 class MowerOfflineStatus(MowerEnum):
-    """Shutdown or reboot reason, DPS 138 (``OfflineStatusDpValue.Type``).
+    """Shutdown or reboot reason on DPS 138."""
 
-    This is not a reliable live connectivity flag by itself.
-    """
-
-    UNKNOWN = ("UNKNOWN", -1)
-    """Library-side fallback for unrecognized wire values; never sent."""
-    ONLINE = ("ONLINE", 0)
-    MANUAL_SHUTDOWN = ("MANUAL_SHUTDOWN", 1)
-    SLEEP_SHUTDOWN = ("SLEEP_SHUTDOWN", 2)
-    LOW_BATTERY_SHUTDOWN = ("LOW_BATTERY_SHUTDOWN", 3)
-    UPGRADE_REBOOT = ("UPGRADE_REBOOT", 4)
+    UNKNOWN = ("unknown", -1)
+    ONLINE = ("online", 0)
+    MANUAL_SHUTDOWN = ("manual_shutdown", 1)
+    SLEEP_SHUTDOWN = ("sleep_shutdown", 2)
+    LOW_BATTERY_SHUTDOWN = ("low_battery_shutdown", 3)
+    UPGRADE_REBOOT = ("upgrade_reboot", 4)
 
 
 class MowerFcState(MowerEnum):
-    """Factory or test mode indicator, DPS 141 (``FcStateDpValue.Type``)."""
+    """Factory or test mode indicator on DPS 141."""
 
-    UNKNOWN = ("UNKNOWN", -1)
-    """Library-side fallback for unrecognized wire values; never sent."""
-    NOT_FC = ("NOT_FC", 0)
-    FC = ("FC", 1)
+    UNKNOWN = ("unknown", -1)
+    NOT_FC = ("not_fc", 0)
+    FC = ("fc", 1)
 
 
 class MowerOffDockNoTaskStatus(MowerEnum):
-    """Mower away from the dock without an active task, DPS 143."""
+    """Mower off-dock status without an active task on DPS 143."""
 
-    UNKNOWN = ("UNKNOWN", 0)
-    WAITING = ("WAITING", 1)
-    SUSPENDING = ("SUSPENDING", 2)
-    DOCKING = ("DOCKING", 3)
-    REMOTING = ("REMOTING", 4)
+    UNKNOWN = ("unknown", 0)
+    WAITING = ("waiting", 1)
+    SUSPENDING = ("suspending", 2)
+    DOCKING = ("docking", 3)
+    REMOTING = ("remoting", 4)
 
 
 class MowerAfsStatus(MowerEnum):
-    """Service status, DPS 144 (``AfsStatus.Type``)."""
+    """Service status on DPS 144."""
 
-    UNKNOWN = ("UNKNOWN", -1)
-    """Library-side fallback for unrecognized wire values; never sent."""
-    IDLE = ("IDLE", 0)
-    BIT = ("BIT", 1)
-    MMT_OBA = ("MMT_OBA", 2)
-    CALIBRATION = ("CALIBRATION", 3)
-    ACTIVE = ("ACTIVE", 4)
-    INACTIVE = ("INACTIVE", 5)
+    UNKNOWN = ("unknown", -1)
+    IDLE = ("idle", 0)
+    BIT = ("bit", 1)
+    MMT_OBA = ("mmt_oba", 2)
+    CALIBRATION = ("calibration", 3)
+    ACTIVE = ("active", 4)
+    INACTIVE = ("inactive", 5)
 
 
 class MowerNetworkChannel(MowerEnum):
-    """Current network route, DPS 145 (``NetworkChannel.Type``)."""
+    """Current network route on DPS 145."""
 
-    UNKNOWN = ("UNKNOWN", 0)
-    WLAN0 = ("WLAN0", 1)
-    WLAN1 = ("WLAN1", 2)
-    MOBILE_4G = ("MOBILE_4G", 3)
+    UNKNOWN = ("unknown", 0)
+    WLAN0 = ("wlan0", 1)
+    WLAN1 = ("wlan1", 2)
+    MOBILE_4G = ("mobile_4g", 3)
 
 
 class MowerDetailState(MowerEnum):
-    """Detailed task state (``rock.fsm.RobotDetailState.Type``).
+    """Detailed task state reported on DPS 123 and in GET_ROBOT_INFO replies."""
 
-    Reported in ``robot_task.robot_detail_state`` of a ``GET_ROBOT_INFO`` reply
-    and, on captured devices, on DPS 123. The numeric domain is separate from
-    the compact :class:`MowerMowState`.
-    """
+    UNKNOWN = ("unknown", 0)
 
-    UNKNOWN = ("UNKNOWN", 0)
-
-    MAP_INITIALIZING = ("MAP_INITIALIZING", 1)
-    MAP_UNDOCKING = ("MAP_UNDOCKING", 2)
-    MAP_UNDOCK_FAULT = ("MAP_UNDOCK_FAULT", 3)
-    MAP_LOCATING = ("MAP_LOCATING", 4)
-    MAP_PREPARE_BOUNDARY = ("MAP_PREPARE_BOUNDARY", 5)
-    MAP_PREPARE_ISLAND = ("MAP_PREPARE_ISLAND", 6)
-    MAP_PREPARE_PATH = ("MAP_PREPARE_PATH", 7)
-    MAP_BOUNDARY = ("MAP_BOUNDARY", 8)
-    MAP_ISLAND = ("MAP_ISLAND", 9)
-    MAP_PATH = ("MAP_PATH", 10)
-    MAP_BOUNDARY_AUTO = ("MAP_BOUNDARY_AUTO", 11)
+    MAP_INITIALIZING = ("map_initializing", 1)
+    MAP_UNDOCKING = ("map_undocking", 2)
+    MAP_UNDOCK_FAULT = ("map_undock_fault", 3)
+    MAP_LOCATING = ("map_locating", 4)
+    MAP_PREPARE_BOUNDARY = ("map_prepare_boundary", 5)
+    MAP_PREPARE_ISLAND = ("map_prepare_island", 6)
+    MAP_PREPARE_PATH = ("map_prepare_path", 7)
+    MAP_BOUNDARY = ("map_boundary", 8)
+    MAP_ISLAND = ("map_island", 9)
+    MAP_PATH = ("map_path", 10)
+    MAP_BOUNDARY_AUTO = ("map_boundary_auto", 11)
     # The protocol spelling "MAP_ERASEING" is intentional.
-    MAP_ERASING = ("MAP_ERASEING", 12)
-    MAP_SAVE = ("MAP_SAVE", 13)
-    MAP_WAIT = ("MAP_WAIT", 14)
-    MAP_RECOVERABLE_FAULT = ("MAP_RECOVERABLE_FAULT", 15)
-    MAP_FAULT = ("MAP_FAULT", 16)
-    MAP_EMERGENCY_STOP = ("MAP_EMERGENCY_STOP", 17)
-    MAP_WAITING_FAULT = ("MAP_WAITING_FAULT", 18)
-    MAP_NO_AVOID = ("MAP_NO_AVOID", 19)
-    MAP_PREPARE_NO_AVOID = ("MAP_PREPARE_NO_AVOID", 20)
-    MAP_RESET_PASSAGE = ("MAP_RESET_PASSAGE", 21)
-    MAP_PREPARE_RESET_PASSAGE = ("MAP_PREPARE_RESET_PASSAGE", 22)
-    MAP_EDIT_BOUNDARY = ("MAP_EDIT_BOUNDARY", 23)
-    MAP_PREPARE_EDIT_BOUNDARY = ("MAP_PREPARE_EDIT_BOUNDARY", 24)
-    MAP_CONFIRM_EDIT_BOUNDARY = ("MAP_CONFIRM_EDIT_BOUNDARY", 25)
+    MAP_ERASING = ("map_eraseing", 12)
+    MAP_SAVE = ("map_save", 13)
+    MAP_WAIT = ("map_wait", 14)
+    MAP_RECOVERABLE_FAULT = ("map_recoverable_fault", 15)
+    MAP_FAULT = ("map_fault", 16)
+    MAP_EMERGENCY_STOP = ("map_emergency_stop", 17)
+    MAP_WAITING_FAULT = ("map_waiting_fault", 18)
+    MAP_NO_AVOID = ("map_no_avoid", 19)
+    MAP_PREPARE_NO_AVOID = ("map_prepare_no_avoid", 20)
+    MAP_RESET_PASSAGE = ("map_reset_passage", 21)
+    MAP_PREPARE_RESET_PASSAGE = ("map_prepare_reset_passage", 22)
+    MAP_EDIT_BOUNDARY = ("map_edit_boundary", 23)
+    MAP_PREPARE_EDIT_BOUNDARY = ("map_prepare_edit_boundary", 24)
+    MAP_CONFIRM_EDIT_BOUNDARY = ("map_confirm_edit_boundary", 25)
 
-    MOW_INITIALIZING = ("MOW_INITIALIZING", 51)
-    MOW_UNDOCKING = ("MOW_UNDOCKING", 52)
-    MOW_LOCATING = ("MOW_LOCATING", 53)
-    MOW_ADJUST_CUTTER = ("MOW_ADJUST_CUTTER", 54)
-    MOW_ZIG_ZAG = ("MOW_ZIG_ZAG", 55)
-    MOW_EDGE = ("MOW_EDGE", 56)
-    MOW_GOTO = ("MOW_GOTO", 57)
-    MOW_SUSPEND = ("MOW_SUSPEND", 58)
-    MOW_RECOVERABLE_FAULT = ("MOW_RECOVERABLE_FAULT", 59)
-    MOW_FAULT = ("MOW_FAULT", 60)
-    MOW_DOCK_RAINFALL = ("MOW_DOCK_RAINFALL", 61)
-    MOW_DOCK_NOTDISTURB = ("MOW_DOCK_NOTDISTURB", 62)
-    MOW_DOCK_LOW_BATTERY = ("MOW_DOCK_LOW_BATTERY", 63)
-    MOW_WAIT = ("MOW_WAIT", 64)
-    MOW_PREPARE_REMOTE = ("MOW_PREPARE_REMOTE", 65)
-    MOW_REMOTE = ("MOW_REMOTE", 66)
-    MOW_EMERGENCY_STOP = ("MOW_EMERGENCY_STOP", 67)
-    MOW_DOCK_MANUAL = ("MOW_DOCK_MANUAL", 68)
-    MOW_DOCK_FAULT = ("MOW_DOCK_FAULT", 69)
-    MOW_REMOTE_UNDOCKING = ("MOW_REMOTE_UNDOCKING", 70)
-    MOW_TO_DOCK_INITIALIZING = ("MOW_TO_DOCK_INITIALIZING", 71)
-    MOW_TO_DOCK_LOCATING = ("MOW_TO_DOCK_LOCATING", 72)
-    MOW_TO_DOCK_RECOVERABLE_FAULT = ("MOW_TO_DOCK_RECOVERABLE_FAULT", 73)
-    MOW_TO_DOCK_FAULT = ("MOW_TO_DOCK_FAULT", 74)
-    MOW_TO_DOCK_EMERGENCY_STOP = ("MOW_TO_DOCK_EMERGENCY_STOP", 75)
-    MOW_TO_DOCK_CHARGING = ("MOW_TO_DOCK_CHARGING", 76)
-    MOW_TO_DOCK_CHARGE_COMPLETED = ("MOW_TO_DOCK_CHARGE_COMPLETED", 77)
-    MOW_PAUSE = ("MOW_PAUSE", 78)
+    MOW_INITIALIZING = ("mow_initializing", 51)
+    MOW_UNDOCKING = ("mow_undocking", 52)
+    MOW_LOCATING = ("mow_locating", 53)
+    MOW_ADJUST_CUTTER = ("mow_adjust_cutter", 54)
+    MOW_ZIG_ZAG = ("mow_zig_zag", 55)
+    MOW_EDGE = ("mow_edge", 56)
+    MOW_GOTO = ("mow_goto", 57)
+    MOW_SUSPEND = ("mow_suspend", 58)
+    MOW_RECOVERABLE_FAULT = ("mow_recoverable_fault", 59)
+    MOW_FAULT = ("mow_fault", 60)
+    MOW_DOCK_RAINFALL = ("mow_dock_rainfall", 61)
+    MOW_DOCK_NOTDISTURB = ("mow_dock_notdisturb", 62)
+    MOW_DOCK_LOW_BATTERY = ("mow_dock_low_battery", 63)
+    MOW_WAIT = ("mow_wait", 64)
+    MOW_PREPARE_REMOTE = ("mow_prepare_remote", 65)
+    MOW_REMOTE = ("mow_remote", 66)
+    MOW_EMERGENCY_STOP = ("mow_emergency_stop", 67)
+    MOW_DOCK_MANUAL = ("mow_dock_manual", 68)
+    MOW_DOCK_FAULT = ("mow_dock_fault", 69)
+    MOW_REMOTE_UNDOCKING = ("mow_remote_undocking", 70)
+    MOW_TO_DOCK_INITIALIZING = ("mow_to_dock_initializing", 71)
+    MOW_TO_DOCK_LOCATING = ("mow_to_dock_locating", 72)
+    MOW_TO_DOCK_RECOVERABLE_FAULT = ("mow_to_dock_recoverable_fault", 73)
+    MOW_TO_DOCK_FAULT = ("mow_to_dock_fault", 74)
+    MOW_TO_DOCK_EMERGENCY_STOP = ("mow_to_dock_emergency_stop", 75)
+    MOW_TO_DOCK_CHARGING = ("mow_to_dock_charging", 76)
+    MOW_TO_DOCK_CHARGE_COMPLETED = ("mow_to_dock_charge_completed", 77)
+    MOW_PAUSE = ("mow_pause", 78)
 
-    FREE = ("FREE", 101)
-    FREE_INITIALIZING = ("FREE_INITIALIZING", 102)
-    FREE_LOCATING = ("FREE_LOCATING", 103)
-    FREE_DOCK_MANUAL = ("FREE_DOCK_MANUAL", 104)
-    FREE_DOCK_MOW_END = ("FREE_DOCK_MOW_END", 105)
-    FREE_DOCK_PLAN_END = ("FREE_DOCK_PLAN_END", 106)
-    FREE_EMERGENCY_STOP = ("FREE_EMERGENCY_STOP", 107)
-    FREE_RECOVERABLE_FAULT = ("FREE_RECOVERABLE_FAULT", 108)
-    FREE_FAULT = ("FREE_FAULT", 109)
-    FREE_BATTERY_HOLD_MODE = ("FREE_BATTERY_HOLD_MODE", 110)
+    FREE = ("free", 101)
+    FREE_INITIALIZING = ("free_initializing", 102)
+    FREE_LOCATING = ("free_locating", 103)
+    FREE_DOCK_MANUAL = ("free_dock_manual", 104)
+    FREE_DOCK_MOW_END = ("free_dock_mow_end", 105)
+    FREE_DOCK_PLAN_END = ("free_dock_plan_end", 106)
+    FREE_EMERGENCY_STOP = ("free_emergency_stop", 107)
+    FREE_RECOVERABLE_FAULT = ("free_recoverable_fault", 108)
+    FREE_FAULT = ("free_fault", 109)
+    FREE_BATTERY_HOLD_MODE = ("free_battery_hold_mode", 110)
 
-    CHARGING = ("CHARGING", 151)
-    CHARGE_COMPLETED = ("CHARGE_COMPLETED", 152)
-    CHARGE_WAITING = ("CHARGE_WAITING", 153)
-    CHARGE_FAULT = ("CHARGE_FAULT", 154)
+    CHARGING = ("charging", 151)
+    CHARGE_COMPLETED = ("charge_completed", 152)
+    CHARGE_WAITING = ("charge_waiting", 153)
+    CHARGE_FAULT = ("charge_fault", 154)
 
 
 class MowerErrorCode(MowerEnum):
-    """User-facing error code reported by DPS 120.
+    """User-facing error code reported by DPS 120."""
 
-    ``UNKNOWN`` (0) is also the value reported when no error is active, so it
-    must not be surfaced as a fault by itself.
-    """
-
-    UNKNOWN = ("UNKNOWN", 0)
-    MAIN_CUTTER_OVER_CURRENT = ("MAIN_CUTTER_OVER_CURRENT", 1)
-    MAIN_CUTTER_OVER_TEMPERATURE = ("MAIN_CUTTER_OVER_TEMPERATURE", 2)
-    MAIN_CUTTER_DYNAMIC_UNBALANCE = ("MAIN_CUTTER_DYNAMIC_UNBALANCE", 3)
-    EDGE_CUTTER_OVER_CURRENT = ("EDGE_CUTTER_OVER_CURRENT", 4)
-    EDGE_CUTTER_OVER_TEMPERATURE = ("EDGE_CUTTER_OVER_TEMPERATURE", 5)
-    EDGE_CUTTER_DYNAMIC_UNBALANCE = ("EDGE_CUTTER_DYNAMIC_UNBALANCE", 6)
-    HEIGHT_MODULE_ADJUSTING_INCOMPLETE = ("HEIGHT_MODULE_ADJUSTING_INCOMPLETE", 7)
-    TRAVEL_MOTOR_LEFT_FRONT_OVER_CURRENT = ("TRAVEL_MOTOR_LEFT_FRONT_OVER_CURRENT", 8)
-    TRAVEL_MOTOR_RIGHT_FRONT_OVER_CURRENT = ("TRAVEL_MOTOR_RIGHT_FRONT_OVER_CURRENT", 9)
-    TRAVEL_MOTOR_LEFT_REAR_OVER_CURRENT = ("TRAVEL_MOTOR_LEFT_REAR_OVER_CURRENT", 10)
-    TRAVEL_MOTOR_RIGHT_REAR_OVER_CURRENT = ("TRAVEL_MOTOR_RIGHT_REAR_OVER_CURRENT", 11)
-    TRAVEL_MOTOR_OVER_TEMPERATURE = ("TRAVEL_MOTOR_OVER_TEMPERATURE", 12)
-    STEERING_MOTOR_LEFT_FRONT_OVER_CURRENT = ("STEERING_MOTOR_LEFT_FRONT_OVER_CURRENT", 13)
-    STEERING_MOTOR_RIGHT_FRONT_OVER_CURRENT = ("STEERING_MOTOR_RIGHT_FRONT_OVER_CURRENT", 14)
-    STEERING_MOTOR_OVER_TEMPERATURE = ("STEERING_MOTOR_OVER_TEMPERATURE", 15)
-    STOP = ("STOP", 16)
-    TILT = ("TILT", 17)
-    LIFT = ("LIFT", 18)
-    FLIP = ("FLIP", 19)
-    OUT_OF_BOUND = ("OUT_OF_BOUND", 20)
-    BUMPER = ("BUMPER", 21)
-    BATTERY_DISCHARGE_OVER_TEMPERATURE = ("BATTERY_DISCHARGE_OVER_TEMPERATURE", 22)
-    BATTERY_DISCHARGE_LOW_TEMPERATURE = ("BATTERY_DISCHARGE_LOW_TEMPERATURE", 23)
-    BATTERY_UNOFFICIAL = ("BATTERY_UNOFFICIAL", 24)
-    DIRTY_CHARGING_CLIPS = ("DIRTY_CHARGING_CLIPS", 25)
-    CHARGE_STATION_NO_POWER = ("CHARGE_STATION_NO_POWER", 26)
-    CAMERA_DIRTY_OR_OBSTRUCTED = ("CAMERA_DIRTY_OR_OBSTRUCTED", 27)
-    CAMERA_OVER_TEMPERATURE = ("CAMERA_OVER_TEMPERATURE", 28)
-    CAMERA_LED_OBSTRUCTED = ("CAMERA_LED_OBSTRUCTED", 29)
-    LIDAR_DIRTY = ("LIDAR_DIRTY", 30)
-    LIDAR_OVER_TEMPERATURE = ("LIDAR_OVER_TEMPERATURE", 31)
-    LOCATION_FAILED = ("LOCATION_FAILED", 32)
-    LOCATION_AT_ISLAND = ("LOCATION_AT_ISLAND", 33)
-    LOCATION_AT_NON_COMPLIANT_SLOPE = ("LOCATION_AT_NON_COMPLIANT_SLOPE", 34)
-    BE_TRAPPED = ("BE_TRAPPED", 35)
-    CHARGE_STATION_OR_RTK_SLIGHT_MOVEMENT_DOCK = ("CHARGE_STATION_OR_RTK_SLIGHT_MOVEMENT_DOCK", 36)
-    N_RTK_SIGNIFICANT_MOVEMENT = ("N_RTK_SIGNIFICANT_MOVEMENT", 37)
-    RTK_SIGNIFICANT_MOVEMENT = ("RTK_SIGNIFICANT_MOVEMENT", 38)
-    DOCK_CHARGE_STATION_SEARCH_FAIL = ("DOCK_CHARGE_STATION_SEARCH_FAIL", 39)
-    DOCK_QRCODE_SCAN_FAIL = ("DOCK_QRCODE_SCAN_FAIL", 40)
-    DOCK_ADJUST_ERROR = ("DOCK_ADJUST_ERROR", 41)
-    UNDOCK_ERROR = ("UNDOCK_ERROR", 42)
-    BATTERY_CHARGE_OVER_TEMPERATURE = ("BATTERY_CHARGE_OVER_TEMPERATURE", 43)
-    BATTERY_CHARGE_LOW_TEMPERATURE = ("BATTERY_CHARGE_LOW_TEMPERATURE", 44)
-    CAMERA_SEVERELY_DIRTY = ("CAMERA_SEVERELY_DIRTY", 45)
-    NO_PLUGIN_KEY = ("NO_PLUGIN_KEY", 46)
-    CAMERA_REAR_SIDE_DIRTY = ("CAMERA_REAR_SIDE_DIRTY", 48)
-    N_RTK_NETWORK_ERROR = ("N_RTK_NETWORK_ERROR", 55)
-    MAIN_CUTTER_FAULT = ("MAIN_CUTTER_FAULT", 101)
-    EDGE_CUTTER_FAULT = ("EDGE_CUTTER_FAULT", 102)
-    HEIGHT_MODULE_FAULT = ("HEIGHT_MODULE_FAULT", 103)
-    BATTERY_FAULT = ("BATTERY_FAULT", 104)
-    CAMERA_FAULT = ("CAMERA_FAULT", 105)
-    CAMERA_LED_FAULT = ("CAMERA_LED_FAULT", 106)
-    MAIN_BOARD_FAULT = ("MAIN_BOARD_FAULT", 107)
-    LIDAR_FAULT = ("LIDAR_FAULT", 108)
-    TRAVEL_MOTOR_LEFT_FRONT_FAULT = ("TRAVEL_MOTOR_LEFT_FRONT_FAULT", 109)
-    TRAVEL_MOTOR_RIGHT_FRONT_FAULT = ("TRAVEL_MOTOR_RIGHT_FRONT_FAULT", 110)
-    TRAVEL_MOTOR_LEFT_REAR_FAULT = ("TRAVEL_MOTOR_LEFT_REAR_FAULT", 111)
-    TRAVEL_MOTOR_RIGHT_REAR_FAULT = ("TRAVEL_MOTOR_RIGHT_REAR_FAULT", 112)
-    STEERING_MOTOR_LEFT_FRONT_FAULT = ("STEERING_MOTOR_LEFT_FRONT_FAULT", 113)
-    STEERING_MOTOR_RIGHT_FRONT_FAULT = ("STEERING_MOTOR_RIGHT_FRONT_FAULT", 114)
-    LED_SCREEN_FAULT = ("LED_SCREEN_FAULT", 115)
-    LEFT_SIDE_CAMERA_FAULT = ("LEFT_SIDE_CAMERA_FAULT", 116)
-    RIGHT_SIDE_CAMERA_FAULT = ("RIGHT_SIDE_CAMERA_FAULT", 117)
-    REAR_SIDE_CAMERA_FAULT = ("REAR_SIDE_CAMERA_FAULT", 118)
+    UNKNOWN = ("unknown", 0)
+    MAIN_CUTTER_OVER_CURRENT = ("main_cutter_over_current", 1)
+    MAIN_CUTTER_OVER_TEMPERATURE = ("main_cutter_over_temperature", 2)
+    MAIN_CUTTER_DYNAMIC_UNBALANCE = ("main_cutter_dynamic_unbalance", 3)
+    EDGE_CUTTER_OVER_CURRENT = ("edge_cutter_over_current", 4)
+    EDGE_CUTTER_OVER_TEMPERATURE = ("edge_cutter_over_temperature", 5)
+    EDGE_CUTTER_DYNAMIC_UNBALANCE = ("edge_cutter_dynamic_unbalance", 6)
+    HEIGHT_MODULE_ADJUSTING_INCOMPLETE = ("height_module_adjusting_incomplete", 7)
+    TRAVEL_MOTOR_LEFT_FRONT_OVER_CURRENT = ("travel_motor_left_front_over_current", 8)
+    TRAVEL_MOTOR_RIGHT_FRONT_OVER_CURRENT = ("travel_motor_right_front_over_current", 9)
+    TRAVEL_MOTOR_LEFT_REAR_OVER_CURRENT = ("travel_motor_left_rear_over_current", 10)
+    TRAVEL_MOTOR_RIGHT_REAR_OVER_CURRENT = ("travel_motor_right_rear_over_current", 11)
+    TRAVEL_MOTOR_OVER_TEMPERATURE = ("travel_motor_over_temperature", 12)
+    STEERING_MOTOR_LEFT_FRONT_OVER_CURRENT = ("steering_motor_left_front_over_current", 13)
+    STEERING_MOTOR_RIGHT_FRONT_OVER_CURRENT = ("steering_motor_right_front_over_current", 14)
+    STEERING_MOTOR_OVER_TEMPERATURE = ("steering_motor_over_temperature", 15)
+    STOP = ("stop", 16)
+    TILT = ("tilt", 17)
+    LIFT = ("lift", 18)
+    FLIP = ("flip", 19)
+    OUT_OF_BOUND = ("out_of_bound", 20)
+    BUMPER = ("bumper", 21)
+    BATTERY_DISCHARGE_OVER_TEMPERATURE = ("battery_discharge_over_temperature", 22)
+    BATTERY_DISCHARGE_LOW_TEMPERATURE = ("battery_discharge_low_temperature", 23)
+    BATTERY_UNOFFICIAL = ("battery_unofficial", 24)
+    DIRTY_CHARGING_CLIPS = ("dirty_charging_clips", 25)
+    CHARGE_STATION_NO_POWER = ("charge_station_no_power", 26)
+    CAMERA_DIRTY_OR_OBSTRUCTED = ("camera_dirty_or_obstructed", 27)
+    CAMERA_OVER_TEMPERATURE = ("camera_over_temperature", 28)
+    CAMERA_LED_OBSTRUCTED = ("camera_led_obstructed", 29)
+    LIDAR_DIRTY = ("lidar_dirty", 30)
+    LIDAR_OVER_TEMPERATURE = ("lidar_over_temperature", 31)
+    LOCATION_FAILED = ("location_failed", 32)
+    LOCATION_AT_ISLAND = ("location_at_island", 33)
+    LOCATION_AT_NON_COMPLIANT_SLOPE = ("location_at_non_compliant_slope", 34)
+    BE_TRAPPED = ("be_trapped", 35)
+    CHARGE_STATION_OR_RTK_SLIGHT_MOVEMENT_DOCK = ("charge_station_or_rtk_slight_movement_dock", 36)
+    N_RTK_SIGNIFICANT_MOVEMENT = ("n_rtk_significant_movement", 37)
+    RTK_SIGNIFICANT_MOVEMENT = ("rtk_significant_movement", 38)
+    DOCK_CHARGE_STATION_SEARCH_FAIL = ("dock_charge_station_search_fail", 39)
+    DOCK_QRCODE_SCAN_FAIL = ("dock_qrcode_scan_fail", 40)
+    DOCK_ADJUST_ERROR = ("dock_adjust_error", 41)
+    UNDOCK_ERROR = ("undock_error", 42)
+    BATTERY_CHARGE_OVER_TEMPERATURE = ("battery_charge_over_temperature", 43)
+    BATTERY_CHARGE_LOW_TEMPERATURE = ("battery_charge_low_temperature", 44)
+    CAMERA_SEVERELY_DIRTY = ("camera_severely_dirty", 45)
+    NO_PLUGIN_KEY = ("no_plugin_key", 46)
+    CAMERA_REAR_SIDE_DIRTY = ("camera_rear_side_dirty", 48)
+    N_RTK_NETWORK_ERROR = ("n_rtk_network_error", 55)
+    MAIN_CUTTER_FAULT = ("main_cutter_fault", 101)
+    EDGE_CUTTER_FAULT = ("edge_cutter_fault", 102)
+    HEIGHT_MODULE_FAULT = ("height_module_fault", 103)
+    BATTERY_FAULT = ("battery_fault", 104)
+    CAMERA_FAULT = ("camera_fault", 105)
+    CAMERA_LED_FAULT = ("camera_led_fault", 106)
+    MAIN_BOARD_FAULT = ("main_board_fault", 107)
+    LIDAR_FAULT = ("lidar_fault", 108)
+    TRAVEL_MOTOR_LEFT_FRONT_FAULT = ("travel_motor_left_front_fault", 109)
+    TRAVEL_MOTOR_RIGHT_FRONT_FAULT = ("travel_motor_right_front_fault", 110)
+    TRAVEL_MOTOR_LEFT_REAR_FAULT = ("travel_motor_left_rear_fault", 111)
+    TRAVEL_MOTOR_RIGHT_REAR_FAULT = ("travel_motor_right_rear_fault", 112)
+    STEERING_MOTOR_LEFT_FRONT_FAULT = ("steering_motor_left_front_fault", 113)
+    STEERING_MOTOR_RIGHT_FRONT_FAULT = ("steering_motor_right_front_fault", 114)
+    LED_SCREEN_FAULT = ("led_screen_fault", 115)
+    LEFT_SIDE_CAMERA_FAULT = ("left_side_camera_fault", 116)
+    RIGHT_SIDE_CAMERA_FAULT = ("right_side_camera_fault", 117)
+    REAR_SIDE_CAMERA_FAULT = ("rear_side_camera_fault", 118)

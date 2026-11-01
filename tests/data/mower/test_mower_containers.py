@@ -57,8 +57,8 @@ def test_mower_status_round_trips_through_as_dict() -> None:
 
     serialized = status.as_dict()
 
-    assert serialized["mowState"] == "MOW_SUSPEND"
-    assert serialized["mowType"] == "GLOBAL"
+    assert serialized["mowState"] == "mow_suspend"
+    assert serialized["mowType"] == "global"
     assert MowerStatus.from_dict(serialized) == status
 
 

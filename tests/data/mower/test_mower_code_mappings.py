@@ -16,7 +16,6 @@ from roborock.data.mower import (
     MowerNetworkChannel,
     MowerOfflineStatus,
     MowerPendType,
-    RoborockMowerStateCode,
 )
 
 ALL_MOWER_ENUMS: list[type[RoborockModeEnum]] = sorted(
@@ -36,10 +35,12 @@ def test_all_mower_enums_are_exported() -> None:
 
 
 @pytest.mark.parametrize("enum_cls", ALL_MOWER_ENUMS, ids=lambda cls: cls.__name__)
-def test_mower_enum_values_are_protobuf_names(enum_cls: type[RoborockModeEnum]) -> None:
-    """The string value is the protobuf enum name, so it can round-trip through the JSON route."""
+def test_mower_enum_values_are_lowercase_and_round_trip(enum_cls: type[RoborockModeEnum]) -> None:
+    """String values are lowercase and round-trip by value, uppercase protobuf name, and integer code."""
     for member in enum_cls:
+        assert member.value == member.value.lower()
         assert enum_cls.from_value(member.value) is member
+        assert enum_cls.from_value(member.value.upper()) is member
         assert enum_cls.from_code(member.code) is member
 
 
@@ -103,8 +104,8 @@ def test_mower_enum_unknown_codes_resolve_to_none(enum_cls: type[RoborockModeEnu
     ],
 )
 def test_misspelled_wire_names_are_preserved(member: RoborockModeEnum, wire_name: str) -> None:
-    """Protocol misspellings are kept as the value so the JSON route still matches."""
-    assert member.value == wire_name
+    """Protocol misspellings are kept as the lowercased value so the JSON route still matches."""
+    assert member.value == wire_name.lower()
     assert type(member).from_value(wire_name) is member
 
 
@@ -112,6 +113,7 @@ def test_misspelled_wire_names_are_preserved(member: RoborockModeEnum, wire_name
     ("enum_cls", "raw", "expected"),
     [
         (MowerEffMode, "DAILY", MowerEffMode.DAILY),
+        (MowerEffMode, "daily", MowerEffMode.DAILY),
         (MowerEffMode, 1, MowerEffMode.DAILY),
         (MowerEffMode, "1", MowerEffMode.DAILY),
         (MowerDetailState, "MAP_ERASEING", MowerDetailState.MAP_ERASING),
@@ -125,24 +127,3 @@ def test_from_code_accepts_wire_forms_and_falls_back(
     enum_cls: type[MowerEnum], raw: int | str, expected: MowerEnum
 ) -> None:
     assert enum_cls.from_code(raw) is expected
-
-
-@pytest.mark.parametrize(
-    ("code", "expected"),
-    [
-        (0, RoborockMowerStateCode.idle),
-        (12, RoborockMowerStateCode.map_erasing),
-        (58, RoborockMowerStateCode.mow_suspend),
-        (61, RoborockMowerStateCode.mow_docked_rainfall),
-        (151, RoborockMowerStateCode.charge_charging),
-        (154, RoborockMowerStateCode.charge_fault),
-        (9999, RoborockMowerStateCode.unknown),
-    ],
-)
-def test_legacy_state_enum_remains_available(code: int, expected: RoborockMowerStateCode) -> None:
-    """Existing imports, lower-case member names and integer lookups still work."""
-    from roborock.data import RoborockMowerStateCode as exported_enum
-
-    assert exported_enum is RoborockMowerStateCode
-    assert exported_enum(code) is expected
-    assert exported_enum.unknown.value == -999
