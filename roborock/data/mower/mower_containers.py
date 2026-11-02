@@ -48,6 +48,7 @@ class MowerStatus(RoborockBase):
     """Core mower status backed by mower DPS updates (data points 120-145)."""
 
     error_code: MowerErrorCode | None = field(default=None, metadata={"dps": RoborockMowerDataProtocol.ERROR_CODE})
+    """None means no error code was supplied; UNKNOWN means an unknown error."""
     battery: int | None = field(default=None, metadata={"dps": RoborockMowerDataProtocol.BATTERY})
     mow_type: MowerMowType | None = field(default=None, metadata={"dps": RoborockMowerDataProtocol.MOW_TYPE})
     mow_state: MowerDetailState | None = field(default=None, metadata={"dps": RoborockMowerDataProtocol.MOW_STATE})

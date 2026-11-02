@@ -1,8 +1,11 @@
 """Code mappings for Roborock mower devices."""
 
+import logging
 from typing import Self, cast
 
 from roborock.data.code_mappings import RoborockModeEnum
+
+_LOGGER = logging.getLogger(__name__)
 
 __all__ = [
     "MowerAfsStatus",
@@ -38,6 +41,7 @@ class MowerEnum(RoborockModeEnum):
         """Resolve a wire value by name, string value, or integer code."""
         if (member := cls.from_any_optional(code)) is not None:
             return member
+        _LOGGER.debug("Unknown %s code %r; defaulting to UNKNOWN", cls.__name__, code)
         return cast(Self, cls.UNKNOWN)  # type: ignore[attr-defined]
 
 

@@ -113,3 +113,32 @@ def test_mower_status_from_empty_dps(dps: dict[int | str, object] | None) -> Non
 
 def test_mower_status_from_dps_unknown_state() -> None:
     assert MowerStatus.from_dps({"123": 9999}).mow_state is MowerDetailState.UNKNOWN
+
+
+@pytest.mark.parametrize("key", ["error_code", "errorCode", 120, "120"])
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        (None, None),
+        (0, MowerErrorCode.UNKNOWN),
+        ("0", MowerErrorCode.UNKNOWN),
+        ("UNKNOWN", MowerErrorCode.UNKNOWN),
+        (18, MowerErrorCode.LIFT),
+        ("LIFT", MowerErrorCode.LIFT),
+        (9999, MowerErrorCode.UNKNOWN),
+    ],
+)
+def test_mower_status_error_semantics(key: int | str, raw: int | str | None, expected: MowerErrorCode | None) -> None:
+    """A missing code and an unknown error remain distinct through serialization."""
+    if key in ("error_code", "errorCode"):
+        status = MowerStatus.from_dict({str(key): raw})
+    else:
+        status = MowerStatus.from_dps({key: raw})
+
+    assert status.error_code is expected
+    serialized = status.as_dict()
+    if expected is None:
+        assert "errorCode" not in serialized
+    else:
+        assert serialized["errorCode"] == expected.value
+    assert MowerStatus.from_dict(serialized).error_code is expected

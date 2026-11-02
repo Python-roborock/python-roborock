@@ -1,5 +1,7 @@
 """Tests for mower code mappings."""
 
+import logging
+
 import pytest
 
 from roborock.data import mower
@@ -127,3 +129,50 @@ def test_from_code_accepts_wire_forms_and_falls_back(
     enum_cls: type[MowerEnum], raw: int | str, expected: MowerEnum
 ) -> None:
     assert enum_cls.from_code(raw) is expected
+
+
+@pytest.mark.parametrize("enum_cls", [MowerMowType, MowerErrorCode])
+@pytest.mark.parametrize("raw", [9999, "9999", "FUTURE_VALUE"])
+def test_unrecognized_mower_value_logs_debug(
+    enum_cls: type[MowerEnum], raw: int | str, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level(logging.DEBUG):
+        member = enum_cls.from_code(raw)
+
+    assert member.value == "unknown"
+    assert len(caplog.records) == 1
+    record = caplog.records[0]
+    assert record.levelno == logging.DEBUG
+    assert enum_cls.__name__ in record.getMessage()
+    assert repr(raw) in record.getMessage()
+
+
+@pytest.mark.parametrize(
+    ("enum_cls", "raw"),
+    [
+        (MowerMowType, 1),
+        (MowerMowType, "GLOBAL"),
+        (MowerMowType, "global"),
+        (MowerMowType, "1"),
+        (MowerMowType, -1),
+        (MowerErrorCode, 0),
+        (MowerErrorCode, "0"),
+        (MowerErrorCode, "UNKNOWN"),
+        (MowerErrorCode, "unknown"),
+    ],
+)
+def test_recognized_mower_value_does_not_log(
+    enum_cls: type[MowerEnum], raw: int | str, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level(logging.DEBUG):
+        enum_cls.from_code(raw)
+
+    assert not caplog.records
+
+
+def test_optional_mower_enum_lookups_remain_silent(caplog: pytest.LogCaptureFixture) -> None:
+    with caplog.at_level(logging.DEBUG):
+        assert MowerErrorCode.from_code_optional(9999) is None
+        assert MowerErrorCode.from_any_optional("FUTURE_VALUE") is None
+
+    assert not caplog.records
