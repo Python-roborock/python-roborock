@@ -15,7 +15,6 @@ from vacuum_map_parser_base.map_data import MapData, Point
 
 from roborock.map.b01_grid_layers import GridCalibration
 from roborock.map.b01_q10_map_parser import (
-    B01Q10MapParserConfig,
     Q10CleanRecordDetail,
     Q10EraseZone,
     Q10HeaderCalibration,
@@ -37,15 +36,15 @@ from roborock.map.b01_q10_render import (
     Q10MapOverlays,
     _calibration_from_header_metadata,
     _erased_cells,
-    _map_data_from_packet,
     _place_docked_robot,
     _vector_calibration,
     render_q10_map,
     solve_q10_calibration,
 )
+from roborock.map.map_parser import MapParserConfig
 
 FIXTURE = Path("tests/map/testdata/b01_q10_map.bin")
-CONFIG = B01Q10MapParserConfig()
+CONFIG = MapParserConfig()
 
 # identity-ish calibration used across the geometry tests: world (x, y) -> grid
 # pixel (x, 5 - y) over the fixture's 8x6 grid (top-down, no flip).
@@ -137,17 +136,6 @@ def test_render_gives_adjacent_rooms_distinct_palette_colors() -> None:
     image = Image.open(io.BytesIO(rendered))
     scale = CONFIG.map_scale
     assert image.getpixel((0, 0)) != image.getpixel((scale, 0))
-
-
-def test_map_data_from_packet_populates_room_names_and_carpet_map() -> None:
-    """Base MapData populates room_names and flat carpet_map indices."""
-    carpet = bytearray(8 * 6)
-    carpet[10] = 4
-    carpet[20] = 3
-    packet = replace(_packet(), carpet_mask=bytes(carpet))
-    map_data = _map_data_from_packet(packet, config=CONFIG)
-    assert map_data.additional_parameters["room_names"] == {2: "Living Room", 3: "Bedroom"}
-    assert map_data.carpet_map == {10, 20}
 
 
 def test_render_draws_path_and_position() -> None:

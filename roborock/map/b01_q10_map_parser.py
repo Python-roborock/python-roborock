@@ -43,19 +43,21 @@ from .b01_grid_layers import (
 # eyeballed): 243 is the background outside the home (~half the grid), 240 is
 # scanned floor not yet assigned to a room, other values >= 240 are walls, and
 # 0 < value < 240 are per-room floor cells (value == room_id * 4).
-_BACKGROUND_VALUE = 243
-_UNSEGMENTED_FLOOR_VALUE = 240
+Q10_BACKGROUND_VALUE = 243
+Q10_UNSEGMENTED_FLOOR_VALUE = 240
+# Grid cell values >= this are walls / borders rather than room segments.
+Q10_WALL_THRESHOLD = 240
 
 
 def classify_q10_cell(value: int) -> str:
     """Map a Q10 grid cell value to a canonical layer class."""
     if value == 0:
         return LAYER_UNKNOWN
-    if value == _BACKGROUND_VALUE:
+    if value == Q10_BACKGROUND_VALUE:
         return LAYER_BACKGROUND
-    if value == _UNSEGMENTED_FLOOR_VALUE:
+    if value == Q10_UNSEGMENTED_FLOOR_VALUE:
         return LAYER_FLOOR
-    if value >= _WALL_THRESHOLD:
+    if value >= Q10_WALL_THRESHOLD:
         return LAYER_WALL
     return LAYER_FLOOR
 
@@ -100,9 +102,6 @@ _CHARGER_PHI_OFFSET = 21
 # The header origin and charger fields both divide by 10 to reach grid pixels,
 # although they use different coordinate frames as documented above.
 _HEADER_UNITS_PER_PIXEL = 10
-
-# Grid cell values >= this are walls / borders rather than room segments.
-_WALL_THRESHOLD = 240
 
 
 @dataclass
@@ -745,7 +744,7 @@ def _parse_clean_record_trace(
     )
 
 
-def erased_packet(packet: "Q10MapPacket", cells: set[int]) -> "Q10MapPacket":
+def erased_packet(packet: Q10MapPacket, cells: set[int]) -> Q10MapPacket:
     """Return a copy of ``packet`` with ``cells`` (grid indices) set to background.
 
     Used to apply the app's erase zones: cells inside an erase rectangle are blanked
@@ -756,13 +755,5 @@ def erased_packet(packet: "Q10MapPacket", cells: set[int]) -> "Q10MapPacket":
     grid = bytearray(packet.grid)
     for cell in cells:
         if 0 <= cell < len(grid):
-            grid[cell] = _BACKGROUND_VALUE
+            grid[cell] = Q10_BACKGROUND_VALUE
     return replace(packet, grid=bytes(grid))
-
-
-@dataclass
-class B01Q10MapParserConfig:
-    """Configuration for the Q10 map parser."""
-
-    map_scale: int = 4
-    """Scale factor for the rendered map image."""

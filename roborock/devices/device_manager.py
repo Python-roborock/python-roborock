@@ -262,7 +262,7 @@ async def create_device_manager(
                 if "ss" in model_part:
                     b01_q10_channel = create_b01_q10_channel(mqtt_channel)
                     channel = b01_q10_channel
-                    trait = b01.q10.create(channel)
+                    trait = b01.q10.create(channel, map_parser_config=map_parser_config)
                 elif "sc" in model_part:
                     # Q7 devices start with 'sc' in their model naming.
                     b01_q7_channel = create_b01_q7_channel(device, product, mqtt_channel)
