@@ -1,7 +1,7 @@
 """Compose a Q10 (B01/ss07) map into a single rendered result.
 
-The :class:`~roborock.map.b01_q10_map_parser.B01Q10MapParser` turns wire bytes
-into a :class:`~roborock.map.b01_q10_map_parser.Q10MapPacket`; this module
+The :func:`~roborock.map.b01_q10_map_parser.parse_map_packet` function turns wire
+bytes into a :class:`~roborock.map.b01_q10_map_parser.Q10MapPacket`; this module
 combines that map-protocol packet with the latest trace-protocol packet and DPS
 overlay snapshot. Calibration, path and position are derived from those source
 objects rather than managed independently by callers.
@@ -18,9 +18,12 @@ import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from PIL import Image
+from vacuum_map_parser_base.config.color import ColorsPalette, SupportedColor
 from vacuum_map_parser_base.config.drawable import Drawable
+from vacuum_map_parser_base.config.image_config import ImageConfig
 from vacuum_map_parser_base.config.size import Size, Sizes
-from vacuum_map_parser_base.map_data import Area, MapData, Path, Point, Wall
+from vacuum_map_parser_base.map_data import Area, ImageData, MapData, Path, Point, Wall
 
 from roborock.exceptions import RoborockException
 
@@ -31,7 +34,9 @@ from .b01_grid_layers import (
     solve_calibration_with_origin,
 )
 from .b01_q10_map_parser import (
-    B01Q10MapParser,
+    _BACKGROUND_VALUE,
+    _UNSEGMENTED_FLOOR_VALUE,
+    _WALL_THRESHOLD,
     B01Q10MapParserConfig,
     Q10EraseZone,
     Q10HistoricalTracePacket,
@@ -41,6 +46,7 @@ from .b01_q10_map_parser import (
 )
 from .b01_q10_overlays import ZONE_TYPE_NO_GO, ZONE_TYPE_NO_MOP, Q10Zone
 from .map_parser import DEFAULT_DRAWABLES, MapParserConfig, _create_image_generator
+from .room_colors import adjacency_aware_room_colors
 
 # Path-units-per-pixel candidates for calibration. A dense ss07 path lands a
 # best fit of 20.0 around the header origin -- ground-truthed June 2026 on the
@@ -97,7 +103,6 @@ def render_q10_map(
     available trace and DPS overlays are projected and drawn in pixel space.
     Raises :class:`RoborockException` if map rendering fails.
     """
-    parser = B01Q10MapParser(config)
     trace_calibration = solve_q10_calibration(packet, trace)
     vector_calibration = _vector_calibration(packet, trace_calibration)
 
@@ -109,7 +114,7 @@ def render_q10_map(
             # areas disappear (as the app shows).
             render_packet = erased_packet(packet, cells)
 
-    map_data = parser.map_data_from_packet(render_packet)
+    map_data = _map_data_from_packet(render_packet, config=config)
     if map_data.image is None:
         raise RoborockException("Failed to render Q10 map image")
 
@@ -335,3 +340,84 @@ def _draw_map_content(
     buffer = io.BytesIO()
     map_data.image.data.save(buffer, format="PNG")
     return buffer.getvalue()
+
+
+def _map_data_from_packet(
+    packet: Q10MapPacket,
+    *,
+    config: B01Q10MapParserConfig,
+) -> MapData:
+    """Build MapData with a rendered base image, without PNG serialization."""
+    image = _render_base_grid(packet, scale=config.map_scale)
+
+    map_data = MapData()
+    map_data.image = ImageData(
+        size=packet.width * packet.height,
+        top=0,
+        left=0,
+        height=packet.height,
+        width=packet.width,
+        image_config=ImageConfig(scale=config.map_scale),
+        data=image,
+        # ImageDimensions uses V1's bottom-up map convention before
+        # projecting into the top-down PNG. Q10 points are already
+        # top-down grid pixels, so this adapter cancels that standard flip
+        # and lets Q10 use the shared V1 ImageGenerator without moving
+        # overlays vertically.
+        img_transformation=lambda p: Point(p.x, packet.height - p.y - 1, p.a),
+    )
+    room_names = {room.id: room.name for room in packet.rooms}
+    if room_names:
+        map_data.additional_parameters["room_names"] = room_names
+
+    # Carpet cells are flat grid indices (y*width + x) in the same top-down
+    # pixel space as the rendered raster, so they line up with the image.
+    if packet.carpet_mask is not None:
+        map_data.carpet_map = {i for i, value in enumerate(packet.carpet_mask) if value}
+
+    return map_data
+
+
+def _render_base_grid(packet: Q10MapPacket, *, scale: int) -> Image.Image:
+    """Render the Q10 grid with the V1 map palette."""
+    palette = _build_palette(packet.grid, packet.width)
+    flat_palette = [channel for color in palette for channel in color]
+    p_img = Image.frombytes("P", (packet.width, packet.height), packet.grid)
+    p_img.putpalette(flat_palette, rawmode="RGBA")
+    img = p_img.convert("RGBA")
+    # The ss07 grid is stored top-down (row 0 = top of the home), so it is
+    # rendered as-is -- unlike the V1/Q7 convention, no vertical flip.
+    if scale > 1:
+        img = img.resize((packet.width * scale, packet.height * scale), resample=Image.Resampling.NEAREST)
+    return img
+
+
+def _opaque(color: tuple[int, ...]) -> tuple[int, int, int, int]:
+    """Return a palette color as RGBA."""
+    return (color[0], color[1], color[2], color[3] if len(color) == 4 else 255)
+
+
+def _build_palette(grid: bytes, width: int) -> list[tuple[int, int, int, int]]:
+    """Map Q10 cells onto the same colors used by the V1 map renderer."""
+
+    def room_id(value: int) -> int | None:
+        return max(1, value // 4) if 0 < value < _WALL_THRESHOLD else None
+
+    colors = ColorsPalette()
+    room_colors = adjacency_aware_room_colors(
+        grid,
+        width,
+        colors,
+        room_id,
+    )
+    outside = (0, 0, 0, 0)
+    palette = [outside] * 256
+    for value in {value for value in grid if 0 < value < _WALL_THRESHOLD}:
+        palette[value] = _opaque(room_colors[max(1, value // 4)])
+    wall = _opaque(colors.get_color(SupportedColor.GREY_WALL))
+    for value in range(_WALL_THRESHOLD, 256):
+        palette[value] = wall
+    palette[_UNSEGMENTED_FLOOR_VALUE] = _opaque(colors.get_color(SupportedColor.MAP_INSIDE))
+    palette[_BACKGROUND_VALUE] = outside
+    palette[0] = outside
+    return palette

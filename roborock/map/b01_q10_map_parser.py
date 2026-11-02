@@ -20,16 +20,10 @@ documentation that informed this clean-room implementation comes from the
 https://github.com/v1b3c0d3x3r/roborock-qseries-map-bridge
 """
 
-import io
 import math
 import statistics
 import struct
 from dataclasses import dataclass, field, replace
-
-from PIL import Image
-from vacuum_map_parser_base.config.color import ColorsPalette, SupportedColor
-from vacuum_map_parser_base.config.image_config import ImageConfig
-from vacuum_map_parser_base.map_data import ImageData, MapData, Point
 
 from roborock.data.b01_q10.b01_q10_containers import Q10RoborockPoint
 from roborock.data.code_mappings import RoborockEnum
@@ -44,10 +38,6 @@ from .b01_grid_layers import (
     GridLayers,
     decompose_grid,
 )
-from .map_parser import ParsedMapData
-from .room_colors import adjacency_aware_room_colors
-
-_MAP_FILE_FORMAT = "PNG"
 
 # Semantic raster classes, confirmed against real ss07 captures (rendered and
 # eyeballed): 243 is the background outside the home (~half the grid), 240 is
@@ -776,111 +766,3 @@ class B01Q10MapParserConfig:
 
     map_scale: int = 4
     """Scale factor for the rendered map image."""
-
-
-class B01Q10MapParser:
-    """Decoder/renderer for Q10 ``MAP_RESPONSE`` (protocol 301) payloads."""
-
-    def __init__(self, config: B01Q10MapParserConfig | None = None) -> None:
-        self._config = config or B01Q10MapParserConfig()
-
-    @property
-    def config(self) -> B01Q10MapParserConfig:
-        """The parser configuration (image scale, ...)."""
-        return self._config
-
-    def parse(self, payload: bytes) -> ParsedMapData:
-        """Parse a raw Q10 map packet into a rendered PNG + ``MapData``."""
-        return self.parsed_from_packet(parse_map_packet(payload))
-
-    def parse_packet(self, packet: Q10MapPacket) -> ParsedMapData:
-        """Render an already-decoded packet.
-
-        This preserves the public API used by the existing map trait. Callers
-        rendering a modified packet can use :meth:`parsed_from_packet` directly.
-        """
-        return self.parsed_from_packet(packet)
-
-    def map_data_from_packet(self, packet: Q10MapPacket) -> MapData:
-        """Build MapData with a rendered base image, without PNG serialization."""
-        image = self._render(packet)
-
-        map_data = MapData()
-        map_data.image = ImageData(
-            size=packet.width * packet.height,
-            top=0,
-            left=0,
-            height=packet.height,
-            width=packet.width,
-            image_config=ImageConfig(scale=self._config.map_scale),
-            data=image,
-            # ImageDimensions uses V1's bottom-up map convention before
-            # projecting into the top-down PNG. Q10 points are already
-            # top-down grid pixels, so this adapter cancels that standard flip
-            # and lets Q10 use the shared V1 ImageGenerator without moving
-            # overlays vertically.
-            img_transformation=lambda p: Point(p.x, packet.height - p.y - 1, p.a),
-        )
-        room_names = {room.id: room.name for room in packet.rooms}
-        if room_names:
-            map_data.additional_parameters["room_names"] = room_names
-
-        # Carpet cells are flat grid indices (y*width + x) in the same top-down
-        # pixel space as the rendered raster, so they line up with the image.
-        if packet.carpet_mask is not None:
-            map_data.carpet_map = {i for i, value in enumerate(packet.carpet_mask) if value}
-
-        return map_data
-
-    def parsed_from_packet(self, packet: Q10MapPacket) -> ParsedMapData:
-        """Render a (possibly erase-modified) packet into a PNG + ``MapData``."""
-        map_data = self.map_data_from_packet(packet)
-        image_bytes = io.BytesIO()
-        if map_data.image is not None:
-            map_data.image.data.save(image_bytes, format=_MAP_FILE_FORMAT)
-        return ParsedMapData(image_content=image_bytes.getvalue(), map_data=map_data)
-
-    def _render(self, packet: Q10MapPacket) -> Image.Image:
-        """Render the Q10 grid with the V1 map palette."""
-        palette = _build_palette(packet.grid, packet.width)
-        flat_palette = [channel for color in palette for channel in color]
-        p_img = Image.frombytes("P", (packet.width, packet.height), packet.grid)
-        p_img.putpalette(flat_palette, rawmode="RGBA")
-        img = p_img.convert("RGBA")
-        # The ss07 grid is stored top-down (row 0 = top of the home), so it is
-        # rendered as-is -- unlike the V1/Q7 convention, no vertical flip.
-        scale = self._config.map_scale
-        if scale > 1:
-            img = img.resize((packet.width * scale, packet.height * scale), resample=Image.Resampling.NEAREST)
-        return img
-
-
-def _opaque(color: tuple[int, ...]) -> tuple[int, int, int, int]:
-    """Return a palette color as RGBA."""
-    return (color[0], color[1], color[2], color[3] if len(color) == 4 else 255)
-
-
-def _build_palette(grid: bytes, width: int) -> list[tuple[int, int, int, int]]:
-    """Map Q10 cells onto the same colors used by the V1 map renderer."""
-
-    def room_id(value: int) -> int | None:
-        return max(1, value // 4) if 0 < value < _WALL_THRESHOLD else None
-
-    colors = ColorsPalette()
-    room_colors = adjacency_aware_room_colors(
-        grid,
-        width,
-        colors,
-        room_id,
-    )
-    outside = (0, 0, 0, 0)
-    palette = [outside] * 256
-    for value in {value for value in grid if 0 < value < _WALL_THRESHOLD}:
-        palette[value] = _opaque(room_colors[max(1, value // 4)])
-    wall = _opaque(colors.get_color(SupportedColor.GREY_WALL))
-    for value in range(_WALL_THRESHOLD, 256):
-        palette[value] = wall
-    palette[_UNSEGMENTED_FLOOR_VALUE] = _opaque(colors.get_color(SupportedColor.MAP_INSIDE))
-    palette[_BACKGROUND_VALUE] = outside
-    palette[0] = outside
-    return palette

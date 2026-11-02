@@ -21,6 +21,7 @@ from roborock.map.b01_q10_map_parser import (
     Q10HeaderCalibration,
     Q10HistoricalTracePacket,
     Q10MapPacket,
+    Q10MapPacketKind,
     Q10Point,
     Q10TracePacket,
     parse_map_packet,
@@ -36,6 +37,7 @@ from roborock.map.b01_q10_render import (
     Q10MapOverlays,
     _calibration_from_header_metadata,
     _erased_cells,
+    _map_data_from_packet,
     _place_docked_robot,
     _vector_calibration,
     render_q10_map,
@@ -102,6 +104,50 @@ def test_render_base_map_without_calibration() -> None:
     """Without a calibration only the base raster is produced."""
     image = _render()
     assert image[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_render_distinct_background_floor_and_walls() -> None:
+    """Background must not hide the wall layer by sharing its color."""
+    packet = Q10MapPacket(
+        kind=Q10MapPacketKind.CURRENT,
+        map_id=1,
+        width=4,
+        height=1,
+        grid=bytes([243, 240, 249, 8]),
+    )
+    rendered = _render(packet)
+    image = Image.open(io.BytesIO(rendered))
+    scale = CONFIG.map_scale
+    assert image.getpixel((0, 0)) == (0, 0, 0, 0)
+    assert image.getpixel((scale, 0)) == (32, 115, 185, 255)
+    assert image.getpixel((scale * 2, 0)) == (93, 109, 126, 255)
+    assert image.getpixel((scale * 3, 0)) == (133, 193, 233, 255)
+
+
+def test_render_gives_adjacent_rooms_distinct_palette_colors() -> None:
+    """Repeated V1 palette entries do not merge neighboring Q10 rooms."""
+    packet = Q10MapPacket(
+        kind=Q10MapPacketKind.CURRENT,
+        map_id=1,
+        width=2,
+        height=1,
+        grid=bytes([2 * 4, 12 * 4]),
+    )
+    rendered = _render(packet)
+    image = Image.open(io.BytesIO(rendered))
+    scale = CONFIG.map_scale
+    assert image.getpixel((0, 0)) != image.getpixel((scale, 0))
+
+
+def test_map_data_from_packet_populates_room_names_and_carpet_map() -> None:
+    """Base MapData populates room_names and flat carpet_map indices."""
+    carpet = bytearray(8 * 6)
+    carpet[10] = 4
+    carpet[20] = 3
+    packet = replace(_packet(), carpet_mask=bytes(carpet))
+    map_data = _map_data_from_packet(packet, config=CONFIG)
+    assert map_data.additional_parameters["room_names"] == {2: "Living Room", 3: "Bedroom"}
+    assert map_data.carpet_map == {10, 20}
 
 
 def test_render_draws_path_and_position() -> None:
