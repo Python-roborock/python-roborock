@@ -697,7 +697,7 @@ def test_current_cleaning_mode_water_code_fallback(
 
 @pytest.mark.parametrize("water_mode", [WaterModes.MEDIUM, WaterModes.PURE_WATER_FLOW_MIDDLE])
 def test_current_cleaning_mode_water_slide_accepts_enums(water_mode: WaterModes) -> None:
-    """Enum inputs remain valid even when they alias a legacy water mode."""
+    """Enum inputs resolve to distinct members, each keeping its own wire code."""
     status_trait = _create_cleaning_mode_status_trait(is_water_slide_mode_supported=True)
     assert (
         get_current_cleaning_mode(102, water_mode, 303, status_trait._device_features_trait) == CleaningMode.VAC_AND_MOP
@@ -778,7 +778,7 @@ def test_water_slide_mode_mapping() -> None:
         245: "high",
         250: "extreme",
     }
-    assert [mode.value for mode in status_trait.water_mode_options] == [
+    assert [mode.display_name for mode in status_trait.water_mode_options] == [
         "off",
         "slight",
         "low",

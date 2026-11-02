@@ -161,3 +161,37 @@ def test_known_missing_unknown_baseline_inventory() -> None:
         f"Enums in KNOWN_ENUMS_MISSING_UNKNOWN are no longer missing 'unknown': {stale_in_baseline}. "
         "Please remove them from KNOWN_ENUMS_MISSING_UNKNOWN."
     )
+
+
+# Baseline inventory of RoborockModeEnum subclasses that intentionally define
+# multiple names sharing one value string (e.g. fault descriptions shared
+# across several firmware codes). These enums accept the silent aliasing
+# behavior; every other mode enum must give each member a distinct value
+# (using display_name for the shared user-facing name) so no code is lost.
+KNOWN_MODE_ENUMS_WITH_VALUE_ALIASES = {
+    "roborock.data.b01_q7.b01_q7_code_mappings.B01Fault",
+}
+
+
+@pytest.mark.parametrize("mode_enum_cls", to_pytest_params(_ALL_MODE_ENUMS))
+def test_roborock_mode_enum_no_silent_value_aliases(mode_enum_cls: type[RoborockModeEnum]) -> None:
+    """RoborockModeEnum subclasses must not define silent value aliases.
+
+    StrEnum collapses members sharing a value string into one, silently
+    discarding the other member's code. Give each member a distinct value and
+    use display_name for the shared user-facing name instead.
+    """
+    fqn = f"{mode_enum_cls.__module__}.{mode_enum_cls.__name__}"
+    if fqn in KNOWN_MODE_ENUMS_WITH_VALUE_ALIASES:
+        return
+    seen: set[int] = set()
+    aliases = []
+    for name, member in mode_enum_cls.__members__.items():
+        if id(member) in seen:
+            aliases.append(name)
+        seen.add(id(member))
+    assert not aliases, (
+        f"{fqn} defines silent value aliases: {aliases}. "
+        "Members sharing a value string collapse into one and lose their codes; "
+        "use display_name for the shared user-facing name instead."
+    )
