@@ -2,6 +2,38 @@
 
 <!-- version list -->
 
+## v7.15.2 (2026-11-02)
+
+### Bug Fixes
+
+- **mower**: Document error semantics and log unknown status codes
+  ([#1009](https://github.com/Python-roborock/python-roborock/pull/1009),
+  [`8ee7d76`](https://github.com/Python-roborock/python-roborock/commit/8ee7d76bdda63271f94d14521dd02ab23133386a))
+
+### Documentation
+
+- Add pr-triage agent skill ([#1007](https://github.com/Python-roborock/python-roborock/pull/1007),
+  [`b68ee94`](https://github.com/Python-roborock/python-roborock/commit/b68ee9487ad3eae726ef388f0d4c2680d1f53211))
+
+- Refine pr-triage SHA comparison, author replies, and approved bucket
+  ([#1007](https://github.com/Python-roborock/python-roborock/pull/1007),
+  [`b68ee94`](https://github.com/Python-roborock/python-roborock/commit/b68ee9487ad3eae726ef388f0d4c2680d1f53211))
+
+### Refactoring
+
+- Split web_api into per-resource modules
+  ([#1006](https://github.com/Python-roborock/python-roborock/pull/1006),
+  [`f1fa0ee`](https://github.com/Python-roborock/python-roborock/commit/f1fa0ee322162077114cac359d29c1184b95ef50))
+
+- **map**: Move Q10 rasterization from parser into render module
+  ([#986](https://github.com/Python-roborock/python-roborock/pull/986),
+  [`a4f29a6`](https://github.com/Python-roborock/python-roborock/commit/a4f29a6f829ed096d3bb2c71ff873e611efc3e3f))
+
+- **web_api**: Remove unused stdlib and private re-exports from __init__
+  ([#1006](https://github.com/Python-roborock/python-roborock/pull/1006),
+  [`f1fa0ee`](https://github.com/Python-roborock/python-roborock/commit/f1fa0ee322162077114cac359d29c1184b95ef50))
+
+
 ## v7.15.1 (2026-11-01)
 
 ### Bug Fixes
