@@ -288,6 +288,13 @@ class PropertiesApi(Trait):
             wash_towel_mode._rpc_channel = self._get_rpc_channel(wash_towel_mode)  # type: ignore[assignment]
             self.wash_towel_mode = wash_towel_mode
 
+        if self.customize_clean_mode is None and self._is_supported(
+            CustomizeCleanModeTrait, "customize_clean_mode", dock_features
+        ):
+            customize_clean_mode = CustomizeCleanModeTrait(self.device_features)
+            customize_clean_mode._rpc_channel = self._get_rpc_channel(customize_clean_mode)  # type: ignore[assignment]
+            self.customize_clean_mode = customize_clean_mode
+
         if self.obstacle_photos is None and self._is_supported(ObstaclePhotoTrait, "obstacle_photos", dock_features):
             obstacle_photos = ObstaclePhotoTrait(self._rpc_channel)
             obstacle_photos._rpc_channel = self._get_rpc_channel(obstacle_photos)

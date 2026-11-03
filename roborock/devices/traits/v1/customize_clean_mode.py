@@ -1,62 +1,27 @@
 """Trait for per-room (segment) cleaning mode overrides on Roborock devices.
 
-This exposes the same "vacuum then mop" axis as `StatusTrait.clean_then_mop`
-(the global, per-job flag), but scoped to a single room. The global flag is
-itself persisted on the device - tracked while docked, not cleared after
-every clean (see `StatusTrait.clean_then_mop`) - and a per-room override set
-here is likewise persisted: it is a preference attached to that room and is
-re-applied whenever the room is cleaned, until overwritten or cleared from
-the vendor app.
-
 Rooms without an override are simply absent from `modes` - the robot falls
 back to the global settings (fan power, water box mode, mop mode and
 clean-then-mop) for those. An empty list means no room currently has one.
+
+A per-room override set via `set_clean_then_mop` is persisted on the device:
+it is a preference attached to that room and is re-applied whenever the room
+is cleaned, until overwritten or cleared from the vendor app.
 """
 
-from dataclasses import dataclass
+import asyncio
 
-from roborock.data import RoborockBase
+from roborock.data import CustomizeCleanModes, SegmentCleanMode
+from roborock.data.v1.v1_clean_modes import CleanRoutes, VacuumModes, WaterModes
+from roborock.data.v1.v1_containers import SEQ_TYPE_CLEAN_THEN_MOP
 from roborock.devices.traits.v1 import common
+from roborock.devices.traits.v1.device_features import DeviceFeaturesTrait
+from roborock.exceptions import RoborockParsingException, RoborockUnsupportedFeature
 from roborock.roborock_typing import RoborockCommand
 
 from .common import V1ResponseData
 
-_SEQ_TYPE_CLEAN_THEN_MOP = 1
-
-
-@dataclass
-class SegmentCleanMode(RoborockBase):
-    """A single room's clean mode override, as reported by the device."""
-
-    segment: int
-    fan_power: int | None = None
-    water_box_mode: int | None = None
-    mop_mode: int | None = None
-    repeat: int | None = None
-    seq_type: int | None = None
-
-    @property
-    def clean_then_mop(self) -> bool | None:
-        """Whether this room is vacuumed fully before it is mopped.
-
-        `None` means the device did not report a sequence type for this
-        room's override.
-        """
-        if self.seq_type is None:
-            return None
-        return self.seq_type == _SEQ_TYPE_CLEAN_THEN_MOP
-
-
-@dataclass
-class CustomizeCleanModes(RoborockBase):
-    """Collection of per-room clean mode overrides."""
-
-    modes: list[SegmentCleanMode] | None = None
-
-    @property
-    def by_segment(self) -> dict[int, SegmentCleanMode]:
-        """Index the overrides by segment id."""
-        return {mode.segment: mode for mode in self.modes or []}
+_WRITE_KEYS = ("segment", "fan_power", "water_box_mode", "mop_mode", "repeat", "seq_type")
 
 
 class CustomizeCleanModeConverter(common.V1TraitDataConverter):
@@ -72,28 +37,80 @@ class CustomizeCleanModeConverter(common.V1TraitDataConverter):
 class CustomizeCleanModeTrait(CustomizeCleanModes, common.V1TraitMixin):
     """Trait for reading and writing per-room clean mode overrides.
 
-    This is the per-room counterpart to `StatusTrait.clean_then_mop` /
-    `StatusTrait.set_clean_then_mop`. Gated on `is_customized_clean_supported`
-    - the feature that covers `get/set_customize_clean_mode` in general, not
-    `is_clean_then_mop_mode_supported` (which only gates the narrower
-    `seq_type` axis within it). A device can support per-room custom modes
-    without supporting clean-then-mop specifically; on such a device
-    `SegmentCleanMode.seq_type` (and therefore `.clean_then_mop`) is simply
-    `None` for every room, same as when the device never reports it.
+    Gated on `is_customized_clean_supported` - the feature that covers
+    `get/set_customize_clean_mode` in general, not `is_clean_then_mop_mode_supported`
+    (which only gates the narrower `seq_type` axis within it). A device can
+    support per-room custom modes without supporting clean-then-mop
+    specifically; on such a device `SegmentCleanMode.seq_type` (and therefore
+    `.clean_then_mop`) is simply `None` for every room, same as when the
+    device never reports it. `set_clean_then_mop` additionally checks
+    `is_clean_then_mop_mode_supported` itself before writing, since writing
+    `seq_type` to firmware that doesn't support it is not just a no-op read.
     """
 
     command = RoborockCommand.GET_CUSTOMIZE_CLEAN_MODE
     converter = CustomizeCleanModeConverter()
     requires_feature = "is_customized_clean_supported"
 
+    def __init__(self, device_features: DeviceFeaturesTrait) -> None:
+        super().__init__()
+        common.V1TraitMixin.__init__(self)
+        self._device_features = device_features
+        self._raw_by_segment: dict[int, dict] = {}
+        self._write_lock = asyncio.Lock()
+
+    async def refresh(self) -> None:
+        """Refresh the contents of this trait.
+
+        Overrides `V1TraitMixin.refresh()` to additionally retain each
+        room's raw wire dict, by segment - `set_clean_then_mop` round-trips
+        untouched rooms from this raw data rather than the typed
+        `SegmentCleanMode` fields, so per-model keys this library doesn't
+        model (or a value it failed to parse) are preserved on write instead
+        of being silently dropped.
+        """
+        response = await self.rpc_channel.send_command(self.command)
+        try:
+            new_data = self.converter.convert(response)
+        except (TypeError, ValueError) as err:
+            raise RoborockParsingException(
+                trait_name=type(self).__name__,
+                command=self.command,
+                payload=response,
+                inner_error=err,
+            ) from err
+        assert isinstance(response, list) and new_data.modes is not None  # converter.convert already validated this
+        # Key the raw cache off the canonical TYPED segment id (int, already
+        # decamelized/coerced by SegmentCleanMode.from_dict), not the raw
+        # dict's own "segment" key - a device that ever sent a differently
+        # cased key (e.g. "Segment") or a stringified id ("7" instead of 7)
+        # would otherwise desync the raw cache from `by_segment`, so this
+        # same room would be silently missing from (or duplicated in) a
+        # later write. `response` and `new_data.modes` are the same length,
+        # in the same order, by construction (one SegmentCleanMode per raw
+        # entry, no filtering) - zip(strict=True) turns any future change to
+        # that invariant into a loud error instead of silent misalignment.
+        raw_by_segment: dict[int, dict] = {}
+        for raw_entry, mode in zip(response, new_data.modes, strict=True):
+            if mode.segment in raw_by_segment:
+                raise RoborockParsingException(
+                    trait_name=type(self).__name__,
+                    command=self.command,
+                    payload=response,
+                    inner_error=ValueError(f"Duplicate segment {mode.segment} in response, cannot safely write"),
+                )
+            raw_by_segment[mode.segment] = raw_entry
+        common.merge_trait_values(self, new_data)
+        self._raw_by_segment = raw_by_segment
+
     async def set_clean_then_mop(
         self,
         segment: int,
         enabled: bool,
         *,
-        fan_power: int,
-        water_box_mode: int,
-        mop_mode: int,
+        fan_power: VacuumModes | int,
+        water_box_mode: WaterModes | int,
+        mop_mode: CleanRoutes | int,
         repeat: int = 1,
     ) -> None:
         """Set whether a single room is vacuumed fully before it is mopped.
@@ -103,7 +120,9 @@ class CustomizeCleanModeTrait(CustomizeCleanModes, common.V1TraitMixin):
         fan power / water box mode / mop mode that room already cleans with
         - typically read from the room's existing `SegmentCleanMode` (via
         `by_segment`) - so this call only changes the order, not the
-        settings.
+        settings. `fan_power`, `water_box_mode` and `mop_mode` accept either
+        the typed mode enum or a raw wire int (for codes this library
+        doesn't model, e.g. water-slide values).
 
         Do NOT source these from `StatusTrait` as a fallback when a room has
         no override yet: while the device is in a per-room custom cleaning
@@ -123,15 +142,61 @@ class CustomizeCleanModeTrait(CustomizeCleanModes, common.V1TraitMixin):
         whatever the room's `repeat` was set to before this call - confirmed
         against a real device. Pass the room's current `repeat` explicitly if
         you want a different value preserved.
+
+        Raises `RoborockUnsupportedFeature` if the device doesn't support
+        clean-then-mop at all (`is_clean_then_mop_mode_supported`), even if
+        it does support per-room custom modes in general.
+
+        This whole read-merge-write sequence is serialized per trait
+        instance (concurrent calls queue rather than racing): the device's
+        SET_CUSTOMIZE_CLEAN_MODE replaces the whole per-room table rather
+        than patching one entry (see below), so two overlapping calls each
+        building their own full table from the same stale read would
+        otherwise silently revert each other's room.
         """
-        seq_type = _SEQ_TYPE_CLEAN_THEN_MOP if enabled else 0
-        entry: dict[str, int] = {
-            "segment": segment,
-            "fan_power": fan_power,
-            "water_box_mode": water_box_mode,
-            "mop_mode": mop_mode,
-            "repeat": repeat,
-            "seq_type": seq_type,
-        }
-        await self.rpc_channel.send_command(RoborockCommand.SET_CUSTOMIZE_CLEAN_MODE, params=[entry])
-        await self.refresh()
+        if not self._device_features.is_clean_then_mop_mode_supported:
+            raise RoborockUnsupportedFeature("Device does not support clean-then-mop")
+
+        async with self._write_lock:
+            # Always refresh immediately before building the write, even if
+            # `self.modes` is already populated: this merges-and-replaces
+            # the whole table (see below), so writing from a stale cache
+            # could silently revert another room's override changed since
+            # the last refresh (e.g. from the vendor app) back to its old
+            # value.
+            await self.refresh()
+
+            seq_type = SEQ_TYPE_CLEAN_THEN_MOP if enabled else 0
+            new_entry = {
+                "segment": segment,
+                "fan_power": fan_power.code if isinstance(fan_power, VacuumModes) else fan_power,
+                "water_box_mode": water_box_mode.code if isinstance(water_box_mode, WaterModes) else water_box_mode,
+                "mop_mode": mop_mode.code if isinstance(mop_mode, CleanRoutes) else mop_mode,
+                "repeat": repeat,
+                "seq_type": seq_type,
+            }
+            # Start from this room's raw wire dict (if it already had an
+            # override) so any field this library doesn't model - or
+            # couldn't parse - survives the write, and only overlay the keys
+            # this call actually changes. A room with no prior override
+            # gets only the known fields; the device fills in its own
+            # per-model defaults for the rest, same as the original
+            # single-entry write did.
+            raw_entries = dict(self._raw_by_segment)
+            raw_entries[segment] = {**raw_entries.get(segment, {}), **new_entry}
+
+            # Send the full known table, not just the changed room: on at
+            # least some V1 firmware (confirmed first-hand for a Saros 20
+            # Sonic, see https://github.com/orgs/home-assistant/discussions/3998),
+            # SET_CUSTOMIZE_CLEAN_MODE replaces the customized segment table
+            # rather than patching a single entry, so sending only
+            # `[new_entry]` would silently wipe every other room's
+            # override. This has not been re-verified against real hardware
+            # for THIS device since this fix was written (no second
+            # customized room available to test with); please confirm on a
+            # device with two or more customized rooms before relying on
+            # it.
+            await self.rpc_channel.send_command(
+                RoborockCommand.SET_CUSTOMIZE_CLEAN_MODE, params=list(raw_entries.values())
+            )
+            await self.refresh()
