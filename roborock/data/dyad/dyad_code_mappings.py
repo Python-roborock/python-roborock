@@ -79,6 +79,57 @@ class DyadCleanser(RoborockEnum):
     max = 3
 
 
+class DyadCleanserAmount(RoborockEnum):
+    """Detergent dosing level (DP 238)."""
+
+    unknown = -1
+    off = 0
+    low = 1
+    standard = 2
+    high = 3
+
+
+class DyadCleanAssistPower(RoborockEnum):
+    """Wheel assist power (DP 241)."""
+
+    unknown = -1
+    gentle = 1
+    moderate = 2
+    strong = 3
+
+
+class DyadSelfCleanWaterTemp(RoborockEnum):
+    """Water temperature used for self-cleaning (DP 242, reported back on DP 271)."""
+
+    unknown = -1
+    high = 3
+    steam = 4
+
+
+class DyadSelfCleanIntensity(RoborockEnum):
+    """Self-cleaning intensity (DP 270).
+
+    Smart mode is enabled through DP 239; standard and deep follow DP 203.
+    """
+
+    unknown = -1
+    smart = 0
+    standard = 1
+    deep = 2
+
+
+class DyadPowerwheelDirection(RoborockEnum):
+    """Drive direction while the vacuum is remote controlled from the app (DP 249)."""
+
+    unknown = -1
+    stop = 0
+    forward = 1
+    backward = 2
+    left = 5
+    right = 6
+    exit = 9  # sent when remote control ends
+
+
 class DyadError(RoborockEnum):
     none = 0
     dirty_tank_full = 20000  # Dirty tank full. Empty it
