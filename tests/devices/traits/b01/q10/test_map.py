@@ -594,8 +594,7 @@ def test_map_content_trait_as_dict_camelizes_child_keys() -> None:
     assert data["robotPosition"] == {"x": 25875, "y": 26125}
 
 
-@pytest.mark.parametrize("trace_first", [False, True])
-def test_current_room_tracks_latest_fixture_pose_and_map(trace_first: bool) -> None:
+def test_current_room_tracks_latest_fixture_pose_and_map() -> None:
     """Current room and robot position consume the same latest map/trace inputs."""
     map_dps = MapDpsTrait()
     trait = _map_trait(map_dps)
@@ -604,14 +603,9 @@ def test_current_room_tracks_latest_fixture_pose_and_map(trace_first: bool) -> N
     )
     trace = Q10TracePacket(points=[Q10Point(100, 60)])
     assert trait.current_room is None
-    if trace_first:
-        trait.update_from_trace_packet(trace)
-        assert trait.current_room is None
-        trait.update_from_map_packet(packet)
-    else:
-        trait.update_from_map_packet(packet)
-        assert trait.current_room is None
-        trait.update_from_trace_packet(trace)
+    trait.update_from_map_packet(packet)
+    assert trait.current_room is None
+    trait.update_from_trace_packet(trace)
     assert trait.current_room == packet.rooms[1]
     assert trait.robot_position == trace.points[-1].to_roborock()
     assert trait.as_dict()["currentRoom"] == packet.rooms[1].as_dict()
@@ -622,6 +616,20 @@ def test_current_room_tracks_latest_fixture_pose_and_map(trace_first: bool) -> N
     assert trait.current_room == packet.rooms[0]
     trait.update_from_map_packet(replace(packet, rooms=[]))
     assert trait.current_room is None
+
+
+def test_map_arrival_resolves_current_room_from_existing_fixture_trace() -> None:
+    """A map arriving after the live trace resolves its latest robot pose."""
+    trait = _map_trait()
+    packet = replace(
+        parse_map_packet(FIXTURE.read_bytes()), header_calibration=Q10HeaderCalibration(0, 50, 5, -1, -1, 0)
+    )
+    trace = Q10TracePacket(points=[Q10Point(100, 60)])
+    trait.update_from_trace_packet(trace)
+    assert trait.current_room is None
+    trait.update_from_map_packet(packet)
+    assert trait.current_room == packet.rooms[1]
+    assert trait.robot_position == trace.points[-1].to_roborock()
 
 
 @pytest.mark.parametrize("status", [YXDeviceState.CHARGING, YXDeviceState.EMPTYING_THE_BIN])
