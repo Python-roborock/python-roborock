@@ -590,8 +590,8 @@ def test_clean_record_parser_rejects_other_packet_kinds(marker: bytes) -> None:
 
 
 @pytest.mark.parametrize("marker", [b"\x01\x01", b"\x03\x01", b"\x04\x01"])
-def test_obstacle_tables_preserve_signed_coordinates_and_following_trace(marker: bytes) -> None:
-    """Complete counted tables retain their own coordinates and path boundary."""
+def test_obstacle_tables_preserve_signed_coordinates(marker: bytes) -> None:
+    """Complete counted tables retain signed coordinates for every map kind."""
     payload = _map_detail_payload(marker, [(10, -20)])
     offset = len(FIXTURE.read_bytes()) + len(_carpet_tail(8, 6, bytes(48)))
     tables = b"\x02" + struct.pack(">hhhh", 250, -300, -32768, 32767) + b"\x01" + struct.pack(">hh", -40, 50)
@@ -599,10 +599,18 @@ def test_obstacle_tables_preserve_signed_coordinates_and_following_trace(marker:
     packet = parse_map_packet(payload)
     assert packet.obstacles == [Q10Obstacle(250, -300), Q10Obstacle(-32768, 32767)]
     assert packet.skip_cleaning_points == [Q10Point(-40, 50)]
-    if marker == b"\x03\x01":
-        detail = parse_clean_record_detail(payload)
-        assert detail.trace is not None
-        assert detail.trace.points == [Q10Point(10, -20)]
+
+
+def test_nonempty_obstacle_tables_preserve_historical_trace_boundary() -> None:
+    """Historical points start after the complete obstacle and skip tables."""
+    payload = _map_detail_payload(b"\x03\x01", [(10, -20)])
+    offset = len(FIXTURE.read_bytes()) + len(_carpet_tail(8, 6, bytes(48)))
+    tables = b"\x01" + struct.pack(">hh", 250, -300) + b"\x01" + struct.pack(">hh", -40, 50)
+    detail = parse_clean_record_detail(payload[:offset] + tables + payload[offset + 2 :])
+    assert detail.map.obstacles == [Q10Obstacle(250, -300)]
+    assert detail.map.skip_cleaning_points == [Q10Point(-40, 50)]
+    assert detail.trace is not None
+    assert detail.trace.points == [Q10Point(10, -20)]
 
 
 @pytest.mark.parametrize("table", [b"", b"\x02\x00\x01\x00\x02", b"\x00", b"\x00\x02\x00\x01\x00\x02"])
