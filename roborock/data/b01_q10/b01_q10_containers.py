@@ -12,6 +12,9 @@ from dataclasses import dataclass, field
 from ..containers import RoborockBase
 from .b01_q10_code_mappings import (
     B01_Q10_DP,
+    Q10CleanCount,
+    Q10RoomCleanType,
+    Q10RoomFanLevel,
     YXAreaUnit,
     YXBackType,
     YXCarpetCleanType,
@@ -286,6 +289,11 @@ class Q10Status(RoborockBase):
         """Returns the name of the current fault."""
         return self.fault.value if self.fault is not None else None
 
+    @property
+    def clean_count_mode(self) -> Q10CleanCount | None:
+        """Return the typed cleaning pass count from the reported status."""
+        return Q10CleanCount.from_code_optional(self.clean_count) if self.clean_count is not None else None
+
 
 @dataclass
 class SoundVolume(RoborockBase):
@@ -342,3 +350,15 @@ class Q10NetworkInfo(RoborockBase):
     """
 
     net_info: dpNetInfo | None = field(default=None, metadata={"dps": B01_Q10_DP.NET_INFO})
+
+
+@dataclass
+class Q10RoomCleanSettings(RoborockBase):
+    """Writable cleaning settings for one Q10 room."""
+
+    room_id: int
+    fan_level: Q10RoomFanLevel
+    water_level: YXWaterLevel
+    clean_type: Q10RoomCleanType
+    clean_count: Q10CleanCount
+    clean_line: YXCleanLine

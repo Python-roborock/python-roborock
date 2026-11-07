@@ -1,14 +1,24 @@
 """Roborock B01 Protocol encoding and decoding."""
 
+import base64
+import binascii
 import json
 import logging
 from base64 import b64encode
+from collections.abc import Sequence
 from dataclasses import dataclass
 from struct import pack
 from typing import Any
 
-from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
-from roborock.data.b01_q10.b01_q10_containers import Q10RoborockPoint
+from roborock.data.b01_q10.b01_q10_code_mappings import (
+    B01_Q10_DP,
+    Q10CleanCount,
+    Q10RoomCleanType,
+    Q10RoomFanLevel,
+    YXCleanLine,
+    YXWaterLevel,
+)
+from roborock.data.b01_q10.b01_q10_containers import Q10RoborockPoint, Q10RoomCleanSettings
 from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
     Q10CleanRecordDetail,
@@ -73,6 +83,120 @@ def encode_clean_params(params: CleanParams) -> str:
     payload.append(0)
     payload.extend(bytes(_Q10_ZONE_NAME_FIELD_LENGTH))
     return b64encode(payload).decode()
+
+
+_Q10_CUSTOM_ROOM_COMPACT_SIZE = 6
+_Q10_CUSTOM_ROOM_PROPERTIES_SIZE = 26
+_Q10_CUSTOM_ROOM_NAME_SIZE = 20
+
+
+@dataclass(frozen=True)
+class Q10RoomCleanUpdate:
+    """Decoded Q10 customized-room settings push."""
+
+    settings: tuple[Q10RoomCleanSettings, ...]
+    complete: bool
+
+
+def encode_room_clean_settings(settings: Sequence[Q10RoomCleanSettings]) -> str:
+    """Encode the compact six-byte-per-room ``dpCustomerClean`` write."""
+    selected = tuple(settings)
+    if not selected or len(selected) > 255:
+        raise ValueError("settings must contain between 1 and 255 rooms")
+
+    payload = bytearray((len(selected),))
+    room_ids: set[int] = set()
+    fields = (
+        ("fan_level", Q10RoomFanLevel),
+        ("water_level", YXWaterLevel),
+        ("clean_type", Q10RoomCleanType),
+        ("clean_count", Q10CleanCount),
+        ("clean_line", YXCleanLine),
+    )
+    for room in selected:
+        if not 0 <= room.room_id <= 255:
+            raise ValueError("room_id must be an integer between 0 and 255")
+        if room.room_id in room_ids:
+            raise ValueError(f"duplicate room_id: {room.room_id}")
+        room_ids.add(room.room_id)
+        values = [room.room_id]
+        for field_name, mode_type in fields:
+            value = getattr(room, field_name)
+            if value.code < 0:
+                raise ValueError(f"{field_name} must be a supported {mode_type.__name__}")
+            values.append(value.code)
+        payload.extend(values)
+    return base64.b64encode(payload).decode()
+
+
+def decode_room_clean_settings(payload: str) -> Q10RoomCleanUpdate:
+    """Decode a compact echo or complete ``dpCustomerClean`` response.
+
+    Complete records contain 26 property bytes, a 20-byte name block, one
+    vertex-count byte, then four bytes per vertex. Relevant property offsets
+    are room id 0, count 5, type 7, fan 8, water 9, and route 11.
+    """
+    try:
+        raw = base64.b64decode(payload, validate=True)
+    except (ValueError, binascii.Error) as ex:
+        raise RoborockException("Invalid Q10 customized-room payload: malformed base64") from ex
+    if not raw:
+        raise RoborockException("Invalid Q10 customized-room payload: empty data")
+
+    count = raw[0]
+    if count == 0 and len(raw) == 1:
+        return Q10RoomCleanUpdate((), complete=True)
+    if len(raw) == 1 + count * _Q10_CUSTOM_ROOM_COMPACT_SIZE:
+        offset = 1
+        rooms = []
+        room_ids: set[int] = set()
+        for _ in range(count):
+            room_id = raw[offset]
+            if room_id in room_ids:
+                raise RoborockException("Invalid Q10 customized-room payload: duplicate room id")
+            room_ids.add(room_id)
+            rooms.append(
+                Q10RoomCleanSettings(
+                    room_id=room_id,
+                    fan_level=(Q10RoomFanLevel.from_code_optional(raw[offset + 1]) or Q10RoomFanLevel.UNKNOWN),
+                    water_level=(YXWaterLevel.from_code_optional(raw[offset + 2]) or YXWaterLevel.UNKNOWN),
+                    clean_type=(Q10RoomCleanType.from_code_optional(raw[offset + 3]) or Q10RoomCleanType.UNKNOWN),
+                    clean_count=(Q10CleanCount.from_code_optional(raw[offset + 4]) or Q10CleanCount.UNKNOWN),
+                    clean_line=(YXCleanLine.from_code_optional(raw[offset + 5]) or YXCleanLine.UNKNOWN),
+                )
+            )
+            offset += _Q10_CUSTOM_ROOM_COMPACT_SIZE
+        return Q10RoomCleanUpdate(tuple(rooms), complete=False)
+
+    offset = 1
+    rooms = []
+    room_ids = set()
+    for _ in range(count):
+        minimum_end = offset + _Q10_CUSTOM_ROOM_PROPERTIES_SIZE + _Q10_CUSTOM_ROOM_NAME_SIZE + 1
+        if minimum_end > len(raw):
+            raise RoborockException("Invalid Q10 customized-room payload: truncated room record")
+        room_id = int.from_bytes(raw[offset : offset + 2], "big")
+        if room_id in room_ids:
+            raise RoborockException("Invalid Q10 customized-room payload: duplicate room id")
+        room_ids.add(room_id)
+        clean_count = int.from_bytes(raw[offset + 5 : offset + 7], "big")
+        rooms.append(
+            Q10RoomCleanSettings(
+                room_id=room_id,
+                fan_level=(Q10RoomFanLevel.from_code_optional(raw[offset + 8]) or Q10RoomFanLevel.UNKNOWN),
+                water_level=(YXWaterLevel.from_code_optional(raw[offset + 9]) or YXWaterLevel.UNKNOWN),
+                clean_type=(Q10RoomCleanType.from_code_optional(raw[offset + 7]) or Q10RoomCleanType.UNKNOWN),
+                clean_count=(Q10CleanCount.from_code_optional(clean_count) or Q10CleanCount.UNKNOWN),
+                clean_line=(YXCleanLine.from_code_optional(raw[offset + 11]) or YXCleanLine.UNKNOWN),
+            )
+        )
+        vertex_count = raw[offset + _Q10_CUSTOM_ROOM_PROPERTIES_SIZE + _Q10_CUSTOM_ROOM_NAME_SIZE]
+        offset = minimum_end + vertex_count * 4
+        if offset > len(raw):
+            raise RoborockException("Invalid Q10 customized-room payload: truncated vertices")
+    if offset != len(raw):
+        raise RoborockException("Invalid Q10 customized-room payload: trailing data")
+    return Q10RoomCleanUpdate(tuple(rooms), complete=True)
 
 
 def encode_mqtt_payload(command: B01_Q10_DP, params: ParamsType) -> RoborockMessage:

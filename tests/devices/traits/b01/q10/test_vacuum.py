@@ -8,10 +8,13 @@ import pytest
 
 from roborock.data.b01_q10.b01_q10_code_mappings import (
     B01_Q10_DP,
+    Q10CleanCount,
+    YXCleanLine,
     YXCleanType,
     YXDeviceCleanTask,
     YXDeviceState,
     YXFanLevel,
+    YXWaterLevel,
 )
 from roborock.data.b01_q10.b01_q10_containers import Q10RoborockPoint
 from roborock.devices.traits.b01.q10 import Q10PropertiesApi
@@ -236,3 +239,32 @@ async def test_goto_position_at_current_position_pauses_owned_zone(
         B01_Q10_DP.START_CLEAN,
         B01_Q10_DP.PAUSE,
     ]
+
+
+@pytest.mark.parametrize(
+    ("method", "value", "command", "payload"),
+    [
+        ("set_water_level", YXWaterLevel.HIGH, B01_Q10_DP.WATER_LEVEL, 3),
+        ("set_clean_count", Q10CleanCount.THREE_TIMES, B01_Q10_DP.CLEAN_COUNT, 3),
+        ("set_clean_line", YXCleanLine.FINE, B01_Q10_DP.COMMON, {"78": 2}),
+    ],
+)
+async def test_advanced_cleaning_controls(q10_api, fake_channel, method, value, command, payload) -> None:
+    await getattr(q10_api.vacuum, method)(value)
+    assert fake_channel.published_commands == [(command, payload)]
+
+
+@pytest.mark.parametrize(
+    ("method", "value"),
+    [
+        ("set_clean_mode", YXCleanType.UNKNOWN),
+        ("set_fan_level", YXFanLevel.UNKNOWN),
+        ("set_water_level", YXWaterLevel.UNKNOWN),
+        ("set_clean_count", Q10CleanCount.UNKNOWN),
+        ("set_clean_line", YXCleanLine.UNKNOWN),
+    ],
+)
+async def test_unknown_cleaning_modes_are_not_published(q10_api, fake_channel, method, value) -> None:
+    with pytest.raises(ValueError, match="supported"):
+        await getattr(q10_api.vacuum, method)(value)
+    assert fake_channel.published_commands == []
