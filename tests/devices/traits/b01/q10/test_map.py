@@ -9,6 +9,7 @@ details are tested in ``tests/map/test_b01_q10_render.py``.
 import asyncio
 import base64
 from collections.abc import AsyncGenerator, Generator
+from dataclasses import replace
 from pathlib import Path
 from typing import cast
 from unittest.mock import Mock, patch
@@ -23,6 +24,7 @@ from roborock.devices.traits.b01.q10.map import MapContentTrait, MapDpsTrait
 from roborock.devices.traits.b01.q10.maps import MapsTrait
 from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
+    Q10HeaderCalibration,
     Q10Point,
     Q10TracePacket,
     parse_map_packet,
@@ -490,8 +492,8 @@ async def test_charging_status_renders_robot_at_dock(render_map: Mock) -> None:
     assert render_map.call_args.kwargs["robot_at_dock"] is True
 
 
-def test_docked_state_hides_trace_only_from_rendering(render_map: Mock) -> None:
-    """A docked render omits the valid trace without deleting source data."""
+def test_docked_state_clears_live_trace(render_map: Mock) -> None:
+    """Docking clears the completed path and current robot pose."""
     map_dps = MapDpsTrait()
     trait = _map_trait(map_dps)
     packet = parse_map_packet(FIXTURE.read_bytes())
@@ -504,13 +506,15 @@ def test_docked_state_hides_trace_only_from_rendering(render_map: Mock) -> None:
 
     map_dps.update_from_dps({B01_Q10_DP.STATUS: YXDeviceState.CHARGING.code})
 
-    assert trait.path == trace.points
+    assert trait.path == []
+    assert trait.robot_position is None
+    assert trait.current_room is None
     assert render_map.call_args.args[1] is None
     assert render_map.call_args.kwargs["robot_at_dock"] is True
 
 
-def test_late_trace_is_retained_but_hidden_while_docked(render_map: Mock) -> None:
-    """A late trace stays available but is not part of a docked render."""
+def test_late_trace_is_ignored_while_docked(render_map: Mock) -> None:
+    """A late completed trace cannot repopulate the docked robot pose."""
     map_dps = MapDpsTrait()
     map_dps.update_from_dps({B01_Q10_DP.STATUS: YXDeviceState.CHARGING.code})
     trait = _map_trait(map_dps)
@@ -520,7 +524,9 @@ def test_late_trace_is_retained_but_hidden_while_docked(render_map: Mock) -> Non
     trait.update_from_map_packet(parse_map_packet(FIXTURE.read_bytes()))
     trait.update_from_trace_packet(trace)
 
-    assert trait.path == trace.points
+    assert trait.path == []
+    assert trait.robot_position is None
+    assert trait.current_room is None
     assert render_map.call_args.args[1] is None
 
 
@@ -586,3 +592,57 @@ def test_map_content_trait_as_dict_camelizes_child_keys() -> None:
     }
     assert data["path"] == [{"x": 100, "y": 200}, {"x": 150, "y": 250}]
     assert data["robotPosition"] == {"x": 25875, "y": 26125}
+
+
+@pytest.mark.parametrize("trace_first", [False, True])
+def test_current_room_tracks_latest_fixture_pose_and_map(trace_first: bool) -> None:
+    """Current room and robot position consume the same latest map/trace inputs."""
+    map_dps = MapDpsTrait()
+    trait = _map_trait(map_dps)
+    packet = replace(
+        parse_map_packet(FIXTURE.read_bytes()), header_calibration=Q10HeaderCalibration(0, 50, 5, -1, -1, 0)
+    )
+    trace = Q10TracePacket(points=[Q10Point(100, 60)])
+    assert trait.current_room is None
+    if trace_first:
+        trait.update_from_trace_packet(trace)
+        assert trait.current_room is None
+        trait.update_from_map_packet(packet)
+    else:
+        trait.update_from_map_packet(packet)
+        assert trait.current_room is None
+        trait.update_from_trace_packet(trace)
+    assert trait.current_room == packet.rooms[1]
+    assert trait.robot_position == trace.points[-1].to_roborock()
+    assert trait.as_dict()["currentRoom"] == packet.rooms[1].as_dict()
+    assert "currentRoom" not in trait.as_dict(exclude={"currentRoom"})
+    map_dps.update_from_dps({B01_Q10_DP.STATUS: YXDeviceState.IDLE.code})
+    assert trait.current_room == packet.rooms[1]
+    trait.update_from_trace_packet(Q10TracePacket(points=[Q10Point(40, 60)]))
+    assert trait.current_room == packet.rooms[0]
+    trait.update_from_map_packet(replace(packet, rooms=[]))
+    assert trait.current_room is None
+
+
+@pytest.mark.parametrize("status", [YXDeviceState.CHARGING, YXDeviceState.EMPTYING_THE_BIN])
+def test_docking_clears_room_and_ignores_late_fixture_trace(status: YXDeviceState) -> None:
+    map_dps = MapDpsTrait()
+    trait = _map_trait(map_dps)
+    packet = replace(
+        parse_map_packet(FIXTURE.read_bytes()), header_calibration=Q10HeaderCalibration(0, 50, 5, -1, -1, 0)
+    )
+    trace = Q10TracePacket(points=[Q10Point(100, 60)])
+    trait.update_from_map_packet(packet)
+    trait.update_from_trace_packet(trace)
+    assert trait.current_room == packet.rooms[1]
+    map_dps.update_from_dps({B01_Q10_DP.STATUS: status.code})
+    assert trait.current_room is None
+    assert trait.robot_position is None
+    assert trait.path == []
+    trait.update_from_trace_packet(trace)
+    assert trait.current_room is None
+    assert trait.path == []
+    map_dps.update_from_dps({B01_Q10_DP.STATUS: YXDeviceState.CLEANING.code})
+    assert trait.current_room is None
+    trait.update_from_trace_packet(trace)
+    assert trait.current_room == packet.rooms[1]

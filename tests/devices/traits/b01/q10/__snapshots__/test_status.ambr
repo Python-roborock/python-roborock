@@ -24,6 +24,7 @@
       'dustSwitch': True,
     }),
     'map': dict({
+      'currentRoom': None,
       'path': list([
       ]),
       'robotHeading': None,
@@ -404,6 +405,7 @@
         'dustSwitch': True,
       }),
       'map': dict({
+        'currentRoom': None,
         'path': list([
         ]),
         'robotHeading': None,
@@ -480,6 +482,7 @@
     'dust_collection': dict({
     }),
     'map': dict({
+      'currentRoom': None,
       'path': list([
       ]),
       'robotHeading': None,
