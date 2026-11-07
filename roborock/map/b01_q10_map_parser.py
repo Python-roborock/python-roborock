@@ -25,6 +25,8 @@ import statistics
 import struct
 from dataclasses import dataclass, field, replace
 
+from vacuum_map_parser_base.config.drawable import Drawable
+
 from roborock.data.b01_q10.b01_q10_containers import Q10RoborockPoint
 from roborock.data.code_mappings import RoborockEnum
 from roborock.data.containers import RoborockBase
@@ -766,3 +768,5 @@ class B01Q10MapParserConfig:
 
     map_scale: int = 4
     """Scale factor for the rendered map image."""
+    drawables: list[Drawable] | None = None
+    """Enabled overlays, or ``None`` for the Q10 defaults."""

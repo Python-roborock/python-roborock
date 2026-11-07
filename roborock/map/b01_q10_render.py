@@ -332,10 +332,12 @@ def _draw_map_content(
     """Draw Q10 content with the shared V1 image generator."""
     if map_data.image is None:
         raise RoborockException("Failed to render Q10 map image")
-    generator = _create_image_generator(
-        MapParserConfig(map_scale=config.map_scale),
-        drawables=_Q10_DRAWABLES,
+    drawables = (
+        _Q10_DRAWABLES
+        if config.drawables is None
+        else [drawable for drawable in config.drawables if drawable in _Q10_DRAWABLE_TYPES]
     )
+    generator = _create_image_generator(MapParserConfig(map_scale=config.map_scale), drawables=drawables)
     generator.draw_map(map_data)
     buffer = io.BytesIO()
     map_data.image.data.save(buffer, format="PNG")
