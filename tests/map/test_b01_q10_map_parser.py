@@ -1,6 +1,7 @@
 """Tests for the Roborock Q10 (B01/ss07) map parser."""
 
 import io
+import struct
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,7 @@ from roborock.exceptions import RoborockException
 from roborock.map.b01_grid_layers import LAYER_BACKGROUND, LAYER_FLOOR, LAYER_WALL
 from roborock.map.b01_q10_map_parser import (
     Q10MapPacketKind,
+    Q10Obstacle,
     Q10Point,
     Q10Room,
     classify_q10_cell,
@@ -585,3 +587,35 @@ def test_clean_record_path_stray_point_handling(points: list[tuple[int, int]], e
 def test_clean_record_parser_rejects_other_packet_kinds(marker: bytes) -> None:
     with pytest.raises(RoborockException, match="not a Q10 clean-record"):
         parse_clean_record_detail(marker + FIXTURE.read_bytes()[2:])
+
+
+@pytest.mark.parametrize("marker", [b"\x01\x01", b"\x03\x01", b"\x04\x01"])
+def test_obstacle_tables_preserve_signed_coordinates_and_following_trace(marker: bytes) -> None:
+    """Complete counted tables retain their own coordinates and path boundary."""
+    payload = _map_detail_payload(marker, [(10, -20)])
+    offset = len(FIXTURE.read_bytes()) + len(_carpet_tail(8, 6, bytes(48)))
+    tables = b"\x02" + struct.pack(">hhhh", 250, -300, -32768, 32767) + b"\x01" + struct.pack(">hh", -40, 50)
+    payload = payload[:offset] + tables + payload[offset + 2 :]
+    packet = parse_map_packet(payload)
+    assert packet.obstacles == [Q10Obstacle(250, -300), Q10Obstacle(-32768, 32767)]
+    assert packet.skip_cleaning_points == [Q10Point(-40, 50)]
+    if marker == b"\x03\x01":
+        detail = parse_clean_record_detail(payload)
+        assert detail.trace is not None
+        assert detail.trace.points == [Q10Point(10, -20)]
+
+
+@pytest.mark.parametrize("table", [b"", b"\x02\x00\x01\x00\x02", b"\x00", b"\x00\x02\x00\x01\x00\x02"])
+def test_truncated_obstacle_tables_are_ignored_atomically(table: bytes) -> None:
+    payload = FIXTURE.read_bytes() + _carpet_tail(8, 6, bytes(48)) + table
+    packet = parse_map_packet(payload)
+    assert packet.obstacles == []
+    assert packet.skip_cleaning_points == []
+    assert packet.carpet_mask == bytes(48)
+
+
+def test_maximum_counted_obstacle_table_is_bounded() -> None:
+    table = b"\xff" + struct.pack(">hh", -10, 20) * 255 + b"\x00future"
+    packet = parse_map_packet(FIXTURE.read_bytes() + _carpet_tail(8, 6, bytes(48)) + table)
+    assert packet.obstacles == [Q10Obstacle(-10, 20)] * 255
+    assert packet.skip_cleaning_points == []
