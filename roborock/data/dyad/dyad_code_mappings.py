@@ -48,7 +48,7 @@ class DyadCleanMode(RoborockEnum):
     unknown = -1
     auto = 1
     max = 2
-    dehydration = 3
+    dehydration = 3  # The F25 Ultra reports its "Sponge" mode with this code.
     power_saving = 4
     # Heated modes on the F25 Ultra, confirmed by switching modes on the device.
     hot_water = 5
