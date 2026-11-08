@@ -157,6 +157,82 @@ async def test_dyad_values_track_pushes(dyad_api: DyadApi, fake_channel: FakeCha
     }
 
 
+async def test_dyad_f25_ultra_status_snapshot(dyad_api: DyadApi, fake_channel: FakeChannel):
+    """Data points pushed by an F25 Ultra (roborock.wdv.a194) are decoded."""
+    await dyad_api.start()
+
+    fake_channel.notify_subscribers(
+        build_a01_message({238: 0, 239: 1, 240: 1, 241: 2, 242: 3, 243: 2, 244: 3, 245: 2, 246: 0, 247: 100, 248: 0})
+    )
+    fake_channel.notify_subscribers(build_a01_message({270: 0, 271: 3, 272: 5}))
+
+    assert dyad_api.values == {
+        RoborockDyadDataProtocol.SET_CLEANSER_AMOUNT: "off",
+        RoborockDyadDataProtocol.AUTO_SMART_SELF_CLEAN_SET: True,
+        RoborockDyadDataProtocol.LIGHT_SET: True,
+        RoborockDyadDataProtocol.CLEAN_ASSIST_POWER_SET: "moderate",
+        RoborockDyadDataProtocol.SELF_CLEAN_WATER_TEMP_LEVEL_SET: "high",
+        RoborockDyadDataProtocol.DOCK_TYPE: 2,
+        RoborockDyadDataProtocol.WATER_MODE_SUCTION: "l3",
+        RoborockDyadDataProtocol.WATER_MODE_BRUSH_SPEED: "l2",
+        RoborockDyadDataProtocol.CHARGE_ERROR_STATUS: False,
+        RoborockDyadDataProtocol.DRYING_RATE: 100,
+        RoborockDyadDataProtocol.FLAT_STATUS: False,
+        RoborockDyadDataProtocol.SELF_CLEAN_CUR_MODE: "smart",
+        RoborockDyadDataProtocol.SELF_CLEAN_CUR_TEMP: "high",
+        RoborockDyadDataProtocol.DRY_CUR_MODE: 5,
+    }
+
+
+@pytest.mark.parametrize(
+    ("protocol", "raw", "expected"),
+    [
+        (RoborockDyadDataProtocol.SET_CLEANSER_AMOUNT, 0, "off"),
+        (RoborockDyadDataProtocol.SET_CLEANSER_AMOUNT, 1, "low"),
+        (RoborockDyadDataProtocol.SET_CLEANSER_AMOUNT, 2, "standard"),
+        (RoborockDyadDataProtocol.SET_CLEANSER_AMOUNT, 3, "high"),
+        (RoborockDyadDataProtocol.SET_CLEANSER_AMOUNT, 42, "unknown"),
+        (RoborockDyadDataProtocol.CLEAN_ASSIST_POWER_SET, 1, "gentle"),
+        (RoborockDyadDataProtocol.CLEAN_ASSIST_POWER_SET, 2, "moderate"),
+        (RoborockDyadDataProtocol.CLEAN_ASSIST_POWER_SET, 3, "strong"),
+        (RoborockDyadDataProtocol.SELF_CLEAN_WATER_TEMP_LEVEL_SET, 3, "high"),
+        (RoborockDyadDataProtocol.SELF_CLEAN_WATER_TEMP_LEVEL_SET, 4, "steam"),
+        (RoborockDyadDataProtocol.SELF_CLEAN_WATER_TEMP_LEVEL_SET, 1, "unknown"),
+        (RoborockDyadDataProtocol.SELF_CLEAN_CUR_TEMP, 4, "steam"),
+        (RoborockDyadDataProtocol.SELF_CLEAN_CUR_MODE, 0, "smart"),
+        (RoborockDyadDataProtocol.SELF_CLEAN_CUR_MODE, 1, "standard"),
+        (RoborockDyadDataProtocol.SELF_CLEAN_CUR_MODE, 2, "deep"),
+        (RoborockDyadDataProtocol.WATER_MODE_SUCTION, 4, "l4"),
+        (RoborockDyadDataProtocol.LIGHT_SET, 0, False),
+        (RoborockDyadDataProtocol.AUTO_SMART_SELF_CLEAN_SET, 0, False),
+        (RoborockDyadDataProtocol.CHARGE_ERROR_STATUS, 1, True),
+        (RoborockDyadDataProtocol.AUTO_SELF_CLEAN_SET, 1, True),
+        (RoborockDyadDataProtocol.AUTO_SELF_CLEAN_SET, 0, False),
+        (RoborockDyadDataProtocol.AUTO_SELF_CLEAN_SET_MODE, 2, "deep"),
+        (RoborockDyadDataProtocol.POWERWHEEL_DIRECTION, 0, "stop"),
+        (RoborockDyadDataProtocol.POWERWHEEL_DIRECTION, 1, "forward"),
+        (RoborockDyadDataProtocol.POWERWHEEL_DIRECTION, 2, "backward"),
+        (RoborockDyadDataProtocol.POWERWHEEL_DIRECTION, 5, "left"),
+        (RoborockDyadDataProtocol.POWERWHEEL_DIRECTION, 6, "right"),
+        (RoborockDyadDataProtocol.POWERWHEEL_DIRECTION, 9, "exit"),
+        (RoborockDyadDataProtocol.POWERWHEEL_DIRECTION, 3, "unknown"),
+        (RoborockDyadDataProtocol.POWERWHEEL_SPEED, 15, 15),
+        (RoborockDyadDataProtocol.DRY_CUR_MODE, 22, 22),
+    ],
+)
+async def test_dyad_f25_ultra_value_conversion(
+    protocol: RoborockDyadDataProtocol,
+    raw: int,
+    expected: Any,
+    dyad_api: DyadApi,
+    fake_channel: FakeChannel,
+):
+    """Values observed on an F25 Ultra while changing settings in the app."""
+    await dyad_api.start()
+    fake_channel.notify_subscribers(build_a01_message({int(protocol): raw}))
+    assert dyad_api.values == {protocol: expected}
+
+
 async def test_dyad_update_listener(dyad_api: DyadApi, fake_channel: FakeChannel):
     """Update listeners are notified when a value changes, not on identical pushes."""
     updates: list[dict[RoborockDyadDataProtocol, Any]] = []
