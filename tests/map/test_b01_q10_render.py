@@ -17,7 +17,6 @@ from vacuum_map_parser_base.map_data import MapData, Point
 
 from roborock.map.b01_grid_layers import GridCalibration
 from roborock.map.b01_q10_map_parser import (
-    B01Q10MapParserConfig,
     Q10CleanRecordDetail,
     Q10EraseZone,
     Q10HeaderCalibration,
@@ -40,15 +39,15 @@ from roborock.map.b01_q10_render import (
     Q10MapOverlays,
     _calibration_from_header_metadata,
     _erased_cells,
-    _map_data_from_packet,
     _place_docked_robot,
     _vector_calibration,
     render_q10_map,
     solve_q10_calibration,
 )
+from roborock.map.map_parser import MapParserConfig
 
 FIXTURE = Path("tests/map/testdata/b01_q10_map.bin")
-CONFIG = B01Q10MapParserConfig()
+CONFIG = MapParserConfig()
 
 # identity-ish calibration used across the geometry tests: world (x, y) -> grid
 # pixel (x, 5 - y) over the fixture's 8x6 grid (top-down, no flip).
@@ -67,12 +66,13 @@ def _render(
     *,
     trace: Q10TracePacket | Q10HistoricalTracePacket | None = None,
     overlays: Q10MapOverlays | None = None,
+    config: MapParserConfig = CONFIG,
 ) -> bytes:
     return render_q10_map(
         packet if packet is not None else _packet(),
         trace,
         overlays or Q10MapOverlays(),
-        config=CONFIG,
+        config=config,
     )
 
 
@@ -142,15 +142,31 @@ def test_render_gives_adjacent_rooms_distinct_palette_colors() -> None:
     assert image.getpixel((0, 0)) != image.getpixel((scale, 0))
 
 
-def test_map_data_from_packet_populates_room_names_and_carpet_map() -> None:
-    """Base MapData populates room_names and flat carpet_map indices."""
-    carpet = bytearray(8 * 6)
-    carpet[10] = 4
-    carpet[20] = 3
-    packet = replace(_packet(), carpet_mask=bytes(carpet))
-    map_data = _map_data_from_packet(packet, config=CONFIG)
-    assert map_data.additional_parameters["room_names"] == {2: "Living Room", 3: "Bedroom"}
-    assert map_data.carpet_map == {10, 20}
+@pytest.mark.parametrize(
+    ("show_walls", "show_rooms", "expected_pixels"),
+    [
+        (False, True, [(0, 0, 0, 0), (32, 115, 185, 255), (0, 0, 0, 0), (133, 193, 233, 255)]),
+        (True, False, [(0, 0, 0, 0), (0, 0, 0, 0), (93, 109, 126, 255), (0, 0, 0, 0)]),
+        (False, False, [(0, 0, 0, 0), (0, 0, 0, 0), (0, 0, 0, 0), (0, 0, 0, 0)]),
+    ],
+)
+def test_render_respects_wall_and_room_visibility(
+    show_walls: bool,
+    show_rooms: bool,
+    expected_pixels: list[tuple[int, int, int, int]],
+) -> None:
+    """Base-grid rendering hides walls and room fills when configured."""
+    packet = Q10MapPacket(
+        kind=Q10MapPacketKind.CURRENT,
+        map_id=1,
+        width=4,
+        height=1,
+        grid=bytes([243, 240, 249, 8]),
+    )
+    config = MapParserConfig(show_walls=show_walls, show_rooms=show_rooms)
+    image = Image.open(io.BytesIO(_render(packet, config=config)))
+    scale = config.map_scale
+    assert [image.getpixel((i * scale, 0)) for i in range(4)] == expected_pixels
 
 
 def test_render_draws_path_and_position() -> None:
@@ -179,15 +195,16 @@ def test_render_accepts_historical_trace() -> None:
 
 
 def test_render_draws_zones_and_virtual_walls() -> None:
-    """Decoded DPS overlays are included in the composed image."""
+    """Decoded DPS overlays are included in the composed image when enabled."""
     packet, trace = _calibrated_inputs()
     zones = [
         Q10Zone(type=ZONE_TYPE_NO_GO, vertices=_world_vertices(VECTOR_CALIBRATION, [(1, 1), (4, 1), (4, 4), (1, 4)])),
         Q10Zone(type=ZONE_TYPE_NO_MOP, vertices=_world_vertices(VECTOR_CALIBRATION, [(4, 1), (6, 1), (6, 3), (4, 3)])),
     ]
     walls = [Q10Zone(type=ZONE_TYPE_VIRTUAL_WALL, vertices=_world_vertices(VECTOR_CALIBRATION, [(1, 1), (6, 1)]))]
-    base = _render(packet, trace=trace)
-    rendered = _render(packet, trace=trace, overlays=Q10MapOverlays(zones=zones, virtual_walls=walls))
+    config = MapParserConfig(drawables=list(Drawable))
+    base = _render(packet, trace=trace, config=config)
+    rendered = _render(packet, trace=trace, overlays=Q10MapOverlays(zones=zones, virtual_walls=walls), config=config)
     assert rendered != base
 
 
@@ -206,11 +223,35 @@ def test_render_draws_zones_and_virtual_walls_without_trace() -> None:
             vertices=_world_vertices(VECTOR_CALIBRATION, [(1, 1), (6, 1)]),
         )
     ]
+    config = MapParserConfig(drawables=list(Drawable))
 
-    base = _render(packet)
-    rendered = _render(packet, overlays=Q10MapOverlays(zones=zones, virtual_walls=walls))
+    base = _render(packet, config=config)
+    rendered = _render(packet, overlays=Q10MapOverlays(zones=zones, virtual_walls=walls), config=config)
 
     assert rendered != base
+
+
+def test_render_disables_all_drawables_when_empty() -> None:
+    """An empty drawables list omits trace, charger, and restriction overlays."""
+    packet, trace = _calibrated_inputs()
+    overlays = Q10MapOverlays(
+        zones=[
+            Q10Zone(
+                type=ZONE_TYPE_NO_GO,
+                vertices=_world_vertices(VECTOR_CALIBRATION, [(1, 1), (4, 1), (4, 4), (1, 4)]),
+            )
+        ],
+        virtual_walls=[
+            Q10Zone(
+                type=ZONE_TYPE_VIRTUAL_WALL,
+                vertices=_world_vertices(VECTOR_CALIBRATION, [(1, 1), (6, 1)]),
+            )
+        ],
+    )
+    no_drawables = MapParserConfig(drawables=[])
+    assert _render(packet, trace=trace, overlays=overlays, config=no_drawables) == _render(
+        _packet(), config=no_drawables
+    )
 
 
 def test_render_draws_dock_from_header_without_trace() -> None:
@@ -353,7 +394,7 @@ def test_render_obstacle_at_header_anchored_position(origin: tuple[int, int]) ->
         header_calibration=header,
         obstacles=[Q10Obstacle((50 - origin[0] // 10) * 50, (origin[1] // 10 - 40) * 50)],
     )
-    config = B01Q10MapParserConfig(map_scale=4, drawables=[Drawable.OBSTACLES])
+    config = MapParserConfig(map_scale=4, drawables=[Drawable.OBSTACLES])
     rendered = Image.open(io.BytesIO(render_q10_map(packet, None, Q10MapOverlays(), config=config)))
     base = Image.open(io.BytesIO(render_q10_map(replace(packet, obstacles=[]), None, Q10MapOverlays(), config=config)))
     assert rendered.getpixel((200, 160)) != base.getpixel((200, 160))
@@ -363,7 +404,8 @@ def test_render_obstacle_at_header_anchored_position(origin: tuple[int, int]) ->
 @pytest.mark.parametrize("header", [None, Q10HeaderCalibration(0, 0, 5, -1, -1, 0)])
 def test_render_unanchored_obstacle_matches_base(header: Q10HeaderCalibration | None) -> None:
     packet = replace(_packet(), header_calibration=header, obstacles=[Q10Obstacle(100, 100)])
-    assert _render(packet) == _render(replace(packet, obstacles=[]))
+    config = MapParserConfig(drawables=[Drawable.OBSTACLES])
+    assert _render(packet, config=config) == _render(replace(packet, obstacles=[]), config=config)
 
 
 def test_render_obstacles_respects_drawables_and_ignores_skip_markers() -> None:
@@ -379,7 +421,7 @@ def test_render_obstacles_respects_drawables_and_ignores_skip_markers() -> None:
     )
 
     def render(drawables: list[Drawable], source: Q10MapPacket = packet) -> bytes:
-        return render_q10_map(source, None, Q10MapOverlays(), config=B01Q10MapParserConfig(drawables=drawables))
+        return render_q10_map(source, None, Q10MapOverlays(), config=MapParserConfig(drawables=drawables))
 
     assert render([Drawable.OBSTACLES]) != render([])
     assert render([]) == render([], replace(packet, obstacles=[]))

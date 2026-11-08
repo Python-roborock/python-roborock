@@ -34,10 +34,9 @@ from .b01_grid_layers import (
     solve_calibration_with_origin,
 )
 from .b01_q10_map_parser import (
-    _BACKGROUND_VALUE,
-    _UNSEGMENTED_FLOOR_VALUE,
-    _WALL_THRESHOLD,
-    B01Q10MapParserConfig,
+    Q10_BACKGROUND_VALUE,
+    Q10_UNSEGMENTED_FLOOR_VALUE,
+    Q10_WALL_THRESHOLD,
     Q10EraseZone,
     Q10HistoricalTracePacket,
     Q10MapPacket,
@@ -45,7 +44,7 @@ from .b01_q10_map_parser import (
     erased_packet,
 )
 from .b01_q10_overlays import ZONE_TYPE_NO_GO, ZONE_TYPE_NO_MOP, Q10Zone
-from .map_parser import DEFAULT_DRAWABLES, MapParserConfig, _create_image_generator
+from .map_parser import MapParserConfig, _create_image_generator
 from .room_colors import adjacency_aware_room_colors
 
 # Path-units-per-pixel candidates for calibration. A dense ss07 path lands a
@@ -78,7 +77,6 @@ _Q10_DRAWABLE_TYPES = {
     Drawable.VACUUM_POSITION,
     Drawable.VIRTUAL_WALLS,
 }
-_Q10_DRAWABLES = [drawable for drawable in DEFAULT_DRAWABLES if drawable in _Q10_DRAWABLE_TYPES]
 
 
 @dataclass(frozen=True)
@@ -94,7 +92,7 @@ def render_q10_map(
     trace: Q10TracePacket | Q10HistoricalTracePacket | None,
     overlays: Q10MapOverlays,
     *,
-    config: B01Q10MapParserConfig,
+    config: MapParserConfig,
     robot_at_dock: bool = False,
 ) -> bytes:
     """Compose the latest map, trace and DPS inputs into one PNG image.
@@ -119,19 +117,21 @@ def render_q10_map(
     if map_data.image is None:
         raise RoborockException("Failed to render Q10 map image")
 
-    has_drawables = _place_obstacles(map_data, packet)
-    if trace_calibration is not None and trace is not None:
-        charger_heading = packet.header_calibration.charger_phi if packet.header_calibration is not None else None
-        _place_trace(map_data, trace_calibration, trace, charger_heading=charger_heading)
-        has_drawables = True
-    has_drawables = _place_charger_from_header(map_data, packet) or has_drawables
-    if robot_at_dock:
-        has_drawables = _place_docked_robot(map_data) or has_drawables
-    if vector_calibration is not None:
-        _place_overlays(map_data, vector_calibration, overlays)
-        has_drawables = has_drawables or bool(map_data.no_go_areas or map_data.no_mopping_areas or map_data.walls)
-    if has_drawables:
-        return _draw_map_content(map_data, config=config)
+    drawables = [drawable for drawable in config.drawables if drawable in _Q10_DRAWABLE_TYPES]
+    if drawables:
+        has_drawables = _place_obstacles(map_data, packet)
+        if trace_calibration is not None and trace is not None:
+            charger_heading = packet.header_calibration.charger_phi if packet.header_calibration is not None else None
+            _place_trace(map_data, trace_calibration, trace, charger_heading=charger_heading)
+            has_drawables = True
+        has_drawables = _place_charger_from_header(map_data, packet) or has_drawables
+        if robot_at_dock:
+            has_drawables = _place_docked_robot(map_data) or has_drawables
+        if vector_calibration is not None:
+            _place_overlays(map_data, vector_calibration, overlays)
+            has_drawables = has_drawables or bool(map_data.no_go_areas or map_data.no_mopping_areas or map_data.walls)
+        if has_drawables:
+            return _draw_map_content(map_data, config=config, drawables=drawables)
 
     buffer = io.BytesIO()
     map_data.image.data.save(buffer, format="PNG")
@@ -341,17 +341,13 @@ def _place_overlays(
 def _draw_map_content(
     map_data: MapData,
     *,
-    config: B01Q10MapParserConfig,
+    config: MapParserConfig,
+    drawables: list[Drawable],
 ) -> bytes:
     """Draw Q10 content with the shared V1 image generator."""
     if map_data.image is None:
         raise RoborockException("Failed to render Q10 map image")
-    drawables = (
-        _Q10_DRAWABLES
-        if config.drawables is None
-        else [drawable for drawable in config.drawables if drawable in _Q10_DRAWABLE_TYPES]
-    )
-    generator = _create_image_generator(MapParserConfig(map_scale=config.map_scale), drawables=drawables)
+    generator = _create_image_generator(config, drawables=drawables)
     generator.draw_map(map_data)
     buffer = io.BytesIO()
     map_data.image.data.save(buffer, format="PNG")
@@ -361,10 +357,10 @@ def _draw_map_content(
 def _map_data_from_packet(
     packet: Q10MapPacket,
     *,
-    config: B01Q10MapParserConfig,
+    config: MapParserConfig,
 ) -> MapData:
     """Build MapData with a rendered base image, without PNG serialization."""
-    image = _render_base_grid(packet, scale=config.map_scale)
+    image = _render_base_grid(packet, config=config)
 
     map_data = MapData()
     map_data.image = ImageData(
@@ -382,29 +378,28 @@ def _map_data_from_packet(
         # overlays vertically.
         img_transformation=lambda p: Point(p.x, packet.height - p.y - 1, p.a),
     )
-    room_names = {room.id: room.name for room in packet.rooms}
-    if room_names:
-        map_data.additional_parameters["room_names"] = room_names
-
-    # Carpet cells are flat grid indices (y*width + x) in the same top-down
-    # pixel space as the rendered raster, so they line up with the image.
-    if packet.carpet_mask is not None:
-        map_data.carpet_map = {i for i, value in enumerate(packet.carpet_mask) if value}
-
     return map_data
 
 
-def _render_base_grid(packet: Q10MapPacket, *, scale: int) -> Image.Image:
+def _render_base_grid(packet: Q10MapPacket, *, config: MapParserConfig) -> Image.Image:
     """Render the Q10 grid with the V1 map palette."""
-    palette = _build_palette(packet.grid, packet.width)
+    palette = _build_palette(
+        packet.grid,
+        packet.width,
+        show_walls=config.show_walls,
+        show_rooms=config.show_rooms,
+    )
     flat_palette = [channel for color in palette for channel in color]
     p_img = Image.frombytes("P", (packet.width, packet.height), packet.grid)
     p_img.putpalette(flat_palette, rawmode="RGBA")
     img = p_img.convert("RGBA")
     # The ss07 grid is stored top-down (row 0 = top of the home), so it is
     # rendered as-is -- unlike the V1/Q7 convention, no vertical flip.
-    if scale > 1:
-        img = img.resize((packet.width * scale, packet.height * scale), resample=Image.Resampling.NEAREST)
+    if config.map_scale > 1:
+        img = img.resize(
+            (packet.width * config.map_scale, packet.height * config.map_scale),
+            resample=Image.Resampling.NEAREST,
+        )
     return img
 
 
@@ -413,27 +408,34 @@ def _opaque(color: tuple[int, ...]) -> tuple[int, int, int, int]:
     return (color[0], color[1], color[2], color[3] if len(color) == 4 else 255)
 
 
-def _build_palette(grid: bytes, width: int) -> list[tuple[int, int, int, int]]:
+def _build_palette(
+    grid: bytes,
+    width: int,
+    *,
+    show_walls: bool = True,
+    show_rooms: bool = True,
+) -> list[tuple[int, int, int, int]]:
     """Map Q10 cells onto the same colors used by the V1 map renderer."""
 
     def room_id(value: int) -> int | None:
-        return max(1, value // 4) if 0 < value < _WALL_THRESHOLD else None
+        return max(1, value // 4) if 0 < value < Q10_WALL_THRESHOLD else None
 
     colors = ColorsPalette()
-    room_colors = adjacency_aware_room_colors(
-        grid,
-        width,
-        colors,
-        room_id,
-    )
     outside = (0, 0, 0, 0)
     palette = [outside] * 256
-    for value in {value for value in grid if 0 < value < _WALL_THRESHOLD}:
-        palette[value] = _opaque(room_colors[max(1, value // 4)])
-    wall = _opaque(colors.get_color(SupportedColor.GREY_WALL))
-    for value in range(_WALL_THRESHOLD, 256):
-        palette[value] = wall
-    palette[_UNSEGMENTED_FLOOR_VALUE] = _opaque(colors.get_color(SupportedColor.MAP_INSIDE))
-    palette[_BACKGROUND_VALUE] = outside
-    palette[0] = outside
+    if show_rooms:
+        room_colors = adjacency_aware_room_colors(
+            grid,
+            width,
+            colors,
+            room_id,
+        )
+        for value in {value for value in grid if 0 < value < Q10_WALL_THRESHOLD}:
+            palette[value] = _opaque(room_colors[max(1, value // 4)])
+        palette[Q10_UNSEGMENTED_FLOOR_VALUE] = _opaque(colors.get_color(SupportedColor.MAP_INSIDE))
+    if show_walls:
+        wall = _opaque(colors.get_color(SupportedColor.GREY_WALL))
+        for value in range(Q10_WALL_THRESHOLD, 256):
+            if value not in (Q10_UNSEGMENTED_FLOOR_VALUE, Q10_BACKGROUND_VALUE):
+                palette[value] = wall
     return palette

@@ -8,6 +8,7 @@ details are tested in ``tests/map/test_b01_q10_render.py``.
 
 import asyncio
 import base64
+import io
 from collections.abc import AsyncGenerator, Generator
 from dataclasses import replace
 from pathlib import Path
@@ -15,6 +16,7 @@ from typing import cast
 from unittest.mock import Mock, patch
 
 import pytest
+from PIL import Image
 from vacuum_map_parser_base.config.drawable import Drawable
 
 from roborock.cli import _await_q10_map_push, cli
@@ -26,7 +28,6 @@ from roborock.devices.traits.b01.q10.map import MapContentTrait, MapDpsTrait
 from roborock.devices.traits.b01.q10.maps import MapsTrait
 from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
-    B01Q10MapParserConfig,
     Q10HeaderCalibration,
     Q10Obstacle,
     Q10Point,
@@ -36,6 +37,7 @@ from roborock.map.b01_q10_map_parser import (
 )
 from roborock.map.b01_q10_overlays import Q10RestrictedZone, Q10VirtualWall
 from roborock.map.b01_q10_render import Q10MapOverlays
+from roborock.map.map_parser import MapParserConfig
 from roborock.protocols.b01_q10_protocol import Q10DpsUpdate, Q10Message
 
 from .conftest import FakeB01Q10Channel
@@ -595,10 +597,10 @@ def test_map_content_trait_as_dict_camelizes_child_keys() -> None:
     assert data["robotPosition"] == {"x": 25875, "y": 26125}
 
 
-async def test_create_forwards_obstacle_drawables_to_rendering(fake_channel: FakeB01Q10Channel) -> None:
-    """The public Q10 factory config changes the rendered image."""
-    enabled = create(fake_channel, map_parser_config=B01Q10MapParserConfig(drawables=[Drawable.OBSTACLES]))
-    disabled = create(fake_channel, map_parser_config=B01Q10MapParserConfig(drawables=[]))
+def test_create_forwards_map_parser_config(fake_channel: FakeB01Q10Channel) -> None:
+    """Q10PropertiesApi forwards MapParserConfig scale and drawables to MapContentTrait rendering."""
+    enabled = create(fake_channel, map_parser_config=MapParserConfig(map_scale=2, drawables=[Drawable.OBSTACLES]))
+    disabled = create(fake_channel, map_parser_config=MapParserConfig(map_scale=2, drawables=[]))
     packet = replace(
         parse_map_packet(FIXTURE.read_bytes()),
         header_calibration=Q10HeaderCalibration(0, 50, 5, -1, -1, 0),
@@ -606,7 +608,12 @@ async def test_create_forwards_obstacle_drawables_to_rendering(fake_channel: Fak
     )
     enabled.map.update_from_map_packet(packet)
     disabled.map.update_from_map_packet(packet)
+
+    assert enabled.map.image_content is not None
+    assert disabled.map.image_content is not None
     assert enabled.map.image_content != disabled.map.image_content
+    image = Image.open(io.BytesIO(enabled.map.image_content))
+    assert image.size == (packet.width * 2, packet.height * 2)
 
 
 async def test_set_current_map_uses_apply_for_listed_string_id(

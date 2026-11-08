@@ -24,7 +24,6 @@ from roborock.data.b01_q10.b01_q10_containers import Q10RoborockPoint
 from roborock.devices.traits.common import DpsDataConverter, TraitUpdateListener
 from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
-    B01Q10MapParserConfig,
     Q10MapPacket,
     Q10Point,
     Q10Room,
@@ -32,6 +31,7 @@ from roborock.map.b01_q10_map_parser import (
 )
 from roborock.map.b01_q10_overlays import Q10RestrictedZone, Q10VirtualWall, parse_virtual_wall_blob, parse_zone_blob
 from roborock.map.b01_q10_render import Q10MapOverlays, render_q10_map
+from roborock.map.map_parser import MapParserConfig
 from roborock.protocols.b01_q10_protocol import encode_restricted_zones, encode_room_name, encode_virtual_walls
 
 from .command import CommandTrait
@@ -101,10 +101,10 @@ class MapContentTrait(TraitUpdateListener):
         maps: MapsTrait,
         command: CommandTrait,
         *,
-        map_parser_config: B01Q10MapParserConfig | None = None,
+        map_parser_config: MapParserConfig | None = None,
     ) -> None:
         TraitUpdateListener.__init__(self, logger=_LOGGER)
-        self._config = map_parser_config or B01Q10MapParserConfig()
+        self._config = map_parser_config or MapParserConfig()
         self._map_dps = map_dps
         self._maps = maps
         self._command = command
