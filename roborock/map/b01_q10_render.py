@@ -28,6 +28,7 @@ from vacuum_map_parser_base.map_data import Area, ImageData, MapData, Obstacle, 
 from roborock.exceptions import RoborockException
 
 from .b01_grid_layers import (
+    LAYER_FLOOR,
     GridCalibration,
     GridLayers,
     solve_calibration,
@@ -43,6 +44,7 @@ from .b01_q10_map_parser import (
     Q10Point,
     Q10Room,
     Q10TracePacket,
+    classify_q10_cell,
     erased_packet,
 )
 from .b01_q10_overlays import ZONE_TYPE_NO_GO, ZONE_TYPE_NO_MOP, Q10Zone
@@ -186,11 +188,11 @@ def _trace_calibration_from_header_metadata(
         origin_y=origin[1],
         y_sign=1,
     )
-    return calibration if _trace_projects_onto_floor(packet.layers, points, calibration) else None
+    return calibration if _trace_projects_onto_floor(packet, points, calibration) else None
 
 
 def _trace_projects_onto_floor(
-    layers: GridLayers,
+    packet: Q10MapPacket,
     points: Sequence[Q10Point],
     calibration: GridCalibration,
 ) -> bool:
@@ -203,9 +205,9 @@ def _trace_projects_onto_floor(
     for point in sample:
         pixel_x, pixel_y = calibration.world_to_pixel(point.x, point.y)
         column, row = math.floor(pixel_x), math.floor(pixel_y)
-        if not (0 <= column < layers.width and 0 <= row < layers.height):
+        if not (0 <= column < packet.width and 0 <= row < packet.height):
             continue
-        if layers.cell_class(layers.grid[row * layers.width + column]) == "floor":
+        if classify_q10_cell(packet.grid[row * packet.width + column]) == LAYER_FLOOR:
             on_floor += 1
     return on_floor >= len(sample) * 0.5
 

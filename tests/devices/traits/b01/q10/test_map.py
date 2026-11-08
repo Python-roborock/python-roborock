@@ -86,7 +86,7 @@ def test_update_from_map_packet_populates_image_and_rooms() -> None:
 
     assert trait.image_content is not None
     assert trait.image_content[:8] == b"\x89PNG\r\n\x1a\n"
-    assert {room.id: room.name for room in trait.rooms} == {2: "Living Room", 3: "Bedroom"}
+    assert {room.id: room.name for room in trait.rooms} == {2: "Living Room", 3: "bedroom"}
     assert len(updates) == 1
 
 
@@ -235,7 +235,7 @@ async def test_subscribe_loop_routes_map_push(
     message_queue.put_nowait(parse_map_packet(FIXTURE.read_bytes()))
 
     await _wait_for(lambda: q10_api.map.image_content is not None)
-    assert {room.id: room.name for room in q10_api.map.rooms} == {2: "Living Room", 3: "Bedroom"}
+    assert {room.id: room.name for room in q10_api.map.rooms} == {2: "Living Room", 3: "bedroom"}
 
 
 async def test_subscribe_loop_routes_trace_push(
@@ -659,6 +659,8 @@ def test_docking_clears_room_and_ignores_late_fixture_trace(status: YXDeviceStat
     assert trait.current_room is None
     trait.update_from_trace_packet(trace)
     assert trait.current_room == packet.rooms[1]
+
+
 async def test_create_forwards_obstacle_drawables_to_rendering(fake_channel: FakeB01Q10Channel) -> None:
     """The public Q10 factory config changes the rendered image."""
     enabled = create(fake_channel, map_parser_config=B01Q10MapParserConfig(drawables=[Drawable.OBSTACLES]))

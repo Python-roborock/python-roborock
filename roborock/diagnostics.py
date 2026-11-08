@@ -106,6 +106,7 @@ REDACT_KEYS = {
     "ipAddress",
     "ipAdress",
     "wifiName",
+    "rawName",
     "lat",
     "long",
 }

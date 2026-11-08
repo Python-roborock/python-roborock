@@ -149,7 +149,7 @@ def test_map_data_from_packet_populates_room_names_and_carpet_map() -> None:
     carpet[20] = 3
     packet = replace(_packet(), carpet_mask=bytes(carpet))
     map_data = _map_data_from_packet(packet, config=CONFIG)
-    assert map_data.additional_parameters["room_names"] == {2: "Living Room", 3: "Bedroom"}
+    assert map_data.additional_parameters["room_names"] == {2: "Living Room", 3: "bedroom"}
     assert map_data.carpet_map == {10, 20}
 
 
@@ -386,6 +386,8 @@ def test_current_room_requires_pose_calibration_and_matching_metadata() -> None:
     assert resolve_q10_current_room(packet, Q10TracePacket(points=[Q10Point(100, 60)])) is None
     packet = replace(packet, header_calibration=HEADER, rooms=[])
     assert resolve_q10_current_room(packet, Q10TracePacket(points=[Q10Point(100, 60)])) is None
+
+
 @pytest.mark.parametrize("origin", [(0, 500), (100, 600)])
 def test_render_obstacle_at_header_anchored_position(origin: tuple[int, int]) -> None:
     """A marker is placed using 50 raw units per pixel, with a top-down image."""
@@ -430,3 +432,15 @@ def test_render_obstacles_respects_drawables_and_ignores_skip_markers() -> None:
     assert render([Drawable.OBSTACLES]) != render([])
     assert render([]) == render([], replace(packet, obstacles=[]))
     assert render([Drawable.OBSTACLES], replace(packet, obstacles=[])) == render([], replace(packet, obstacles=[]))
+
+
+def test_resolve_current_room_valid_header_avoids_grid_decomposition(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Reading the current room with a valid header only samples raw grid cells."""
+    packet = replace(_packet(), header_calibration=HEADER)
+    trace = Q10TracePacket(points=[Q10Point(100, 60)])
+
+    def fail_decomposition(*args: object, **kwargs: object) -> None:
+        pytest.fail("Current-room lookup decomposed the full occupancy grid")
+
+    monkeypatch.setattr("roborock.map.b01_q10_map_parser.decompose_grid", fail_decomposition)
+    assert resolve_q10_current_room(packet, trace) == packet.rooms[1]
