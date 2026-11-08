@@ -417,7 +417,8 @@ class DyadApi(A01Api[RoborockDyadDataProtocol]):
         """Start self-clean with the settings currently set on the F25 Ultra.
 
         The app includes the current `SELF_CLEAN_LEVEL` in the start command, so it
-        is read from the device first.
+        is read from the device first. After changing the intensity, wait until the
+        device reports the new value before calling this.
         """
         response = await send_decoded_command(
             self._channel,
