@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v7.15.3 (2026-11-08)
+
+### Bug Fixes
+
+- **dyad**: Add steam and hot water clean modes
+  ([#1015](https://github.com/Python-roborock/python-roborock/pull/1015),
+  [`ba86fec`](https://github.com/Python-roborock/python-roborock/commit/ba86fec51f905f1f58f7208031127d211c250e56))
+
+- **dyad**: Parametrize clean mode tests with F25 Ultra codes
+  ([#1015](https://github.com/Python-roborock/python-roborock/pull/1015),
+  [`ba86fec`](https://github.com/Python-roborock/python-roborock/commit/ba86fec51f905f1f58f7208031127d211c250e56))
+
+### Documentation
+
+- **dyad**: Note F25 Ultra reports Sponge mode as clean mode 3
+  ([#1015](https://github.com/Python-roborock/python-roborock/pull/1015),
+  [`ba86fec`](https://github.com/Python-roborock/python-roborock/commit/ba86fec51f905f1f58f7208031127d211c250e56))
+
+
 ## v7.15.2 (2026-11-02)
 
 ### Bug Fixes
