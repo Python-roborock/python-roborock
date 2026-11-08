@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v7.17.0 (2026-11-08)
+
+### Features
+
+- Render Q10 map obstacle markers
+  ([#938](https://github.com/Python-roborock/python-roborock/pull/938),
+  [`f0341e8`](https://github.com/Python-roborock/python-roborock/commit/f0341e8629f65393b84df2c5077eef8ce36e5ed0))
+
+
 ## v7.16.0 (2026-11-08)
 
 ### Features
