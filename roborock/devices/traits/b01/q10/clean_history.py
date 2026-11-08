@@ -25,14 +25,12 @@ from roborock.data.b01_q10.b01_q10_code_mappings import (
 from roborock.data.b01_q10.b01_q10_containers import Q10CleanRecord
 from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
-    B01Q10MapParserConfig,
     Q10CleanRecordDetail,
     Q10HistoricalTracePacket,
     Q10MapPacket,
     Q10MapPacketKind,
     Q10Point,
 )
-from roborock.map.b01_q10_render import Q10MapOverlays, render_q10_map
 
 from .command import CommandTrait
 from .common import UpdatableTrait
@@ -127,9 +125,6 @@ class CleanHistory(RoborockBase):
     """Decoded clean records, most recent first."""
     detail: Q10CleanRecordDetail | None = None
     """Latest received archive. Its wire payload contains no record identifier."""
-    detail_image_content: bytes | None = None
-    """Rendered archive PNG, available separately from diagnostic serialization."""
-
     detail_path: list[Q10Point] = field(default_factory=list)
     """Historical path points from the latest received archive, included in diagnostics."""
 
@@ -149,12 +144,12 @@ class CleanHistory(RoborockBase):
         return self.detail.trace if self.detail else None
 
     def as_dict(self, exclude: set[str] | None = None) -> dict[str, Any]:
-        """Serialize history metadata and path without map grids or PNG bytes."""
-        return super().as_dict(exclude=(exclude or set()) | {"detail", "detail_image_content"})
+        """Serialize history metadata and path without binary map packets and grids."""
+        return super().as_dict(exclude=(exclude or set()) | {"detail"})
 
 
 class CleanHistoryTrait(CleanHistory, UpdatableTrait):
-    """Show past cleaning runs with their saved map image and historical path.
+    """Browse past cleaning runs and retrieve their parsed maps and historical paths.
 
     Subscribe with ``add_update_listener`` to receive requested or unsolicited
     archives. Archive pushes contain no record ID, so the latest detail cannot
@@ -163,12 +158,11 @@ class CleanHistoryTrait(CleanHistory, UpdatableTrait):
 
     _command: CommandTrait
 
-    def __init__(self, command: CommandTrait, *, map_parser_config: B01Q10MapParserConfig) -> None:
+    def __init__(self, command: CommandTrait) -> None:
         CleanHistory.__init__(self)
         UpdatableTrait.__init__(self, command, _LOGGER)
         self._command = command
         self._converter = CleanRecordConverter()
-        self._map_parser_config = map_parser_config
 
     async def refresh(self) -> None:
         """Request the clean-record list from the device.
@@ -206,21 +200,11 @@ class CleanHistoryTrait(CleanHistory, UpdatableTrait):
         self._apply(push)
 
     def update_from_detail(self, detail: Q10CleanRecordDetail) -> None:
-        """Store and render a pushed clean-record detail map."""
+        """Store a pushed clean-record map and path and notify listeners."""
         if detail.map.kind is not Q10MapPacketKind.CLEAN_RECORD_DETAIL:
             raise ValueError(f"Expected a Q10 clean-record detail packet, got {detail.map.kind.value}")
         self.detail = detail
         self.detail_path = list(detail.trace.points) if detail.trace else []
-        try:
-            self.detail_image_content = render_q10_map(
-                detail.map,
-                detail.trace,
-                Q10MapOverlays(),
-                config=self._map_parser_config,
-            )
-        except RoborockException:
-            _LOGGER.debug("Failed to render Q10 clean-record detail", exc_info=True)
-            self.detail_image_content = None
         self._notify_update()
 
     def _apply(self, push: CleanRecordPush) -> None:

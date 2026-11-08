@@ -215,6 +215,9 @@ def test_received_detail_is_serializable_and_path_is_independent(q10_api: Q10Pro
     detail = _detail()
     detail.trace = Q10HistoricalTracePacket(points=[Q10Point(x=1, y=2)], heading=0)
     history.update_from_detail(detail)
+    assert history.detail is detail
+    assert history.detail_packet is detail.map
+    assert history.detail_trace is detail.trace
     detail.trace.points.clear()
     assert history.detail_path == [Q10Point(x=1, y=2)]
     assert isinstance(history, CleanHistory)
@@ -225,6 +228,18 @@ def test_received_detail_is_serializable_and_path_is_independent(q10_api: Q10Pro
     assert "detail" not in data
     json.dumps(data)
     assert history.as_dict(exclude={"records", "detail_path"}) == {}
+
+
+def test_received_detail_without_trace_clears_previous_path(clean_history: CleanHistoryTrait) -> None:
+    first = _detail()
+    first.trace = Q10HistoricalTracePacket(points=[Q10Point(x=1, y=2)], heading=0)
+    clean_history.update_from_detail(first)
+    assert clean_history.detail_path == [Q10Point(x=1, y=2)]
+    second = _detail()
+    clean_history.update_from_detail(second)
+    assert clean_history.detail is second
+    assert clean_history.detail_trace is None
+    assert clean_history.detail_path == []
 
 
 def test_unsolicited_and_repeated_details_notify_listeners(clean_history: CleanHistoryTrait) -> None:

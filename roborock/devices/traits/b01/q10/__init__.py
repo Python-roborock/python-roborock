@@ -102,7 +102,7 @@ class Q10PropertiesApi(Trait):
         self,
         channel: B01Q10Channel,
         *,
-        map_parser_config: B01Q10MapParserConfig,
+        map_parser_config: B01Q10MapParserConfig | None = None,
     ) -> None:
         """Initialize the B01Props API."""
         self._channel = channel
@@ -117,16 +117,13 @@ class Q10PropertiesApi(Trait):
         self.network_info = NetworkInfoTrait()
         self.consumable = ConsumableTrait()
         self._map_dps = MapDpsTrait()
-        self.maps = MapsTrait(self.command, map_parser_config=map_parser_config)
+        self.maps = MapsTrait(self.command)
         self.map = MapContentTrait(
             self._map_dps,
             self.command,
             map_parser_config=map_parser_config,
         )
-        self.clean_history = CleanHistoryTrait(
-            self.command,
-            map_parser_config=map_parser_config,
-        )
+        self.clean_history = CleanHistoryTrait(self.command)
         self.vacuum = VacuumTrait(self.command, self.status, self.map)
         # Read-model traits updated from the device's DPS push stream.
         self._updatable_traits = [
@@ -210,5 +207,5 @@ def create(
     """Create traits for B01 devices."""
     return Q10PropertiesApi(
         channel,
-        map_parser_config=map_parser_config or B01Q10MapParserConfig(),
+        map_parser_config=map_parser_config,
     )

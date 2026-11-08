@@ -9,8 +9,7 @@ from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
 from roborock.data.b01_q10.b01_q10_containers import Q10MapInfo, dpMultiMap
 from roborock.devices.traits.common import DpsDataConverter
 from roborock.exceptions import RoborockException
-from roborock.map.b01_q10_map_parser import B01Q10MapParserConfig, Q10MapPacket, Q10MapPacketKind
-from roborock.map.b01_q10_render import Q10MapOverlays, render_q10_map
+from roborock.map.b01_q10_map_parser import Q10MapPacket, Q10MapPacketKind
 
 from .command import CommandTrait
 from .common import UpdatableTrait
@@ -28,12 +27,10 @@ class Maps(RoborockBase):
     """Most recently received saved-map preview."""
     detail_map_id: str | None = None
     """Map ID supplied by the preview packet itself."""
-    detail_image_content: bytes | None = None
-    """Rendered preview PNG, excluded from diagnostic serialization."""
 
     def as_dict(self, exclude: set[str] | None = None) -> dict[str, Any]:
-        """Serialize metadata without binary map grids or PNG bytes."""
-        return super().as_dict(exclude=(exclude or set()) | {"detail_packet", "detail_image_content"})
+        """Serialize metadata without binary map packets and grids."""
+        return super().as_dict(exclude=(exclude or set()) | {"detail_packet"})
 
     @property
     def current_map_id(self) -> str | None:
@@ -51,7 +48,7 @@ class Maps(RoborockBase):
 
 
 class MapsTrait(Maps, UpdatableTrait):
-    """Browse saved maps and display their previews independently of the live map.
+    """Browse saved maps and retrieve their parsed previews independently of the live map.
 
     Preview pushes identify their map, but carry no request correlation ID.
     Consumers receive them through ``add_update_listener``.
@@ -60,17 +57,11 @@ class MapsTrait(Maps, UpdatableTrait):
     _CONVERTER = DpsDataConverter.from_dataclass(Maps)
     _command: CommandTrait
 
-    def __init__(
-        self,
-        command: CommandTrait,
-        *,
-        map_parser_config: B01Q10MapParserConfig,
-    ) -> None:
+    def __init__(self, command: CommandTrait) -> None:
         """Initialize the saved-map list trait."""
         Maps.__init__(self)
         UpdatableTrait.__init__(self, command, _LOGGER)
         self._command = command
-        self._map_parser_config = map_parser_config
 
     async def refresh(self) -> None:
         """Request a new saved-map list from the device."""
@@ -121,19 +112,9 @@ class MapsTrait(Maps, UpdatableTrait):
         super().update_from_dps(decoded_dps)
 
     def update_from_map_packet(self, packet: Q10MapPacket) -> None:
-        """Store and render a pushed saved-map detail packet."""
+        """Store a pushed saved-map detail packet and notify listeners."""
         if packet.kind is not Q10MapPacketKind.SAVED_MAP_DETAIL:
             raise ValueError(f"Expected a Q10 saved-map detail packet, got {packet.kind.value}")
         self.detail_map_id = str(packet.map_id)
         self.detail_packet = packet
-        try:
-            self.detail_image_content = render_q10_map(
-                packet,
-                None,
-                Q10MapOverlays(),
-                config=self._map_parser_config,
-            )
-        except RoborockException:
-            _LOGGER.debug("Failed to render Q10 saved-map detail", exc_info=True)
-            self.detail_image_content = None
         self._notify_update()

@@ -805,12 +805,11 @@ async def test_archived_map_pushes_cannot_overwrite_live_map(
     assert q10_api.map.robot_position == live_position
     assert q10_api.map.robot_heading == live_heading
     assert live_updates == []
-    assert q10_api.clean_history.detail_packet is not None
+    assert q10_api.clean_history.detail is clean_record
+    assert q10_api.clean_history.detail_packet is clean_record.map
     assert q10_api.clean_history.detail_packet.kind is Q10MapPacketKind.CLEAN_RECORD_DETAIL
-    assert q10_api.clean_history.detail_image_content is not None
-    assert q10_api.maps.detail_packet is not None
+    assert q10_api.maps.detail_packet is saved_map
     assert q10_api.maps.detail_packet.kind is Q10MapPacketKind.SAVED_MAP_DETAIL
-    assert q10_api.maps.detail_image_content is not None
     assert clean_record_updates == [None]
     assert saved_map_updates == [None]
 
@@ -826,23 +825,28 @@ def test_archive_owners_reject_wrong_packet_kinds(q10_api: Q10PropertiesApi) -> 
 
 
 @pytest.mark.parametrize("scale", [1, 2, 4])
-async def test_all_q10_map_views_render_at_requested_scale(scale: int, fake_channel: FakeB01Q10Channel) -> None:
+async def test_live_q10_map_renders_at_requested_scale(scale: int, fake_channel: FakeB01Q10Channel) -> None:
     api = create(fake_channel, map_parser_config=B01Q10MapParserConfig(map_scale=scale))
     payload = FIXTURE.read_bytes()
     fake_channel.messages_to_stream = [
         parse_map_packet(payload),
-        parse_clean_record_detail(b"\x03\x01" + payload[2:]),
-        parse_map_packet(b"\x04\x01" + payload[2:]),
     ]
     await api.start()
     try:
-        await _wait_for(lambda: api.maps.detail_image_content is not None)
-        for content in [api.map.image_content, api.clean_history.detail_image_content, api.maps.detail_image_content]:
-            assert content is not None
-            with Image.open(io.BytesIO(content)) as image:
-                assert image.size == (8 * scale, 6 * scale)
+        await _wait_for(lambda: api.map.image_content is not None)
+        assert api.map.image_content is not None
+        with Image.open(io.BytesIO(api.map.image_content)) as image:
+            assert image.size == (8 * scale, 6 * scale)
     finally:
         await api.close()
+
+
+def test_q10_properties_constructor_uses_default_live_map_config(fake_channel: FakeB01Q10Channel) -> None:
+    api = Q10PropertiesApi(fake_channel)
+    api.map.update_from_map_packet(parse_map_packet(FIXTURE.read_bytes()))
+    assert api.map.image_content is not None
+    with Image.open(io.BytesIO(api.map.image_content)) as image:
+        assert image.size == (32, 24)
 
 
 @pytest.mark.parametrize("selected,expected", [(None, "12345"), ("67890", "67890")])
@@ -885,7 +889,6 @@ async def test_saved_map_details_publish_packet_map_id_and_notify(
     await _wait_for(lambda: bool(updates))
     assert updates == [str(packet.map_id)]
     assert q10_api.maps.detail_packet is packet
-    assert q10_api.maps.detail_image_content is not None
     message_queue.put_nowait(replace(packet, map_id=999))
     await _wait_for(lambda: len(updates) == 2)
     assert updates == [str(packet.map_id), "999"]
@@ -903,7 +906,7 @@ def test_saved_map_diagnostics_exclude_binary_content(q10_api: Q10PropertiesApi)
     q10_api.maps.update_from_map_packet(packet)
     data = q10_api.as_dict()["maps"]
     assert data == {"detailMapId": str(packet.map_id)}
-    assert q10_api.maps.detail_image_content is not None
+    assert q10_api.maps.detail_packet is packet
     assert q10_api.maps.as_dict(exclude={"detail_map_id"}) == {}
     json.dumps(data)
 
@@ -946,7 +949,7 @@ async def test_cli_listener_is_removed_after_cancellation(q10_api: Q10Properties
 
 
 @pytest.mark.parametrize("drawables,expected_base", [([], True), ([Drawable.CHARGER], False)])
-async def test_all_q10_map_views_honor_drawable_selection(
+async def test_live_q10_map_honors_drawable_selection(
     drawables: list[Drawable], expected_base: bool, fake_channel: FakeB01Q10Channel
 ) -> None:
     api = create(fake_channel, map_parser_config=B01Q10MapParserConfig(drawables=drawables))
@@ -964,15 +967,12 @@ async def test_all_q10_map_views_honor_drawable_selection(
     )
     fake_channel.messages_to_stream = [
         packet,
-        Q10CleanRecordDetail(map=replace(packet, kind=Q10MapPacketKind.CLEAN_RECORD_DETAIL)),
-        replace(packet, kind=Q10MapPacketKind.SAVED_MAP_DETAIL),
     ]
     await api.start()
     try:
-        await _wait_for(lambda: api.maps.detail_image_content is not None)
-        for content in [api.map.image_content, api.clean_history.detail_image_content, api.maps.detail_image_content]:
-            assert content is not None
-            with Image.open(io.BytesIO(content)) as image:
-                assert (image.tobytes() == base_pixels) is expected_base
+        await _wait_for(lambda: api.map.image_content is not None)
+        assert api.map.image_content is not None
+        with Image.open(io.BytesIO(api.map.image_content)) as image:
+            assert (image.tobytes() == base_pixels) is expected_base
     finally:
         await api.close()
