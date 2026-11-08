@@ -8,6 +8,7 @@ from Crypto.Util.Padding import unpad
 from freezegun import freeze_time
 
 from roborock.data import DyadScheduleTask
+from roborock.data.dyad.dyad_code_mappings import DyadDryingMode, DyadSelfCleanIntensity, DyadSuction
 from roborock.devices.traits.a01 import DyadApi, ZeoApi, create
 from roborock.devices.traits.a01.device_feature import build_force_load_dp_list
 from roborock.roborock_message import RoborockDyadDataProtocol, RoborockMessageProtocol, RoborockZeoProtocol
@@ -520,6 +521,7 @@ async def test_dyad_schedule_task_invalid(dyad_api: DyadApi, fake_channel: FakeC
     [
         ("start_drying", {"200": 1, "204": 1}),
         ("stop_drying", {"200": 0}),
+        ("stop_self_clean", {"200": 0}),
         ("reset_filter", {"218": 1}),
         ("reset_brush", {"219": 1}),
     ],
@@ -536,6 +538,118 @@ async def test_dyad_action_commands(
     assert len(fake_channel.published_messages) == 1
     payload_data = json.loads(unpad(fake_channel.published_messages[0].payload, AES.block_size))
     assert payload_data["dps"] == expected_dps
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected_dps"),
+    [
+        (DyadDryingMode.fast, {"225": 5}),
+        (DyadDryingMode.silent, {"225": 22}),
+    ],
+)
+async def test_dyad_set_drying_mode(
+    mode: DyadDryingMode,
+    expected_dps: dict[str, int],
+    dyad_api: DyadApi,
+    fake_channel: FakeChannel,
+):
+    """The drying mode is written to the data point used by the app."""
+    await dyad_api.set_drying_mode(mode)
+
+    assert len(fake_channel.published_messages) == 1
+    payload_data = json.loads(unpad(fake_channel.published_messages[0].payload, AES.block_size))
+    assert payload_data["dps"] == expected_dps
+
+
+async def test_dyad_set_drying_mode_unknown(dyad_api: DyadApi, fake_channel: FakeChannel):
+    """The unknown placeholder is rejected and nothing is sent to the device."""
+    with pytest.raises(ValueError):
+        await dyad_api.set_drying_mode(DyadDryingMode.unknown)
+
+    assert fake_channel.published_messages == []
+
+
+@pytest.mark.parametrize(
+    ("intensity", "expected_dps"),
+    [
+        (DyadSelfCleanIntensity.smart, {"203": 1, "223": 1, "239": 1}),
+        (DyadSelfCleanIntensity.standard, {"203": 1, "223": 1, "239": 0}),
+        (DyadSelfCleanIntensity.deep, {"203": 2, "223": 2, "239": 0}),
+    ],
+)
+async def test_dyad_set_self_clean_intensity(
+    intensity: DyadSelfCleanIntensity,
+    expected_dps: dict[str, int],
+    dyad_api: DyadApi,
+    fake_channel: FakeChannel,
+):
+    """The intensity is written to all the data points the device reports it on."""
+    await dyad_api.set_self_clean_intensity(intensity)
+
+    assert len(fake_channel.published_messages) == 1
+    payload_data = json.loads(unpad(fake_channel.published_messages[0].payload, AES.block_size))
+    assert payload_data["dps"] == expected_dps
+
+
+async def test_dyad_set_self_clean_intensity_unknown(dyad_api: DyadApi, fake_channel: FakeChannel):
+    """The unknown placeholder is rejected and nothing is sent to the device."""
+    with pytest.raises(ValueError):
+        await dyad_api.set_self_clean_intensity(DyadSelfCleanIntensity.unknown)
+
+    assert fake_channel.published_messages == []
+
+
+@pytest.mark.parametrize(
+    ("method", "suction", "expected_dps"),
+    [
+        ("set_suction", DyadSuction.l2, {"206": 2, "208": 1}),
+        ("set_suction", DyadSuction.l3, {"206": 3, "208": 2}),
+        ("set_suction", DyadSuction.l4, {"206": 4, "208": 2}),
+        ("set_sponge_suction", DyadSuction.l2, {"244": 2, "245": 1}),
+        ("set_sponge_suction", DyadSuction.l3, {"244": 3, "245": 2}),
+        ("set_sponge_suction", DyadSuction.l4, {"244": 4, "245": 2}),
+    ],
+)
+async def test_dyad_set_suction(
+    method: str,
+    suction: DyadSuction,
+    expected_dps: dict[str, int],
+    dyad_api: DyadApi,
+    fake_channel: FakeChannel,
+):
+    """Suction is sent together with the brush speed the app pairs with it."""
+    await getattr(dyad_api, method)(suction)
+
+    assert len(fake_channel.published_messages) == 1
+    payload_data = json.loads(unpad(fake_channel.published_messages[0].payload, AES.block_size))
+    assert payload_data["dps"] == expected_dps
+
+
+@pytest.mark.parametrize("method", ["set_suction", "set_sponge_suction"])
+@pytest.mark.parametrize("suction", [DyadSuction.l1, DyadSuction.l5, DyadSuction.l6])
+async def test_dyad_set_suction_unsupported(
+    method: str,
+    suction: DyadSuction,
+    dyad_api: DyadApi,
+    fake_channel: FakeChannel,
+):
+    """Levels not seen on the F25 Ultra are rejected and nothing is sent."""
+    with pytest.raises(ValueError):
+        await getattr(dyad_api, method)(suction)
+
+    assert fake_channel.published_messages == []
+
+
+@pytest.mark.parametrize("level", [1, 2])
+async def test_dyad_start_self_clean(level: int, dyad_api: DyadApi, fake_channel: FakeChannel):
+    """Self-clean starts with the level currently set on the device."""
+    fake_channel.response_queue.append(build_a01_message({203: level}))
+
+    await dyad_api.start_self_clean()
+
+    assert len(fake_channel.published_messages) == 2
+    payload_data = json.loads(unpad(fake_channel.published_messages[1].payload, AES.block_size))
+    assert payload_data["dps"] == {"200": 1, "203": level}
 
 
 async def test_zeo_api_set_value(zeo_api: ZeoApi, fake_channel: FakeChannel):

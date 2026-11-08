@@ -96,6 +96,13 @@ def _decode_dyad_schedule(value: str) -> list[DyadScheduleTask]:
     return [DyadScheduleTask.from_dict(task) for task in json.loads(value)]
 
 
+# The F25 Ultra app pairs each suction level (eco, standard, turbo) with a brush speed.
+_F25_SUCTION_BRUSH_SPEED = {
+    DyadSuction.l2: DyadBrushSpeed.l1,
+    DyadSuction.l3: DyadBrushSpeed.l2,
+    DyadSuction.l4: DyadBrushSpeed.l2,
+}
+
 DYAD_PROTOCOL_ENTRIES: dict[RoborockDyadDataProtocol, Callable] = {
     RoborockDyadDataProtocol.STATUS: lambda val: RoborockDyadStateCode(val).name,
     RoborockDyadDataProtocol.SELF_CLEAN_MODE: lambda val: DyadSelfCleanMode(val).name,
@@ -336,6 +343,97 @@ class DyadApi(A01Api[RoborockDyadDataProtocol]):
 
     async def stop_drying(self) -> None:
         """Stop a running drying cycle."""
+        await send_decoded_command(self._channel, {RoborockDyadDataProtocol.START: 0})
+
+    async def set_drying_mode(self, mode: DyadDryingMode) -> None:
+        """Set the drying mode on the F25 Ultra.
+
+        Do not use this on older Dyad models, where the same data point is the
+        silent drying duration in minutes. The device reports the selected mode
+        on `DRY_CUR_MODE`.
+        """
+        if mode == DyadDryingMode.unknown:
+            raise ValueError("Cannot set drying mode to unknown")
+        await send_decoded_command(self._channel, {RoborockDyadDataProtocol.SILENT_DRY_DURATION: int(mode)})
+
+    async def set_self_clean_intensity(self, intensity: DyadSelfCleanIntensity) -> None:
+        """Set the self-clean intensity on the F25 Ultra.
+
+        The F25 Ultra stores this setting across three data points, and smart differs
+        from standard only in `AUTO_SMART_SELF_CLEAN_SET`. Do not use this on other
+        models. `SELF_CLEAN_CUR_MODE` reports the current or last run, not this setting.
+        """
+        if intensity == DyadSelfCleanIntensity.unknown:
+            raise ValueError("Cannot set self-clean intensity to unknown")
+        level = DyadSelfCleanLevel.deep if intensity == DyadSelfCleanIntensity.deep else DyadSelfCleanLevel.normal
+        await send_decoded_command(
+            self._channel,
+            {
+                RoborockDyadDataProtocol.SELF_CLEAN_LEVEL: int(level),
+                RoborockDyadDataProtocol.AUTO_SELF_CLEAN_SET_MODE: int(level),
+                RoborockDyadDataProtocol.AUTO_SMART_SELF_CLEAN_SET: int(intensity == DyadSelfCleanIntensity.smart),
+            },
+        )
+
+    async def set_suction(self, suction: DyadSuction) -> None:
+        """Set the auto mode suction on the F25 Ultra.
+
+        Supports `l2` (eco), `l3` (standard) and `l4` (turbo). The device does not
+        change the brush speed by itself, so it is sent along with the suction.
+        """
+        await self._set_f25_suction(
+            RoborockDyadDataProtocol.SUCTION,
+            RoborockDyadDataProtocol.BRUSH_SPEED,
+            suction,
+        )
+
+    async def set_sponge_suction(self, suction: DyadSuction) -> None:
+        """Set the sponge mode suction on the F25 Ultra.
+
+        Supports `l2` (eco), `l3` (standard) and `l4` (turbo). The device does not
+        change the brush speed by itself, so it is sent along with the suction.
+        """
+        await self._set_f25_suction(
+            RoborockDyadDataProtocol.WATER_MODE_SUCTION,
+            RoborockDyadDataProtocol.WATER_MODE_BRUSH_SPEED,
+            suction,
+        )
+
+    async def _set_f25_suction(
+        self,
+        suction_protocol: RoborockDyadDataProtocol,
+        brush_protocol: RoborockDyadDataProtocol,
+        suction: DyadSuction,
+    ) -> None:
+        """Send a suction level with the brush speed the F25 Ultra app pairs with it."""
+        if (brush_speed := _F25_SUCTION_BRUSH_SPEED.get(suction)) is None:
+            raise ValueError(f"Unsupported suction level: {suction.name}")
+        await send_decoded_command(
+            self._channel,
+            {suction_protocol: int(suction), brush_protocol: int(brush_speed)},
+        )
+
+    async def start_self_clean(self) -> None:
+        """Start self-clean with the settings currently set on the F25 Ultra.
+
+        The app includes the current `SELF_CLEAN_LEVEL` in the start command, so it
+        is read from the device first.
+        """
+        response = await send_decoded_command(
+            self._channel,
+            {RoborockDyadDataProtocol.ID_QUERY: [RoborockDyadDataProtocol.SELF_CLEAN_LEVEL]},
+            value_encoder=json.dumps,
+        )
+        await send_decoded_command(
+            self._channel,
+            {
+                RoborockDyadDataProtocol.START: 1,
+                RoborockDyadDataProtocol.SELF_CLEAN_LEVEL: response[RoborockDyadDataProtocol.SELF_CLEAN_LEVEL],
+            },
+        )
+
+    async def stop_self_clean(self) -> None:
+        """Stop a running self-clean cycle."""
         await send_decoded_command(self._channel, {RoborockDyadDataProtocol.START: 0})
 
     async def reset_filter(self) -> None:
