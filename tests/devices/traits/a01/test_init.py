@@ -7,6 +7,7 @@ from Crypto.Cipher import AES
 from Crypto.Util.Padding import unpad
 from freezegun import freeze_time
 
+from roborock.data import DyadScheduleTask
 from roborock.devices.traits.a01 import DyadApi, ZeoApi, create
 from roborock.devices.traits.a01.device_feature import build_force_load_dp_list
 from roborock.roborock_message import RoborockDyadDataProtocol, RoborockMessageProtocol, RoborockZeoProtocol
@@ -180,7 +181,7 @@ async def test_dyad_f25_ultra_status_snapshot(dyad_api: DyadApi, fake_channel: F
         RoborockDyadDataProtocol.FLAT_STATUS: False,
         RoborockDyadDataProtocol.SELF_CLEAN_CUR_MODE: "smart",
         RoborockDyadDataProtocol.SELF_CLEAN_CUR_TEMP: "high",
-        RoborockDyadDataProtocol.DRY_CUR_MODE: 5,
+        RoborockDyadDataProtocol.DRY_CUR_MODE: "fast",
     }
 
 
@@ -217,7 +218,10 @@ async def test_dyad_f25_ultra_status_snapshot(dyad_api: DyadApi, fake_channel: F
         (RoborockDyadDataProtocol.POWERWHEEL_DIRECTION, 9, "exit"),
         (RoborockDyadDataProtocol.POWERWHEEL_DIRECTION, 3, "unknown"),
         (RoborockDyadDataProtocol.POWERWHEEL_SPEED, 15, 15),
-        (RoborockDyadDataProtocol.DRY_CUR_MODE, 22, 22),
+        (RoborockDyadDataProtocol.DRY_CUR_MODE, 5, "fast"),
+        (RoborockDyadDataProtocol.DRY_CUR_MODE, 22, "silent"),
+        (RoborockDyadDataProtocol.DRY_CUR_MODE, 7, "unknown"),
+        (RoborockDyadDataProtocol.SILENT_DRY_DURATION, 22, 22),
     ],
 )
 async def test_dyad_f25_ultra_value_conversion(
@@ -479,6 +483,59 @@ async def test_dyad_api_set_value(dyad_api: DyadApi, fake_channel: FakeChannel):
     # A01 protocol expects values to be strings in the dps dict
     assert payload_data["dps"] == {"209": 1}
     assert "t" in payload_data
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("", []),
+        (
+            '[{"id":1794139256726,"on":true,"cron":"0 15 * * 1,2,3,4,5","dpAction":{"200":1,"204":1}}]',
+            [DyadScheduleTask(id=1794139256726, on=True, cron="0 15 * * 1,2,3,4,5", dp_action={200: 1, 204: 1})],
+        ),
+    ],
+    ids=["empty", "weekdays"],
+)
+async def test_dyad_schedule_task(
+    raw: str,
+    expected: list[DyadScheduleTask],
+    dyad_api: DyadApi,
+    fake_channel: FakeChannel,
+):
+    """The schedule payload seen on an F25 Ultra is decoded into typed tasks."""
+    await dyad_api.start()
+    fake_channel.notify_subscribers(build_a01_message({10002: raw}))
+    assert dyad_api.values == {RoborockDyadDataProtocol.SCHEDULE_TASK: expected}
+
+
+async def test_dyad_schedule_task_invalid(dyad_api: DyadApi, fake_channel: FakeChannel):
+    """A malformed schedule payload does not produce a value."""
+    await dyad_api.start()
+    fake_channel.notify_subscribers(build_a01_message({10002: "not json"}))
+    assert dyad_api.values == {}
+
+
+@pytest.mark.parametrize(
+    ("method", "expected_dps"),
+    [
+        ("start_drying", {"200": 1, "204": 1}),
+        ("stop_drying", {"200": 0}),
+        ("reset_filter", {"218": 1}),
+        ("reset_brush", {"219": 1}),
+    ],
+)
+async def test_dyad_action_commands(
+    method: str,
+    expected_dps: dict[str, int],
+    dyad_api: DyadApi,
+    fake_channel: FakeChannel,
+):
+    """Action commands send the data points used by the app."""
+    await getattr(dyad_api, method)()
+
+    assert len(fake_channel.published_messages) == 1
+    payload_data = json.loads(unpad(fake_channel.published_messages[0].payload, AES.block_size))
+    assert payload_data["dps"] == expected_dps
 
 
 async def test_zeo_api_set_value(zeo_api: ZeoApi, fake_channel: FakeChannel):

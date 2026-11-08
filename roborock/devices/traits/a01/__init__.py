@@ -31,12 +31,13 @@ from collections.abc import Callable
 from datetime import UTC, datetime, time
 from typing import Any, Generic, TypeVar
 
-from roborock.data import DyadProductInfo, DyadSndState, HomeDataProduct, RoborockCategory
+from roborock.data import DyadProductInfo, DyadScheduleTask, DyadSndState, HomeDataProduct, RoborockCategory
 from roborock.data.dyad.dyad_code_mappings import (
     DyadBrushSpeed,
     DyadCleanAssistPower,
     DyadCleanMode,
     DyadCleanserAmount,
+    DyadDryingMode,
     DyadError,
     DyadPowerwheelDirection,
     DyadSelfCleanIntensity,
@@ -88,6 +89,13 @@ __all__ = [
 ]
 
 
+def _decode_dyad_schedule(value: str) -> list[DyadScheduleTask]:
+    """Decode the schedule data point, which is a JSON list or an empty string."""
+    if not value:
+        return []
+    return [DyadScheduleTask.from_dict(task) for task in json.loads(value)]
+
+
 DYAD_PROTOCOL_ENTRIES: dict[RoborockDyadDataProtocol, Callable] = {
     RoborockDyadDataProtocol.STATUS: lambda val: RoborockDyadStateCode(val).name,
     RoborockDyadDataProtocol.SELF_CLEAN_MODE: lambda val: DyadSelfCleanMode(val).name,
@@ -107,7 +115,7 @@ DYAD_PROTOCOL_ENTRIES: dict[RoborockDyadDataProtocol, Callable] = {
     RoborockDyadDataProtocol.STAND_LOCK_AUTO_RUN: lambda val: bool(val),
     RoborockDyadDataProtocol.AUTO_SELF_CLEAN_SET_MODE: lambda val: DyadSelfCleanLevel(val).name,
     RoborockDyadDataProtocol.AUTO_DRY_MODE: lambda val: bool(val),
-    RoborockDyadDataProtocol.SILENT_DRY_DURATION: lambda val: int(val),  # in minutes
+    RoborockDyadDataProtocol.SILENT_DRY_DURATION: lambda val: int(val),  # minutes, or DyadDryingMode on F25
     RoborockDyadDataProtocol.SILENT_MODE: lambda val: bool(val),
     RoborockDyadDataProtocol.SILENT_MODE_START_TIME: lambda val: time(
         hour=int(val / 60), minute=val % 60
@@ -134,7 +142,8 @@ DYAD_PROTOCOL_ENTRIES: dict[RoborockDyadDataProtocol, Callable] = {
     RoborockDyadDataProtocol.POWERWHEEL_SPEED: lambda val: int(val),
     RoborockDyadDataProtocol.SELF_CLEAN_CUR_MODE: lambda val: DyadSelfCleanIntensity(val).name,
     RoborockDyadDataProtocol.SELF_CLEAN_CUR_TEMP: lambda val: DyadSelfCleanWaterTemp(val).name,
-    RoborockDyadDataProtocol.DRY_CUR_MODE: lambda val: int(val),  # in minutes
+    RoborockDyadDataProtocol.DRY_CUR_MODE: lambda val: DyadDryingMode(val).name,
+    RoborockDyadDataProtocol.SCHEDULE_TASK: _decode_dyad_schedule,
     RoborockDyadDataProtocol.SND_STATE: lambda val: DyadSndState.from_dict(val),
     RoborockDyadDataProtocol.PRODUCT_INFO: lambda val: DyadProductInfo.from_dict(val),
 }
@@ -314,6 +323,28 @@ class DyadApi(A01Api[RoborockDyadDataProtocol]):
         """Set a value for a specific protocol on the device."""
         params = {protocol: value}
         return await send_decoded_command(self._channel, params)
+
+    async def start_drying(self) -> None:
+        """Start drying with the drying mode currently set on the device.
+
+        The app sends the same command for fast and silent drying on the F25 Ultra.
+        """
+        await send_decoded_command(
+            self._channel,
+            {RoborockDyadDataProtocol.START: 1, RoborockDyadDataProtocol.WARM_LEVEL: 1},
+        )
+
+    async def stop_drying(self) -> None:
+        """Stop a running drying cycle."""
+        await send_decoded_command(self._channel, {RoborockDyadDataProtocol.START: 0})
+
+    async def reset_filter(self) -> None:
+        """Reset the filter usage counter."""
+        await send_decoded_command(self._channel, {RoborockDyadDataProtocol.MESH_RESET: 1})
+
+    async def reset_brush(self) -> None:
+        """Reset the brush roller usage counter."""
+        await send_decoded_command(self._channel, {RoborockDyadDataProtocol.BRUSH_RESET: 1})
 
     async def add_listener(self, callback: Callable[[dict[RoborockDyadDataProtocol, Any]], None]) -> Callable[[], None]:
         """Listen for state the device pushes on its own.

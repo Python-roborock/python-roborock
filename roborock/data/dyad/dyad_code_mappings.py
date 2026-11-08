@@ -134,6 +134,14 @@ class DyadPowerwheelDirection(RoborockEnum):
     exit = 9  # sent when remote control ends
 
 
+class DyadDryingMode(RoborockEnum):
+    """Drying mode of the F25 Ultra, reported on DP 272 and set through DP 225."""
+
+    unknown = -1
+    fast = 5
+    silent = 22
+
+
 class DyadError(RoborockEnum):
     none = 0
     dirty_tank_full = 20000  # Dirty tank full. Empty it
