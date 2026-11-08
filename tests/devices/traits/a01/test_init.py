@@ -520,15 +520,17 @@ async def test_dyad_schedule_task_invalid(dyad_api: DyadApi, fake_channel: FakeC
     [
         ("start_drying", {"200": 1, "204": 1}),
         ("stop_drying", {"200": 0}),
+        ("reset_filter", {"218": 1}),
+        ("reset_brush", {"219": 1}),
     ],
 )
-async def test_dyad_drying_commands(
+async def test_dyad_action_commands(
     method: str,
     expected_dps: dict[str, int],
     dyad_api: DyadApi,
     fake_channel: FakeChannel,
 ):
-    """Drying commands send the data points used by the app."""
+    """Action commands send the data points used by the app."""
     await getattr(dyad_api, method)()
 
     assert len(fake_channel.published_messages) == 1

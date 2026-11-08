@@ -338,6 +338,14 @@ class DyadApi(A01Api[RoborockDyadDataProtocol]):
         """Stop a running drying cycle."""
         await send_decoded_command(self._channel, {RoborockDyadDataProtocol.START: 0})
 
+    async def reset_filter(self) -> None:
+        """Reset the filter usage counter."""
+        await send_decoded_command(self._channel, {RoborockDyadDataProtocol.MESH_RESET: 1})
+
+    async def reset_brush(self) -> None:
+        """Reset the brush roller usage counter."""
+        await send_decoded_command(self._channel, {RoborockDyadDataProtocol.BRUSH_RESET: 1})
+
     async def add_listener(self, callback: Callable[[dict[RoborockDyadDataProtocol, Any]], None]) -> Callable[[], None]:
         """Listen for state the device pushes on its own.
 
