@@ -9,7 +9,9 @@ import io
 from dataclasses import replace
 from pathlib import Path
 
+import pytest
 from PIL import Image
+from vacuum_map_parser_base.config.drawable import Drawable
 from vacuum_map_parser_base.config.size import Size, Sizes
 from vacuum_map_parser_base.map_data import MapData, Point
 
@@ -22,6 +24,7 @@ from roborock.map.b01_q10_map_parser import (
     Q10HistoricalTracePacket,
     Q10MapPacket,
     Q10MapPacketKind,
+    Q10Obstacle,
     Q10Point,
     Q10TracePacket,
     parse_map_packet,
@@ -335,3 +338,49 @@ def test_solve_q10_calibration_short_path_without_header_returns_none() -> None:
     packet = _packet()
     trace = Q10TracePacket(points=_floor_world_points(packet.layers, IDENTITY, 6))
     assert solve_q10_calibration(packet, trace) is None
+
+
+@pytest.mark.parametrize("origin", [(0, 500), (100, 600)])
+def test_render_obstacle_at_header_anchored_position(origin: tuple[int, int]) -> None:
+    """A marker is placed using 50 raw units per pixel, with a top-down image."""
+    header = Q10HeaderCalibration(*origin, 5, -1, -1, 0)
+    packet = Q10MapPacket(
+        kind=Q10MapPacketKind.CURRENT,
+        map_id=1,
+        width=100,
+        height=100,
+        grid=bytes([8]) * 10000,
+        header_calibration=header,
+        obstacles=[Q10Obstacle((50 - origin[0] // 10) * 50, (origin[1] // 10 - 40) * 50)],
+    )
+    config = B01Q10MapParserConfig(map_scale=4, drawables=[Drawable.OBSTACLES])
+    rendered = Image.open(io.BytesIO(render_q10_map(packet, None, Q10MapOverlays(), config=config)))
+    base = Image.open(io.BytesIO(render_q10_map(replace(packet, obstacles=[]), None, Q10MapOverlays(), config=config)))
+    assert rendered.getpixel((200, 160)) != base.getpixel((200, 160))
+    assert rendered.getpixel((20, 20)) == base.getpixel((20, 20))
+
+
+@pytest.mark.parametrize("header", [None, Q10HeaderCalibration(0, 0, 5, -1, -1, 0)])
+def test_render_unanchored_obstacle_matches_base(header: Q10HeaderCalibration | None) -> None:
+    packet = replace(_packet(), header_calibration=header, obstacles=[Q10Obstacle(100, 100)])
+    assert _render(packet) == _render(replace(packet, obstacles=[]))
+
+
+def test_render_obstacles_respects_drawables_and_ignores_skip_markers() -> None:
+    packet = Q10MapPacket(
+        kind=Q10MapPacketKind.CURRENT,
+        map_id=1,
+        width=100,
+        height=100,
+        grid=bytes([8]) * 10000,
+        header_calibration=Q10HeaderCalibration(0, 500, 5, -1, -1, 0),
+        obstacles=[Q10Obstacle(2500, 500)],
+        skip_cleaning_points=[Q10Point(100, 100)],
+    )
+
+    def render(drawables: list[Drawable], source: Q10MapPacket = packet) -> bytes:
+        return render_q10_map(source, None, Q10MapOverlays(), config=B01Q10MapParserConfig(drawables=drawables))
+
+    assert render([Drawable.OBSTACLES]) != render([])
+    assert render([]) == render([], replace(packet, obstacles=[]))
+    assert render([Drawable.OBSTACLES], replace(packet, obstacles=[])) == render([], replace(packet, obstacles=[]))
