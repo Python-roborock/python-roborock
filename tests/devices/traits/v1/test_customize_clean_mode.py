@@ -402,7 +402,7 @@ async def test_set_clean_then_mop_unsupported(
 
     Uses the default device fixture (S7 MaxV / a27): it genuinely supports
     per-room custom modes but not clean-then-mop specifically, matching real
-    hardware, rather than faking unsupport on a device that does support it.
+    hardware, rather than faking lack of support on a device that does support it.
     """
     assert customize_clean_mode_trait is not None
 
