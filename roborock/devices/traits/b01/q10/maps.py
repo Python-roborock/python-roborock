@@ -6,8 +6,9 @@ from typing import Any
 
 from roborock.data import RoborockBase
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
-from roborock.data.b01_q10.b01_q10_containers import dpMultiMap
+from roborock.data.b01_q10.b01_q10_containers import Q10MapInfo, dpMultiMap
 from roborock.devices.traits.common import DpsDataConverter
+from roborock.exceptions import RoborockException
 
 from .command import CommandTrait
 from .common import UpdatableTrait
@@ -28,6 +29,13 @@ class Maps(RoborockBase):
             return None
         return self.multi_map.current_map_id
 
+    @property
+    def map_list(self) -> list[Q10MapInfo]:
+        """Return a copy of the successfully reported saved-map list."""
+        if self.multi_map is None or self.multi_map.op != "list" or self.multi_map.result != 1:
+            return []
+        return list(self.multi_map.data)
+
 
 class MapsTrait(Maps, UpdatableTrait):
     """Request and store the Q10 saved-map list."""
@@ -46,6 +54,20 @@ class MapsTrait(Maps, UpdatableTrait):
         await self._command.send(
             B01_Q10_DP.COMMON,
             {str(B01_Q10_DP.MULTI_MAP.code): {"op": "list"}},
+        )
+
+    async def set_current_map(self, map_id: str) -> None:
+        """Request a saved map without optimistically changing cached state."""
+        if map_id not in {map_info.id for map_info in self.map_list}:
+            raise RoborockException(f"Unknown Q10 saved-map ID: {map_id}")
+        await self._command.send(
+            B01_Q10_DP.COMMON,
+            {
+                str(B01_Q10_DP.MULTI_MAP.code): {
+                    "op": "apply",
+                    "id": map_id,
+                }
+            },
         )
 
     def update_from_dps(self, decoded_dps: dict[B01_Q10_DP, Any]) -> None:
