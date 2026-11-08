@@ -695,6 +695,22 @@ def test_current_cleaning_mode_water_code_fallback(
     assert status_trait.current_cleaning_mode == expected_mode
 
 
+@pytest.mark.parametrize(
+    ("code", "expected_mode", "display_name"),
+    [
+        (225, WaterModes.PURE_WATER_FLOW_SMALL, "low"),
+        (235, WaterModes.PURE_WATER_FLOW_MIDDLE, "medium"),
+        (245, WaterModes.PURE_WATER_SUPER_BEGIN, "high"),
+        (250, WaterModes.PURE_WATER_FLOW_END, "extreme"),
+    ],
+)
+def test_water_slide_modes_keep_their_own_codes(code: int, expected_mode: WaterModes, display_name: str) -> None:
+    """Water slide modes are distinct from the legacy modes that share their names."""
+    assert WaterModes.from_code_optional(code) is expected_mode
+    assert expected_mode.code == code
+    assert expected_mode.display_name == display_name
+
+
 @pytest.mark.parametrize("water_mode", [WaterModes.MEDIUM, WaterModes.PURE_WATER_FLOW_MIDDLE])
 def test_current_cleaning_mode_water_slide_accepts_enums(water_mode: WaterModes) -> None:
     """Enum inputs remain valid even when they alias a legacy water mode."""
@@ -778,7 +794,7 @@ def test_water_slide_mode_mapping() -> None:
         245: "high",
         250: "extreme",
     }
-    assert [mode.value for mode in status_trait.water_mode_options] == [
+    assert [mode.display_name for mode in status_trait.water_mode_options] == [
         "off",
         "slight",
         "low",

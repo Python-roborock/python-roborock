@@ -212,6 +212,30 @@ class Q10MapPacketKind(RoborockEnum):
 
 
 @dataclass
+class Q10Point(RoborockBase):
+    """A point in the Q10 firmware's dock-relative trace coordinate space."""
+
+    x: int
+    y: int
+
+    def to_roborock(self) -> Q10RoborockPoint:
+        """Convert this trace point to common Roborock coordinates."""
+        return Q10RoborockPoint.from_trace(self.x, self.y)
+
+
+@dataclass
+class Q10Obstacle(RoborockBase):
+    """A position-only obstacle in the map package's coordinate frame.
+
+    Fifty raw units equal one grid pixel. These coordinates use the map header
+    origin and carry no validated obstacle type, confidence, or photo identifier.
+    """
+
+    x: int
+    y: int
+
+
+@dataclass
 class Q10MapPacket:
     """Decoded contents of a Q10 current or archived map packet."""
 
@@ -230,24 +254,17 @@ class Q10MapPacket:
     the same (top-down) pixel space as :attr:`grid`, where a non-zero cell is
     carpet (the value is the carpet kind). ``None`` if the packet carried none."""
 
+    obstacles: list[Q10Obstacle] = field(default_factory=list)
+    """Obstacle positions embedded after the carpet mask (50 raw units/pixel)."""
+    skip_cleaning_points: list[Q10Point] = field(default_factory=list)
+    """Skip-clean markers in their distinct firmware coordinate frame."""
+
     @property
     def layers(self) -> GridLayers:
         """Split the occupancy grid into separable grid-pixel layers."""
         rooms = [(room.id, room.name, room.pixel_value, room.pixel_count) for room in self.rooms]
         # The ss07 grid is stored top-down (row 0 = top), so no display flip is applied.
         return decompose_grid(self.width, self.height, self.grid, rooms, classify_q10_cell, flip=False)
-
-
-@dataclass
-class Q10Point(RoborockBase):
-    """A point in the Q10 firmware's dock-relative trace coordinate space."""
-
-    x: int
-    y: int
-
-    def to_roborock(self) -> Q10RoborockPoint:
-        """Convert this trace point to common Roborock coordinates."""
-        return Q10RoborockPoint.from_trace(self.x, self.y)
 
 
 @dataclass
@@ -337,12 +354,11 @@ _TRACE_SEQUENCE_OFFSET = 3
 _TRACE_POINT_COUNT_OFFSET = 8
 _TRACE_HEADING_OFFSET = 10
 
-_HISTORICAL_TRACE_HEADER_LENGTH = 14
-_HISTORICAL_TRACE_PREFIX_LENGTH = 1
+_HISTORICAL_TRACE_HEADER_LENGTH = 13
 _HISTORICAL_TRACE_VERSION = 1
-_HISTORICAL_TRACE_POINT_COUNT_OFFSET = 6
-_HISTORICAL_TRACE_HEADING_OFFSET = 10
-_HISTORICAL_TRACE_RESERVED_OFFSET = 12
+_HISTORICAL_TRACE_POINT_COUNT_OFFSET = 5
+_HISTORICAL_TRACE_HEADING_OFFSET = 9
+_HISTORICAL_TRACE_RESERVED_OFFSET = 11
 
 # Some cleans still prepend a single near-origin sentinel as the first real
 # point (e.g. ~(5, 76) / (-3, 0) when the path proper starts near (-1700, -800));
@@ -574,6 +590,17 @@ def _parse_map_layout(payload: bytes) -> tuple[Q10MapPacket, bytes, int | None]:
     tail = payload[layout_end:]
     erase_zones = _parse_erase_zones(tail)
     carpet_mask, carpet_end = _parse_carpet_block(tail, width, height)
+    obstacles: list[Q10Obstacle] = []
+    skip_cleaning_points: list[Q10Point] = []
+    trace_offset = None
+    if carpet_end is not None:
+        obstacle_coords, obstacle_end = _parse_counted_points(tail, carpet_end)
+        if obstacle_end is not None:
+            skip_coords, skip_end = _parse_counted_points(tail, obstacle_end)
+            if skip_end is not None:
+                obstacles = [Q10Obstacle(x, y) for x, y in obstacle_coords]
+                skip_cleaning_points = [Q10Point(x, y) for x, y in skip_coords]
+                trace_offset = skip_end
     header_calibration = _parse_header_calibration(payload)
     packet = Q10MapPacket(
         kind=kind,
@@ -585,8 +612,10 @@ def _parse_map_layout(payload: bytes) -> tuple[Q10MapPacket, bytes, int | None]:
         erase_zones=erase_zones,
         header_calibration=header_calibration,
         carpet_mask=carpet_mask,
+        obstacles=obstacles,
+        skip_cleaning_points=skip_cleaning_points,
     )
-    return packet, tail, carpet_end
+    return packet, tail, trace_offset
 
 
 def _parse_header_calibration(payload: bytes) -> Q10HeaderCalibration | None:
@@ -701,6 +730,16 @@ def _parse_carpet_block(tail: bytes, width: int, height: int) -> tuple[bytes | N
     return mask, block_end
 
 
+def _parse_counted_points(tail: bytes, offset: int) -> tuple[list[tuple[int, int]], int | None]:
+    """Decode a complete u8-counted signed-BE coordinate table atomically."""
+    if offset >= len(tail):
+        return [], None
+    end = offset + 1 + tail[offset] * 4
+    if end > len(tail):
+        return [], None
+    return list(struct.iter_unpack(">hh", memoryview(tail)[offset + 1 : end])), end
+
+
 def _parse_clean_record_trace(
     tail: bytes,
     offset: int,
@@ -709,20 +748,17 @@ def _parse_clean_record_trace(
 
     The header and declared point count were validated against a physical ss07
     clean-record response and its point bytes match captured prefixes of the
-    corresponding live trace exactly. One observed zero byte precedes the path;
-    its meaning is unknown, so a non-zero value makes the entire section opaque.
-    Any unsupported version, non-zero reserved word, or truncated point table is
+    corresponding live trace exactly. The obstacle and skip-clean tables precede
+    the one-byte path version. Any unsupported version, non-zero reserved word,
+    or truncated point table is
     likewise left completely opaque. Bytes after the declared points are
     deliberately not consumed: the observed 12-byte suffix appears structured,
     but there is not enough controlled evidence to name or decode it safely.
     """
-    if offset >= len(tail) or tail[offset] != 0:
-        return None
-    offset += _HISTORICAL_TRACE_PREFIX_LENGTH
     header_end = offset + _HISTORICAL_TRACE_HEADER_LENGTH
     if header_end > len(tail):
         return None
-    version = int.from_bytes(tail[offset : offset + 2], "big")
+    version = tail[offset]
     reserved = int.from_bytes(
         tail[offset + _HISTORICAL_TRACE_RESERVED_OFFSET : offset + _HISTORICAL_TRACE_RESERVED_OFFSET + 2],
         "big",
