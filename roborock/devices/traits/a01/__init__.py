@@ -37,6 +37,7 @@ from roborock.data.dyad.dyad_code_mappings import (
     DyadCleanAssistPower,
     DyadCleanMode,
     DyadCleanserAmount,
+    DyadDryingMode,
     DyadError,
     DyadPowerwheelDirection,
     DyadSelfCleanIntensity,
@@ -107,7 +108,7 @@ DYAD_PROTOCOL_ENTRIES: dict[RoborockDyadDataProtocol, Callable] = {
     RoborockDyadDataProtocol.STAND_LOCK_AUTO_RUN: lambda val: bool(val),
     RoborockDyadDataProtocol.AUTO_SELF_CLEAN_SET_MODE: lambda val: DyadSelfCleanLevel(val).name,
     RoborockDyadDataProtocol.AUTO_DRY_MODE: lambda val: bool(val),
-    RoborockDyadDataProtocol.SILENT_DRY_DURATION: lambda val: int(val),  # in minutes
+    RoborockDyadDataProtocol.SILENT_DRY_DURATION: lambda val: int(val),  # minutes, or DyadDryingMode on F25
     RoborockDyadDataProtocol.SILENT_MODE: lambda val: bool(val),
     RoborockDyadDataProtocol.SILENT_MODE_START_TIME: lambda val: time(
         hour=int(val / 60), minute=val % 60
@@ -134,7 +135,7 @@ DYAD_PROTOCOL_ENTRIES: dict[RoborockDyadDataProtocol, Callable] = {
     RoborockDyadDataProtocol.POWERWHEEL_SPEED: lambda val: int(val),
     RoborockDyadDataProtocol.SELF_CLEAN_CUR_MODE: lambda val: DyadSelfCleanIntensity(val).name,
     RoborockDyadDataProtocol.SELF_CLEAN_CUR_TEMP: lambda val: DyadSelfCleanWaterTemp(val).name,
-    RoborockDyadDataProtocol.DRY_CUR_MODE: lambda val: int(val),  # in minutes
+    RoborockDyadDataProtocol.DRY_CUR_MODE: lambda val: DyadDryingMode(val).name,
     RoborockDyadDataProtocol.SND_STATE: lambda val: DyadSndState.from_dict(val),
     RoborockDyadDataProtocol.PRODUCT_INFO: lambda val: DyadProductInfo.from_dict(val),
 }

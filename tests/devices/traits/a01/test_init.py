@@ -180,7 +180,7 @@ async def test_dyad_f25_ultra_status_snapshot(dyad_api: DyadApi, fake_channel: F
         RoborockDyadDataProtocol.FLAT_STATUS: False,
         RoborockDyadDataProtocol.SELF_CLEAN_CUR_MODE: "smart",
         RoborockDyadDataProtocol.SELF_CLEAN_CUR_TEMP: "high",
-        RoborockDyadDataProtocol.DRY_CUR_MODE: 5,
+        RoborockDyadDataProtocol.DRY_CUR_MODE: "fast",
     }
 
 
@@ -217,7 +217,10 @@ async def test_dyad_f25_ultra_status_snapshot(dyad_api: DyadApi, fake_channel: F
         (RoborockDyadDataProtocol.POWERWHEEL_DIRECTION, 9, "exit"),
         (RoborockDyadDataProtocol.POWERWHEEL_DIRECTION, 3, "unknown"),
         (RoborockDyadDataProtocol.POWERWHEEL_SPEED, 15, 15),
-        (RoborockDyadDataProtocol.DRY_CUR_MODE, 22, 22),
+        (RoborockDyadDataProtocol.DRY_CUR_MODE, 5, "fast"),
+        (RoborockDyadDataProtocol.DRY_CUR_MODE, 22, "silent"),
+        (RoborockDyadDataProtocol.DRY_CUR_MODE, 7, "unknown"),
+        (RoborockDyadDataProtocol.SILENT_DRY_DURATION, 22, 22),
     ],
 )
 async def test_dyad_f25_ultra_value_conversion(

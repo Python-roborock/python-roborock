@@ -86,7 +86,7 @@ class RoborockDyadDataProtocol(RoborockEnum):
     STATUS = 201
     SELF_CLEAN_MODE = 202
     SELF_CLEAN_LEVEL = 203
-    WARM_LEVEL = 204
+    WARM_LEVEL = 204  # F25 Ultra: mode of the current or last drying run, 2 fast and 1 silent
     CLEAN_MODE = 205
     SUCTION = 206
     WATER_LEVEL = 207
@@ -104,7 +104,7 @@ class RoborockDyadDataProtocol(RoborockEnum):
     STAND_LOCK_AUTO_RUN = 222
     AUTO_SELF_CLEAN_SET_MODE = 223
     AUTO_DRY_MODE = 224
-    SILENT_DRY_DURATION = 225
+    SILENT_DRY_DURATION = 225  # minutes on older models; F25 Ultra uses DyadDryingMode codes
     SILENT_MODE = 226
     SILENT_MODE_START_TIME = 227
     SILENT_MODE_END_TIME = 228
@@ -128,7 +128,7 @@ class RoborockDyadDataProtocol(RoborockEnum):
     POWERWHEEL_SPEED = 250  # remote control drive speed
     SELF_CLEAN_CUR_MODE = 270  # intensity of the current or last self-clean run
     SELF_CLEAN_CUR_TEMP = 271  # water temperature of the current or last self-clean run
-    DRY_CUR_MODE = 272  # drying time in minutes of the current or next run, follows SILENT_DRY_DURATION
+    DRY_CUR_MODE = 272  # DyadDryingMode on the F25 Ultra, follows SILENT_DRY_DURATION
     ID_QUERY = 10000
     F_C = 10001
     SCHEDULE_TASK = 10002
