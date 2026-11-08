@@ -2,6 +2,20 @@
 
 <!-- version list -->
 
+## v7.21.0 (2026-11-08)
+
+### Bug Fixes
+
+- Keep Q10 archive traits lightweight
+  ([#937](https://github.com/Python-roborock/python-roborock/pull/937),
+  [`252ec92`](https://github.com/Python-roborock/python-roborock/commit/252ec92dc19cefb43108fb42a0e8f41e2937517a))
+
+### Features
+
+- Expose Q10 map archives ([#937](https://github.com/Python-roborock/python-roborock/pull/937),
+  [`252ec92`](https://github.com/Python-roborock/python-roborock/commit/252ec92dc19cefb43108fb42a0e8f41e2937517a))
+
+
 ## v7.20.0 (2026-11-08)
 
 ### Bug Fixes
