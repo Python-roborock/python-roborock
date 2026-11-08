@@ -2,6 +2,35 @@
 
 <!-- version list -->
 
+## v7.19.0 (2026-11-08)
+
+### Bug Fixes
+
+- **dyad**: Decode F25 Ultra drying mode
+  ([#1019](https://github.com/Python-roborock/python-roborock/pull/1019),
+  [`a2cfdcf`](https://github.com/Python-roborock/python-roborock/commit/a2cfdcf133f4c8a0ab9e93b145ea40727f4d0aae))
+
+### Features
+
+- **dyad**: Add F25 Ultra drying mode, schedule and reset support
+  ([#1019](https://github.com/Python-roborock/python-roborock/pull/1019),
+  [`a2cfdcf`](https://github.com/Python-roborock/python-roborock/commit/a2cfdcf133f4c8a0ab9e93b145ea40727f4d0aae))
+
+- **dyad**: Add filter and brush reset commands
+  ([#1019](https://github.com/Python-roborock/python-roborock/pull/1019),
+  [`a2cfdcf`](https://github.com/Python-roborock/python-roborock/commit/a2cfdcf133f4c8a0ab9e93b145ea40727f4d0aae))
+
+- **dyad**: Decode schedule and add drying commands
+  ([#1019](https://github.com/Python-roborock/python-roborock/pull/1019),
+  [`a2cfdcf`](https://github.com/Python-roborock/python-roborock/commit/a2cfdcf133f4c8a0ab9e93b145ea40727f4d0aae))
+
+### Refactoring
+
+- Give water slide modes their own enum values
+  ([#993](https://github.com/Python-roborock/python-roborock/pull/993),
+  [`4924dca`](https://github.com/Python-roborock/python-roborock/commit/4924dca2e210e72c1f7bc4d7c0cea847ea875142))
+
+
 ## v7.18.0 (2026-11-08)
 
 ### Features
