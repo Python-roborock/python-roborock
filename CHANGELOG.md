@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v7.16.0 (2026-11-08)
+
+### Features
+
+- **dyad**: Decode F25 Ultra data points
+  ([#1017](https://github.com/Python-roborock/python-roborock/pull/1017),
+  [`2052b09`](https://github.com/Python-roborock/python-roborock/commit/2052b09832b3d26cbebcce94a9c6271dea0e2441))
+
+
 ## v7.15.3 (2026-11-08)
 
 ### Bug Fixes
