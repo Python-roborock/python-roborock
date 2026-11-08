@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v7.18.0 (2026-11-08)
+
+### Features
+
+- Add Q10 map management controls
+  ([#934](https://github.com/Python-roborock/python-roborock/pull/934),
+  [`99e47d2`](https://github.com/Python-roborock/python-roborock/commit/99e47d20a0e3552f1bc8c638ee4ebd5d8aee2bfd))
+
+
 ## v7.17.0 (2026-11-08)
 
 ### Features
