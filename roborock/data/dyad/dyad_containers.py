@@ -24,5 +24,20 @@ class DyadSndState(RoborockBase):
 
 
 @dataclass
+class DyadScheduleTask(RoborockBase):
+    """A task from the device schedule (DP 10002).
+
+    `cron` uses the device's local time. On the F25 Ultra every task had the same
+    `dp_action`, while the device ran nothing, drying, or self-clean and drying,
+    so the action that will run cannot be inferred from `dp_action`.
+    """
+
+    id: int
+    on: bool
+    cron: str
+    dp_action: dict[int, int]
+
+
+@dataclass
 class DyadOtaNfo(RoborockBase):
     mqttOtaData: dict

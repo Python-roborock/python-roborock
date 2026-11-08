@@ -1,6 +1,6 @@
 from enum import IntEnum
 
-from ..code_mappings import RoborockModeEnum
+from ..code_mappings import RoborockEnum, RoborockModeEnum
 
 
 class B01_Q10_DP(RoborockModeEnum):
@@ -384,3 +384,12 @@ class Q10RoomCleanType(RoborockModeEnum):
     VAC_AND_MOP = "vac_and_mop", 1
     VACUUM = "vacuum", 2
     MOP = "mop", 3
+
+
+class Q10RestrictionType(RoborockEnum):
+    """Restriction types supported by the Q10 map editor."""
+
+    unknown = -1
+    NO_GO = 0
+    NO_MOP = 2
+    THRESHOLD = 3

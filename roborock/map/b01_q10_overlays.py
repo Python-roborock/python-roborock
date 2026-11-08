@@ -31,6 +31,10 @@ import base64
 import binascii
 from dataclasses import dataclass, field
 
+from roborock.data import RoborockBase
+from roborock.data.b01_q10.b01_q10_code_mappings import Q10RestrictionType
+from roborock.data.b01_q10.b01_q10_containers import Q10RoborockPoint
+
 _DEFAULT_RECORD_SIZE = 38  # 2-byte record header + up to 9 (x, y) int16 pairs
 
 
@@ -40,6 +44,22 @@ class Q10Zone:
 
     type: int
     vertices: list[tuple[int, int]] = field(default_factory=list)
+
+
+@dataclass
+class Q10RestrictedZone(RoborockBase):
+    """A four-point restriction in common Roborock coordinates."""
+
+    type: Q10RestrictionType
+    vertices: tuple[Q10RoborockPoint, Q10RoborockPoint, Q10RoborockPoint, Q10RoborockPoint]
+
+
+@dataclass
+class Q10VirtualWall(RoborockBase):
+    """A virtual wall in common Roborock coordinates."""
+
+    start: Q10RoborockPoint
+    end: Q10RoborockPoint
 
 
 def _decode_blob(data: str | None) -> bytes:
@@ -55,8 +75,8 @@ def parse_zone_blob(data: str | None) -> list[Q10Zone]:
     """Decode a Q10 zone/wall overlay blob into a list of :class:`Q10Zone`.
 
     Accepts the base64 string straight from the data point. Returns ``[]`` for
-    empty/absent/unparsable blobs (the device sends a single ``0x00`` byte when
-    there are none).
+    empty/absent/unparsable blobs. Empty DP 55 reports contain version ``1``
+    and count ``0``; some firmware appends one padding byte.
     """
     raw = _decode_blob(data)
     if len(raw) < 2:
@@ -156,7 +176,7 @@ def parse_virtual_wall_blob(data: str | None) -> list[Q10Zone]:
 # Corrected from an earlier reading that treated type 3 as no-mop -- 3 is the
 # door-threshold rectangle; the no-mop area reads back as type 2. Reported and
 # verified by @andrewlyeats (ss07 read-backs + the ioBroker Q10 parser).
-ZONE_TYPE_NO_GO = 0
+ZONE_TYPE_NO_GO = Q10RestrictionType.NO_GO.value
 ZONE_TYPE_VIRTUAL_WALL = 1
-ZONE_TYPE_NO_MOP = 2
-ZONE_TYPE_THRESHOLD = 3
+ZONE_TYPE_NO_MOP = Q10RestrictionType.NO_MOP.value
+ZONE_TYPE_THRESHOLD = Q10RestrictionType.THRESHOLD.value

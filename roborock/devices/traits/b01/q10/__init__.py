@@ -8,7 +8,7 @@ from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
 from roborock.data.containers import RoborockBase
 from roborock.devices.rpc.b01_q10_channel import B01Q10Channel
 from roborock.devices.traits import Trait
-from roborock.map.b01_q10_map_parser import Q10MapPacket, Q10TracePacket
+from roborock.map.b01_q10_map_parser import B01Q10MapParserConfig, Q10MapPacket, Q10TracePacket
 from roborock.protocols.b01_q10_protocol import Q10DpsUpdate, Q10Message
 
 from .button_light import ButtonLightTrait
@@ -97,7 +97,7 @@ class Q10PropertiesApi(Trait):
     clean_history: CleanHistoryTrait
     """Trait for fetching the device clean-record history (``dpCleanRecord``)."""
 
-    def __init__(self, channel: B01Q10Channel) -> None:
+    def __init__(self, channel: B01Q10Channel, *, map_parser_config: B01Q10MapParserConfig | None = None) -> None:
         """Initialize the B01Props API."""
         self._channel = channel
         self.command = CommandTrait(channel)
@@ -112,7 +112,7 @@ class Q10PropertiesApi(Trait):
         self.consumable = ConsumableTrait()
         self._map_dps = MapDpsTrait()
         self.maps = MapsTrait(self.command)
-        self.map = MapContentTrait(self._map_dps, self.maps, self.command)
+        self.map = MapContentTrait(self._map_dps, self.maps, self.command, map_parser_config=map_parser_config)
         self.room_cleaning = RoomCleaningTrait(self.command)
         self.vacuum = VacuumTrait(self.command, self.status, self.map, self.room_cleaning)
         self.clean_history = CleanHistoryTrait(self.command)
@@ -186,6 +186,6 @@ class Q10PropertiesApi(Trait):
         return result
 
 
-def create(channel: B01Q10Channel) -> Q10PropertiesApi:
+def create(channel: B01Q10Channel, *, map_parser_config: B01Q10MapParserConfig | None = None) -> Q10PropertiesApi:
     """Create traits for B01 devices."""
-    return Q10PropertiesApi(channel)
+    return Q10PropertiesApi(channel, map_parser_config=map_parser_config)

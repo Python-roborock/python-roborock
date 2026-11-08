@@ -24,7 +24,6 @@ from tests.conformance.discovery import discover_subclasses, to_pytest_params, w
 # As these enums are remediated, remove them from this baseline.
 KNOWN_ENUMS_MISSING_UNKNOWN = {
     "roborock.data.dyad.dyad_code_mappings.DyadBrushSpeed",
-    "roborock.data.dyad.dyad_code_mappings.DyadCleanMode",
     "roborock.data.dyad.dyad_code_mappings.DyadCleanser",
     "roborock.data.dyad.dyad_code_mappings.DyadError",
     "roborock.data.dyad.dyad_code_mappings.DyadMode",
@@ -134,6 +133,32 @@ def test_roborock_mode_enum_handles_unknown_code(mode_enum_cls: type[RoborockMod
     """RoborockModeEnum subclasses must return None when an unknown code is provided."""
     sentinel = max(member.code for member in mode_enum_cls) + 1 if list(mode_enum_cls) else 99999
     assert mode_enum_cls.from_code_optional(sentinel) is None
+
+
+# Legacy RoborockModeEnum classes whose members still share value strings.
+# As these enums are remediated, remove them from this baseline.
+KNOWN_MODE_ENUMS_WITH_VALUE_ALIASES = {
+    "roborock.data.b01_q7.b01_q7_code_mappings.B01Fault",
+}
+
+_VALUE_ALIAS_XFAIL_MARKS = {
+    fqn: pytest.mark.xfail(reason=f"{fqn} has members aliased by value", strict=True)
+    for fqn in KNOWN_MODE_ENUMS_WITH_VALUE_ALIASES
+}
+
+
+@pytest.mark.parametrize("mode_enum_cls", to_pytest_params(_ALL_MODE_ENUMS, marks_by_fqn=_VALUE_ALIAS_XFAIL_MARKS))
+def test_roborock_mode_enum_has_no_value_aliases(mode_enum_cls: type[RoborockModeEnum]) -> None:
+    """Members sharing a value string collapse into one member and lose their own code.
+
+    Modes that need the same user-facing name should use a distinct value and
+    pass the shared name as display_name instead.
+    """
+    aliases = {name: member.name for name, member in mode_enum_cls.__members__.items() if name != member.name}
+    assert not aliases, (
+        f"{mode_enum_cls.__module__}.{mode_enum_cls.__name__} has members aliased by value: {aliases}. "
+        "Give each member a unique value and use display_name for the shared name."
+    )
 
 
 @pytest.mark.parametrize("enum_cls", to_pytest_params(_ALL_CODE_MAPPING_ENUMS))

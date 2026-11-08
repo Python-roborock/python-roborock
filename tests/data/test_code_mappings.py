@@ -9,7 +9,7 @@ import pytest
 from roborock import CleanRoutes, HomeDataProduct, RoborockCategory
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP, YXCleanType
 from roborock.data.code_mappings import completed_warnings
-from roborock.data.dyad.dyad_code_mappings import DyadError
+from roborock.data.dyad.dyad_code_mappings import DyadCleanMode, DyadError
 from roborock.data.v1.v1_code_mappings import (
     RoborockErrorCode,
     RoborockFinishReason,
@@ -170,3 +170,26 @@ def test_roborock_mode_enum_display_names_group_duplicate_protocol_codes() -> No
     assert CleanRoutes.DEEP_PLUS_CN.display_name == "deep_plus"
     assert CleanRoutes.keys().count("deep_plus") == 1
     assert "deep_plus_cn" not in CleanRoutes.keys()
+
+
+@pytest.mark.parametrize(
+    "code, expected",
+    [
+        # Codes reported by an F25 Ultra when switching modes in the app.
+        (1, DyadCleanMode.auto),
+        (3, DyadCleanMode.dehydration),  # "Sponge" on the F25 Ultra
+        (5, DyadCleanMode.hot_water),
+        (6, DyadCleanMode.steam),
+    ],
+)
+def test_dyad_clean_mode_codes(code: int, expected: DyadCleanMode, caplog: pytest.LogCaptureFixture) -> None:
+    """Dyad clean mode codes reported by devices decode without warnings."""
+    completed_warnings.clear()
+    with caplog.at_level(logging.WARNING):
+        assert DyadCleanMode(code) == expected
+    assert "Missing DyadCleanMode" not in caplog.text
+
+
+def test_dyad_clean_mode_unknown_code() -> None:
+    """An unrecognized Dyad clean mode falls back to 'unknown' instead of 'auto'."""
+    assert DyadCleanMode(99) == DyadCleanMode.unknown
