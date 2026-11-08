@@ -292,7 +292,9 @@ class Q10Status(RoborockBase):
     @property
     def clean_count_mode(self) -> Q10CleanCount | None:
         """Return the typed cleaning pass count from the reported status."""
-        return Q10CleanCount.from_code_optional(self.clean_count) if self.clean_count is not None else None
+        if self.clean_count is None:
+            return None
+        return Q10CleanCount.from_code_optional(self.clean_count) or Q10CleanCount.UNKNOWN
 
 
 @dataclass

@@ -9,6 +9,8 @@ import pytest
 from roborock.data.b01_q10.b01_q10_code_mappings import (
     B01_Q10_DP,
     Q10CleanCount,
+    Q10RoomCleanType,
+    Q10RoomFanLevel,
     YXCleanLine,
     YXCleanType,
     YXDeviceCleanTask,
@@ -16,12 +18,13 @@ from roborock.data.b01_q10.b01_q10_code_mappings import (
     YXFanLevel,
     YXWaterLevel,
 )
-from roborock.data.b01_q10.b01_q10_containers import Q10RoborockPoint
+from roborock.data.b01_q10.b01_q10_containers import Q10RoborockPoint, Q10RoomCleanSettings
 from roborock.devices.traits.b01.q10 import Q10PropertiesApi
 from roborock.devices.traits.b01.q10 import vacuum as vacuum_module
 from roborock.devices.traits.b01.q10.vacuum import VacuumTrait
 from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import Q10Point, Q10TracePacket
+from roborock.protocols.b01_q10_protocol import encode_room_clean_settings
 
 from .conftest import FakeB01Q10Channel
 
@@ -268,3 +271,77 @@ async def test_unknown_cleaning_modes_are_not_published(q10_api, fake_channel, m
     with pytest.raises(ValueError, match="supported"):
         await getattr(q10_api.vacuum, method)(value)
     assert fake_channel.published_commands == []
+
+
+def _room_settings(room_id: int = 3) -> Q10RoomCleanSettings:
+    return Q10RoomCleanSettings(
+        room_id,
+        Q10RoomFanLevel.TURBO,
+        YXWaterLevel.HIGH,
+        Q10RoomCleanType.VAC_AND_MOP,
+        Q10CleanCount.TWICE,
+        YXCleanLine.FINE,
+    )
+
+
+async def test_clean_rooms_sends_settings_mode_and_start_in_order(
+    q10_api: Q10PropertiesApi, fake_channel: FakeB01Q10Channel
+) -> None:
+    settings = (_room_settings(3), _room_settings(9))
+    await q10_api.vacuum.clean_rooms(settings)
+    assert fake_channel.published_commands == [
+        (B01_Q10_DP.COMMON, {"62": encode_room_clean_settings(settings)}),
+        (B01_Q10_DP.CLEAN_MODE, 4),
+        (B01_Q10_DP.START_CLEAN, {"cmd": 2, "clean_paramters": [3, 9]}),
+    ]
+
+
+@pytest.mark.parametrize("fail_on", [1, 2, 3])
+async def test_publish_failure_stops_remaining_clean_commands(
+    q10_api: Q10PropertiesApi, fake_channel: FakeB01Q10Channel, fail_on: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original = fake_channel.send_command
+    calls = 0
+
+    async def send(command, params=None):
+        nonlocal calls
+        calls += 1
+        if calls == fail_on:
+            raise RoborockException("publish failed")
+        await original(command, params)
+
+    monkeypatch.setattr(fake_channel, "send_command", send)
+    with pytest.raises(RoborockException, match="publish failed"):
+        await q10_api.vacuum.clean_rooms((_room_settings(),))
+    assert calls == fail_on
+    assert len(fake_channel.published_commands) == fail_on - 1
+
+
+async def test_clean_rooms_cancels_active_goto(
+    q10_api: Q10PropertiesApi,
+    fake_channel: FakeB01Q10Channel,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An old goto cannot pause or stop a successful customized room clean."""
+    monkeypatch.setattr(vacuum_module, "_GOTO_TIMEOUT", 0.01)
+    q10_api.map.update_from_trace_packet(Q10TracePacket(points=[Q10Point(0, 0)], sequence=1))
+    q10_api.status.update_from_dps(
+        {
+            B01_Q10_DP.CLEAN_TASK_TYPE: YXDeviceCleanTask.DIVIDE_AREAS.code,
+            B01_Q10_DP.STATUS: YXDeviceState.CLEANING.code,
+        }
+    )
+    try:
+        await q10_api.vacuum.goto_position(Q10RoborockPoint(29900, 28650))
+        await q10_api.vacuum.clean_rooms((_room_settings(),))
+        # Keep the old zone status while its trace reaches the goto target.
+        q10_api.map.update_from_trace_packet(Q10TracePacket(points=[Q10Point(1760, 1260)], sequence=2))
+        await asyncio.sleep(0.03)
+        assert [command for command, _ in fake_channel.published_commands] == [
+            B01_Q10_DP.START_CLEAN,
+            B01_Q10_DP.COMMON,
+            B01_Q10_DP.CLEAN_MODE,
+            B01_Q10_DP.START_CLEAN,
+        ]
+    finally:
+        await q10_api.close()

@@ -42,9 +42,6 @@
       }),
     }),
     'room_cleaning': dict({
-      'settings': tuple(
-      ),
-      'settingsAvailable': False,
     }),
     'status': dict({
       'addCleanState': False,
@@ -427,9 +424,6 @@
         }),
       }),
       'room_cleaning': dict({
-        'settings': tuple(
-        ),
-        'settingsAvailable': False,
       }),
       'status': dict({
         'addCleanState': False,
@@ -502,9 +496,6 @@
     'network_info': dict({
     }),
     'room_cleaning': dict({
-      'settings': tuple(
-      ),
-      'settingsAvailable': False,
     }),
     'status': dict({
     }),

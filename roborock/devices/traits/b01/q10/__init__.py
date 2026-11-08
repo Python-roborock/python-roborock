@@ -114,7 +114,7 @@ class Q10PropertiesApi(Trait):
         self.maps = MapsTrait(self.command)
         self.map = MapContentTrait(self._map_dps, self.maps, self.command, map_parser_config=map_parser_config)
         self.room_cleaning = RoomCleaningTrait(self.command)
-        self.vacuum = VacuumTrait(self.command, self.status, self.map, self.room_cleaning)
+        self.vacuum = VacuumTrait(self.command, self.status, self.map)
         self.clean_history = CleanHistoryTrait(self.command)
         # Read-model traits updated from the device's DPS push stream.
         self._updatable_traits = [

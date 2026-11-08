@@ -16,12 +16,11 @@ from roborock.data.b01_q10.b01_q10_code_mappings import (
 )
 from roborock.data.b01_q10.b01_q10_containers import Q10RoborockPoint, Q10RoomCleanSettings
 from roborock.exceptions import RoborockException
-from roborock.protocols.b01_q10_protocol import CleanParams, encode_clean_params
+from roborock.protocols.b01_q10_protocol import CleanParams, encode_clean_params, encode_room_clean_settings
 
 from .command import CommandTrait
 from .goto import GotoAction, GotoActionCommand, GotoSnapshot
 from .map import MapContentTrait
-from .room_cleaning import RoomCleaningTrait
 from .status import StatusTrait
 
 _GOTO_HALF_ZONE_SIZE = 200
@@ -44,13 +43,11 @@ class VacuumTrait:
         command: CommandTrait,
         status: StatusTrait,
         map_content: MapContentTrait,
-        room_cleaning: RoomCleaningTrait,
     ) -> None:
         """Initialize the VacuumTrait."""
         self._command = command
         self._status = status
         self._map = map_content
-        self._room_cleaning = room_cleaning
         self._goto_action: GotoAction | None = None
         self._goto_action_remove_listener: Callable[[], None] | None = None
         self._goto_timeout_task: asyncio.Task[None] | None = None
@@ -175,7 +172,14 @@ class VacuumTrait:
 
     async def clean_rooms(self, settings: Sequence[Q10RoomCleanSettings]) -> None:
         """Start a customized clean for the supplied rooms."""
-        await self._room_cleaning.clean(settings)
+        selected = tuple(settings)
+        payload = encode_room_clean_settings(selected)
+        await self._command.send(B01_Q10_DP.COMMON, {str(B01_Q10_DP.CUSTOMER_CLEAN.code): payload})
+        await self._command.send(B01_Q10_DP.CLEAN_MODE, YXCleanType.CUSTOMIZED.code)
+        await self._command.send(
+            B01_Q10_DP.START_CLEAN,
+            {"cmd": YXDeviceCleanTask.ELECTORAL.code, "clean_paramters": [room.room_id for room in selected]},
+        )
         self.cancel_goto()
 
     async def clean_zone(

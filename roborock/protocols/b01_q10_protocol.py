@@ -1,13 +1,10 @@
 """Roborock B01 Protocol encoding and decoding."""
 
-import base64
 import binascii
-
-
 import json
 import logging
 import struct
-from base64 import b64encode
+from base64 import b64decode, b64encode
 from collections.abc import Sequence
 from dataclasses import dataclass
 from struct import pack
@@ -131,7 +128,7 @@ def encode_room_clean_settings(settings: Sequence[Q10RoomCleanSettings]) -> str:
                 raise ValueError(f"{field_name} must be a supported {mode_type.__name__}")
             values.append(value.code)
         payload.extend(values)
-    return base64.b64encode(payload).decode()
+    return b64encode(payload).decode()
 
 
 def decode_room_clean_settings(payload: str) -> Q10RoomCleanUpdate:
@@ -142,7 +139,7 @@ def decode_room_clean_settings(payload: str) -> Q10RoomCleanUpdate:
     are room id 0, count 5, type 7, fan 8, water 9, and route 11.
     """
     try:
-        raw = base64.b64decode(payload, validate=True)
+        raw = b64decode(payload, validate=True)
     except (ValueError, binascii.Error) as ex:
         raise RoborockException("Invalid Q10 customized-room payload: malformed base64") from ex
     if not raw:
@@ -253,7 +250,7 @@ def encode_restricted_zones(zones: Sequence[Q10RestrictedZone]) -> str:
     if len(zones) > 255:
         raise ValueError("zones must be a sequence of at most 255 restrictions")
     if not zones:
-        return base64.b64encode(b"\x01\x00").decode()
+        return b64encode(b"\x01\x00").decode()
 
     payload = bytearray((1, len(zones)))
     for zone in zones:
@@ -276,7 +273,7 @@ def encode_restricted_zones(zones: Sequence[Q10RestrictedZone]) -> str:
             )
         record.extend(bytes(_Q10_ZONE_RECORD_SIZE - len(record)))
         payload.extend(record)
-    return base64.b64encode(payload).decode()
+    return b64encode(payload).decode()
 
 
 def encode_virtual_walls(walls: Sequence[Q10VirtualWall]) -> str:
@@ -297,7 +294,7 @@ def encode_virtual_walls(walls: Sequence[Q10VirtualWall]) -> str:
                     y,
                 )
             )
-    return base64.b64encode(payload).decode()
+    return b64encode(payload).decode()
 
 
 def encode_room_name(room_id: int, name: str) -> str:
@@ -313,7 +310,7 @@ def encode_room_name(room_id: int, name: str) -> str:
     payload = bytearray((1, room_id, 0, len(encoded_name)))
     payload.extend(encoded_name)
     payload.extend(bytes(_Q10_ROOM_NAME_FIELD_SIZE - len(encoded_name)))
-    return base64.b64encode(payload).decode()
+    return b64encode(payload).decode()
 
 
 def encode_mqtt_payload(command: B01_Q10_DP, params: ParamsType) -> RoborockMessage:

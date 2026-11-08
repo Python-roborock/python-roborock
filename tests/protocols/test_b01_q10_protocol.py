@@ -34,10 +34,8 @@ from roborock.protocols.b01_q10_protocol import (
     decode_rpc_response,
     encode_clean_params,
     encode_mqtt_payload,
-    encode_room_clean_settings,
-
-
     encode_restricted_zones,
+    encode_room_clean_settings,
     encode_room_name,
     encode_virtual_walls,
 )
@@ -357,13 +355,13 @@ def test_decode_room_clean_settings_distinguishes_echo_and_complete_response() -
     )
 
     assert echo.settings == (
-        Q10RoomCleanSettings(**first.__dict__),
-        Q10RoomCleanSettings(**second.__dict__),
+        first,
+        second,
     )
     assert echo.complete is False
     assert complete.settings == (
-        Q10RoomCleanSettings(**first.__dict__),
-        Q10RoomCleanSettings(**second.__dict__),
+        first,
+        second,
     )
     assert complete.complete is True
 
@@ -411,8 +409,8 @@ def test_encode_room_clean_settings_matches_physical_echoes() -> None:
 
     assert encode_room_clean_settings((candidate,)) == "AQEDAgEBAQ=="
     assert encode_room_clean_settings((restored,)) == "AQEBAwECAg=="
-    assert decode_room_clean_settings("AQEDAgEBAQ==").settings == (Q10RoomCleanSettings(**candidate.__dict__),)
-    assert decode_room_clean_settings("AQEBAwECAg==").settings == (Q10RoomCleanSettings(**restored.__dict__),)
+    assert decode_room_clean_settings("AQEDAgEBAQ==").settings == (candidate,)
+    assert decode_room_clean_settings("AQEBAwECAg==").settings == (restored,)
 
 
 def test_encode_room_clean_settings_supports_three_pass_protocol_value() -> None:
@@ -677,3 +675,19 @@ def test_encode_room_name_rejects_invalid_room_id(room_id: int) -> None:
 def test_encode_room_name_rejects_invalid_name(name: str) -> None:
     with pytest.raises(ValueError, match="name"):
         encode_room_name(7, name)
+
+
+@pytest.mark.parametrize("field", ["fan_level", "water_level", "clean_type", "clean_count", "clean_line"])
+def test_unknown_setting_cannot_be_written(field: str) -> None:
+    settings = _room_settings()
+    setattr(settings, field, type(getattr(settings, field)).UNKNOWN)
+    with pytest.raises(ValueError, match=field):
+        encode_room_clean_settings((settings,))
+
+
+@pytest.mark.parametrize(
+    "rooms", [(), (_room_settings(-1),), (_room_settings(256),), (_room_settings(), _room_settings())]
+)
+def test_semantic_room_guards(rooms: tuple[Q10RoomCleanSettings, ...]) -> None:
+    with pytest.raises(ValueError):
+        encode_room_clean_settings(rooms)
