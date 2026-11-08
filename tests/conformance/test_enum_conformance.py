@@ -24,7 +24,6 @@ from tests.conformance.discovery import discover_subclasses, to_pytest_params, w
 # As these enums are remediated, remove them from this baseline.
 KNOWN_ENUMS_MISSING_UNKNOWN = {
     "roborock.data.dyad.dyad_code_mappings.DyadBrushSpeed",
-    "roborock.data.dyad.dyad_code_mappings.DyadCleanMode",
     "roborock.data.dyad.dyad_code_mappings.DyadCleanser",
     "roborock.data.dyad.dyad_code_mappings.DyadError",
     "roborock.data.dyad.dyad_code_mappings.DyadMode",

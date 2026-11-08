@@ -45,10 +45,14 @@ class DyadMode(RoborockEnum):
 
 
 class DyadCleanMode(RoborockEnum):
+    unknown = -1
     auto = 1
     max = 2
-    dehydration = 3
+    dehydration = 3  # The F25 Ultra reports its "Sponge" mode with this code.
     power_saving = 4
+    # Heated modes on the F25 Ultra, confirmed by switching modes on the device.
+    hot_water = 5
+    steam = 6
 
 
 class DyadSuction(RoborockEnum):
@@ -77,6 +81,57 @@ class DyadCleanser(RoborockEnum):
     normal = 1
     deep = 2
     max = 3
+
+
+class DyadCleanserAmount(RoborockEnum):
+    """Detergent dosing level (DP 238)."""
+
+    unknown = -1
+    off = 0
+    low = 1
+    standard = 2
+    high = 3
+
+
+class DyadCleanAssistPower(RoborockEnum):
+    """Wheel assist power (DP 241)."""
+
+    unknown = -1
+    gentle = 1
+    moderate = 2
+    strong = 3
+
+
+class DyadSelfCleanWaterTemp(RoborockEnum):
+    """Water temperature used for self-cleaning (DP 242, reported back on DP 271)."""
+
+    unknown = -1
+    high = 3
+    steam = 4
+
+
+class DyadSelfCleanIntensity(RoborockEnum):
+    """Self-cleaning intensity (DP 270).
+
+    Smart mode is enabled through DP 239; standard and deep follow DP 203.
+    """
+
+    unknown = -1
+    smart = 0
+    standard = 1
+    deep = 2
+
+
+class DyadPowerwheelDirection(RoborockEnum):
+    """Drive direction while the vacuum is remote controlled from the app (DP 249)."""
+
+    unknown = -1
+    stop = 0
+    forward = 1
+    backward = 2
+    left = 5
+    right = 6
+    exit = 9  # sent when remote control ends
 
 
 class DyadError(RoborockEnum):

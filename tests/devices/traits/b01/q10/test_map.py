@@ -9,11 +9,13 @@ details are tested in ``tests/map/test_b01_q10_render.py``.
 import asyncio
 import base64
 from collections.abc import AsyncGenerator, Generator
+from dataclasses import replace
 from pathlib import Path
 from typing import cast
 from unittest.mock import Mock, patch
 
 import pytest
+from vacuum_map_parser_base.config.drawable import Drawable
 
 from roborock.cli import _await_q10_map_push, cli
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP, Q10RestrictionType, YXDeviceState
@@ -24,6 +26,9 @@ from roborock.devices.traits.b01.q10.map import MapContentTrait, MapDpsTrait
 from roborock.devices.traits.b01.q10.maps import MapsTrait
 from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
+    B01Q10MapParserConfig,
+    Q10HeaderCalibration,
+    Q10Obstacle,
     Q10Point,
     Q10TracePacket,
     parse_map_packet,
@@ -588,6 +593,20 @@ def test_map_content_trait_as_dict_camelizes_child_keys() -> None:
     }
     assert data["path"] == [{"x": 100, "y": 200}, {"x": 150, "y": 250}]
     assert data["robotPosition"] == {"x": 25875, "y": 26125}
+
+
+async def test_create_forwards_obstacle_drawables_to_rendering(fake_channel: FakeB01Q10Channel) -> None:
+    """The public Q10 factory config changes the rendered image."""
+    enabled = create(fake_channel, map_parser_config=B01Q10MapParserConfig(drawables=[Drawable.OBSTACLES]))
+    disabled = create(fake_channel, map_parser_config=B01Q10MapParserConfig(drawables=[]))
+    packet = replace(
+        parse_map_packet(FIXTURE.read_bytes()),
+        header_calibration=Q10HeaderCalibration(0, 50, 5, -1, -1, 0),
+        obstacles=[Q10Obstacle(150, 100)],
+    )
+    enabled.map.update_from_map_packet(packet)
+    disabled.map.update_from_map_packet(packet)
+    assert enabled.map.image_content != disabled.map.image_content
 
 
 async def test_set_current_map_uses_apply_for_listed_string_id(
