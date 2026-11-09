@@ -2,18 +2,21 @@
 
 import asyncio
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from math import hypot
 
 from roborock.data.b01_q10.b01_q10_code_mappings import (
     B01_Q10_DP,
+    Q10CleanCount,
+    YXCleanLine,
     YXCleanType,
     YXDeviceCleanTask,
     YXFanLevel,
+    YXWaterLevel,
 )
-from roborock.data.b01_q10.b01_q10_containers import Q10RoborockPoint
+from roborock.data.b01_q10.b01_q10_containers import Q10RoborockPoint, Q10RoomCleanSettings
 from roborock.exceptions import RoborockException
-from roborock.protocols.b01_q10_protocol import CleanParams, encode_clean_params
+from roborock.protocols.b01_q10_protocol import CleanParams, encode_clean_params, encode_room_clean_settings
 
 from .command import CommandTrait
 from .goto import GotoAction, GotoActionCommand, GotoSnapshot
@@ -167,6 +170,18 @@ class VacuumTrait:
         )
         self.cancel_goto()
 
+    async def clean_rooms(self, settings: Sequence[Q10RoomCleanSettings]) -> None:
+        """Start a customized clean for the supplied rooms."""
+        selected = tuple(settings)
+        payload = encode_room_clean_settings(selected)
+        await self._command.send(B01_Q10_DP.COMMON, {str(B01_Q10_DP.CUSTOMER_CLEAN.code): payload})
+        await self._command.send(B01_Q10_DP.CLEAN_MODE, YXCleanType.CUSTOMIZED.code)
+        await self._command.send(
+            B01_Q10_DP.START_CLEAN,
+            {"cmd": YXDeviceCleanTask.ELECTORAL.code, "clean_paramters": [room.room_id for room in selected]},
+        )
+        self.cancel_goto()
+
     async def clean_zone(
         self,
         first_corner: Q10RoborockPoint,
@@ -278,6 +293,8 @@ class VacuumTrait:
 
     async def set_clean_mode(self, mode: YXCleanType) -> None:
         """Set the cleaning mode (vacuum, mop, or both)."""
+        if mode is YXCleanType.UNKNOWN:
+            raise ValueError("mode must be a supported YXCleanType")
         await self._command.send(
             command=B01_Q10_DP.CLEAN_MODE,
             params=mode.code,
@@ -285,7 +302,27 @@ class VacuumTrait:
 
     async def set_fan_level(self, level: YXFanLevel) -> None:
         """Set the fan suction level."""
+        if level is YXFanLevel.UNKNOWN:
+            raise ValueError("level must be a supported YXFanLevel")
         await self._command.send(
             command=B01_Q10_DP.FAN_LEVEL,
             params=level.code,
         )
+
+    async def set_water_level(self, level: YXWaterLevel) -> None:
+        """Set the mop water level."""
+        if level is YXWaterLevel.UNKNOWN:
+            raise ValueError("level must be a supported YXWaterLevel")
+        await self._command.send(B01_Q10_DP.WATER_LEVEL, level.code)
+
+    async def set_clean_count(self, count: Q10CleanCount) -> None:
+        """Set the number of passes for ordinary cleaning."""
+        if count is Q10CleanCount.UNKNOWN:
+            raise ValueError("count must be a supported Q10CleanCount")
+        await self._command.send(B01_Q10_DP.CLEAN_COUNT, count.code)
+
+    async def set_clean_line(self, line: YXCleanLine) -> None:
+        """Set the cleaning route preference."""
+        if line is YXCleanLine.UNKNOWN:
+            raise ValueError("line must be a supported YXCleanLine")
+        await self._command.send(B01_Q10_DP.COMMON, {str(B01_Q10_DP.CLEAN_LINE.code): line.code})

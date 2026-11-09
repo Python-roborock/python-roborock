@@ -11,6 +11,7 @@ import pytest
 from roborock.data import HomeDataDevice, HomeDataProduct
 from roborock.data.b01_q10.b01_q10_code_mappings import (
     B01_Q10_DP,
+    Q10CleanCount,
     YXAreaUnit,
     YXCarpetCleanType,
     YXCleanLine,
@@ -282,3 +283,19 @@ async def test_q10_properties_as_dict_and_diagnostic_data(
     # Verify diagnostic_data extracts the properties correctly
     diagnostics = device.diagnostic_data()
     assert diagnostics == snapshot
+
+
+@pytest.mark.parametrize(
+    ("code", "expected"),
+    [
+        (None, None),
+        (1, Q10CleanCount.ONCE),
+        (2, Q10CleanCount.TWICE),
+        (3, Q10CleanCount.THREE_TIMES),
+        (99, Q10CleanCount.UNKNOWN),
+    ],
+)
+def test_clean_count_mode(q10_api: Q10PropertiesApi, code: int | None, expected: Q10CleanCount | None) -> None:
+    if code is not None:
+        q10_api.status.update_from_dps({B01_Q10_DP.CLEAN_COUNT: code})
+    assert q10_api.status.clean_count_mode is expected

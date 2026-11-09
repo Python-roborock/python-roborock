@@ -1,17 +1,25 @@
 """Roborock B01 Protocol encoding and decoding."""
 
-import base64
+import binascii
 import json
 import logging
 import struct
-from base64 import b64encode
+from base64 import b64decode, b64encode
 from collections.abc import Sequence
 from dataclasses import dataclass
 from struct import pack
 from typing import Any
 
-from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP, Q10RestrictionType
-from roborock.data.b01_q10.b01_q10_containers import Q10RoborockPoint
+from roborock.data.b01_q10.b01_q10_code_mappings import (
+    B01_Q10_DP,
+    Q10CleanCount,
+    Q10RestrictionType,
+    Q10RoomCleanType,
+    Q10RoomFanLevel,
+    YXCleanLine,
+    YXWaterLevel,
+)
+from roborock.data.b01_q10.b01_q10_containers import Q10RoborockPoint, Q10RoomCleanSettings
 from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
     Q10CleanRecordDetail,
@@ -79,6 +87,112 @@ def encode_clean_params(params: CleanParams) -> str:
     return b64encode(payload).decode()
 
 
+_Q10_CUSTOM_ROOM_COMPACT_SIZE = 6
+_Q10_CUSTOM_ROOM_PROPERTIES_SIZE = 26
+_Q10_CUSTOM_ROOM_NAME_SIZE = 20
+
+
+def encode_room_clean_settings(settings: Sequence[Q10RoomCleanSettings]) -> str:
+    """Encode the compact six-byte-per-room ``dpCustomerClean`` write."""
+    selected = tuple(settings)
+    if not selected or len(selected) > 255:
+        raise ValueError("settings must contain between 1 and 255 rooms")
+
+    payload = bytearray((len(selected),))
+    room_ids: set[int] = set()
+    fields = (
+        ("fan_level", Q10RoomFanLevel),
+        ("water_level", YXWaterLevel),
+        ("clean_type", Q10RoomCleanType),
+        ("clean_count", Q10CleanCount),
+        ("clean_line", YXCleanLine),
+    )
+    for room in selected:
+        if not 0 <= room.room_id <= 255:
+            raise ValueError("room_id must be an integer between 0 and 255")
+        if room.room_id in room_ids:
+            raise ValueError(f"duplicate room_id: {room.room_id}")
+        room_ids.add(room.room_id)
+        values = [room.room_id]
+        for field_name, mode_type in fields:
+            value = getattr(room, field_name)
+            if value.code < 0:
+                raise ValueError(f"{field_name} must be a supported {mode_type.__name__}")
+            values.append(value.code)
+        payload.extend(values)
+    return b64encode(payload).decode()
+
+
+def decode_room_clean_settings(payload: str) -> tuple[list[dict[str, int]], bool]:
+    """Decode room field dictionaries and whether a ``dpCustomerClean`` push is complete.
+
+    Complete records contain 26 property bytes, a 20-byte name block, one
+    vertex-count byte, then four bytes per vertex. Relevant property offsets
+    are room id 0, count 5, type 7, fan 8, water 9, and route 11.
+    """
+    try:
+        raw = b64decode(payload, validate=True)
+    except (ValueError, binascii.Error) as ex:
+        raise RoborockException("Invalid Q10 customized-room payload: malformed base64") from ex
+    if not raw:
+        raise RoborockException("Invalid Q10 customized-room payload: empty data")
+
+    count = raw[0]
+    if count == 0 and len(raw) == 1:
+        return [], True
+    if len(raw) == 1 + count * _Q10_CUSTOM_ROOM_COMPACT_SIZE:
+        offset = 1
+        rooms = []
+        room_ids: set[int] = set()
+        for _ in range(count):
+            room_id = raw[offset]
+            if room_id in room_ids:
+                raise RoborockException("Invalid Q10 customized-room payload: duplicate room id")
+            room_ids.add(room_id)
+            rooms.append(
+                {
+                    "room_id": room_id,
+                    "fan_level": raw[offset + 1],
+                    "water_level": raw[offset + 2],
+                    "clean_type": raw[offset + 3],
+                    "clean_count": raw[offset + 4],
+                    "clean_line": raw[offset + 5],
+                }
+            )
+            offset += _Q10_CUSTOM_ROOM_COMPACT_SIZE
+        return rooms, False
+
+    offset = 1
+    rooms = []
+    room_ids = set()
+    for _ in range(count):
+        minimum_end = offset + _Q10_CUSTOM_ROOM_PROPERTIES_SIZE + _Q10_CUSTOM_ROOM_NAME_SIZE + 1
+        if minimum_end > len(raw):
+            raise RoborockException("Invalid Q10 customized-room payload: truncated room record")
+        room_id = int.from_bytes(raw[offset : offset + 2], "big")
+        if room_id in room_ids:
+            raise RoborockException("Invalid Q10 customized-room payload: duplicate room id")
+        room_ids.add(room_id)
+        clean_count = int.from_bytes(raw[offset + 5 : offset + 7], "big")
+        rooms.append(
+            {
+                "room_id": room_id,
+                "fan_level": raw[offset + 8],
+                "water_level": raw[offset + 9],
+                "clean_type": raw[offset + 7],
+                "clean_count": clean_count,
+                "clean_line": raw[offset + 11],
+            }
+        )
+        vertex_count = raw[offset + _Q10_CUSTOM_ROOM_PROPERTIES_SIZE + _Q10_CUSTOM_ROOM_NAME_SIZE]
+        offset = minimum_end + vertex_count * 4
+        if offset > len(raw):
+            raise RoborockException("Invalid Q10 customized-room payload: truncated vertices")
+    if offset != len(raw):
+        raise RoborockException("Invalid Q10 customized-room payload: trailing data")
+    return rooms, True
+
+
 _Q10_ZONE_RECORD_SIZE = 38
 _Q10_ROOM_NAME_FIELD_SIZE = 19
 
@@ -128,7 +242,7 @@ def encode_restricted_zones(zones: Sequence[Q10RestrictedZone]) -> str:
     if len(zones) > 255:
         raise ValueError("zones must be a sequence of at most 255 restrictions")
     if not zones:
-        return base64.b64encode(b"\x01\x00").decode()
+        return b64encode(b"\x01\x00").decode()
 
     payload = bytearray((1, len(zones)))
     for zone in zones:
@@ -151,7 +265,7 @@ def encode_restricted_zones(zones: Sequence[Q10RestrictedZone]) -> str:
             )
         record.extend(bytes(_Q10_ZONE_RECORD_SIZE - len(record)))
         payload.extend(record)
-    return base64.b64encode(payload).decode()
+    return b64encode(payload).decode()
 
 
 def encode_virtual_walls(walls: Sequence[Q10VirtualWall]) -> str:
@@ -172,7 +286,7 @@ def encode_virtual_walls(walls: Sequence[Q10VirtualWall]) -> str:
                     y,
                 )
             )
-    return base64.b64encode(payload).decode()
+    return b64encode(payload).decode()
 
 
 def encode_room_name(room_id: int, name: str) -> str:
@@ -188,7 +302,7 @@ def encode_room_name(room_id: int, name: str) -> str:
     payload = bytearray((1, room_id, 0, len(encoded_name)))
     payload.extend(encoded_name)
     payload.extend(bytes(_Q10_ROOM_NAME_FIELD_SIZE - len(encoded_name)))
-    return base64.b64encode(payload).decode()
+    return b64encode(payload).decode()
 
 
 def encode_mqtt_payload(command: B01_Q10_DP, params: ParamsType) -> RoborockMessage:

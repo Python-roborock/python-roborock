@@ -28,6 +28,7 @@ from .map import MapContentTrait, MapDpsTrait
 from .maps import MapsTrait
 from .network_info import NetworkInfoTrait
 from .remote import RemoteTrait
+from .room_cleaning import RoomCleaningTrait
 from .status import StatusTrait
 from .vacuum import VacuumTrait
 from .volume import SoundVolumeTrait
@@ -43,6 +44,7 @@ __all__ = [
     "MapContentTrait",
     "MapsTrait",
     "NetworkInfoTrait",
+    "RoomCleaningTrait",
     "SoundVolumeTrait",
     "StatusTrait",
 ]
@@ -89,6 +91,9 @@ class Q10PropertiesApi(Trait):
     map: MapContentTrait
     """Composed map image plus caller-facing map and trace data."""
 
+    room_cleaning: RoomCleaningTrait
+    """Customized cleaning settings and room-cleaning controls."""
+
     maps: MapsTrait
     """Saved-map list metadata."""
 
@@ -123,6 +128,7 @@ class Q10PropertiesApi(Trait):
             self.command,
             map_parser_config=map_parser_config,
         )
+        self.room_cleaning = RoomCleaningTrait(self.command)
         self.clean_history = CleanHistoryTrait(self.command)
         self.vacuum = VacuumTrait(self.command, self.status, self.map)
         # Read-model traits updated from the device's DPS push stream.
@@ -137,6 +143,7 @@ class Q10PropertiesApi(Trait):
             self.clean_history,
             self._map_dps,
             self.maps,
+            self.room_cleaning,
         ]
         self._subscribe_task: asyncio.Task[None] | None = None
 
