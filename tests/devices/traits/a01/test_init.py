@@ -324,6 +324,73 @@ async def test_create_seeds_values_from_device_status(fake_channel: FakeChannel)
     }
 
 
+PRODUCT_INFO_JSON = json.dumps(
+    {
+        "sn": "TESTSERIAL",
+        "ssid": "test-network",
+        "timezone": "Europe/Warsaw",
+        "posix_timezone": "CET-1CEST,M3.5.0/2,M10.5.0/3",
+        "ip": "192.0.2.1",
+        "mac": "00:00:5e:00:53:01",
+        "rssi": -53,
+        "oba": {"bom": "A.01"},
+    }
+)
+
+
+async def test_dyad_decodes_json_string_data_points(fake_channel: FakeChannel):
+    """The device reports product info and voice pack state as JSON strings."""
+    api = DyadApi(
+        fake_channel,  # type: ignore[arg-type]
+        initial_status={
+            10004: '{"sid_in_use":21,"sid_version":3,"location":"de","bom":"A.01","language":"en"}',
+            10005: PRODUCT_INFO_JSON,
+        },
+    )
+
+    assert api.values[RoborockDyadDataProtocol.SND_STATE].sid_in_use == 21
+    product_info = api.values[RoborockDyadDataProtocol.PRODUCT_INFO]
+    assert product_info.sn == "TESTSERIAL"
+    assert product_info.posix_timezone == "CET-1CEST,M3.5.0/2,M10.5.0/3"
+    assert product_info.oba == {"bom": "A.01"}
+
+
+@pytest.mark.parametrize("value", ["", "not json", None])
+async def test_dyad_invalid_json_string_data_point(fake_channel: FakeChannel, value: str | None):
+    """A malformed JSON data point leaves the value unset."""
+    api = DyadApi(fake_channel, initial_status={10005: value})  # type: ignore[arg-type]
+
+    assert api.values == {}
+
+
+async def test_dyad_as_dict_is_plain_data(fake_channel: FakeChannel):
+    """Decoded values are converted to JSON serializable data for diagnostics."""
+    api = DyadApi(
+        fake_channel,  # type: ignore[arg-type]
+        initial_status={
+            201: 3,
+            227: 1320,
+            10002: '[{"id":1,"on":false,"cron":"15 14 31 10 *","dpAction":{"200":1}}]',
+            10005: PRODUCT_INFO_JSON,
+        },
+    )
+
+    data = api.as_dict()
+
+    json.dumps(data)
+    assert data["status"] == "charging"
+    assert data["silent_mode_start_time"] == "22:00:00"
+    assert data["schedule_task"][0]["cron"] == "15 14 31 10 *"
+    assert data["product_info"]["timezone"] == "Europe/Warsaw"
+
+
+async def test_zeo_as_dict(fake_channel: FakeChannel):
+    """Zeo state is keyed by data point name for diagnostics."""
+    api = ZeoApi(fake_channel, initial_status={RoborockZeoProtocol.COUNTDOWN.value: 5})  # type: ignore[arg-type]
+
+    assert api.as_dict() == {RoborockZeoProtocol.COUNTDOWN.name: 5}
+
+
 async def test_dyad_close_stops_tracking(dyad_api: DyadApi, fake_channel: FakeChannel):
     """After close(), pushes no longer update `values`."""
     await dyad_api.start()

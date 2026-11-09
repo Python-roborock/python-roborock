@@ -31,7 +31,14 @@ from collections.abc import Callable
 from datetime import UTC, datetime, time
 from typing import Any, Generic, TypeVar
 
-from roborock.data import DyadProductInfo, DyadScheduleTask, DyadSndState, HomeDataProduct, RoborockCategory
+from roborock.data import (
+    DyadProductInfo,
+    DyadScheduleTask,
+    DyadSndState,
+    HomeDataProduct,
+    RoborockBase,
+    RoborockCategory,
+)
 from roborock.data.dyad.dyad_code_mappings import (
     DyadBrushSpeed,
     DyadCleanAssistPower,
@@ -144,8 +151,8 @@ DYAD_PROTOCOL_ENTRIES: dict[RoborockDyadDataProtocol, Callable] = {
     RoborockDyadDataProtocol.SELF_CLEAN_CUR_TEMP: lambda val: DyadSelfCleanWaterTemp(val).name,
     RoborockDyadDataProtocol.DRY_CUR_MODE: lambda val: DyadDryingMode(val).name,
     RoborockDyadDataProtocol.SCHEDULE_TASK: _decode_dyad_schedule,
-    RoborockDyadDataProtocol.SND_STATE: lambda val: DyadSndState.from_dict(val),
-    RoborockDyadDataProtocol.PRODUCT_INFO: lambda val: DyadProductInfo.from_dict(val),
+    RoborockDyadDataProtocol.SND_STATE: lambda val: DyadSndState.from_dict(json.loads(val)),
+    RoborockDyadDataProtocol.PRODUCT_INFO: lambda val: DyadProductInfo.from_dict(json.loads(val)),
 }
 
 ZEO_PROTOCOL_ENTRIES: dict[RoborockZeoProtocol, Callable] = {
@@ -191,6 +198,17 @@ def convert_zeo_value(protocol_value: RoborockZeoProtocol, value: Any) -> Any:
     return None
 
 
+def _diagnostic_value(value: Any) -> Any:
+    """Convert a decoded value to plain data for diagnostics."""
+    if isinstance(value, RoborockBase):
+        return value.as_dict()
+    if isinstance(value, list):
+        return [_diagnostic_value(item) for item in value]
+    if isinstance(value, time):
+        return value.isoformat()
+    return value
+
+
 _DYAD_PROTOCOL_VALUES = frozenset(protocol.value for protocol in RoborockDyadDataProtocol)
 _ZEO_PROTOCOL_VALUES = frozenset(protocol.value for protocol in RoborockZeoProtocol)
 
@@ -224,6 +242,10 @@ class A01Api(Trait, TraitUpdateListener, Generic[_P]):
         reported yet is absent from the dictionary.
         """
         return dict(self._values)
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return the latest known state as plain data for diagnostics."""
+        return {protocol.name: _diagnostic_value(value) for protocol, value in self._values.items()}
 
     @property
     def last_message_time(self) -> datetime | None:
