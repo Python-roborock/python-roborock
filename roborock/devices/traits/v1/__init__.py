@@ -74,6 +74,7 @@ from . import (
     command,
     common,
     consumeable,
+    customize_clean_mode,
     device_features,
     do_not_disturb,
     dust_collection_mode,
@@ -98,6 +99,7 @@ from .clean_summary import CleanSummaryTrait
 from .command import CommandTrait
 from .common import V1TraitMixin
 from .consumeable import ConsumableTrait
+from .customize_clean_mode import CustomizeCleanModeTrait
 from .device_features import DeviceFeaturesTrait
 from .do_not_disturb import DoNotDisturbTrait
 from .dust_collection_mode import DustCollectionModeTrait
@@ -126,6 +128,7 @@ __all__ = [
     "command",
     "common",
     "consumeable",
+    "customize_clean_mode",
     "device_features",
     "do_not_disturb",
     "dust_collection_mode",
@@ -179,6 +182,7 @@ class PropertiesApi(Trait):
     smart_wash_params: SmartWashParamsTrait | None = None
     obstacle_photos: ObstaclePhotoTrait | None = None
     mop_dryer: MopDryerTrait | None = None
+    customize_clean_mode: CustomizeCleanModeTrait | None = None
 
     def __init__(
         self,
@@ -283,6 +287,13 @@ class PropertiesApi(Trait):
             wash_towel_mode = WashTowelModeTrait(self.device_features)
             wash_towel_mode._rpc_channel = self._get_rpc_channel(wash_towel_mode)  # type: ignore[assignment]
             self.wash_towel_mode = wash_towel_mode
+
+        if self.customize_clean_mode is None and self._is_supported(
+            CustomizeCleanModeTrait, "customize_clean_mode", dock_features
+        ):
+            customize_clean_mode = CustomizeCleanModeTrait(self.device_features)
+            customize_clean_mode._rpc_channel = self._get_rpc_channel(customize_clean_mode)  # type: ignore[assignment]
+            self.customize_clean_mode = customize_clean_mode
 
         if self.obstacle_photos is None and self._is_supported(ObstaclePhotoTrait, "obstacle_photos", dock_features):
             obstacle_photos = ObstaclePhotoTrait(self._rpc_channel)
