@@ -2,6 +2,21 @@
 
 <!-- version list -->
 
+## v7.22.0 (2026-11-09)
+
+### Bug Fixes
+
+- Preserve Q10 room labels and sample header calibration
+  ([#939](https://github.com/Python-roborock/python-roborock/pull/939),
+  [`3ec517e`](https://github.com/Python-roborock/python-roborock/commit/3ec517e8d4cdca89f5cd92c20b9403d9103a98f9))
+
+### Features
+
+- Expose Q10 current cleaning room
+  ([#939](https://github.com/Python-roborock/python-roborock/pull/939),
+  [`3ec517e`](https://github.com/Python-roborock/python-roborock/commit/3ec517e8d4cdca89f5cd92c20b9403d9103a98f9))
+
+
 ## v7.21.0 (2026-11-08)
 
 ### Bug Fixes
