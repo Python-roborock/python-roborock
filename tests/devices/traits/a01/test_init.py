@@ -1,5 +1,6 @@
 import datetime
 import json
+from dataclasses import replace
 from typing import Any
 
 import pytest
@@ -8,9 +9,17 @@ from Crypto.Util.Padding import unpad
 from freezegun import freeze_time
 
 from roborock.data import DyadScheduleTask
-from roborock.data.dyad.dyad_code_mappings import DyadDryingMode, DyadSelfCleanIntensity, DyadSuction
+from roborock.data.dyad.dyad_code_mappings import (
+    DyadCleanMode,
+    DyadDryingMode,
+    DyadFeatureBits,
+    DyadSelfCleanIntensity,
+    DyadSuction,
+    DyadWaterLevel,
+)
 from roborock.devices.traits.a01 import DyadApi, ZeoApi, create
 from roborock.devices.traits.a01.device_feature import build_force_load_dp_list
+from roborock.exceptions import RoborockUnsupportedFeature
 from roborock.roborock_message import RoborockDyadDataProtocol, RoborockMessageProtocol, RoborockZeoProtocol
 from roborock.testing.a01_simulator import DEFAULT_DYAD_PRODUCT
 from tests.fixtures.channel_fixtures import FakeChannel
@@ -24,7 +33,7 @@ def fake_channel_fixture() -> FakeChannel:
 
 @pytest.fixture(name="dyad_api")
 def dyad_api_fixture(fake_channel: FakeChannel) -> DyadApi:
-    return DyadApi(fake_channel)  # type: ignore[arg-type]
+    return DyadApi(fake_channel, model="roborock.wdv.a194")  # type: ignore[arg-type]
 
 
 @pytest.fixture(name="zeo_api")
@@ -179,7 +188,7 @@ async def test_dyad_f25_ultra_status_snapshot(dyad_api: DyadApi, fake_channel: F
         RoborockDyadDataProtocol.WATER_MODE_BRUSH_SPEED: "l2",
         RoborockDyadDataProtocol.CHARGE_ERROR_STATUS: False,
         RoborockDyadDataProtocol.DRYING_RATE: 100,
-        RoborockDyadDataProtocol.FLAT_STATUS: False,
+        RoborockDyadDataProtocol.FLAT_STATUS: "standing",
         RoborockDyadDataProtocol.SELF_CLEAN_CUR_MODE: "smart",
         RoborockDyadDataProtocol.SELF_CLEAN_CUR_TEMP: "high",
         RoborockDyadDataProtocol.DRY_CUR_MODE: "fast",
@@ -199,7 +208,9 @@ async def test_dyad_f25_ultra_status_snapshot(dyad_api: DyadApi, fake_channel: F
         (RoborockDyadDataProtocol.CLEAN_ASSIST_POWER_SET, 3, "strong"),
         (RoborockDyadDataProtocol.SELF_CLEAN_WATER_TEMP_LEVEL_SET, 3, "high"),
         (RoborockDyadDataProtocol.SELF_CLEAN_WATER_TEMP_LEVEL_SET, 4, "steam"),
-        (RoborockDyadDataProtocol.SELF_CLEAN_WATER_TEMP_LEVEL_SET, 1, "unknown"),
+        (RoborockDyadDataProtocol.SELF_CLEAN_WATER_TEMP_LEVEL_SET, 1, "low"),
+        (RoborockDyadDataProtocol.SELF_CLEAN_WATER_TEMP_LEVEL_SET, 2, "mid"),
+        (RoborockDyadDataProtocol.SELF_CLEAN_WATER_TEMP_LEVEL_SET, 9, "unknown"),
         (RoborockDyadDataProtocol.SELF_CLEAN_CUR_TEMP, 4, "steam"),
         (RoborockDyadDataProtocol.SELF_CLEAN_CUR_MODE, 0, "smart"),
         (RoborockDyadDataProtocol.SELF_CLEAN_CUR_MODE, 1, "standard"),
@@ -214,10 +225,23 @@ async def test_dyad_f25_ultra_status_snapshot(dyad_api: DyadApi, fake_channel: F
         (RoborockDyadDataProtocol.POWERWHEEL_DIRECTION, 0, "stop"),
         (RoborockDyadDataProtocol.POWERWHEEL_DIRECTION, 1, "forward"),
         (RoborockDyadDataProtocol.POWERWHEEL_DIRECTION, 2, "backward"),
-        (RoborockDyadDataProtocol.POWERWHEEL_DIRECTION, 5, "left"),
-        (RoborockDyadDataProtocol.POWERWHEEL_DIRECTION, 6, "right"),
+        (RoborockDyadDataProtocol.POWERWHEEL_DIRECTION, 3, "left"),
+        (RoborockDyadDataProtocol.POWERWHEEL_DIRECTION, 4, "right"),
+        (RoborockDyadDataProtocol.POWERWHEEL_DIRECTION, 5, "forward_left"),
+        (RoborockDyadDataProtocol.POWERWHEEL_DIRECTION, 6, "forward_right"),
+        (RoborockDyadDataProtocol.POWERWHEEL_DIRECTION, 7, "backward_left"),
+        (RoborockDyadDataProtocol.POWERWHEEL_DIRECTION, 8, "backward_right"),
         (RoborockDyadDataProtocol.POWERWHEEL_DIRECTION, 9, "exit"),
-        (RoborockDyadDataProtocol.POWERWHEEL_DIRECTION, 3, "unknown"),
+        (RoborockDyadDataProtocol.POWERWHEEL_DIRECTION, 10, "unknown"),
+        (RoborockDyadDataProtocol.FLAT_STATUS, 1, "flat"),
+        (RoborockDyadDataProtocol.FLAT_STATUS, 2, "error"),
+        (RoborockDyadDataProtocol.FLAT_STATUS, 3, "unknown"),
+        (RoborockDyadDataProtocol.STATUS, 15, "combination"),
+        (RoborockDyadDataProtocol.ERROR, 20010, "error_20010"),
+        (RoborockDyadDataProtocol.ERROR, 12345, "unknown"),
+        (RoborockDyadDataProtocol.FEATURE_INFO, 102, 102),
+        (RoborockDyadDataProtocol.SELF_CLEAN_PROGRESS, 50, 50),
+        (RoborockDyadDataProtocol.MECHANICAL_ARM, 1, True),
         (RoborockDyadDataProtocol.POWERWHEEL_SPEED, 15, 15),
         (RoborockDyadDataProtocol.DRY_CUR_MODE, 5, "fast"),
         (RoborockDyadDataProtocol.DRY_CUR_MODE, 22, "silent"),
@@ -520,8 +544,9 @@ async def test_dyad_schedule_task_invalid(dyad_api: DyadApi, fake_channel: FakeC
     ("method", "expected_dps"),
     [
         ("start_drying", {"200": 1, "204": 1}),
-        ("stop_drying", {"200": 0}),
-        ("stop_self_clean", {"200": 0}),
+        ("stop", {"200": 0}),
+        ("pause_self_clean", {"200": 2}),
+        ("resume_self_clean", {"200": 1}),
         ("reset_filter", {"218": 1}),
         ("reset_brush", {"219": 1}),
     ],
@@ -650,6 +675,200 @@ async def test_dyad_start_self_clean(level: int, dyad_api: DyadApi, fake_channel
     assert len(fake_channel.published_messages) == 2
     payload_data = json.loads(unpad(fake_channel.published_messages[1].payload, AES.block_size))
     assert payload_data["dps"] == {"200": 1, "203": level}
+
+
+async def test_dyad_start_self_clean_on_any_model(fake_channel: FakeChannel):
+    """The app starts self-clean the same way on every model."""
+    api = create(DEFAULT_DYAD_PRODUCT, fake_channel)  # type: ignore[arg-type]
+    assert isinstance(api, DyadApi)
+    fake_channel.response_queue.append(build_a01_message({203: 1}))
+
+    await api.start_self_clean()
+
+    assert len(fake_channel.published_messages) == 2
+
+
+@pytest.mark.parametrize(
+    ("method", "args", "model"),
+    [
+        ("set_drying_mode", (DyadDryingMode.fast,), "roborock.wetdryvac.a151"),
+        ("set_drying_mode", (DyadDryingMode.silent,), "roborock.wdv.a300"),
+        ("set_drying_mode", (DyadDryingMode.fast,), "roborock.wetdryvac.a238"),
+        ("set_self_clean_intensity", (DyadSelfCleanIntensity.smart,), "roborock.wetdryvac.a132"),
+        ("set_suction", (DyadSuction.l3,), "roborock.wetdryvac.a174"),
+        ("set_sponge_suction", (DyadSuction.l3,), "roborock.wdv.a260"),
+        ("pause_self_clean", (), "roborock.wetdryvac.a56"),
+    ],
+)
+async def test_dyad_commands_accepted_by_model(
+    method: str,
+    args: tuple[Any, ...],
+    model: str,
+    fake_channel: FakeChannel,
+):
+    """Commands are sent to the models the app enables them for."""
+    api = DyadApi(fake_channel, model=model)  # type: ignore[arg-type]
+
+    await getattr(api, method)(*args)
+
+    assert len(fake_channel.published_messages) == 1
+
+
+@pytest.mark.parametrize(
+    ("method", "args", "model"),
+    [
+        ("set_drying_mode", (DyadDryingMode.fast,), "roborock.wetdryvac.a56"),
+        ("set_drying_mode", (DyadDryingMode.fast,), "roborock.wetdryvac.a132"),
+        ("set_drying_mode", (DyadDryingMode.fast,), "roborock.wetdryvac.a01"),
+        ("set_drying_mode", (DyadDryingMode.fast,), None),
+        ("set_self_clean_intensity", (DyadSelfCleanIntensity.smart,), "roborock.wetdryvac.a56"),
+        ("set_self_clean_intensity", (DyadSelfCleanIntensity.deep,), "roborock.wetdryvac.a01"),
+        ("set_suction", (DyadSuction.l3,), "roborock.wetdryvac.a238"),
+        ("set_suction", (DyadSuction.l3,), "roborock.wetdryvac.a56"),
+        ("set_sponge_suction", (DyadSuction.l3,), "roborock.wetdryvac.a238"),
+        ("pause_self_clean", (), "roborock.wetdryvac.a132"),
+        ("pause_self_clean", (), "roborock.wetdryvac.a138"),
+        ("resume_self_clean", (), "roborock.wetdryvac.a132"),
+        ("pause_self_clean", (), None),
+    ],
+)
+async def test_dyad_commands_rejected_by_model(
+    method: str,
+    args: tuple[Any, ...],
+    model: str | None,
+    fake_channel: FakeChannel,
+):
+    """Commands fail on models the app does not enable them for, and nothing is sent."""
+    api = DyadApi(fake_channel, model=model)  # type: ignore[arg-type]
+
+    with pytest.raises(RoborockUnsupportedFeature):
+        await getattr(api, method)(*args)
+
+    assert fake_channel.published_messages == []
+
+
+@pytest.mark.parametrize(
+    ("method", "value"),
+    [
+        ("set_drying_mode", 7),
+        ("set_drying_mode", "fast"),
+        ("set_drying_mode", None),
+        ("set_self_clean_intensity", 7),
+        ("set_self_clean_intensity", "deep"),
+        ("set_suction", 9),
+        ("set_sponge_suction", 9),
+        ("set_water_level", DyadWaterLevel.l1),
+        ("set_water_level", 9),
+    ],
+)
+async def test_dyad_invalid_values_rejected(method: str, value: Any, dyad_api: DyadApi, fake_channel: FakeChannel):
+    """Values the app does not offer are rejected and nothing is sent."""
+    with pytest.raises(ValueError):
+        await getattr(dyad_api, method)(value)
+
+    assert fake_channel.published_messages == []
+
+
+@pytest.mark.parametrize(
+    ("model", "mode"),
+    [
+        ("roborock.wdv.a194", DyadCleanMode.auto),
+        ("roborock.wdv.a194", DyadCleanMode.steam),
+        ("roborock.wdv.a194", DyadCleanMode.hot_water),
+        ("roborock.wdv.a194", DyadCleanMode.dehydration),
+        ("roborock.wetdryvac.a151", DyadCleanMode.max),
+        ("roborock.wetdryvac.a151", DyadCleanMode.power_saving),
+        ("roborock.wetdryvac.a151", DyadCleanMode.dehydration),
+        ("roborock.wetdryvac.a132", DyadCleanMode.power_saving),
+        ("roborock.wetdryvac.a56", DyadCleanMode.dehydration),
+    ],
+)
+async def test_dyad_set_clean_mode(model: str, mode: DyadCleanMode, fake_channel: FakeChannel):
+    """Clean modes the app offers for the model are written to the clean mode data point."""
+    api = DyadApi(fake_channel, model=model)  # type: ignore[arg-type]
+
+    await api.set_clean_mode(mode)
+
+    payload_data = json.loads(unpad(fake_channel.published_messages[0].payload, AES.block_size))
+    assert payload_data["dps"] == {"205": int(mode)}
+
+
+@pytest.mark.parametrize(
+    ("model", "mode"),
+    [
+        ("roborock.wdv.a194", DyadCleanMode.max),
+        ("roborock.wdv.a194", DyadCleanMode.power_saving),
+        ("roborock.wdv.a194", DyadCleanMode.unknown),
+        ("roborock.wdv.a194", 9),
+        ("roborock.wetdryvac.a151", DyadCleanMode.steam),
+        ("roborock.wetdryvac.a132", DyadCleanMode.dehydration),
+        ("roborock.wetdryvac.a01", DyadCleanMode.auto),
+        (None, DyadCleanMode.auto),
+    ],
+)
+async def test_dyad_set_clean_mode_rejected(model: str | None, mode: Any, fake_channel: FakeChannel):
+    """Clean modes the app does not offer for the model are rejected."""
+    api = DyadApi(fake_channel, model=model)  # type: ignore[arg-type]
+
+    with pytest.raises(RoborockUnsupportedFeature):
+        await api.set_clean_mode(mode)
+
+    assert fake_channel.published_messages == []
+
+
+@pytest.mark.parametrize("level", [DyadWaterLevel.l2, DyadWaterLevel.l3, DyadWaterLevel.l4])
+async def test_dyad_set_water_level(level: DyadWaterLevel, dyad_api: DyadApi, fake_channel: FakeChannel):
+    """Water levels offered by the app are written to the water level data point."""
+    await dyad_api.set_water_level(level)
+
+    payload_data = json.loads(unpad(fake_channel.published_messages[0].payload, AES.block_size))
+    assert payload_data["dps"] == {"207": int(level)}
+
+
+async def test_dyad_set_water_level_rejected_by_model(fake_channel: FakeChannel):
+    """Models without the app's water levels are rejected."""
+    api = DyadApi(fake_channel, model="roborock.wetdryvac.a238")  # type: ignore[arg-type]
+
+    with pytest.raises(RoborockUnsupportedFeature):
+        await api.set_water_level(DyadWaterLevel.l3)
+
+    assert fake_channel.published_messages == []
+
+
+async def test_dyad_set_self_clean_intensity_without_smart(fake_channel: FakeChannel):
+    """Models without smart self-clean do not get the smart data point."""
+    api = DyadApi(fake_channel, model="roborock.wetdryvac.a56")  # type: ignore[arg-type]
+
+    await api.set_self_clean_intensity(DyadSelfCleanIntensity.deep)
+
+    payload_data = json.loads(unpad(fake_channel.published_messages[0].payload, AES.block_size))
+    assert payload_data["dps"] == {"203": 2, "223": 2}
+
+
+async def test_dyad_supports_feature_bits(dyad_api: DyadApi, fake_channel: FakeChannel):
+    """Feature bits are read from the reported FEATURE_INFO value."""
+    assert not dyad_api.supports(DyadFeatureBits.show_current_mode)
+
+    await dyad_api.start()
+    fake_channel.notify_subscribers(build_a01_message({235: 102}))
+
+    assert dyad_api.supports(DyadFeatureBits.percentage_dry_timer)
+    assert dyad_api.supports(DyadFeatureBits.remote_control)
+    assert dyad_api.supports(DyadFeatureBits.show_self_clean_progress)
+    assert dyad_api.supports(DyadFeatureBits.show_current_mode)
+    assert not dyad_api.supports(DyadFeatureBits.three_plus_ten_dry_plan)
+    assert not dyad_api.supports(DyadFeatureBits.unknown)
+
+
+async def test_create_passes_dyad_model(fake_channel: FakeChannel):
+    """The product model from home data enables model specific commands."""
+    product = replace(DEFAULT_DYAD_PRODUCT, model="roborock.wdv.a194")
+    api = create(product, fake_channel)  # type: ignore[arg-type]
+    assert isinstance(api, DyadApi)
+
+    await api.set_drying_mode(DyadDryingMode.fast)
+
+    assert len(fake_channel.published_messages) == 1
 
 
 async def test_zeo_api_set_value(zeo_api: ZeoApi, fake_channel: FakeChannel):
