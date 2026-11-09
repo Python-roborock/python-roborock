@@ -2,7 +2,7 @@
 
 import pytest
 
-from roborock.diagnostics import Diagnostics, redact_device_uid, redact_topic_name
+from roborock.diagnostics import REDACTED, Diagnostics, redact_device_data, redact_device_uid, redact_topic_name
 
 
 def test_empty_diagnostics():
@@ -99,3 +99,10 @@ def test_redact_device(duid: str, expected: str) -> None:
 
     redacted = redact_device_uid(duid)
     assert redacted == expected
+
+
+def test_redact_q10_raw_room_name() -> None:
+    """Custom Q10 room labels are private in exported diagnostics."""
+    assert redact_device_data(
+        {"map": {"rooms": [{"rawName": "Owner’s bedroom"}], "currentRoom": {"rawName": "Salle d’eau"}}}
+    ) == {"map": {"rooms": [{"rawName": REDACTED}], "currentRoom": {"rawName": REDACTED}}}

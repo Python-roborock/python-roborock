@@ -32,7 +32,7 @@ from roborock.map.b01_q10_map_parser import (
     Q10TracePacket,
 )
 from roborock.map.b01_q10_overlays import Q10RestrictedZone, Q10VirtualWall, parse_virtual_wall_blob, parse_zone_blob
-from roborock.map.b01_q10_render import Q10MapOverlays, render_q10_map
+from roborock.map.b01_q10_render import Q10MapOverlays, render_q10_map, resolve_q10_current_room
 from roborock.protocols.b01_q10_protocol import encode_restricted_zones, encode_room_name, encode_virtual_walls
 
 from .command import CommandTrait
@@ -209,6 +209,17 @@ class MapContentTrait(TraitUpdateListener):
         """Current heading for orienting a robot marker on a caller-rendered map."""
         return self._trace_packet.heading if self._trace_packet else None
 
+    @property
+    def current_room(self) -> Q10Room | None:
+        """Room inferred from the latest live robot position and segmented map.
+
+        Returns ``None`` when position or calibration is unavailable, the pose
+        lies outside the map, or nearby room labels are ambiguous.
+        """
+        if self._map_packet is None or self._trace_packet is None:
+            return None
+        return resolve_q10_current_room(self._map_packet, self._trace_packet)
+
     def update_from_map_packet(self, packet: Q10MapPacket) -> None:
         """Store a map-protocol update and render the latest sources."""
         if packet.kind is not Q10MapPacketKind.CURRENT:
@@ -219,12 +230,15 @@ class MapContentTrait(TraitUpdateListener):
 
     def update_from_trace_packet(self, packet: Q10TracePacket) -> None:
         """Store a trace-protocol update and render the latest sources."""
-        self._trace_packet = packet
+        self._trace_packet = None if self._map_dps.robot_at_dock else packet
         self._render()
         self._notify_update()
 
     def _map_dps_updated(self) -> None:
         """Render after the low-level map DPS source changes."""
+        if self._map_dps.robot_at_dock:
+            # A completed path no longer identifies the current pose at dock.
+            self._trace_packet = None
         if self._map_packet is None:
             return
         self._render()
@@ -249,6 +263,7 @@ class MapContentTrait(TraitUpdateListener):
     def as_dict(self, exclude: set[str] | None = None) -> dict[str, Any]:
         """Return the trait data as a dictionary, excluding large binary data."""
         exclude_set = exclude or set()
+        current_room = self.current_room
         data = {
             "rooms": [room.as_dict() for room in self.rooms],
             "path": [point.as_dict() for point in self.path],
@@ -256,6 +271,7 @@ class MapContentTrait(TraitUpdateListener):
                 {"x": position.x, "y": position.y} if (position := self.robot_position) is not None else None
             ),
             "robotHeading": self.robot_heading,
+            "currentRoom": current_room.as_dict() if current_room is not None else None,
         }
         for key in exclude_set:
             data.pop(key, None)

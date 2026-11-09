@@ -153,7 +153,7 @@ def test_packet_layers_decompose_q10_fixture() -> None:
     """The Q10 synthetic fixture splits into floor + per-room layers."""
     layers = parse_map_packet(_payload()).layers
     assert layers.class_counts.get(LAYER_FLOOR) == 26
-    assert {room.id: room.name for room in layers.rooms} == {2: "Living Room", 3: "Bedroom"}
+    assert {room.id: room.name for room in layers.rooms} == {2: "Living Room", 3: "bedroom"}
 
     living = layers.render_room(2, (255, 0, 0, 255))
     image = Image.open(io.BytesIO(living))
@@ -202,9 +202,9 @@ def test_parse_map_packet_dimensions_straddling_256() -> None:
 
 
 def test_room_name_normalization() -> None:
-    """Firmware ``rr_`` default names are normalized; custom names are titled."""
+    """Firmware ``rr_`` defaults are normalized; custom names stay verbatim."""
     assert Q10Room(id=2, raw_name="rr_living_room", pixel_value=8, pixel_count=9).name == "Living Room"
-    assert Q10Room(id=3, raw_name="bedroom", pixel_value=12, pixel_count=9).name == "Bedroom"
+    assert Q10Room(id=3, raw_name="bedroom", pixel_value=12, pixel_count=9).name == "bedroom"
 
 
 def test_room_pixel_count_matches_grid() -> None:
@@ -627,3 +627,8 @@ def test_maximum_counted_obstacle_table_is_bounded() -> None:
     packet = parse_map_packet(FIXTURE.read_bytes() + _carpet_tail(8, 6, bytes(48)) + table)
     assert packet.obstacles == [Q10Obstacle(-10, 20)] * 255
     assert packet.skip_cleaning_points == []
+
+
+@pytest.mark.parametrize("label", ["Salle d’eau", "Owner's bedroom", "lower_case", "  Study  ", ""])
+def test_custom_room_name_preserved(label: str) -> None:
+    assert Q10Room(id=3, raw_name=label, pixel_value=12, pixel_count=9).name == label
