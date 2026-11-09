@@ -349,21 +349,19 @@ def test_encode_room_clean_settings_uses_compact_format() -> None:
 def test_decode_room_clean_settings_distinguishes_echo_and_complete_response() -> None:
     first = _room_settings()
     second = _room_settings(9, fan=Q10RoomFanLevel.MAX_PLUS, water=YXWaterLevel.LOW)
-    echo = decode_room_clean_settings(encode_room_clean_settings((first, second)))
-    complete = decode_room_clean_settings(
+    echo, echo_complete = decode_room_clean_settings("AgMDAwECAgkFAQECAg==")
+    full, full_complete = decode_room_clean_settings(
         base64.b64encode(b"\x02" + _full_room_record(first) + _full_room_record(second)).decode()
     )
 
-    assert echo.settings == (
-        first,
-        second,
-    )
-    assert echo.complete is False
-    assert complete.settings == (
-        first,
-        second,
-    )
-    assert complete.complete is True
+    expected = [
+        {"room_id": 3, "fan_level": 3, "water_level": 3, "clean_type": 1, "clean_count": 2, "clean_line": 2},
+        {"room_id": 9, "fan_level": 5, "water_level": 1, "clean_type": 1, "clean_count": 2, "clean_line": 2},
+    ]
+    assert echo == expected
+    assert echo_complete is False
+    assert full == expected
+    assert full_complete is True
 
 
 def test_decode_room_clean_settings_preserves_unknown_values() -> None:
@@ -371,17 +369,15 @@ def test_decode_room_clean_settings_preserves_unknown_values() -> None:
     record[8] = 42
     record[11] = 99
 
-    decoded = decode_room_clean_settings(base64.b64encode(b"\x01" + record).decode())
+    records, complete = decode_room_clean_settings(base64.b64encode(b"\x01" + record).decode())
 
-    assert decoded.settings[0].fan_level is Q10RoomFanLevel.UNKNOWN
-    assert decoded.settings[0].clean_line is YXCleanLine.UNKNOWN
+    assert records[0]["fan_level"] == 42
+    assert records[0]["clean_line"] == 99
+    assert complete is True
 
 
 def test_decode_room_clean_settings_empty_complete_response() -> None:
-    decoded = decode_room_clean_settings("AA==")
-
-    assert decoded.settings == ()
-    assert decoded.complete is True
+    assert decode_room_clean_settings("AA==") == ([], True)
 
 
 def test_encode_room_clean_settings_rejects_more_than_wire_count() -> None:
@@ -409,8 +405,14 @@ def test_encode_room_clean_settings_matches_physical_echoes() -> None:
 
     assert encode_room_clean_settings((candidate,)) == "AQEDAgEBAQ=="
     assert encode_room_clean_settings((restored,)) == "AQEBAwECAg=="
-    assert decode_room_clean_settings("AQEDAgEBAQ==").settings == (candidate,)
-    assert decode_room_clean_settings("AQEBAwECAg==").settings == (restored,)
+    assert decode_room_clean_settings("AQEDAgEBAQ==") == (
+        [{"room_id": 1, "fan_level": 3, "water_level": 2, "clean_type": 1, "clean_count": 1, "clean_line": 1}],
+        False,
+    )
+    assert decode_room_clean_settings("AQEBAwECAg==") == (
+        [{"room_id": 1, "fan_level": 1, "water_level": 3, "clean_type": 1, "clean_count": 2, "clean_line": 2}],
+        False,
+    )
 
 
 def test_encode_room_clean_settings_supports_three_pass_protocol_value() -> None:
@@ -439,59 +441,17 @@ def test_decode_room_clean_settings_rejects_malformed_payload(payload: str) -> N
 def test_decode_sanitized_physical_six_room_capture() -> None:
     payload = (TESTDATA_PATH / "customer_clean_full_sanitized.b64").read_text().strip()
 
-    decoded = decode_room_clean_settings(payload)
+    records, complete = decode_room_clean_settings(payload)
 
-    assert decoded.complete is True
+    assert complete is True
     assert len(base64.b64decode(payload)) == 283
-    assert list(decoded.settings) == [
-        Q10RoomCleanSettings(
-            1,
-            Q10RoomFanLevel.QUIET,
-            YXWaterLevel.HIGH,
-            Q10RoomCleanType.VAC_AND_MOP,
-            Q10CleanCount.TWICE,
-            YXCleanLine.FINE,
-        ),
-        Q10RoomCleanSettings(
-            2,
-            Q10RoomFanLevel.MAX_PLUS,
-            YXWaterLevel.HIGH,
-            Q10RoomCleanType.VAC_AND_MOP,
-            Q10CleanCount.TWICE,
-            YXCleanLine.FINE,
-        ),
-        Q10RoomCleanSettings(
-            3,
-            Q10RoomFanLevel.MAX_PLUS,
-            YXWaterLevel.MEDIUM,
-            Q10RoomCleanType.VACUUM,
-            Q10CleanCount.TWICE,
-            YXCleanLine.FINE,
-        ),
-        Q10RoomCleanSettings(
-            4,
-            Q10RoomFanLevel.MAX_PLUS,
-            YXWaterLevel.MEDIUM,
-            Q10RoomCleanType.VACUUM,
-            Q10CleanCount.TWICE,
-            YXCleanLine.FINE,
-        ),
-        Q10RoomCleanSettings(
-            5,
-            Q10RoomFanLevel.QUIET,
-            YXWaterLevel.HIGH,
-            Q10RoomCleanType.VAC_AND_MOP,
-            Q10CleanCount.TWICE,
-            YXCleanLine.FINE,
-        ),
-        Q10RoomCleanSettings(
-            6,
-            Q10RoomFanLevel.MAX_PLUS,
-            YXWaterLevel.HIGH,
-            Q10RoomCleanType.VAC_AND_MOP,
-            Q10CleanCount.TWICE,
-            YXCleanLine.FINE,
-        ),
+    assert records == [
+        {"room_id": 1, "fan_level": 1, "water_level": 3, "clean_type": 1, "clean_count": 2, "clean_line": 2},
+        {"room_id": 2, "fan_level": 5, "water_level": 3, "clean_type": 1, "clean_count": 2, "clean_line": 2},
+        {"room_id": 3, "fan_level": 5, "water_level": 2, "clean_type": 2, "clean_count": 2, "clean_line": 2},
+        {"room_id": 4, "fan_level": 5, "water_level": 2, "clean_type": 2, "clean_count": 2, "clean_line": 2},
+        {"room_id": 5, "fan_level": 1, "water_level": 3, "clean_type": 1, "clean_count": 2, "clean_line": 2},
+        {"room_id": 6, "fan_level": 5, "water_level": 3, "clean_type": 1, "clean_count": 2, "clean_line": 2},
     ]
 
 
@@ -691,3 +651,18 @@ def test_unknown_setting_cannot_be_written(field: str) -> None:
 def test_semantic_room_guards(rooms: tuple[Q10RoomCleanSettings, ...]) -> None:
     with pytest.raises(ValueError):
         encode_room_clean_settings(rooms)
+
+
+def test_decode_room_clean_settings_skips_vertices_between_records() -> None:
+    first = _full_room_record(_room_settings(3))[:-1] + b"\x02" + bytes(8)
+    second = _full_room_record(_room_settings(9))
+    records, complete = decode_room_clean_settings(base64.b64encode(b"\x02" + first + second).decode())
+    assert [room["room_id"] for room in records] == [3, 9]
+    assert complete is True
+
+
+@pytest.mark.parametrize("vertex_bytes", range(4))
+def test_decode_room_clean_settings_rejects_truncated_vertices(vertex_bytes: int) -> None:
+    record = _full_room_record(_room_settings())[:-1] + b"\x01" + bytes(vertex_bytes)
+    with pytest.raises(RoborockException, match="truncated vertices"):
+        decode_room_clean_settings(base64.b64encode(b"\x01" + record).decode())

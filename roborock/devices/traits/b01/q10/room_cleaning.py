@@ -2,12 +2,20 @@
 
 import logging
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
-from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP
+from roborock.data.b01_q10.b01_q10_code_mappings import (
+    B01_Q10_DP,
+    Q10CleanCount,
+    Q10RoomCleanType,
+    Q10RoomFanLevel,
+    YXCleanLine,
+    YXWaterLevel,
+)
 from roborock.data.b01_q10.b01_q10_containers import Q10RoomCleanSettings
 from roborock.data.containers import RoborockBase
+from roborock.devices.traits.common import DpsDataConverter
 from roborock.exceptions import RoborockException
 from roborock.protocols.b01_q10_protocol import decode_room_clean_settings, encode_room_clean_settings
 
@@ -16,16 +24,51 @@ from .common import UpdatableTrait
 
 _LOGGER = logging.getLogger(__name__)
 
+_ROOM_SETTING_MODES = (
+    ("fan_level", Q10RoomFanLevel, Q10RoomFanLevel.UNKNOWN.code),
+    ("water_level", YXWaterLevel, YXWaterLevel.UNKNOWN.code),
+    ("clean_type", Q10RoomCleanType, Q10RoomCleanType.UNKNOWN.code),
+    ("clean_count", Q10CleanCount, Q10CleanCount.UNKNOWN.code),
+    ("clean_line", YXCleanLine, YXCleanLine.UNKNOWN.code),
+)
+
+
+def _normalize_settings(
+    records: list[dict[str, int]], current: list[Q10RoomCleanSettings] | None, complete: bool
+) -> list[dict[str, int]]:
+    """Normalize mode codes and merge compact records before model conversion."""
+    settings = []
+    for record in records:
+        room = {"room_id": record["room_id"]}
+        for field_name, mode_type, unknown_code in _ROOM_SETTING_MODES:
+            code = record[field_name]
+            room[field_name] = code if mode_type.from_code_optional(code) is not None else unknown_code
+        settings.append(room)
+    if complete:
+        return settings
+
+    by_room = {
+        room.room_id: {
+            "room_id": room.room_id,
+            **{field_name: getattr(room, field_name).code for field_name, _, _ in _ROOM_SETTING_MODES},
+        }
+        for room in (current or [])
+    }
+    by_room.update((room["room_id"], room) for room in settings)
+    return list(by_room.values())
+
 
 @dataclass
 class RoomCleaning(RoborockBase):
     """Current customized room-cleaning state."""
 
-    settings: list[Q10RoomCleanSettings] | None = None
+    settings: list[Q10RoomCleanSettings] | None = field(default=None, metadata={"dps": B01_Q10_DP.CUSTOMER_CLEAN})
 
 
 class RoomCleaningTrait(RoomCleaning, UpdatableTrait):
     """Read and control Q10 per-room cleaning settings."""
+
+    _CONVERTER = DpsDataConverter.from_dataclass(RoomCleaning)
 
     def __init__(self, command: CommandTrait) -> None:
         RoomCleaning.__init__(self)
@@ -54,16 +97,9 @@ class RoomCleaningTrait(RoomCleaning, UpdatableTrait):
         if not isinstance(payload, str):
             return
         try:
-            update = decode_room_clean_settings(payload)
+            records, complete = decode_room_clean_settings(payload)
         except RoborockException:
             _LOGGER.debug("Ignoring malformed Q10 customized-room settings", exc_info=True)
             return
-        if update.complete:
-            settings = list(update.settings)
-        else:
-            by_room = {room.room_id: room for room in (self.settings or [])}
-            by_room.update((room.room_id, room) for room in update.settings)
-            settings = list(by_room.values())
-        if settings != self.settings:
-            self.settings = settings
-            self._notify_update()
+        settings = _normalize_settings(records, self.settings, complete)
+        super().update_from_dps({B01_Q10_DP.CUSTOMER_CLEAN: settings})

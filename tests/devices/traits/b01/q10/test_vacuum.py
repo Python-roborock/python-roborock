@@ -24,7 +24,6 @@ from roborock.devices.traits.b01.q10 import vacuum as vacuum_module
 from roborock.devices.traits.b01.q10.vacuum import VacuumTrait
 from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import Q10Point, Q10TracePacket
-from roborock.protocols.b01_q10_protocol import encode_room_clean_settings
 
 from .conftest import FakeB01Q10Channel
 
@@ -290,7 +289,7 @@ async def test_clean_rooms_sends_settings_mode_and_start_in_order(
     settings = (_room_settings(3), _room_settings(9))
     await q10_api.vacuum.clean_rooms(settings)
     assert fake_channel.published_commands == [
-        (B01_Q10_DP.COMMON, {"62": encode_room_clean_settings(settings)}),
+        (B01_Q10_DP.COMMON, {"62": "AgMDAwECAgkDAwECAg=="}),
         (B01_Q10_DP.CLEAN_MODE, 4),
         (B01_Q10_DP.START_CLEAN, {"cmd": 2, "clean_paramters": [3, 9]}),
     ]
@@ -314,7 +313,14 @@ async def test_publish_failure_stops_remaining_clean_commands(
     with pytest.raises(RoborockException, match="publish failed"):
         await q10_api.vacuum.clean_rooms((_room_settings(),))
     assert calls == fail_on
-    assert len(fake_channel.published_commands) == fail_on - 1
+    assert (
+        fake_channel.published_commands
+        == [
+            (B01_Q10_DP.COMMON, {"62": "AQMDAwECAg=="}),
+            (B01_Q10_DP.CLEAN_MODE, 4),
+            (B01_Q10_DP.START_CLEAN, {"cmd": 2, "clean_paramters": [3]}),
+        ][: fail_on - 1]
+    )
 
 
 async def test_clean_rooms_cancels_active_goto(

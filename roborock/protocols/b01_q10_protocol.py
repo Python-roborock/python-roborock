@@ -92,14 +92,6 @@ _Q10_CUSTOM_ROOM_PROPERTIES_SIZE = 26
 _Q10_CUSTOM_ROOM_NAME_SIZE = 20
 
 
-@dataclass(frozen=True)
-class Q10RoomCleanUpdate:
-    """Decoded Q10 customized-room settings push."""
-
-    settings: tuple[Q10RoomCleanSettings, ...]
-    complete: bool
-
-
 def encode_room_clean_settings(settings: Sequence[Q10RoomCleanSettings]) -> str:
     """Encode the compact six-byte-per-room ``dpCustomerClean`` write."""
     selected = tuple(settings)
@@ -131,8 +123,8 @@ def encode_room_clean_settings(settings: Sequence[Q10RoomCleanSettings]) -> str:
     return b64encode(payload).decode()
 
 
-def decode_room_clean_settings(payload: str) -> Q10RoomCleanUpdate:
-    """Decode a compact echo or complete ``dpCustomerClean`` response.
+def decode_room_clean_settings(payload: str) -> tuple[list[dict[str, int]], bool]:
+    """Decode room field dictionaries and whether a ``dpCustomerClean`` push is complete.
 
     Complete records contain 26 property bytes, a 20-byte name block, one
     vertex-count byte, then four bytes per vertex. Relevant property offsets
@@ -147,7 +139,7 @@ def decode_room_clean_settings(payload: str) -> Q10RoomCleanUpdate:
 
     count = raw[0]
     if count == 0 and len(raw) == 1:
-        return Q10RoomCleanUpdate((), complete=True)
+        return [], True
     if len(raw) == 1 + count * _Q10_CUSTOM_ROOM_COMPACT_SIZE:
         offset = 1
         rooms = []
@@ -158,17 +150,17 @@ def decode_room_clean_settings(payload: str) -> Q10RoomCleanUpdate:
                 raise RoborockException("Invalid Q10 customized-room payload: duplicate room id")
             room_ids.add(room_id)
             rooms.append(
-                Q10RoomCleanSettings(
-                    room_id=room_id,
-                    fan_level=(Q10RoomFanLevel.from_code_optional(raw[offset + 1]) or Q10RoomFanLevel.UNKNOWN),
-                    water_level=(YXWaterLevel.from_code_optional(raw[offset + 2]) or YXWaterLevel.UNKNOWN),
-                    clean_type=(Q10RoomCleanType.from_code_optional(raw[offset + 3]) or Q10RoomCleanType.UNKNOWN),
-                    clean_count=(Q10CleanCount.from_code_optional(raw[offset + 4]) or Q10CleanCount.UNKNOWN),
-                    clean_line=(YXCleanLine.from_code_optional(raw[offset + 5]) or YXCleanLine.UNKNOWN),
-                )
+                {
+                    "room_id": room_id,
+                    "fan_level": raw[offset + 1],
+                    "water_level": raw[offset + 2],
+                    "clean_type": raw[offset + 3],
+                    "clean_count": raw[offset + 4],
+                    "clean_line": raw[offset + 5],
+                }
             )
             offset += _Q10_CUSTOM_ROOM_COMPACT_SIZE
-        return Q10RoomCleanUpdate(tuple(rooms), complete=False)
+        return rooms, False
 
     offset = 1
     rooms = []
@@ -183,14 +175,14 @@ def decode_room_clean_settings(payload: str) -> Q10RoomCleanUpdate:
         room_ids.add(room_id)
         clean_count = int.from_bytes(raw[offset + 5 : offset + 7], "big")
         rooms.append(
-            Q10RoomCleanSettings(
-                room_id=room_id,
-                fan_level=(Q10RoomFanLevel.from_code_optional(raw[offset + 8]) or Q10RoomFanLevel.UNKNOWN),
-                water_level=(YXWaterLevel.from_code_optional(raw[offset + 9]) or YXWaterLevel.UNKNOWN),
-                clean_type=(Q10RoomCleanType.from_code_optional(raw[offset + 7]) or Q10RoomCleanType.UNKNOWN),
-                clean_count=(Q10CleanCount.from_code_optional(clean_count) or Q10CleanCount.UNKNOWN),
-                clean_line=(YXCleanLine.from_code_optional(raw[offset + 11]) or YXCleanLine.UNKNOWN),
-            )
+            {
+                "room_id": room_id,
+                "fan_level": raw[offset + 8],
+                "water_level": raw[offset + 9],
+                "clean_type": raw[offset + 7],
+                "clean_count": clean_count,
+                "clean_line": raw[offset + 11],
+            }
         )
         vertex_count = raw[offset + _Q10_CUSTOM_ROOM_PROPERTIES_SIZE + _Q10_CUSTOM_ROOM_NAME_SIZE]
         offset = minimum_end + vertex_count * 4
@@ -198,7 +190,7 @@ def decode_room_clean_settings(payload: str) -> Q10RoomCleanUpdate:
             raise RoborockException("Invalid Q10 customized-room payload: truncated vertices")
     if offset != len(raw):
         raise RoborockException("Invalid Q10 customized-room payload: trailing data")
-    return Q10RoomCleanUpdate(tuple(rooms), complete=True)
+    return rooms, True
 
 
 _Q10_ZONE_RECORD_SIZE = 38
