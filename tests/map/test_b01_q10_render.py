@@ -36,7 +36,6 @@ from roborock.map.b01_q10_overlays import (
     Q10Zone,
 )
 from roborock.map.b01_q10_render import (
-    _Q10_RESOLUTIONS,
     Q10MapOverlays,
     _calibration_from_header_metadata,
     _erased_cells,
@@ -44,6 +43,7 @@ from roborock.map.b01_q10_render import (
     _place_docked_robot,
     _vector_calibration,
     render_q10_map,
+    resolve_q10_current_room,
     solve_q10_calibration,
 )
 
@@ -149,7 +149,7 @@ def test_map_data_from_packet_populates_room_names_and_carpet_map() -> None:
     carpet[20] = 3
     packet = replace(_packet(), carpet_mask=bytes(carpet))
     map_data = _map_data_from_packet(packet, config=CONFIG)
-    assert map_data.additional_parameters["room_names"] == {2: "Living Room", 3: "Bedroom"}
+    assert map_data.additional_parameters["room_names"] == {2: "Living Room", 3: "bedroom"}
     assert map_data.carpet_map == {10, 20}
 
 
@@ -255,7 +255,8 @@ def test_zero_degree_dock_places_robot_to_its_right() -> None:
 def test_render_applies_erase_zones() -> None:
     """With a calibration, erase-zone cells are blanked from the image."""
     packet, trace = _calibrated_inputs()
-    base = _render(packet, trace=trace)
+    packet = replace(packet, header_calibration=replace(HEADER, charger_x=-1, charger_y=-1))
+    base = _render(packet)
     trace_calibration = solve_q10_calibration(packet, trace)
     calibration = _vector_calibration(packet, trace_calibration)
     assert calibration == VECTOR_CALIBRATION
@@ -264,7 +265,7 @@ def test_render_applies_erase_zones() -> None:
     corners = [(-1, -1), (8, -1), (8, 6), (-1, 6)]
     erase_zone = Q10EraseZone(vertices=_world_vertices(calibration, corners))
     cells = _erased_cells(packet.layers, [erase_zone], calibration)
-    render = _render(replace(packet, erase_zones=[erase_zone]), trace=trace)
+    render = _render(replace(packet, erase_zones=[erase_zone]))
 
     assert len(cells) == packet.layers.width * packet.layers.height
     assert render != base
@@ -297,7 +298,8 @@ def test_header_vector_calibration_is_independent_of_trace_orientation() -> None
 def test_render_partial_erase() -> None:
     """An erase rectangle only blanks the cells it covers, leaving the rest."""
     packet, trace = _calibrated_inputs()
-    base = _render(packet, trace=trace)
+    packet = replace(packet, header_calibration=replace(HEADER, charger_x=-1, charger_y=-1))
+    base = _render(packet)
     trace_calibration = solve_q10_calibration(packet, trace)
     calibration = _vector_calibration(packet, trace_calibration)
     assert calibration == VECTOR_CALIBRATION
@@ -306,7 +308,7 @@ def test_render_partial_erase() -> None:
     corners = [(-1, -1), (8, -1), (8, 2), (-1, 2)]
     erase_zone = Q10EraseZone(vertices=_world_vertices(calibration, corners))
     cells = _erased_cells(packet.layers, [erase_zone], calibration)
-    render = _render(replace(packet, erase_zones=[erase_zone]), trace=trace)
+    render = _render(replace(packet, erase_zones=[erase_zone]))
 
     assert 0 < len(cells) < packet.layers.width * packet.layers.height
     assert render != base
@@ -327,10 +329,7 @@ def test_solve_q10_calibration_uses_header_origin_with_short_path() -> None:
 
     cal = solve_q10_calibration(packet, trace)
     assert cal is not None
-    # Origin comes straight from the header (exact); only the resolution is fit,
-    # so it lands on one of the candidates (the exact pick is grid-quantized).
-    assert (cal.origin_x, cal.origin_y) == (0.0, 5.0)
-    assert cal.resolution in _Q10_RESOLUTIONS
+    assert cal == TRACE_CALIBRATION
 
 
 def test_solve_q10_calibration_short_path_without_header_returns_none() -> None:
@@ -338,6 +337,55 @@ def test_solve_q10_calibration_short_path_without_header_returns_none() -> None:
     packet = _packet()
     trace = Q10TracePacket(points=_floor_world_points(packet.layers, IDENTITY, 6))
     assert solve_q10_calibration(packet, trace) is None
+
+
+@pytest.mark.parametrize(
+    "pixel, expected_id", [((2, 2), 2), ((5, 2), 3), ((0, 2), 2), ((3, 4), None), ((-1, 2), None), ((8, 2), None)]
+)
+def test_resolve_current_room_exact_nearby_ambiguous_and_outside(
+    pixel: tuple[int, int],
+    expected_id: int | None,
+) -> None:
+    """Fixture segments resolve exactly or conservatively around doorways."""
+    packet = replace(_packet(), header_calibration=HEADER)
+    points = [Q10Point(40, 60), Q10Point(100, 60)]
+    points.append(Q10Point(*(int(value) for value in TRACE_CALIBRATION.pixel_to_world(*pixel))))
+    trace = Q10TracePacket(points=points)
+    room = resolve_q10_current_room(packet, trace)
+    assert (room.id if room is not None else None) == expected_id
+
+
+def test_single_pose_uses_header_calibration_for_room_and_rendering() -> None:
+    packet = replace(_packet(), header_calibration=replace(HEADER, charger_x=-1, charger_y=-1))
+    trace = Q10TracePacket(points=[Q10Point(100, 60)], heading=45)
+    assert solve_q10_calibration(packet, trace) == TRACE_CALIBRATION
+    assert resolve_q10_current_room(packet, trace) == packet.rooms[1]
+    rendered = Image.open(io.BytesIO(_render(packet, trace=trace)))
+    assert rendered.getpixel((5 * CONFIG.map_scale, 2 * CONFIG.map_scale)) == (255, 255, 255, 255)
+
+
+@pytest.mark.parametrize(
+    "header", [None, replace(HEADER, resolution=100), replace(HEADER, origin_x=30000, origin_y=30000)]
+)
+def test_current_room_uses_dense_path_fallback_when_header_is_unusable(header: Q10HeaderCalibration | None) -> None:
+    packet = replace(_packet(), header_calibration=header)
+    floor_pixels = [(x, y) for y in (1, 2, 3) for x in (1, 2, 3, 4, 5, 6)]
+    pixels = floor_pixels * 2 + [(5, 2)]
+    trace = Q10TracePacket(
+        points=[Q10Point(*(int(v) for v in TRACE_CALIBRATION.pixel_to_world(x, y))) for x, y in pixels]
+    )
+    calibration = solve_q10_calibration(packet, trace)
+    assert calibration is not None
+    assert resolve_q10_current_room(packet, trace) == packet.rooms[1]
+
+
+def test_current_room_requires_pose_calibration_and_matching_metadata() -> None:
+    packet = _packet()
+    assert resolve_q10_current_room(packet, None) is None
+    assert resolve_q10_current_room(packet, Q10TracePacket()) is None
+    assert resolve_q10_current_room(packet, Q10TracePacket(points=[Q10Point(100, 60)])) is None
+    packet = replace(packet, header_calibration=HEADER, rooms=[])
+    assert resolve_q10_current_room(packet, Q10TracePacket(points=[Q10Point(100, 60)])) is None
 
 
 @pytest.mark.parametrize("origin", [(0, 500), (100, 600)])
@@ -384,3 +432,15 @@ def test_render_obstacles_respects_drawables_and_ignores_skip_markers() -> None:
     assert render([Drawable.OBSTACLES]) != render([])
     assert render([]) == render([], replace(packet, obstacles=[]))
     assert render([Drawable.OBSTACLES], replace(packet, obstacles=[])) == render([], replace(packet, obstacles=[]))
+
+
+def test_resolve_current_room_valid_header_avoids_grid_decomposition(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Reading the current room with a valid header only samples raw grid cells."""
+    packet = replace(_packet(), header_calibration=HEADER)
+    trace = Q10TracePacket(points=[Q10Point(100, 60)])
+
+    def fail_decomposition(*args: object, **kwargs: object) -> None:
+        pytest.fail("Current-room lookup decomposed the full occupancy grid")
+
+    monkeypatch.setattr("roborock.map.b01_q10_map_parser.decompose_grid", fail_decomposition)
+    assert resolve_q10_current_room(packet, trace) == packet.rooms[1]

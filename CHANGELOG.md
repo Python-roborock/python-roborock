@@ -2,6 +2,70 @@
 
 <!-- version list -->
 
+## v7.22.0 (2026-11-09)
+
+### Bug Fixes
+
+- Preserve Q10 room labels and sample header calibration
+  ([#939](https://github.com/Python-roborock/python-roborock/pull/939),
+  [`3ec517e`](https://github.com/Python-roborock/python-roborock/commit/3ec517e8d4cdca89f5cd92c20b9403d9103a98f9))
+
+### Features
+
+- Expose Q10 current cleaning room
+  ([#939](https://github.com/Python-roborock/python-roborock/pull/939),
+  [`3ec517e`](https://github.com/Python-roborock/python-roborock/commit/3ec517e8d4cdca89f5cd92c20b9403d9103a98f9))
+
+
+## v7.21.0 (2026-11-08)
+
+### Bug Fixes
+
+- Keep Q10 archive traits lightweight
+  ([#937](https://github.com/Python-roborock/python-roborock/pull/937),
+  [`252ec92`](https://github.com/Python-roborock/python-roborock/commit/252ec92dc19cefb43108fb42a0e8f41e2937517a))
+
+### Features
+
+- Expose Q10 map archives ([#937](https://github.com/Python-roborock/python-roborock/pull/937),
+  [`252ec92`](https://github.com/Python-roborock/python-roborock/commit/252ec92dc19cefb43108fb42a0e8f41e2937517a))
+
+
+## v7.20.0 (2026-11-08)
+
+### Bug Fixes
+
+- **v1**: Correct feature gate, require repeat, reject malformed entries
+  ([#984](https://github.com/Python-roborock/python-roborock/pull/984),
+  [`e6d5196`](https://github.com/Python-roborock/python-roborock/commit/e6d5196649f02360be308e7cc84178571ac7a732))
+
+- **v1**: Require mop_mode in set_clean_then_mop, document repeat reset
+  ([#984](https://github.com/Python-roborock/python-roborock/pull/984),
+  [`e6d5196`](https://github.com/Python-roborock/python-roborock/commit/e6d5196649f02360be308e7cc84178571ac7a732))
+
+- **v1**: Serialize writes and round-trip unmodeled fields losslessly
+  ([#984](https://github.com/Python-roborock/python-roborock/pull/984),
+  [`e6d5196`](https://github.com/Python-roborock/python-roborock/commit/e6d5196649f02360be308e7cc84178571ac7a732))
+
+### Chores
+
+- Fix codespell typo in customize clean mode tests
+  ([#984](https://github.com/Python-roborock/python-roborock/pull/984),
+  [`e6d5196`](https://github.com/Python-roborock/python-roborock/commit/e6d5196649f02360be308e7cc84178571ac7a732))
+
+### Documentation
+
+- Add adversarial self-check to code-review skill
+  ([#1020](https://github.com/Python-roborock/python-roborock/pull/1020),
+  [`9d73026`](https://github.com/Python-roborock/python-roborock/commit/9d73026844def166c6243db8f586481090d63210))
+
+### Features
+
+- **v1**: Expose per-room clean-then-mop via customize clean mode
+  ([#984](https://github.com/Python-roborock/python-roborock/pull/984),
+  [`e6d5196`](https://github.com/Python-roborock/python-roborock/commit/e6d5196649f02360be308e7cc84178571ac7a732))
+
+
 ## v7.19.0 (2026-11-08)
 
 ### Bug Fixes

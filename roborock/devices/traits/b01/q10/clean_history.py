@@ -14,6 +14,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
+from roborock.data import RoborockBase
 from roborock.data.b01_q10.b01_q10_code_mappings import (
     B01_Q10_DP,
     YXCleaningResult,
@@ -22,11 +23,20 @@ from roborock.data.b01_q10.b01_q10_code_mappings import (
     YXStartMethod,
 )
 from roborock.data.b01_q10.b01_q10_containers import Q10CleanRecord
+from roborock.exceptions import RoborockException
+from roborock.map.b01_q10_map_parser import (
+    Q10CleanRecordDetail,
+    Q10HistoricalTracePacket,
+    Q10MapPacket,
+    Q10MapPacketKind,
+    Q10Point,
+)
 
 from .command import CommandTrait
 from .common import UpdatableTrait
 
 __all__ = [
+    "CleanHistory",
     "CleanHistoryTrait",
     "CleanRecordConverter",
     "CleanRecordPush",
@@ -107,25 +117,52 @@ class CleanRecordConverter:
             return None
 
 
-class CleanHistoryTrait(UpdatableTrait):
-    """Access to the Q10 clean-record history (``dpCleanRecord``, DP 52).
+@dataclass
+class CleanHistory(RoborockBase):
+    """Received clean-history data, independent of request and transport state."""
 
-    A read-model trait updated from the DPS stream like the others, but it overrides
-    :meth:`update_from_dps` because the payload is a structured push (a record list,
-    or a single ``op:"notify"`` record) rather than a flat data-point-to-field map.
-    """
-
-    def __init__(self, command: CommandTrait) -> None:
-        """Initialize the clean history trait."""
-        UpdatableTrait.__init__(self, command, _LOGGER)
-        self._converter = CleanRecordConverter()
-        self.records: list[Q10CleanRecord] = []
-        """Decoded clean records, most recent first."""
+    records: list[Q10CleanRecord] = field(default_factory=list)
+    """Decoded clean records, most recent first."""
+    detail: Q10CleanRecordDetail | None = None
+    """Latest received archive. Its wire payload contains no record identifier."""
+    detail_path: list[Q10Point] = field(default_factory=list)
+    """Historical path points from the latest received archive, included in diagnostics."""
 
     @property
     def last_record(self) -> Q10CleanRecord | None:
         """The most recent clean record, or ``None`` if there are none."""
         return self.records[0] if self.records else None
+
+    @property
+    def detail_packet(self) -> Q10MapPacket | None:
+        """The map from the most recently received clean-record detail."""
+        return self.detail.map if self.detail else None
+
+    @property
+    def detail_trace(self) -> Q10HistoricalTracePacket | None:
+        """Historical path embedded in the latest received clean-record detail."""
+        return self.detail.trace if self.detail else None
+
+    def as_dict(self, exclude: set[str] | None = None) -> dict[str, Any]:
+        """Serialize history metadata and path without binary map packets and grids."""
+        return super().as_dict(exclude=(exclude or set()) | {"detail"})
+
+
+class CleanHistoryTrait(CleanHistory, UpdatableTrait):
+    """Browse past cleaning runs and retrieve their parsed maps and historical paths.
+
+    Subscribe with ``add_update_listener`` to receive requested or unsolicited
+    archives. Archive pushes contain no record ID, so the latest detail cannot
+    be attributed to a particular selection.
+    """
+
+    _command: CommandTrait
+
+    def __init__(self, command: CommandTrait) -> None:
+        CleanHistory.__init__(self)
+        UpdatableTrait.__init__(self, command, _LOGGER)
+        self._command = command
+        self._converter = CleanRecordConverter()
 
     async def refresh(self) -> None:
         """Request the clean-record list from the device.
@@ -134,11 +171,22 @@ class CleanHistoryTrait(UpdatableTrait):
         asynchronously on the device stream and populate :attr:`records` once
         :meth:`update_from_dps` processes the ``dpCleanRecord`` push.
         """
-        if self._command is None:
-            raise ValueError("Trait is read-only; no command channel was provided")
         await self._command.send(
             B01_Q10_DP.COMMON,
             params={str(B01_Q10_DP.CLEAN_RECORD.code): {"op": "list"}},
+        )
+
+    async def refresh_detail(self, record: Q10CleanRecord) -> None:
+        """Request the saved map and path for a past cleaning run.
+
+        Returns after sending; listeners receive the archive separately. The
+        push contains no record ID to correlate it with this selection.
+        """
+        if not record.raw or not record.map_len:
+            raise RoborockException("The Q10 clean record has no saved map detail")
+        await self._command.send(
+            B01_Q10_DP.COMMON,
+            {str(B01_Q10_DP.CLEAN_RECORD.code): {"op": "select", "id": record.raw}},
         )
 
     def update_from_dps(self, decoded_dps: dict[B01_Q10_DP, Any]) -> None:
@@ -150,6 +198,14 @@ class CleanHistoryTrait(UpdatableTrait):
         if push is None:
             return
         self._apply(push)
+
+    def update_from_detail(self, detail: Q10CleanRecordDetail) -> None:
+        """Store a pushed clean-record map and path and notify listeners."""
+        if detail.map.kind is not Q10MapPacketKind.CLEAN_RECORD_DETAIL:
+            raise ValueError(f"Expected a Q10 clean-record detail packet, got {detail.map.kind.value}")
+        self.detail = detail
+        self.detail_path = list(detail.trace.points) if detail.trace else []
+        self._notify_update()
 
     def _apply(self, push: CleanRecordPush) -> None:
         """Merge or replace the records from ``push``, then sort newest-first and notify."""

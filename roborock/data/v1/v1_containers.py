@@ -515,6 +515,56 @@ class WashTowelMode(RoborockBase):
     wash_mode: WashTowelModes | None = None
 
 
+SEQ_TYPE_CLEAN_THEN_MOP = 1
+
+
+@dataclass
+class SegmentCleanMode(RoborockBase):
+    """A single room's clean mode override, as reported by the device.
+
+    `fan_power` / `water_box_mode` / `mop_mode` / `seq_type` are kept as raw
+    `int | None` wire codes rather than typed enums, matching `StatusV2`, so
+    model-specific values (e.g. water-slide codes like 222) round-trip
+    losslessly even for codes this library doesn't otherwise model.
+
+    `mop_power` and `custom_water_box_distance` are only reported by some
+    models (roller-mop / custom-water-flow devices); they are `None` on
+    models that don't report them.
+    """
+
+    segment: int
+    fan_power: int | None = None
+    water_box_mode: int | None = None
+    mop_mode: int | None = None
+    repeat: int | None = None
+    seq_type: int | None = None
+    mop_power: int | None = None
+    custom_water_box_distance: int | None = None
+
+    @property
+    def clean_then_mop(self) -> bool | None:
+        """Whether this room is vacuumed fully before it is mopped.
+
+        `None` means the device did not report a sequence type for this
+        room's override.
+        """
+        if self.seq_type is None:
+            return None
+        return self.seq_type == SEQ_TYPE_CLEAN_THEN_MOP
+
+
+@dataclass
+class CustomizeCleanModes(RoborockBase):
+    """Collection of per-room clean mode overrides."""
+
+    modes: list[SegmentCleanMode] | None = None
+
+    @property
+    def by_segment(self) -> dict[int, SegmentCleanMode]:
+        """Index the overrides by segment id."""
+        return {mode.segment: mode for mode in self.modes or []}
+
+
 @dataclass
 class NetworkInfo(RoborockBase):
     ip: str

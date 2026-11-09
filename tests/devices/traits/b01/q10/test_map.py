@@ -1,13 +1,15 @@
 """Tests for the Q10 B01 map content trait.
 
-Map list data and map content have independent refresh schedules. Content
-requests use a stored map ID, and the device sends the data later in a
-``MAP_RESPONSE`` packet. These tests cover that state management. The render
-details are tested in ``tests/map/test_b01_q10_render.py``.
+Map list data and current map content have independent refresh schedules.
+Saved-map previews use a stored map ID, while current content uses a read-only
+status request. The device sends data later in a ``MAP_RESPONSE`` packet.
+These tests cover state management. The render details are tested in ``tests/map/test_b01_q10_render.py``.
 """
 
 import asyncio
 import base64
+import io
+import json
 from collections.abc import AsyncGenerator, Generator
 from dataclasses import replace
 from pathlib import Path
@@ -15,6 +17,7 @@ from typing import cast
 from unittest.mock import Mock, patch
 
 import pytest
+from PIL import Image
 from vacuum_map_parser_base.config.drawable import Drawable
 
 from roborock.cli import _await_q10_map_push, cli
@@ -23,14 +26,16 @@ from roborock.data.b01_q10.b01_q10_containers import Q10RoborockPoint
 from roborock.devices.traits.b01.q10 import Q10PropertiesApi, create
 from roborock.devices.traits.b01.q10.command import CommandTrait
 from roborock.devices.traits.b01.q10.map import MapContentTrait, MapDpsTrait
-from roborock.devices.traits.b01.q10.maps import MapsTrait
 from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
     B01Q10MapParserConfig,
+    Q10CleanRecordDetail,
     Q10HeaderCalibration,
+    Q10MapPacketKind,
     Q10Obstacle,
     Q10Point,
     Q10TracePacket,
+    parse_clean_record_detail,
     parse_map_packet,
     parse_trace_packet,
 )
@@ -45,19 +50,9 @@ TRACE_SESSION_FIXTURE = Path("tests/map/testdata/b01_q10_trace_session.bin")
 
 
 def _map_trait(map_dps: MapDpsTrait | None = None) -> MapContentTrait:
-    """Create map content with a stored map ID for tests that do not perform I/O."""
+    """Create map content for tests that do not perform I/O."""
     command = cast(CommandTrait, Mock(spec=CommandTrait))
-    maps = MapsTrait(command)
-    maps.update_from_dps(
-        {
-            B01_Q10_DP.MULTI_MAP: {
-                "data": [{"id": "12345"}],
-                "op": "list",
-                "result": 1,
-            }
-        }
-    )
-    return MapContentTrait(map_dps or MapDpsTrait(), maps, command)
+    return MapContentTrait(map_dps or MapDpsTrait(), command)
 
 
 def _zone_blob() -> str:
@@ -86,7 +81,7 @@ def test_update_from_map_packet_populates_image_and_rooms() -> None:
 
     assert trait.image_content is not None
     assert trait.image_content[:8] == b"\x89PNG\r\n\x1a\n"
-    assert {room.id: room.name for room in trait.rooms} == {2: "Living Room", 3: "Bedroom"}
+    assert {room.id: room.name for room in trait.rooms} == {2: "Living Room", 3: "bedroom"}
     assert len(updates) == 1
 
 
@@ -118,17 +113,7 @@ def test_q10_position_is_available_as_top_level_cli_command() -> None:
 class _FakeQ10Properties:
     def __init__(self) -> None:
         command = cast(CommandTrait, Mock(spec=CommandTrait))
-        self.maps = MapsTrait(command)
-        self.maps.update_from_dps(
-            {
-                B01_Q10_DP.MULTI_MAP: {
-                    "data": [{"id": "12345"}],
-                    "op": "list",
-                    "result": 1,
-                }
-            }
-        )
-        self.map = MapContentTrait(MapDpsTrait(), self.maps, command)
+        self.map = MapContentTrait(MapDpsTrait(), command)
         self.refresh_count = 0
 
         async def refresh_map() -> None:
@@ -235,7 +220,7 @@ async def test_subscribe_loop_routes_map_push(
     message_queue.put_nowait(parse_map_packet(FIXTURE.read_bytes()))
 
     await _wait_for(lambda: q10_api.map.image_content is not None)
-    assert {room.id: room.name for room in q10_api.map.rooms} == {2: "Living Room", 3: "Bedroom"}
+    assert {room.id: room.name for room in q10_api.map.rooms} == {2: "Living Room", 3: "bedroom"}
 
 
 async def test_subscribe_loop_routes_trace_push(
@@ -322,8 +307,10 @@ async def test_map_content_refresh_does_not_require_stored_map_id(
     assert mock_channel.published_commands == [(B01_Q10_DP.REQUEST_DPS, {})]
 
 
-async def test_map_content_refresh_requests_are_not_rate_limited(q10_api: Q10PropertiesApi) -> None:
-    """The caller controls content cadence; each refresh sends a get request."""
+async def test_map_content_refresh_requests_are_not_rate_limited(
+    q10_api: Q10PropertiesApi, mock_channel: FakeB01Q10Channel
+) -> None:
+    """The caller controls content cadence; each refresh sends a read-only request."""
     q10_api.maps.update_from_dps(
         {
             B01_Q10_DP.MULTI_MAP: {
@@ -333,11 +320,10 @@ async def test_map_content_refresh_requests_are_not_rate_limited(q10_api: Q10Pro
             }
         }
     )
-    with patch.object(q10_api.command, "send") as send:
-        await q10_api.map.refresh()
-        await q10_api.map.refresh()
+    await q10_api.map.refresh()
+    await q10_api.map.refresh()
 
-    assert send.await_count == 2
+    assert mock_channel.published_commands == [(B01_Q10_DP.REQUEST_DPS, {}), (B01_Q10_DP.REQUEST_DPS, {})]
 
 
 def test_map_get_ack_does_not_replace_saved_map_list(q10_api: Q10PropertiesApi) -> None:
@@ -497,8 +483,8 @@ async def test_charging_status_renders_robot_at_dock(render_map: Mock) -> None:
     assert render_map.call_args.kwargs["robot_at_dock"] is True
 
 
-def test_docked_state_hides_trace_only_from_rendering(render_map: Mock) -> None:
-    """A docked render omits the valid trace without deleting source data."""
+def test_docked_state_clears_live_trace(render_map: Mock) -> None:
+    """Docking clears the completed path and current robot pose."""
     map_dps = MapDpsTrait()
     trait = _map_trait(map_dps)
     packet = parse_map_packet(FIXTURE.read_bytes())
@@ -511,13 +497,15 @@ def test_docked_state_hides_trace_only_from_rendering(render_map: Mock) -> None:
 
     map_dps.update_from_dps({B01_Q10_DP.STATUS: YXDeviceState.CHARGING.code})
 
-    assert trait.path == trace.points
+    assert trait.path == []
+    assert trait.robot_position is None
+    assert trait.current_room is None
     assert render_map.call_args.args[1] is None
     assert render_map.call_args.kwargs["robot_at_dock"] is True
 
 
-def test_late_trace_is_retained_but_hidden_while_docked(render_map: Mock) -> None:
-    """A late trace stays available but is not part of a docked render."""
+def test_late_trace_is_ignored_while_docked(render_map: Mock) -> None:
+    """A late completed trace cannot repopulate the docked robot pose."""
     map_dps = MapDpsTrait()
     map_dps.update_from_dps({B01_Q10_DP.STATUS: YXDeviceState.CHARGING.code})
     trait = _map_trait(map_dps)
@@ -527,7 +515,9 @@ def test_late_trace_is_retained_but_hidden_while_docked(render_map: Mock) -> Non
     trait.update_from_map_packet(parse_map_packet(FIXTURE.read_bytes()))
     trait.update_from_trace_packet(trace)
 
-    assert trait.path == trace.points
+    assert trait.path == []
+    assert trait.robot_position is None
+    assert trait.current_room is None
     assert render_map.call_args.args[1] is None
 
 
@@ -593,6 +583,68 @@ def test_map_content_trait_as_dict_camelizes_child_keys() -> None:
     }
     assert data["path"] == [{"x": 100, "y": 200}, {"x": 150, "y": 250}]
     assert data["robotPosition"] == {"x": 25875, "y": 26125}
+
+
+def test_current_room_tracks_latest_fixture_pose_and_map() -> None:
+    """Current room and robot position consume the same latest map/trace inputs."""
+    map_dps = MapDpsTrait()
+    trait = _map_trait(map_dps)
+    packet = replace(
+        parse_map_packet(FIXTURE.read_bytes()), header_calibration=Q10HeaderCalibration(0, 50, 5, -1, -1, 0)
+    )
+    trace = Q10TracePacket(points=[Q10Point(100, 60)])
+    assert trait.current_room is None
+    trait.update_from_map_packet(packet)
+    assert trait.current_room is None
+    trait.update_from_trace_packet(trace)
+    assert trait.current_room == packet.rooms[1]
+    assert trait.robot_position == trace.points[-1].to_roborock()
+    assert trait.as_dict()["currentRoom"] == packet.rooms[1].as_dict()
+    assert "currentRoom" not in trait.as_dict(exclude={"currentRoom"})
+    map_dps.update_from_dps({B01_Q10_DP.STATUS: YXDeviceState.IDLE.code})
+    assert trait.current_room == packet.rooms[1]
+    trait.update_from_trace_packet(Q10TracePacket(points=[Q10Point(40, 60)]))
+    assert trait.current_room == packet.rooms[0]
+    trait.update_from_map_packet(replace(packet, rooms=[]))
+    assert trait.current_room is None
+
+
+def test_map_arrival_resolves_current_room_from_existing_fixture_trace() -> None:
+    """A map arriving after the live trace resolves its latest robot pose."""
+    trait = _map_trait()
+    packet = replace(
+        parse_map_packet(FIXTURE.read_bytes()), header_calibration=Q10HeaderCalibration(0, 50, 5, -1, -1, 0)
+    )
+    trace = Q10TracePacket(points=[Q10Point(100, 60)])
+    trait.update_from_trace_packet(trace)
+    assert trait.current_room is None
+    trait.update_from_map_packet(packet)
+    assert trait.current_room == packet.rooms[1]
+    assert trait.robot_position == trace.points[-1].to_roborock()
+
+
+@pytest.mark.parametrize("status", [YXDeviceState.CHARGING, YXDeviceState.EMPTYING_THE_BIN])
+def test_docking_clears_room_and_ignores_late_fixture_trace(status: YXDeviceState) -> None:
+    map_dps = MapDpsTrait()
+    trait = _map_trait(map_dps)
+    packet = replace(
+        parse_map_packet(FIXTURE.read_bytes()), header_calibration=Q10HeaderCalibration(0, 50, 5, -1, -1, 0)
+    )
+    trace = Q10TracePacket(points=[Q10Point(100, 60)])
+    trait.update_from_map_packet(packet)
+    trait.update_from_trace_packet(trace)
+    assert trait.current_room == packet.rooms[1]
+    map_dps.update_from_dps({B01_Q10_DP.STATUS: status.code})
+    assert trait.current_room is None
+    assert trait.robot_position is None
+    assert trait.path == []
+    trait.update_from_trace_packet(trace)
+    assert trait.current_room is None
+    assert trait.path == []
+    map_dps.update_from_dps({B01_Q10_DP.STATUS: YXDeviceState.CLEANING.code})
+    assert trait.current_room is None
+    trait.update_from_trace_packet(trace)
+    assert trait.current_room == packet.rooms[1]
 
 
 async def test_create_forwards_obstacle_drawables_to_rendering(fake_channel: FakeB01Q10Channel) -> None:
@@ -781,3 +833,212 @@ async def test_set_room_name_rejects_unknown_room_before_publish(
 async def test_clear_restrictions_without_snapshot(q10_api: Q10PropertiesApi, mock_channel: FakeB01Q10Channel) -> None:
     await q10_api.map.set_restricted_zones([])
     assert mock_channel.published_commands == [(B01_Q10_DP.COMMON, {"54": "AQA="})]
+
+
+async def test_archived_map_pushes_cannot_overwrite_live_map(
+    q10_api: Q10PropertiesApi,
+    message_queue: asyncio.Queue[Q10Message],
+) -> None:
+    """03/04 detail packets are isolated from the current live-map trait."""
+    current_bytes = FIXTURE.read_bytes()
+    current = parse_map_packet(current_bytes)
+    trace = parse_trace_packet(TRACE_SESSION_FIXTURE.read_bytes())
+    clean_record = parse_clean_record_detail(b"\x03\x01" + current_bytes[2:])
+    saved_map = parse_map_packet(b"\x04\x01" + current_bytes[2:])
+
+    message_queue.put_nowait(current)
+    message_queue.put_nowait(trace)
+    await _wait_for(lambda: q10_api.map.image_content is not None and bool(q10_api.map.path))
+    live_image = q10_api.map.image_content
+    live_rooms = list(q10_api.map.rooms)
+    live_path = list(q10_api.map.path)
+    live_position = q10_api.map.robot_position
+    live_heading = q10_api.map.robot_heading
+    live_updates: list[None] = []
+    clean_record_updates: list[None] = []
+    saved_map_updates: list[None] = []
+    q10_api.map.add_update_listener(lambda: live_updates.append(None))
+    q10_api.clean_history.add_update_listener(lambda: clean_record_updates.append(None))
+    q10_api.maps.add_update_listener(lambda: saved_map_updates.append(None))
+
+    message_queue.put_nowait(clean_record)
+    message_queue.put_nowait(saved_map)
+    await _wait_for(lambda: q10_api.maps.detail_packet is not None)
+
+    assert q10_api.map.image_content == live_image
+    assert q10_api.map.rooms == live_rooms
+    assert q10_api.map.path == live_path
+    assert q10_api.map.robot_position == live_position
+    assert q10_api.map.robot_heading == live_heading
+    assert live_updates == []
+    assert q10_api.clean_history.detail is clean_record
+    assert q10_api.clean_history.detail_packet is clean_record.map
+    assert q10_api.clean_history.detail_packet.kind is Q10MapPacketKind.CLEAN_RECORD_DETAIL
+    assert q10_api.maps.detail_packet is saved_map
+    assert q10_api.maps.detail_packet.kind is Q10MapPacketKind.SAVED_MAP_DETAIL
+    assert clean_record_updates == [None]
+    assert saved_map_updates == [None]
+
+
+def test_archive_owners_reject_wrong_packet_kinds(q10_api: Q10PropertiesApi) -> None:
+    """Semantic archive traits reject packets owned by another map stream."""
+    current = parse_map_packet(FIXTURE.read_bytes())
+
+    with pytest.raises(ValueError, match="clean-record detail"):
+        q10_api.clean_history.update_from_detail(Q10CleanRecordDetail(map=current))
+    with pytest.raises(ValueError, match="saved-map detail"):
+        q10_api.maps.update_from_map_packet(current)
+
+
+@pytest.mark.parametrize("scale", [1, 2, 4])
+async def test_live_q10_map_renders_at_requested_scale(scale: int, fake_channel: FakeB01Q10Channel) -> None:
+    api = create(fake_channel, map_parser_config=B01Q10MapParserConfig(map_scale=scale))
+    payload = FIXTURE.read_bytes()
+    fake_channel.messages_to_stream = [
+        parse_map_packet(payload),
+    ]
+    await api.start()
+    try:
+        await _wait_for(lambda: api.map.image_content is not None)
+        assert api.map.image_content is not None
+        with Image.open(io.BytesIO(api.map.image_content)) as image:
+            assert image.size == (8 * scale, 6 * scale)
+    finally:
+        await api.close()
+
+
+def test_q10_properties_constructor_uses_default_live_map_config(fake_channel: FakeB01Q10Channel) -> None:
+    api = Q10PropertiesApi(fake_channel)
+    api.map.update_from_map_packet(parse_map_packet(FIXTURE.read_bytes()))
+    assert api.map.image_content is not None
+    with Image.open(io.BytesIO(api.map.image_content)) as image:
+        assert image.size == (32, 24)
+
+
+@pytest.mark.parametrize("selected,expected", [(None, "12345"), ("67890", "67890")])
+async def test_saved_map_detail_refresh_publishes_selection(
+    q10_api: Q10PropertiesApi,
+    mock_channel: FakeB01Q10Channel,
+    selected: str | None,
+    expected: str,
+) -> None:
+    q10_api.maps.update_from_dps(
+        {
+            B01_Q10_DP.MULTI_MAP: {
+                "data": [{"id": "12345"}, {"id": "67890"}],
+                "op": "list",
+                "result": 1,
+            }
+        }
+    )
+    await q10_api.maps.refresh_detail(selected)
+    assert mock_channel.published_commands == [(B01_Q10_DP.COMMON, {"61": {"op": "select", "id": expected}})]
+    assert q10_api.maps.detail_packet is None
+
+
+async def test_saved_map_detail_rejects_unknown_id(q10_api: Q10PropertiesApi, mock_channel: FakeB01Q10Channel) -> None:
+    q10_api.maps.update_from_dps({B01_Q10_DP.MULTI_MAP: {"data": [{"id": "12345"}], "op": "list", "result": 1}})
+    with pytest.raises(RoborockException, match="Unknown Q10 saved-map ID"):
+        await q10_api.maps.refresh_detail("67890")
+    assert mock_channel.published_commands == []
+
+
+async def test_saved_map_details_publish_packet_map_id_and_notify(
+    q10_api: Q10PropertiesApi,
+    mock_channel: FakeB01Q10Channel,
+    message_queue: asyncio.Queue[Q10Message],
+) -> None:
+    updates = []
+    q10_api.maps.add_update_listener(lambda: updates.append(q10_api.maps.detail_map_id))
+    packet = parse_map_packet(b"\x04\x01" + FIXTURE.read_bytes()[2:])
+    message_queue.put_nowait(packet)
+    await _wait_for(lambda: bool(updates))
+    assert updates == [str(packet.map_id)]
+    assert q10_api.maps.detail_packet is packet
+    message_queue.put_nowait(replace(packet, map_id=999))
+    await _wait_for(lambda: len(updates) == 2)
+    assert updates == [str(packet.map_id), "999"]
+    assert q10_api.map.image_content is None
+
+
+async def test_saved_map_detail_refresh_requires_stored_map_id(q10_api: Q10PropertiesApi) -> None:
+    """Detail cannot be requested until the saved-map list supplies an ID."""
+    with pytest.raises(RoborockException, match="map list is available"):
+        await q10_api.maps.refresh_detail()
+
+
+def test_saved_map_diagnostics_exclude_binary_content(q10_api: Q10PropertiesApi) -> None:
+    packet = parse_map_packet(b"\x04\x01" + FIXTURE.read_bytes()[2:])
+    q10_api.maps.update_from_map_packet(packet)
+    data = q10_api.as_dict()["maps"]
+    assert data == {"detailMapId": str(packet.map_id)}
+    assert q10_api.maps.detail_packet is packet
+    assert q10_api.maps.as_dict(exclude={"detail_map_id"}) == {}
+    json.dumps(data)
+
+
+async def test_cli_listener_is_removed_after_timeout(q10_api: Q10PropertiesApi) -> None:
+    calls = []
+
+    def predicate() -> bool:
+        calls.append(True)
+        return False
+
+    assert not await _await_q10_map_push(q10_api, predicate, timeout=0.01)
+    calls.clear()
+    q10_api.map.update_from_trace_packet(Q10TracePacket())
+    assert calls == []
+
+
+def test_live_map_trait_rejects_archived_packet() -> None:
+    trait = _map_trait()
+    packet = parse_map_packet(b"\x04\x01" + FIXTURE.read_bytes()[2:])
+    with pytest.raises(ValueError, match="current Q10 map packet"):
+        trait.update_from_map_packet(packet)
+    assert trait.image_content is None
+
+
+async def test_cli_listener_is_removed_after_cancellation(q10_api: Q10PropertiesApi) -> None:
+    calls = []
+
+    def predicate() -> bool:
+        calls.append(True)
+        return False
+
+    request = asyncio.create_task(_await_q10_map_push(q10_api, predicate, timeout=1))
+    await asyncio.sleep(0)
+    request.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await request
+    q10_api.map.update_from_trace_packet(Q10TracePacket())
+    assert calls == []
+
+
+@pytest.mark.parametrize("drawables,expected_base", [([], True), ([Drawable.CHARGER], False)])
+async def test_live_q10_map_honors_drawable_selection(
+    drawables: list[Drawable], expected_base: bool, fake_channel: FakeB01Q10Channel
+) -> None:
+    api = create(fake_channel, map_parser_config=B01Q10MapParserConfig(drawables=drawables))
+    base_packet = parse_map_packet(FIXTURE.read_bytes())
+    base = create(FakeB01Q10Channel())
+    base.map.update_from_map_packet(base_packet)
+    assert base.map.image_content is not None
+    with Image.open(io.BytesIO(base.map.image_content)) as image:
+        base_pixels = image.tobytes()
+    packet = replace(
+        base_packet,
+        header_calibration=Q10HeaderCalibration(
+            origin_x=0, origin_y=50, resolution=5, charger_x=30, charger_y=30, charger_phi=90
+        ),
+    )
+    fake_channel.messages_to_stream = [
+        packet,
+    ]
+    await api.start()
+    try:
+        await _wait_for(lambda: api.map.image_content is not None)
+        assert api.map.image_content is not None
+        with Image.open(io.BytesIO(api.map.image_content)) as image:
+            assert (image.tobytes() == base_pixels) is expected_base
+    finally:
+        await api.close()

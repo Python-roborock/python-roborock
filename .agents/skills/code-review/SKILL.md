@@ -37,7 +37,7 @@ All reviews are evaluated against the engineering conventions defined in [AGENTS
    - **Event Loop Safety**: Are CPU-intensive operations (e.g., heavy map decompression or PIL image rendering) kept off the `asyncio` event loop (such as via `asyncio.to_thread`) with proper concurrency/staleness guards?
    - **Concurrency**: Does 1:1 async command-response matching use `asyncio.Future` correlated by protocol request/sequence ID (`request_id` or `msg_id`)?
    - **Teardown**: Are all tasks, event listeners, and channels cleanly unhooked in `RoborockDevice.close()`?
-   - **Capability Gating**: Is capability gating checking protocol version, category (appropriate for device family), and device feature flags?
+   - **Capability Gating vs. Telemetry Decoding**: Are non-universal traits, commands, and selectable options gated by protocol version, category, and `device.features`? Conversely, avoid over-gating read-only telemetry/status decoding (`from_code_optional()`) on feature flags when wire codes are unambiguous—feature flags in status resolvers are only appropriate to disambiguate genuinely overloaded wire codes or synthetic range interpolation, otherwise unmapped feature bits on new firmware unnecessarily degrade status to `None`/`unknown`.
 
 4. **Evaluate Layer 3: Wire Protocols, Codecs & Resilient Enums**:
    - Do status and error code enums subclass `RoborockEnum` (with lowercase `unknown = -1` member) or `RoborockModeEnum` (with `from_code_optional()`)?
@@ -50,7 +50,14 @@ All reviews are evaluated against the engineering conventions defined in [AGENTS
    - Are tests using `fake_channel` and `@pytest.mark.parametrize` rather than hand-rolled mocks or duplicate methods?
    - Do assertions verify public behavior rather than private `_state` variables?
 
-6. **Format Review Output**:
+6. **Adversarial Self-Check on Candidate Findings**:
+   Before presenting or posting any review comment, subject every candidate finding and suggested diff to hostile adversarial scrutiny and discard any that fail:
+   - **Baseline & History Check**: Trace concrete inputs across `upstream/main`, the PR, and your proposed fix (inspecting `git log` / blame when existing test or helper intent is non-obvious). Discard suggestions that silently regress `main` behavior on valid inputs or introduce magic-number/boundary duplication.
+   - **Verify Rationale Against Peer Cases**: Check sibling functions and enum codes in the same module to confirm your stated invariant actually holds across the codebase rather than inventing a stricter rule for the touched lines alone.
+   - **Independent Check of Prior Reviews**: When comparing competing PRs or prior review comments (human or AI), evaluate those claims with the same adversarial skepticism instead of carrying them forward uncritically.
+   - **Drop Low-Value Nits & Allow Zero-Defect Approvals**: Drop trivial docstring or comment wording nits (especially in tests) unless factually harmful, and verify any suggested replacement text accurately reflects what the code/test asserts. If no findings survive adversarial scrutiny, report that the PR is clean and ready to approve rather than manufacturing filler comments.
+
+7. **Format Review Output**:
    Structure review comments with clear rationale and actionable code recommendations:
    - **Priority Level & File Reference**
    - **Issue / Anti-Pattern Identified**
