@@ -9,6 +9,9 @@ from roborock.devices.cache import DeviceCache
 from roborock.devices.traits.v1 import common
 from roborock.roborock_typing import RoborockCommand
 
+# Qrevo 2 Pro uses single-line laser obstacle sensing without an RGB camera.
+_MODELS_WITHOUT_OBSTACLE_PHOTOS = frozenset({"roborock.vacuum.a294"})
+
 # Cache of metadata for each trait class
 _metadata_cache: dict[type[RoborockBase], dict[str, dict[str, Any]]] = {}
 
@@ -68,6 +71,11 @@ class DeviceFeaturesTrait(DeviceFeatures, common.V1TraitMixin):
         # so we have some known state.
         for field in fields(self):
             setattr(self, field.name, False)
+
+    @property
+    def is_obstacle_photo_download_supported(self) -> bool:
+        """Return whether obstacle-photo downloads are supported for trait discovery."""
+        return self.is_ai_recognition_obstacle_supported and self._product.model not in _MODELS_WITHOUT_OBSTACLE_PHOTOS
 
     def is_field_supported(self, cls: type[RoborockBase], field_name: FieldNameBase) -> bool:
         """Determines if the specified field is supported by this device.
