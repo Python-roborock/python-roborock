@@ -69,6 +69,11 @@ class DeviceFeaturesTrait(DeviceFeatures, common.V1TraitMixin):
         for field in fields(self):
             setattr(self, field.name, False)
 
+    @property
+    def is_obstacle_photo_download_supported(self) -> bool:
+        """Return whether obstacle-photo downloads are supported for trait discovery."""
+        return self.is_ai_recognition_obstacle_supported and self._product.model != "roborock.vacuum.a294"
+
     def is_field_supported(self, cls: type[RoborockBase], field_name: FieldNameBase) -> bool:
         """Determines if the specified field is supported by this device.
 
