@@ -1,5 +1,8 @@
 """Tests for diagnostics module."""
 
+import json
+from typing import Any
+
 import pytest
 
 from roborock.diagnostics import REDACTED, Diagnostics, redact_device_data, redact_device_uid, redact_topic_name
@@ -106,3 +109,63 @@ def test_redact_q10_raw_room_name() -> None:
     assert redact_device_data(
         {"map": {"rooms": [{"rawName": "Owner’s bedroom"}], "currentRoom": {"rawName": "Salle d’eau"}}}
     ) == {"map": {"rooms": [{"rawName": REDACTED}], "currentRoom": {"rawName": REDACTED}}}
+
+
+def test_redact_iot_room_name() -> None:
+    """Room names reported in the map list are as private as raw room names."""
+    assert redact_device_data({"rooms": [{"iotName": "Owner’s bedroom", "tag": 1}]}) == {
+        "rooms": [{"iotName": REDACTED, "tag": 1}]
+    }
+
+
+def test_redact_json_string_in_device_status() -> None:
+    """Identifiers inside a data point that holds a JSON string are redacted."""
+    product_info = json.dumps(
+        {
+            "sn": "TESTSERIAL",
+            "ssid": "test-network",
+            "ip": "192.0.2.1",
+            "mac": "00:00:5e:00:53:01",
+            "rssi": -53,
+            "oba": {"bom": "A.01"},
+        }
+    )
+
+    redacted = redact_device_data({"device": {"deviceStatus": {"10005": product_info, "209": 100}}})
+
+    status: dict[str, Any] = redacted["device"]["deviceStatus"]
+    assert status["209"] == 100
+    assert json.loads(status["10005"]) == {
+        "sn": REDACTED,
+        "ssid": REDACTED,
+        "ip": REDACTED,
+        "mac": REDACTED,
+        "rssi": -53,
+        "oba": {"bom": "A.01"},
+    }
+
+
+def test_redact_json_string_in_list() -> None:
+    """JSON strings inside lists are redacted too."""
+    redacted = redact_device_data({"items": ['{"ip": "192.0.2.1"}', "plain"]})
+
+    assert redacted["items"] == [json.dumps({"ip": REDACTED}), "plain"]
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "plain text",
+        "",
+        '{"RRPhotoPrivacyVersion":   "1"}',  # Not sensitive, so the formatting is kept
+        "[1, 2, 3]",
+    ],
+)
+def test_redact_keeps_strings_without_sensitive_data(value: str) -> None:
+    """Strings with nothing to redact are returned unchanged."""
+    assert redact_device_data({"value": value}) == {"value": value}
+
+
+def test_redact_unparsable_json_string() -> None:
+    """A string that looks like JSON but cannot be checked is fully redacted."""
+    assert redact_device_data({"value": '{"sn": "TESTSERIAL"'}) == {"value": REDACTED}

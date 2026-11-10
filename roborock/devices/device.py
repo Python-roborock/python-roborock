@@ -255,6 +255,10 @@ class RoborockDevice(ABC, TraitsMixin):
         extra: dict[str, Any] = {}
         if self.v1_properties:
             extra["traits"] = self.v1_properties.as_dict()
+        elif self.dyad:
+            extra["traits"] = self.dyad.as_dict()
+        elif self.zeo:
+            extra["traits"] = self.zeo.as_dict()
         elif self.b01_q10_properties:
             extra["traits"] = self.b01_q10_properties.as_dict()
         return redact_device_data(
