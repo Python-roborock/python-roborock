@@ -7,17 +7,23 @@ import pytest
 from roborock.data import mower
 from roborock.data.code_mappings import RoborockModeEnum
 from roborock.data.mower import (
+    MowerAckResult,
+    MowerAppButton,
     MowerChargeState,
     MowerDetailState,
     MowerEffMode,
     MowerEnum,
     MowerErrorCode,
     MowerFcState,
+    MowerFeature,
     MowerMowState,
     MowerMowType,
     MowerNetworkChannel,
     MowerOfflineStatus,
     MowerPendType,
+    MowerRemoteMsgType,
+    MowerRobotMsgType,
+    MowerWeekday,
 )
 
 ALL_MOWER_ENUMS: list[type[RoborockModeEnum]] = sorted(
@@ -76,6 +82,15 @@ def test_mower_enum_codes_are_unique(enum_cls: type[RoborockModeEnum]) -> None:
         (MowerErrorCode, 48, MowerErrorCode.CAMERA_REAR_SIDE_DIRTY),
         (MowerErrorCode, 55, MowerErrorCode.N_RTK_NETWORK_ERROR),
         (MowerErrorCode, 118, MowerErrorCode.REAR_SIDE_CAMERA_FAULT),
+        # Separate request/reply domains and boundary values in the app schema.
+        (MowerRemoteMsgType, 6, MowerRemoteMsgType.APP_BUTTON),
+        (MowerRobotMsgType, 6, MowerRobotMsgType.SELF_CHECK_STATUS),
+        (MowerRemoteMsgType, 166, MowerRemoteMsgType.SAVE_S1G_IOT_CONFIG),
+        (MowerRobotMsgType, 122, MowerRobotMsgType.S1G_PAIR_STATUS),
+        (MowerAppButton, 16, MowerAppButton.MOW_SELECT),
+        (MowerAckResult, 0, MowerAckResult.OK),
+        (MowerWeekday, 0, MowerWeekday.SUNDAY),
+        (MowerFeature, 0, MowerFeature.RTK),
     ],
 )
 def test_mower_enum_code_lookup(enum_cls: type[RoborockModeEnum], code: int, expected: RoborockModeEnum) -> None:
@@ -176,3 +191,12 @@ def test_optional_mower_enum_lookups_remain_silent(caplog: pytest.LogCaptureFixt
         assert MowerErrorCode.from_any_optional("FUTURE_VALUE") is None
 
     assert not caplog.records
+
+
+@pytest.mark.parametrize("enum_cls", ALL_MOWER_ENUMS, ids=lambda cls: cls.__name__)
+def test_unknown_firmware_value_has_a_fallback(enum_cls: type[MowerEnum]) -> None:
+    """Future names and codes must not drop typed command fields or raise."""
+    expected = enum_cls.from_name("UNKNOWN")
+    assert enum_cls.from_code(999999) is expected
+    assert enum_cls.from_code("FUTURE_FIRMWARE_VALUE") is expected
+    assert enum_cls.from_code_optional(999999) is None
