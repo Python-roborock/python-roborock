@@ -19,7 +19,7 @@ from roborock.const import (
 from roborock.roborock_message import RoborockDataProtocol
 
 from ..containers import NamedRoomMapping, RoborockBase, RoborockBaseTimer, _attr_repr, field_metadata
-from .v1_clean_modes import WashTowelModes
+from .v1_clean_modes import SEQ_TYPE_CLEAN_THEN_MOP, WashTowelModes
 from .v1_code_mappings import (
     CleanFluidStatus,
     ClearWaterBoxStatus,
@@ -515,9 +515,6 @@ class DustCollectionMode(RoborockBase):
 @dataclass
 class WashTowelMode(RoborockBase):
     wash_mode: WashTowelModes | None = None
-
-
-SEQ_TYPE_CLEAN_THEN_MOP = 1
 
 
 @dataclass
