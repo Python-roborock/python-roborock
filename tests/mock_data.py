@@ -178,6 +178,7 @@ PRODUCT_DOCK_TYPE_MAP: dict[str, RoborockDockTypeCode] = {
     "product-saros-10": RoborockDockTypeCode.o4_dock,  # Saros 10 / Q Revo Pro (Wash/Empty/Auto Fluid)
     "product-saros-10r": RoborockDockTypeCode.o6_dock,  # JC / Q Revo Master (Wash/Empty/Hot water)
     "product-id-a306": RoborockDockTypeCode.type_49_dock,  # P30 Pro (Wash/Empty/Dry)
+    "product-id-a294": RoborockDockTypeCode.f1_dock,  # Qrevo 2 Pro (Wash/Empty/Dry)
 }
 
 
