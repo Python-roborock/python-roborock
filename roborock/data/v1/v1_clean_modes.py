@@ -243,9 +243,15 @@ def get_cleaning_mode_options(features: DeviceFeatures) -> list[CleaningMode]:
     options = [CleaningMode.VACUUM, CleaningMode.VAC_AND_MOP]
     if features.is_pure_clean_mop_supported:
         options.append(CleaningMode.MOP)
-    if features.is_customized_clean_supported and WaterModes.CUSTOMIZED in supported_water_modes:
+    # Water-slide devices report flow as slider positions, so their water mode
+    # list has no CUSTOMIZED (204) or SMART_MODE (209) entry, but they still
+    # accept and report those codes for the custom and SmartPlan modes.
+    is_water_slide = features.is_water_slide_mode_supported
+    if features.is_customized_clean_supported and (is_water_slide or WaterModes.CUSTOMIZED in supported_water_modes):
         options.append(CleaningMode.CUSTOM)
-    if features.is_smart_clean_mode_set_supported and WaterModes.SMART_MODE in supported_water_modes:
+    if features.is_smart_clean_mode_set_supported and (
+        is_water_slide or WaterModes.SMART_MODE in supported_water_modes
+    ):
         options.append(CleaningMode.SMART_MODE)
     return options
 
