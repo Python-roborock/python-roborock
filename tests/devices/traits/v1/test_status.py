@@ -747,19 +747,90 @@ async def test_set_cleaning_mode_water_slide_wire_payload(
     mock_rpc_channel.send_command.assert_called_once_with(RoborockCommand.SET_CLEAN_MOTOR_MODE, params=[expected])
 
 
-def test_cleaning_mode_options_water_slide_device() -> None:
-    """Water-slide devices should not expose unsupported custom or smart water modes."""
+@pytest.mark.parametrize(
+    ("customized_supported", "smart_supported", "expected_extra"),
+    [
+        (True, True, [CleaningMode.CUSTOM, CleaningMode.SMART_MODE]),
+        (True, False, [CleaningMode.CUSTOM]),
+        (False, True, [CleaningMode.SMART_MODE]),
+        (False, False, []),
+    ],
+)
+def test_cleaning_mode_options_water_slide_device(
+    customized_supported: bool,
+    smart_supported: bool,
+    expected_extra: list[CleaningMode],
+) -> None:
+    """Water-slide devices offer custom and SmartPlan modes when their feature flags say so."""
     status_trait = _create_cleaning_mode_status_trait(
         is_water_slide_mode_supported=True,
-        is_customized_clean_supported=True,
-        is_smart_clean_mode_set_supported=True,
+        is_customized_clean_supported=customized_supported,
+        is_smart_clean_mode_set_supported=smart_supported,
     )
 
     assert status_trait.cleaning_mode_options == [
         CleaningMode.VACUUM,
         CleaningMode.VAC_AND_MOP,
         CleaningMode.MOP,
+        *expected_extra,
     ]
+
+
+@pytest.mark.parametrize(
+    ("fan_power", "water_box_mode", "mop_mode", "expected_mode"),
+    [
+        # Readback from a Qrevo Edge 3 Pro (a296) after writing each mode.
+        (106, 204, 300, CleaningMode.CUSTOM),
+        (110, 209, 306, CleaningMode.SMART_MODE),
+        # Qrevo Edge 2 Flow (a328) in custom mode, from #977.
+        (106, 204, 302, CleaningMode.CUSTOM),
+    ],
+)
+def test_current_cleaning_mode_water_slide_special_modes(
+    fan_power: int,
+    water_box_mode: int,
+    mop_mode: int,
+    expected_mode: CleaningMode,
+) -> None:
+    """The current custom/SmartPlan mode on a water-slide device is one of its options."""
+    status_trait = _create_cleaning_mode_status_trait(
+        is_water_slide_mode_supported=True,
+        is_customized_clean_supported=True,
+        is_smart_clean_mode_set_supported=True,
+    )
+    status_trait.fan_power = fan_power
+    status_trait.water_box_mode = water_box_mode
+    status_trait.mop_mode = mop_mode
+
+    assert status_trait.current_cleaning_mode == expected_mode
+    assert status_trait.current_cleaning_mode in status_trait.cleaning_mode_options
+
+
+@pytest.mark.parametrize(
+    ("cleaning_mode", "expected_params"),
+    [
+        (CleaningMode.CUSTOM, {"fan_power": 106, "water_box_mode": 204, "mop_mode": 302}),
+        (CleaningMode.SMART_MODE, {"fan_power": 110, "water_box_mode": 209, "mop_mode": 306}),
+    ],
+)
+async def test_set_cleaning_mode_water_slide_special_modes(
+    mock_rpc_channel: AsyncMock,
+    cleaning_mode: CleaningMode,
+    expected_params: dict[str, int],
+) -> None:
+    """Custom and SmartPlan use the same special codes on water-slide devices."""
+    status_trait = _create_cleaning_mode_status_trait(
+        is_water_slide_mode_supported=True,
+        is_customized_clean_supported=True,
+        is_smart_clean_mode_set_supported=True,
+    )
+    status_trait._rpc_channel = mock_rpc_channel  # type: ignore[assignment]
+
+    await status_trait.set_cleaning_mode(cleaning_mode)
+
+    mock_rpc_channel.send_command.assert_called_once_with(
+        RoborockCommand.SET_CLEAN_MOTOR_MODE, params=[expected_params]
+    )
 
 
 def test_current_cleaning_mode_gentle_not_mop_without_pure_mop() -> None:
