@@ -840,3 +840,85 @@ async def test_v1_channel_subscribe_failure_is_atomic(
     mock_mqtt_channel.notify_subscribers(TEST_RESPONSE)
     callback.assert_called_once_with(TEST_RESPONSE)
     unsub()
+
+
+@pytest.mark.parametrize(
+    ("method", "params", "result", "secret"),
+    [
+        (RoborockCommand.CHECK_HOMESEC_PASSWORD, {"password": "secret-pin-hash"}, ["ok"], "secret-pin-hash"),
+        (
+            RoborockCommand.START_CAMERA_PREVIEW,
+            {"password": "secret-preview-hash", "quality": "HD", "client_id": "viewer"},
+            ["ok"],
+            "secret-preview-hash",
+        ),
+        (RoborockCommand.SEND_SDP_TO_ROBOT, {"app_sdp": "secret-encoded-sdp"}, ["ok"], "secret-encoded-sdp"),
+        (RoborockCommand.SEND_ICE_TO_ROBOT, {"app_ice": "secret-encoded-ice"}, ["ok"], "secret-encoded-ice"),
+        (RoborockCommand.GET_TURN_SERVER, None, [{"url": "turn:example", "pwd": "secret-turn"}], "secret-turn"),
+    ],
+)
+async def test_camera_rpc_debug_logs_do_not_expose_secrets(
+    v1_channel: V1Channel,
+    mqtt_rpc_channel: V1RpcChannel,
+    mock_mqtt_channel: FakeChannel,
+    caplog: pytest.LogCaptureFixture,
+    method: RoborockCommand,
+    params: dict[str, str] | None,
+    result: list,
+    secret: str,
+) -> None:
+    """Actual channel routing preserves wire values while excluding them from debug output."""
+    caplog.set_level(logging.DEBUG)
+    mock_mqtt_channel.response_queue.append(TEST_NETWORK_INFO_RESPONSE)
+    unsubscribe = await v1_channel.subscribe(Mock())
+    try:
+        caplog.clear()
+        mock_mqtt_channel.response_queue.append(
+            RoborockMessage(
+                protocol=RoborockMessageProtocol.RPC_RESPONSE,
+                payload=json.dumps({"dps": {"102": json.dumps({"id": 12346, "result": result})}}).encode(),
+            )
+        )
+        assert await mqtt_rpc_channel.send_command(method, params=params) == result
+        assert secret not in caplog.text
+        assert "request_id=12346" in caplog.text
+        request = mock_mqtt_channel.published_messages[-1]
+        assert request.payload is not None
+        encoded = json.loads(json.loads(request.payload)["dps"]["101"])
+        assert encoded["params"] == (params if params is not None else [])
+    finally:
+        unsubscribe()
+
+
+async def test_camera_decode_failure_does_not_log_payload(
+    v1_channel: V1Channel,
+    mqtt_rpc_channel: V1RpcChannel,
+    mock_mqtt_channel: FakeChannel,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A decoder exception containing raw JSON must not expose it through channel logs."""
+    caplog.set_level(logging.DEBUG)
+    mock_mqtt_channel.response_queue.append(TEST_NETWORK_INFO_RESPONSE)
+    unsubscribe = await v1_channel.subscribe(Mock())
+    secret = "secret-malformed-camera-response"
+
+    async def reply(message: RoborockMessage) -> None:
+        malformed = {"id": 12346, "result": 1.5, "extra": secret}
+        mock_mqtt_channel.notify_subscribers(
+            RoborockMessage(
+                protocol=RoborockMessageProtocol.RPC_RESPONSE,
+                payload=json.dumps({"dps": {"102": json.dumps(malformed)}}).encode(),
+            )
+        )
+        mock_mqtt_channel.notify_subscribers(TEST_RESPONSE)
+
+    mock_mqtt_channel.publish_handler = reply
+    try:
+        caplog.clear()
+        assert await mqtt_rpc_channel.send_command(RoborockCommand.GET_TURN_SERVER) == {
+            "state": RoborockStateCode.cleaning
+        }
+        assert "Exception while decoding message" in caplog.text
+        assert secret not in caplog.text
+    finally:
+        unsubscribe()
