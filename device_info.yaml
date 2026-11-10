@@ -1125,7 +1125,7 @@ roborock.vacuum.s5e:
   - 125
 roborock.vacuum.sc05:
   protocol_version: B01
-  product_nickname: PEARLPLUS
+  product_nickname: Unknown
   product:
     id: 5ayEx3aKgStqZZ0v5IpMBP
     name: Roborock Q7 Series
@@ -1303,7 +1303,7 @@ roborock.vacuum.sc05:
       property: 'null'
 roborock.vacuum.a288:
   protocol_version: '1.0'
-  product_nickname: PEARLPLUS
+  product_nickname: Unknown
   new_feature_info: 4499197267967999
   new_feature_info_str: 0000000000099518CCFF7EFDA8E93EDDDBFF8F7F7EFEFFFF
   feature_info:
@@ -1456,7 +1456,7 @@ roborock.vacuum.a288:
 
 roborock.vacuum.ss07:
   protocol_version: B01
-  product_nickname: PEARLPLUS
+  product_nickname: Unknown
   product:
     id: 3gKDz7BnDrjXOVBAEXj4uw
     name: Roborock Q10 Series
