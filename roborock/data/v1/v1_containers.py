@@ -19,7 +19,7 @@ from roborock.const import (
 from roborock.roborock_message import RoborockDataProtocol
 
 from ..containers import NamedRoomMapping, RoborockBase, RoborockBaseTimer, _attr_repr, field_metadata
-from .v1_clean_modes import WashTowelModes
+from .v1_clean_modes import SEQ_TYPE_CLEAN_THEN_MOP, WashTowelModes
 from .v1_code_mappings import (
     CleanFluidStatus,
     ClearWaterBoxStatus,
@@ -171,6 +171,8 @@ class StatusV2(RoborockBase):
     repeat: int | None = None
     kct: int | None = None
     subdivision_sets: int | None = None
+    seq_type: int | None = field(default=None, metadata={"feature": "is_clean_then_mop_mode_supported"})
+    """Cleaning sequence of the current run; 1 means vacuum the room, then mop it."""
 
     @property
     def square_meter_clean_area(self) -> float | None:
@@ -513,9 +515,6 @@ class DustCollectionMode(RoborockBase):
 @dataclass
 class WashTowelMode(RoborockBase):
     wash_mode: WashTowelModes | None = None
-
-
-SEQ_TYPE_CLEAN_THEN_MOP = 1
 
 
 @dataclass

@@ -3,6 +3,7 @@ from functools import cached_property
 from typing import Any
 
 from roborock import (
+    SEQ_TYPE_CLEAN_THEN_MOP,
     CleaningMode,
     CleanRoutes,
     RoborockDockState,
@@ -11,6 +12,7 @@ from roborock import (
     WaterModes,
     get_clean_modes,
     get_clean_routes,
+    get_clean_sequence_parameters,
     get_cleaning_mode_options,
     get_cleaning_mode_parameters,
     get_current_cleaning_mode,
@@ -49,6 +51,7 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
     - Fan Speed
     - Water Mode
     - Mop Route
+    - Clean then mop (``clean_then_mop``, reported as ``CleaningMode.VAC_THEN_MOP``)
 
     You should use the _options version of the attribute to know which are
     supported for your device (i.e. fan_speed_options)
@@ -132,12 +135,32 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
         return self.mop_route_mapping.get(self.mop_mode)
 
     @property
+    def clean_then_mop(self) -> bool | None:
+        """Whether each room is vacuumed fully before it is mopped.
+
+        Reported by the device as ``seq_type`` and persisted on the device: it
+        tracks the "vacuum then mop" choice in the vendor app, also while docked.
+
+        The device stores it separately from ``fan_power``, ``water_box_mode``
+        and ``mop_mode``, but the app presents it as a fourth cleaning mode, so
+        ``current_cleaning_mode`` reports ``CleaningMode.VAC_THEN_MOP`` when it
+        is set with vacuum-and-mop settings, and ``set_cleaning_mode`` writes it.
+
+        ``None`` means the device does not support the feature or has not
+        reported it.
+        """
+        if not self._device_features_trait.is_clean_then_mop_mode_supported or self.seq_type is None:
+            return None
+        return self.seq_type == SEQ_TYPE_CLEAN_THEN_MOP
+
+    @property
     def current_cleaning_mode(self) -> CleaningMode | None:
         return get_current_cleaning_mode(
             clean_mode=self.fan_power,
             water_mode=self.water_box_mode,
             mop_mode=self.mop_mode,
             features=self._device_features_trait,
+            seq_type=self.seq_type,
         )
 
     @property
@@ -147,11 +170,23 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
         return cleaning_mode.value
 
     async def set_cleaning_mode(self, cleaning_mode: str | CleaningMode) -> None:
-        """Set the preferred high-level cleaning mode for the device."""
-        await self.rpc_channel.send_command(
-            RoborockCommand.SET_CLEAN_MOTOR_MODE,
-            params=get_cleaning_mode_parameters(resolve_cleaning_mode(cleaning_mode), self._device_features_trait),
-        )
+        """Set the preferred high-level cleaning mode for the device.
+
+        Like the app, this also writes the cleaning order on devices that support
+        clean then mop: it is enabled for ``CleaningMode.VAC_THEN_MOP`` and
+        cleared when switching to any other mode while it is enabled.
+        """
+        mode = resolve_cleaning_mode(cleaning_mode)
+        motor_params = get_cleaning_mode_parameters(mode, self._device_features_trait)
+        await self.rpc_channel.send_command(RoborockCommand.SET_CLEAN_MOTOR_MODE, params=motor_params)
+        if not self._device_features_trait.is_clean_then_mop_mode_supported:
+            return
+        if mode != CleaningMode.VAC_THEN_MOP and not self.clean_then_mop:
+            return
+        sequence_params = get_clean_sequence_parameters(mode, motor_params[0], self._device_features_trait)
+        await self.rpc_channel.send_command(RoborockCommand.APP_SET_CLEAN_SEQUENCE_TYPE, params=sequence_params)
+        self.seq_type = sequence_params["type"]
+        self._notify_update()
 
     async def resolve_error(self, error_code: int | None = None) -> None:
         """Resolve an error, like tapping "Resolved" in the Roborock app.

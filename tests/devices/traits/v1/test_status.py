@@ -24,6 +24,7 @@ from roborock.data.v1 import (
     RoborockDockTypeCode,
     RoborockErrorCode,
     RoborockStateCode,
+    StatusV2,
 )
 from roborock.device_features import DeviceFeatures
 from roborock.devices.device import RoborockDevice
@@ -916,3 +917,183 @@ def test_update_listener_ignores_unrelated(status_trait: StatusTrait) -> None:
 
     assert not event.is_set()
     unsubscribe()
+
+
+@pytest.mark.parametrize(
+    ("seq_type", "expected"),
+    [(1, True), (0, False), (None, None)],
+)
+def test_clean_then_mop(seq_type: int | None, expected: bool | None) -> None:
+    """seq_type reports whether the device vacuums before mopping."""
+    status_trait = _create_cleaning_mode_status_trait(is_clean_then_mop_mode_supported=True)
+    status_trait.seq_type = seq_type
+
+    assert status_trait.clean_then_mop is expected
+
+
+def test_clean_then_mop_unsupported_device() -> None:
+    """A device without the feature reports None even if it sends seq_type."""
+    status_trait = _create_cleaning_mode_status_trait(is_clean_then_mop_mode_supported=False)
+    status_trait.seq_type = 0
+
+    assert status_trait.clean_then_mop is None
+
+
+def test_status_parses_seq_type() -> None:
+    """seq_type is read from the device status payload.
+
+    The device reports it in get_status; before it was modelled here it was
+    silently dropped along with every other unmatched key.
+    """
+    status = StatusV2.from_dict({**STATUS, "seq_type": 1})
+
+    assert status.seq_type == 1
+
+
+def test_cleaning_mode_options_with_clean_then_mop() -> None:
+    """Clean then mop is offered next to vacuum and mop, like the app's mode picker."""
+    status_trait = _create_cleaning_mode_status_trait(is_clean_then_mop_mode_supported=True)
+
+    assert status_trait.cleaning_mode_options == [
+        CleaningMode.VACUUM,
+        CleaningMode.VAC_AND_MOP,
+        CleaningMode.VAC_THEN_MOP,
+        CleaningMode.MOP,
+        CleaningMode.CUSTOM,
+    ]
+
+
+@pytest.mark.parametrize(
+    ("fan_power", "water_box_mode", "seq_type", "clean_then_mop_supported", "expected_mode"),
+    [
+        # Qrevo Edge 3 Pro (a296, water slide) after picking "Vacuum then mop" in the app.
+        (102, 248, 1, True, CleaningMode.VAC_THEN_MOP),
+        (101, 236, 1, True, CleaningMode.VAC_THEN_MOP),
+        (102, 248, 0, True, CleaningMode.VAC_AND_MOP),
+        (102, 248, None, True, CleaningMode.VAC_AND_MOP),
+        # The order only matters when both vacuuming and mopping.
+        (102, 200, 1, True, CleaningMode.VACUUM),
+        (105, 248, 1, True, CleaningMode.MOP),
+        # Ignored on devices without the feature.
+        (102, 248, 1, False, CleaningMode.VAC_AND_MOP),
+    ],
+)
+def test_current_cleaning_mode_clean_then_mop(
+    fan_power: int,
+    water_box_mode: int,
+    seq_type: int | None,
+    clean_then_mop_supported: bool,
+    expected_mode: CleaningMode,
+) -> None:
+    """VAC_THEN_MOP is reported when the device runs vacuum-and-mop settings in sequence."""
+    status_trait = _create_cleaning_mode_status_trait(
+        is_water_slide_mode_supported=True,
+        is_clean_then_mop_mode_supported=clean_then_mop_supported,
+    )
+    status_trait.fan_power = fan_power
+    status_trait.water_box_mode = water_box_mode
+    status_trait.mop_mode = CleanRoutes.STANDARD.code
+    status_trait.seq_type = seq_type
+
+    assert status_trait.current_cleaning_mode == expected_mode
+
+
+@pytest.mark.parametrize(
+    ("ctm_with_repeat", "expected_sequence"),
+    [
+        (True, {"type": 1, "fan_power": 102, "water_box_mode": 235, "mop_mode": 300, "repeat": 1}),
+        (False, {"type": 1, "fan_power": 102, "water_box_mode": 235, "mop_mode": 300}),
+    ],
+)
+async def test_set_cleaning_mode_vac_then_mop(
+    mock_rpc_channel: AsyncMock,
+    ctm_with_repeat: bool,
+    expected_sequence: dict[str, int],
+) -> None:
+    """VAC_THEN_MOP writes vacuum-and-mop motor settings, then enables the sequence."""
+    status_trait = _create_cleaning_mode_status_trait(
+        is_water_slide_mode_supported=True,
+        is_clean_then_mop_mode_supported=True,
+        is_ctm_with_repeat_supported=ctm_with_repeat,
+    )
+    status_trait._rpc_channel = mock_rpc_channel  # type: ignore[assignment]
+    status_trait.seq_type = 0
+    event = asyncio.Event()
+    unsubscribe = status_trait.add_update_listener(event.set)
+
+    await status_trait.set_cleaning_mode(CleaningMode.VAC_THEN_MOP)
+
+    assert mock_rpc_channel.send_command.call_args_list == [
+        call(
+            RoborockCommand.SET_CLEAN_MOTOR_MODE,
+            params=[{"fan_power": 102, "water_box_mode": 235, "mop_mode": 300}],
+        ),
+        call(RoborockCommand.APP_SET_CLEAN_SEQUENCE_TYPE, params=expected_sequence),
+    ]
+    assert status_trait.clean_then_mop is True
+    assert event.is_set()
+    unsubscribe()
+
+
+@pytest.mark.parametrize(
+    ("cleaning_mode", "motor_params"),
+    [
+        (CleaningMode.VAC_AND_MOP, {"fan_power": 102, "water_box_mode": 235, "mop_mode": 300}),
+        (CleaningMode.VACUUM, {"fan_power": 102, "water_box_mode": 200, "mop_mode": 300}),
+        (CleaningMode.MOP, {"fan_power": 105, "water_box_mode": 235, "mop_mode": 300}),
+    ],
+)
+async def test_set_cleaning_mode_clears_clean_then_mop(
+    mock_rpc_channel: AsyncMock,
+    cleaning_mode: CleaningMode,
+    motor_params: dict[str, int],
+) -> None:
+    """Switching away from VAC_THEN_MOP turns the sequence off, like the app does."""
+    status_trait = _create_cleaning_mode_status_trait(
+        is_water_slide_mode_supported=True,
+        is_clean_then_mop_mode_supported=True,
+        is_ctm_with_repeat_supported=True,
+    )
+    status_trait._rpc_channel = mock_rpc_channel  # type: ignore[assignment]
+    status_trait.seq_type = 1
+
+    await status_trait.set_cleaning_mode(cleaning_mode)
+
+    assert mock_rpc_channel.send_command.call_args_list == [
+        call(RoborockCommand.SET_CLEAN_MOTOR_MODE, params=[motor_params]),
+        call(RoborockCommand.APP_SET_CLEAN_SEQUENCE_TYPE, params={"type": 0, **motor_params}),
+    ]
+    assert status_trait.clean_then_mop is False
+
+
+@pytest.mark.parametrize(("clean_then_mop_supported", "seq_type"), [(True, 0), (True, None), (False, None)])
+async def test_set_cleaning_mode_leaves_sequence_alone(
+    mock_rpc_channel: AsyncMock,
+    clean_then_mop_supported: bool,
+    seq_type: int | None,
+) -> None:
+    """Only the motor modes are written when the sequence is already off or unsupported."""
+    status_trait = _create_cleaning_mode_status_trait(
+        is_water_slide_mode_supported=True,
+        is_clean_then_mop_mode_supported=clean_then_mop_supported,
+    )
+    status_trait._rpc_channel = mock_rpc_channel  # type: ignore[assignment]
+    status_trait.seq_type = seq_type
+
+    await status_trait.set_cleaning_mode(CleaningMode.VAC_AND_MOP)
+
+    mock_rpc_channel.send_command.assert_called_once_with(
+        RoborockCommand.SET_CLEAN_MOTOR_MODE,
+        params=[{"fan_power": 102, "water_box_mode": 235, "mop_mode": 300}],
+    )
+
+
+async def test_set_cleaning_mode_vac_then_mop_unsupported(mock_rpc_channel: AsyncMock) -> None:
+    """Devices without the feature reject VAC_THEN_MOP before sending anything."""
+    status_trait = _create_cleaning_mode_status_trait(is_clean_then_mop_mode_supported=False)
+    status_trait._rpc_channel = mock_rpc_channel  # type: ignore[assignment]
+
+    with pytest.raises(RoborockUnsupportedFeature):
+        await status_trait.set_cleaning_mode(CleaningMode.VAC_THEN_MOP)
+
+    mock_rpc_channel.send_command.assert_not_called()
