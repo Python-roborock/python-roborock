@@ -16,7 +16,7 @@ from roborock.data import NetworkInfo, RoborockStateCode, StatusV2, UserData
 from roborock.devices.cache import DeviceCache, DeviceCacheData, InMemoryCache
 from roborock.devices.rpc.v1_channel import V1Channel
 from roborock.devices.transport.local_channel import LocalSession
-from roborock.exceptions import RoborockException
+from roborock.exceptions import RoborockException, RoborockTimeout
 from roborock.protocol import (
     create_local_decoder,
     create_local_encoder,
@@ -431,6 +431,45 @@ async def test_v1_channel_send_pick_first_available(
 
     # Verify only MQTT was used
     assert result.state == RoborockStateCode.cleaning
+
+
+@pytest.mark.parametrize(
+    ("command", "expect_mqtt_resend"),
+    [
+        (RoborockCommand.GET_STATUS, True),
+        (RoborockCommand.APP_START, False),
+    ],
+    ids=["read-falls-back-to-mqtt", "write-not-resent-on-mqtt"],
+)
+async def test_v1_channel_send_command_local_timeout(
+    v1_channel: V1Channel,
+    rpc_channel: V1RpcChannel,
+    mock_mqtt_channel: Mock,
+    mock_local_channel: Mock,
+    command: RoborockCommand,
+    expect_mqtt_resend: bool,
+) -> None:
+    """A command that times out locally is only resent over MQTT if it is read-only.
+
+    After a timeout the request has already been published, so the device may have run it.
+    """
+    mock_mqtt_channel.response_queue.append(TEST_NETWORK_INFO_RESPONSE)
+    await v1_channel.subscribe(Mock())
+    mqtt_published_before = len(mock_mqtt_channel.published_messages)
+
+    # Local publish succeeds but no response arrives; MQTT would answer.
+    mock_mqtt_channel.response_queue.append(TEST_RESPONSE)
+    with patch("roborock.devices.rpc.v1_channel._TIMEOUT", 0.01):
+        if expect_mqtt_resend:
+            result = await rpc_channel.send_command(command, response_type=StatusV2)
+            assert result.state == RoborockStateCode.cleaning
+        else:
+            with pytest.raises(RoborockTimeout):
+                await rpc_channel.send_command(command)
+
+    mock_local_channel.publish.assert_called_once()
+    mqtt_resent = len(mock_mqtt_channel.published_messages) > mqtt_published_before
+    assert mqtt_resent == expect_mqtt_resend
 
 
 async def test_v1_channel_send_decoded_command_with_params(
