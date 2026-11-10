@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from roborock.data import HomeDataDevice
 from roborock.devices.device import RoborockDevice
 from roborock.devices.traits.v1.obstacle_photos import (
     ObstaclePhotoTrait,
@@ -15,6 +16,7 @@ from roborock.protocol import Utils
 from roborock.protocols.v1_protocol import create_blob_response_decoder
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 from roborock.roborock_typing import RoborockCommand
+from tests import mock_data
 
 PNG_BYTES = b"\x89PNG\r\n\x1a\nphoto-bytes"
 JPEG_BYTES = b"\xff\xd8\xff\xe0photo-bytes"
@@ -114,7 +116,27 @@ def test_decode_blob_response_does_not_wrap_unexpected_errors() -> None:
 def test_obstacle_photo_trait_metadata() -> None:
     """Test obstacle photos use the blob RPC channel when discovered."""
     assert ObstaclePhotoTrait.blob_rpc_channel is True
-    assert ObstaclePhotoTrait.requires_feature == "is_ai_recognition_obstacle_supported"
+    assert ObstaclePhotoTrait.requires_feature == "is_obstacle_photo_download_supported"
+
+
+@pytest.mark.parametrize(
+    ("device_info", "photos_supported"),
+    [
+        (mock_data.DEVICE_PRODUCT_PAIRS["home_data_device_qrevo_2_pro.json"][0], False),
+        (mock_data.DEVICE_PRODUCT_PAIRS["home_data_device_s7_maxv.json"][0], True),
+    ],
+    ids=["qrevo_2_pro", "s7_maxv"],
+)
+async def test_obstacle_photo_discovery(
+    device_info: HomeDataDevice,
+    photos_supported: bool,
+    device: RoborockDevice,
+    discover_features_fixture: None,
+) -> None:
+    """Discover photo downloads separately from generic obstacle recognition."""
+    assert device.v1_properties is not None
+    assert device.v1_properties.device_features.is_ai_recognition_obstacle_supported is True
+    assert (device.v1_properties.obstacle_photos is not None) is photos_supported
 
 
 async def test_get_enabled(obstacle_photo_trait: ObstaclePhotoTrait, mock_rpc_channel: AsyncMock) -> None:

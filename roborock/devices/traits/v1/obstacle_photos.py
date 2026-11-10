@@ -74,7 +74,7 @@ class ObstaclePhotoTrait(RoborockBase, common.V1TraitMixin):
     command = RoborockCommand.GET_PHOTO
     converter = ObstaclePhotoConverter()
     blob_rpc_channel = True
-    requires_feature = "is_ai_recognition_obstacle_supported"
+    requires_feature = "is_obstacle_photo_download_supported"
 
     def __init__(self, standard_rpc_channel: V1RpcChannel) -> None:
         """Initialize the obstacle photo trait."""
