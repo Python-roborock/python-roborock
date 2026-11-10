@@ -39,6 +39,8 @@ from roborock.data.dyad.dyad_code_mappings import (
     DyadCleanserAmount,
     DyadDryingMode,
     DyadError,
+    DyadFeatureBits,
+    DyadFlatStatus,
     DyadPowerwheelDirection,
     DyadSelfCleanIntensity,
     DyadSelfCleanLevel,
@@ -64,6 +66,7 @@ from roborock.data.zeo.zeo_code_mappings import (
 )
 from roborock.devices.rpc.a01_channel import send_decoded_command
 from roborock.devices.traits import Trait
+from roborock.devices.traits.a01 import dyad_feature
 from roborock.devices.traits.a01.device_feature import (
     build_feature_dp_list,
     build_force_load_dp_list,
@@ -71,7 +74,7 @@ from roborock.devices.traits.a01.device_feature import (
 )
 from roborock.devices.traits.common import TraitUpdateListener
 from roborock.devices.transport.mqtt_channel import MqttChannel
-from roborock.exceptions import RoborockException
+from roborock.exceptions import RoborockException, RoborockUnsupportedFeature
 from roborock.protocols.a01_protocol import decode_rpc_response
 from roborock.roborock_message import (
     RoborockDyadDataProtocol,
@@ -96,6 +99,16 @@ def _decode_dyad_schedule(value: str) -> list[DyadScheduleTask]:
     return [DyadScheduleTask.from_dict(task) for task in json.loads(value)]
 
 
+# The app pairs each suction level (eco, standard, turbo) with a brush speed.
+_PAIRED_SUCTION_BRUSH_SPEED = {
+    DyadSuction.l2: DyadBrushSpeed.l1,
+    DyadSuction.l3: DyadBrushSpeed.l2,
+    DyadSuction.l4: DyadBrushSpeed.l2,
+}
+_WATER_LEVELS = (DyadWaterLevel.l2, DyadWaterLevel.l3, DyadWaterLevel.l4)
+_DRYING_MODES = (DyadDryingMode.fast, DyadDryingMode.silent)
+_SELF_CLEAN_INTENSITIES = (DyadSelfCleanIntensity.smart, DyadSelfCleanIntensity.standard, DyadSelfCleanIntensity.deep)
+
 DYAD_PROTOCOL_ENTRIES: dict[RoborockDyadDataProtocol, Callable] = {
     RoborockDyadDataProtocol.STATUS: lambda val: RoborockDyadStateCode(val).name,
     RoborockDyadDataProtocol.SELF_CLEAN_MODE: lambda val: DyadSelfCleanMode(val).name,
@@ -115,7 +128,7 @@ DYAD_PROTOCOL_ENTRIES: dict[RoborockDyadDataProtocol, Callable] = {
     RoborockDyadDataProtocol.STAND_LOCK_AUTO_RUN: lambda val: bool(val),
     RoborockDyadDataProtocol.AUTO_SELF_CLEAN_SET_MODE: lambda val: DyadSelfCleanLevel(val).name,
     RoborockDyadDataProtocol.AUTO_DRY_MODE: lambda val: bool(val),
-    RoborockDyadDataProtocol.SILENT_DRY_DURATION: lambda val: int(val),  # minutes, or DyadDryingMode on F25
+    RoborockDyadDataProtocol.SILENT_DRY_DURATION: lambda val: int(val),  # minutes, or a DyadDryingMode code
     RoborockDyadDataProtocol.SILENT_MODE: lambda val: bool(val),
     RoborockDyadDataProtocol.SILENT_MODE_START_TIME: lambda val: time(
         hour=int(val / 60), minute=val % 60
@@ -137,9 +150,16 @@ DYAD_PROTOCOL_ENTRIES: dict[RoborockDyadDataProtocol, Callable] = {
     RoborockDyadDataProtocol.WATER_MODE_BRUSH_SPEED: lambda val: DyadBrushSpeed(val).name,
     RoborockDyadDataProtocol.CHARGE_ERROR_STATUS: lambda val: bool(val),
     RoborockDyadDataProtocol.DRYING_RATE: lambda val: int(val),  # percent
-    RoborockDyadDataProtocol.FLAT_STATUS: lambda val: bool(val),
+    RoborockDyadDataProtocol.FLAT_STATUS: lambda val: DyadFlatStatus(val).name,
     RoborockDyadDataProtocol.POWERWHEEL_DIRECTION: lambda val: DyadPowerwheelDirection(val).name,
     RoborockDyadDataProtocol.POWERWHEEL_SPEED: lambda val: int(val),
+    RoborockDyadDataProtocol.FEATURE_INFO: lambda val: int(val),
+    RoborockDyadDataProtocol.SELF_CLEAN_PROGRESS: lambda val: int(val),  # percent
+    RoborockDyadDataProtocol.SPRAY_MODE: lambda val: int(val),
+    RoborockDyadDataProtocol.MECHANICAL_ARM: lambda val: bool(val),
+    RoborockDyadDataProtocol.TRIGGER_MODE: lambda val: int(val),
+    RoborockDyadDataProtocol.SELF_CLEAN_REMINDER: lambda val: int(val),
+    RoborockDyadDataProtocol.BATTERY_THRESHOLD: lambda val: int(val),
     RoborockDyadDataProtocol.SELF_CLEAN_CUR_MODE: lambda val: DyadSelfCleanIntensity(val).name,
     RoborockDyadDataProtocol.SELF_CLEAN_CUR_TEMP: lambda val: DyadSelfCleanWaterTemp(val).name,
     RoborockDyadDataProtocol.DRY_CUR_MODE: lambda val: DyadDryingMode(val).name,
@@ -298,6 +318,27 @@ class DyadApi(A01Api[RoborockDyadDataProtocol]):
 
     name = "dyad"
 
+    def __init__(
+        self, channel: MqttChannel, model: str | None = None, initial_status: dict[int, Any] | None = None
+    ) -> None:
+        """Initialize the Dyad API."""
+        self._model = model
+        super().__init__(channel, initial_status)
+
+    def _require_support(self, is_supported: Callable[[str | None], bool]) -> None:
+        """Raise if the device model does not support a command."""
+        if not is_supported(self._model):
+            raise RoborockUnsupportedFeature(f"Command is not supported on model {self._model}")
+
+    def supports(self, feature: DyadFeatureBits) -> bool:
+        """Return whether the device reported a feature bit on `FEATURE_INFO`.
+
+        The result is False until the device has reported `FEATURE_INFO`.
+        """
+        if feature == DyadFeatureBits.unknown:
+            return False
+        return bool(self._values.get(RoborockDyadDataProtocol.FEATURE_INFO, 0) & (1 << feature.value))
+
     def _decode_datapoints(self, datapoints: dict[int, Any]) -> dict[RoborockDyadDataProtocol, Any]:
         """Convert raw datapoints to typed values, skipping unknown codes."""
         values: dict[RoborockDyadDataProtocol, Any] = {}
@@ -320,23 +361,150 @@ class DyadApi(A01Api[RoborockDyadDataProtocol]):
         return values
 
     async def set_value(self, protocol: RoborockDyadDataProtocol, value: Any) -> dict[RoborockDyadDataProtocol, Any]:
-        """Set a value for a specific protocol on the device."""
+        """Set a value for a specific protocol on the device.
+
+        The value is sent as is and is not checked against the model. Prefer the
+        dedicated methods, which accept only what the app offers for the model.
+        """
         params = {protocol: value}
         return await send_decoded_command(self._channel, params)
+
+    async def set_clean_mode(self, mode: DyadCleanMode) -> None:
+        """Set the clean mode, limited to the modes the app offers for the model."""
+        if mode not in dyad_feature.clean_modes(self._model):
+            raise RoborockUnsupportedFeature(f"Clean mode {mode!r} is not supported on model {self._model}")
+        await send_decoded_command(self._channel, {RoborockDyadDataProtocol.CLEAN_MODE: int(mode)})
+
+    async def set_water_level(self, level: DyadWaterLevel) -> None:
+        """Set the auto mode water level.
+
+        Supports `l2`, `l3` and `l4` on models where the app offers these levels.
+        """
+        self._require_support(dyad_feature.supports_clean_intensity)
+        if level not in _WATER_LEVELS:
+            raise ValueError(f"Unsupported water level: {level!r}")
+        await send_decoded_command(self._channel, {RoborockDyadDataProtocol.WATER_LEVEL: int(level)})
 
     async def start_drying(self) -> None:
         """Start drying with the drying mode currently set on the device.
 
-        The app sends the same command for fast and silent drying on the F25 Ultra.
+        The app sends the same command for fast and silent drying.
         """
         await send_decoded_command(
             self._channel,
             {RoborockDyadDataProtocol.START: 1, RoborockDyadDataProtocol.WARM_LEVEL: 1},
         )
 
-    async def stop_drying(self) -> None:
-        """Stop a running drying cycle."""
+    async def stop(self) -> None:
+        """Stop a running drying or self-clean cycle.
+
+        The device has one stop command for both cycles.
+        """
         await send_decoded_command(self._channel, {RoborockDyadDataProtocol.START: 0})
+
+    async def set_drying_mode(self, mode: DyadDryingMode) -> None:
+        """Set the drying mode on models that have one, such as the F25 series.
+
+        Other models raise `RoborockUnsupportedFeature`: there the same data point is
+        the silent drying duration in minutes. The device reports the selected mode on
+        `DRY_CUR_MODE`.
+        """
+        self._require_support(dyad_feature.supports_drying_mode)
+        if mode not in _DRYING_MODES:
+            raise ValueError(f"Unsupported drying mode: {mode!r}")
+        await send_decoded_command(self._channel, {RoborockDyadDataProtocol.SILENT_DRY_DURATION: int(mode)})
+
+    async def set_self_clean_intensity(self, intensity: DyadSelfCleanIntensity) -> None:
+        """Set the self-clean intensity.
+
+        The setting spans several data points, and smart differs from standard only in
+        `AUTO_SMART_SELF_CLEAN_SET`. Models without smart self-clean raise
+        `RoborockUnsupportedFeature` for `smart`. `SELF_CLEAN_CUR_MODE` reports the
+        current or last run, not this setting.
+        """
+        self._require_support(dyad_feature.is_known_model)
+        if intensity not in _SELF_CLEAN_INTENSITIES:
+            raise ValueError(f"Unsupported self-clean intensity: {intensity!r}")
+        has_smart = dyad_feature.supports_smart_self_clean(self._model)
+        if intensity == DyadSelfCleanIntensity.smart and not has_smart:
+            raise RoborockUnsupportedFeature(f"Smart self-clean is not supported on model {self._model}")
+        level = DyadSelfCleanLevel.deep if intensity == DyadSelfCleanIntensity.deep else DyadSelfCleanLevel.normal
+        params = {
+            RoborockDyadDataProtocol.SELF_CLEAN_LEVEL: int(level),
+            RoborockDyadDataProtocol.AUTO_SELF_CLEAN_SET_MODE: int(level),
+        }
+        if has_smart:
+            params[RoborockDyadDataProtocol.AUTO_SMART_SELF_CLEAN_SET] = int(intensity == DyadSelfCleanIntensity.smart)
+        await send_decoded_command(self._channel, params)
+
+    async def set_suction(self, suction: DyadSuction) -> None:
+        """Set the auto mode suction on models that pair it with a brush speed.
+
+        Supports `l2` (eco), `l3` (standard) and `l4` (turbo). The device does not
+        change the brush speed by itself, so it is sent along with the suction.
+        """
+        await self._set_paired_suction(
+            RoborockDyadDataProtocol.SUCTION,
+            RoborockDyadDataProtocol.BRUSH_SPEED,
+            suction,
+        )
+
+    async def set_sponge_suction(self, suction: DyadSuction) -> None:
+        """Set the sponge mode suction on models that pair it with a brush speed.
+
+        Supports `l2` (eco), `l3` (standard) and `l4` (turbo). The device does not
+        change the brush speed by itself, so it is sent along with the suction.
+        """
+        await self._set_paired_suction(
+            RoborockDyadDataProtocol.WATER_MODE_SUCTION,
+            RoborockDyadDataProtocol.WATER_MODE_BRUSH_SPEED,
+            suction,
+        )
+
+    async def _set_paired_suction(
+        self,
+        suction_protocol: RoborockDyadDataProtocol,
+        brush_protocol: RoborockDyadDataProtocol,
+        suction: DyadSuction,
+    ) -> None:
+        """Send a suction level with the brush speed the app pairs with it."""
+        self._require_support(dyad_feature.supports_clean_intensity)
+        if (brush_speed := _PAIRED_SUCTION_BRUSH_SPEED.get(suction)) is None:
+            raise ValueError(f"Unsupported suction level: {suction!r}")
+        await send_decoded_command(
+            self._channel,
+            {suction_protocol: int(suction), brush_protocol: int(brush_speed)},
+        )
+
+    async def start_self_clean(self) -> None:
+        """Start self-clean with the settings currently set on the device.
+
+        The app includes the current `SELF_CLEAN_LEVEL` in the start command, so it
+        is read from the device first. After changing the intensity, wait until the
+        device reports the new value before calling this.
+        """
+        response = await send_decoded_command(
+            self._channel,
+            {RoborockDyadDataProtocol.ID_QUERY: [RoborockDyadDataProtocol.SELF_CLEAN_LEVEL]},
+            value_encoder=json.dumps,
+        )
+        await send_decoded_command(
+            self._channel,
+            {
+                RoborockDyadDataProtocol.START: 1,
+                RoborockDyadDataProtocol.SELF_CLEAN_LEVEL: response[RoborockDyadDataProtocol.SELF_CLEAN_LEVEL],
+            },
+        )
+
+    async def pause_self_clean(self) -> None:
+        """Pause a running self-clean cycle."""
+        self._require_support(dyad_feature.supports_self_clean_pause)
+        await send_decoded_command(self._channel, {RoborockDyadDataProtocol.START: 2})
+
+    async def resume_self_clean(self) -> None:
+        """Resume a paused self-clean cycle."""
+        self._require_support(dyad_feature.supports_self_clean_pause)
+        await send_decoded_command(self._channel, {RoborockDyadDataProtocol.START: 1})
 
     async def reset_filter(self) -> None:
         """Reset the filter usage counter."""
@@ -478,7 +646,7 @@ def create(product: HomeDataProduct, mqtt_channel: MqttChannel, device_status: d
     initial_status = _parse_device_status(device_status)
     match product.category:
         case RoborockCategory.WET_DRY_VAC:
-            return DyadApi(mqtt_channel, initial_status=initial_status)
+            return DyadApi(mqtt_channel, model=product.model, initial_status=initial_status)
         case RoborockCategory.WASHING_MACHINE:
             return ZeoApi(mqtt_channel, model=product.model, initial_status=initial_status)
         case _:
