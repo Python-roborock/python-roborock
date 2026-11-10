@@ -3,14 +3,18 @@
 import json
 from pathlib import Path
 from typing import Any
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
+import yaml
 from click.testing import CliRunner
 
-from roborock.cli import ConnectionCache, RoborockContext, cli
-from roborock.data import HomeDataSchedule, UserData
+from roborock.cli import ConnectionCache, DeviceConnectionManager, RoborockContext, cli
+from roborock.data import HomeDataProduct, HomeDataSchedule, RoborockCategory, UserData
+from roborock.devices.device import RoborockDevice
+from roborock.devices.device_manager import DeviceManager
 from roborock.exceptions import RoborockException
+from roborock.roborock_typing import RoborockCommand
 from roborock.web_api import RoborockApiClient
 from tests.mock_data import USER_DATA, USER_EMAIL
 
@@ -85,3 +89,49 @@ def test_update_job_api_error(mock_api: Mock, tmp_path: Path, job_data: dict[str
     assert result.exit_code == 1
     assert result.output == "Error: Job not found\n"
     mock_api.return_value.update_job.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    ("model", "expected_nickname"),
+    [
+        ("roborock.vacuum.a294", "Unknown"),
+        ("roborock.vacuum.unrecognized", "Unknown"),
+        ("roborock.vacuum.a87", "PEARLPLUS"),
+        ("roborock.vacuum.a101", "PEARLS"),
+    ],
+)
+def test_get_device_info_product_nickname(monkeypatch: pytest.MonkeyPatch, model: str, expected_nickname: str) -> None:
+    """Device info exports unknown families and retains mapped family names."""
+    product = HomeDataProduct(id="test-product", name="Test vacuum", model=model, category=RoborockCategory.VACUUM)
+    init_status = {
+        "new_feature_info": 2247397454282751,
+        "new_feature_info_str": "0000009021D0B410C0C47EFDA82934C952BA8F507EDEFFFE",
+        "feature_info": list(range(111, 126)),
+    }
+    device = Mock(spec=RoborockDevice)
+    device.name = "Test vacuum"
+    device.duid = "test-device"
+    device.product = product
+    device.device_info = Mock(pv="1.0")
+    device.v1_properties = Mock()
+    send_command = AsyncMock(return_value=[init_status])
+    device.v1_properties.command.send = send_command
+    device_manager = AsyncMock(spec=DeviceManager)
+    device_manager.get_devices.return_value = [device]
+    connection_manager = AsyncMock(spec=DeviceConnectionManager)
+    connection_manager.ensure_device_manager.return_value = device_manager
+    monkeypatch.setattr(RoborockContext, "get_device_manager", AsyncMock(return_value=connection_manager))
+
+    result = CliRunner().invoke(cli, ["get-device-info"])
+
+    assert result.exit_code == 0, result.output
+    device_info = yaml.safe_load(result.output.split("--- Device Information (copy to your YAML file) ---\n\n")[1])
+    assert device_info == {
+        model: {
+            "protocol_version": "1.0",
+            "product_nickname": expected_nickname,
+            **init_status,
+            "product": product.as_dict(),
+        }
+    }
+    send_command.assert_awaited_once_with(RoborockCommand.APP_GET_INIT_STATUS)
