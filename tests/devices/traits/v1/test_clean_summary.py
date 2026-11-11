@@ -7,7 +7,7 @@ import pytest
 from roborock.data import CleanSummary
 from roborock.devices.device import RoborockDevice
 from roborock.devices.traits.v1.clean_summary import CleanSummaryTrait
-from roborock.exceptions import RoborockException
+from roborock.exceptions import RoborockException, RoborockParsingException
 from roborock.roborock_typing import RoborockCommand
 from tests.mock_data import CLEAN_RECORD
 
@@ -191,6 +191,58 @@ async def test_get_clean_record_success(
             call(RoborockCommand.GET_CLEAN_RECORD, params=[1738864366]),
         ]
     )
+
+
+@pytest.mark.parametrize("response", [[], [[]]], ids=["empty", "wrapped-empty"])
+async def test_get_clean_record_empty_response(
+    clean_summary_trait: CleanSummaryTrait, mock_rpc_channel: AsyncMock, response: list
+) -> None:
+    """Report empty records through the public parsing exception boundary."""
+    mock_rpc_channel.send_command.return_value = response
+
+    with pytest.raises(RoborockParsingException, match="GET_CLEAN_RECORD") as exc:
+        await clean_summary_trait.get_clean_record(1738864366)
+
+    assert isinstance(exc.value.__cause__, ValueError)
+    assert f"Payload: {response!r}" in str(exc.value)
+    mock_rpc_channel.send_command.assert_called_once_with(RoborockCommand.GET_CLEAN_RECORD, params=[1738864366])
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        [CLEAN_RECORD],
+        [
+            {
+                "begin": 1700000000,
+                "end": 1700000100,
+                "duration": 100,
+                "area": 1000000,
+                "avoid_count": 1,
+                "wash_count": 1,
+            },
+            {
+                "begin": 1700000200,
+                "end": 1700000400,
+                "duration": 200,
+                "area": 2000000,
+                "avoid_count": 2,
+                "wash_count": 2,
+            },
+        ],
+    ],
+    ids=["wrapped-dict", "multi-phase"],
+)
+async def test_get_clean_record_structured_responses(
+    clean_summary_trait: CleanSummaryTrait, mock_rpc_channel: AsyncMock, response: list[dict]
+) -> None:
+    """Keep wrapped and multi-phase records working through the public API."""
+    mock_rpc_channel.send_command.return_value = response
+
+    record = await clean_summary_trait.get_clean_record(1738864366)
+
+    assert record.begin == response[0]["begin"]
+    assert record.end == response[-1]["end"]
 
 
 async def test_get_clean_record_dict_response(
