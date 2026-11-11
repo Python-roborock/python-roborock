@@ -57,7 +57,7 @@ from roborock.data.b01_q10.b01_q10_code_mappings import (
     YXDeviceDustCollectionFrequency,
     YXFanLevel,
 )
-from roborock.data.code_mappings import SHORT_MODEL_TO_ENUM
+from roborock.data.code_mappings import SHORT_MODEL_TO_ENUM, RoborockProductNickname
 from roborock.device_features import DeviceFeatures
 from roborock.devices.cache import Cache, CacheData
 from roborock.devices.device import RoborockDevice
@@ -1316,12 +1316,19 @@ def update_docs(data_file: str, output_file: str):
 
     # Process the combined data to build the feature map
     for model, data in combined_product_data.items():
+        nickname_name = data.get("product_nickname")
+        product_nickname = SHORT_MODEL_TO_ENUM.get(model.split(".")[-1], RoborockProductNickname.PEARLPLUS)
+        if nickname_name not in (None, "", "Unknown"):
+            try:
+                product_nickname = RoborockProductNickname[nickname_name]
+            except KeyError as err:
+                raise click.ClickException(f"Unknown product nickname {nickname_name!r} for {model}") from err
         # Reconstruct the DeviceFeatures object from the raw data in the YAML file
         device_features = DeviceFeatures.from_feature_flags(
             new_feature_info=data.get("new_feature_info", 0),
             new_feature_info_str=data.get("new_feature_info_str", ""),
             feature_info=data.get("feature_info", []),
-            product_nickname=data.get("product_nickname", ""),
+            product_nickname=product_nickname,
         )
         features_dict = asdict(device_features)
 
@@ -1335,6 +1342,8 @@ def update_docs(data_file: str, output_file: str):
 
         # Populate features from the calculated DeviceFeatures object
         for feature, is_supported in features_dict.items():
+            if not isinstance(is_supported, bool):
+                continue
             all_feature_names.add(feature)
             if is_supported:
                 current_product_data[feature] = "X"
