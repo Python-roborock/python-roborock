@@ -12,7 +12,6 @@ from click.testing import CliRunner
 
 from roborock.cli import ConnectionCache, DeviceConnectionManager, RoborockContext, cli
 from roborock.data import HomeDataProduct, HomeDataSchedule, RoborockCategory, UserData
-from roborock.data.code_mappings import RoborockProductNickname
 from roborock.device_features import DeviceFeatures
 from roborock.devices.device import RoborockDevice
 from roborock.devices.device_manager import DeviceManager
@@ -23,30 +22,37 @@ from tests.mock_data import USER_DATA, USER_EMAIL
 
 
 @pytest.mark.parametrize(
-    ("nickname_name", "nickname"),
+    ("nickname_name", "short_model"),
     [
-        ("PEARLPLUS", RoborockProductNickname.PEARLPLUS),
-        ("TANOS", RoborockProductNickname.TANOS),
-        ("ULTRONLITE", RoborockProductNickname.ULTRONLITE),
-        ("Unknown", None),
-        ("", None),
-        (None, None),
+        ("PEARLPLUS", "a87"),
+        ("TANOS", "s6"),
+        ("ULTRONLITE", "a73"),
+        ("Unknown", "test"),
+        ("", "test"),
+        (None, "test"),
+        ("Unknown", "s6"),
+        ("", "s6"),
+        (None, "s6"),
     ],
 )
 def test_update_docs_nickname(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     nickname_name: str | None,
-    nickname: RoborockProductNickname | None,
+    short_model: str,
 ) -> None:
     """Generated capabilities agree with runtime decoding of the same family."""
     monkeypatch.chdir(tmp_path)
+    model = f"roborock.vacuum.{short_model}"
+    product = HomeDataProduct.from_dict(
+        {"id": "test", "name": "Test", "model": model, "category": "robot.vacuum.cleaner"}
+    )
     data_file = tmp_path / "devices.yaml"
     output_file = tmp_path / "features.md"
     data_file.write_text(
         yaml.safe_dump(
             {
-                "roborock.vacuum.test": {
+                model: {
                     "product_nickname": nickname_name,
                     "new_feature_info": 0,
                     "new_feature_info_str": "0",
@@ -67,7 +73,7 @@ def test_update_docs_nickname(
     }
     expected = {
         name: value
-        for name, value in asdict(DeviceFeatures.from_feature_flags(0, "0", [119], nickname)).items()
+        for name, value in asdict(DeviceFeatures.from_feature_flags(0, "0", [119], product.product_nickname)).items()
         if isinstance(value, bool)
     }
     assert {name: rows[name] == "X" for name in expected} == expected
