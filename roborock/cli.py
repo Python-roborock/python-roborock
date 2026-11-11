@@ -1317,7 +1317,7 @@ def update_docs(data_file: str, output_file: str):
     # Process the combined data to build the feature map
     for model, data in combined_product_data.items():
         nickname_name = data.get("product_nickname")
-        product_nickname = None
+        product_nickname = SHORT_MODEL_TO_ENUM.get(model.split(".")[-1], RoborockProductNickname.PEARLPLUS)
         if nickname_name not in (None, "", "Unknown"):
             try:
                 product_nickname = RoborockProductNickname[nickname_name]
