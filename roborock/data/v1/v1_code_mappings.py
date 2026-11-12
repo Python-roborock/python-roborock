@@ -390,14 +390,28 @@ class RoborockDockTypeCode(RoborockEnum):
 
 
 class RoborockDockDustCollectionModeCode(RoborockEnum):
-    """Describes the dust collection mode of the vacuum cleaner."""
+    """Describes the dust collection mode of the vacuum cleaner.
 
-    # TODO: Get the correct values for various different docks
+    Codes follow the Roborock app: 0 smart, 1 quick (``light``), 2 daily (``balanced``),
+    3 strong, 4 max. The app offers every mode except ``strong``, which is kept so that
+    reading it does not fail.
+    """
+
     unknown = -9999
     smart = 0
     light = 1
     balanced = 2
+    strong = 3
     max = 4
+
+
+class RoborockDockDustCollectionFrequencyCode(RoborockEnum):
+    """Describes how often the dock empties the dustbin automatically (app: auto-empty frequency)."""
+
+    unknown = -1
+    off = 0
+    balanced = 1
+    high = 2
 
 
 class RoborockStateCode(RoborockEnum):

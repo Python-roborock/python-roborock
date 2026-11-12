@@ -32,6 +32,7 @@ Commands can have multiple parameters that can change from one model to another.
 * [get_customize_clean_mode](#get_customize_clean_mode)
 * [get_dnd_timer](#get_dnd_timer)
 * [get_dust_collection_mode](#get_dust_collection_mode)
+* [get_dust_collection_switch_status](#get_dust_collection_switch_status)
 * [get_clean_follow_ground_material_status](#get_clean_follow_ground_material_status)
 * [get_identify_furniture_status](#get_identify_furniture_status)
 * [get_identify_ground_material_status](#get_identify_ground_material_status)
@@ -66,6 +67,7 @@ Commands can have multiple parameters that can change from one model to another.
 * [set_customize_clean_mode](#set_customize_clean_mode)
 * [set_dnd_timer](#set_dnd_timer)
 * [set_dust_collection_mode](#set_dust_collection_mode)
+* [set_dust_collection_switch_status](#set_dust_collection_switch_status)
 * [set_fds_endpoint](#set_fds_endpoint)
 * [set_identify_furniture_status](#set_identify_furniture_status)
 * [set_identify_ground_material_status](#set_identify_ground_material_status)
@@ -1202,17 +1204,80 @@ Return example:
 
 Source: Roborock S7 MaxV Ultra
 
+Saros 10R return example:
+
+```json
+    {'mode': 4}
+```
+
 **Supported devices:**
 
 * Roborock S7 MaxV Ultra: ✅
 * Roborock S8 Pro Ultra: ✅
+* Roborock Saros 10R: ✅
 
 
 ### set_dust_collection_mode
 
-Description:
+Description: Set the dock dust collection mode.
 
 Parameters:
+
+    mode: 0 smart, 1 light, 2 balanced, 3 strong, 4 max. The app offers 0, 1, 2 and 4.
+
+Example:
+
+```json
+    {'mode': 4}
+```
+
+Source: Roborock Saros 10R
+
+**Supported devices:**
+
+* Roborock Saros 10R: ✅
+
+### get_dust_collection_switch_status
+
+Description: Get how often the dock empties the dustbin automatically (app: auto-empty frequency).
+
+Parameters: None
+
+Returns:
+
+    status: 0 off, 1 balanced, 2 high. Mirrors `auto_dust_collection` in `get_status`.
+
+Return example:
+
+```json
+    {'status': 2}
+```
+
+Source: Roborock Saros 10R
+
+**Supported devices:**
+
+* Roborock Saros 10R: ✅
+
+### set_dust_collection_switch_status
+
+Description: Set how often the dock empties the dustbin automatically.
+
+Parameters:
+
+    status: 0 off, 1 balanced, 2 high.
+
+Example:
+
+```json
+    {'status': 2}
+```
+
+Source: Roborock Saros 10R
+
+**Supported devices:**
+
+* Roborock Saros 10R: ✅
 
 ### get_wash_towel_mode
 
