@@ -1202,17 +1202,38 @@ Return example:
 
 Source: Roborock S7 MaxV Ultra
 
+Saros 10R return example:
+
+```json
+    {'mode': 4}
+```
+
 **Supported devices:**
 
 * Roborock S7 MaxV Ultra: ✅
 * Roborock S8 Pro Ultra: ✅
+* Roborock Saros 10R: ✅
 
 
 ### set_dust_collection_mode
 
-Description:
+Description: Set the dock dust collection mode.
 
 Parameters:
+
+    mode: 0 smart, 1 light, 2 balanced, 3 strong, 4 max. The app offers 0, 1, 2 and 4.
+
+Example:
+
+```json
+    {'mode': 4}
+```
+
+Source: Roborock Saros 10R
+
+**Supported devices:**
+
+* Roborock Saros 10R: ✅
 
 ### get_wash_towel_mode
 
