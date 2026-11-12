@@ -52,6 +52,7 @@ Commands can have multiple parameters that can change from one model to another.
 * [get_turn_server](#get_turn_server)
 * [get_valley_electricity_timer](#get_valley_electricity_timer)
 * [get_wash_towel_mode](#get_wash_towel_mode)
+* [get_wash_water_temperature](#get_wash_water_temperature)
 * [load_multi_map](#load_multi_map)
 * [name_segment](#name_segment)
 * [reset_consumable](#reset_consumable)
@@ -80,6 +81,7 @@ Commands can have multiple parameters that can change from one model to another.
 * [set_timezone](#set_timezone)
 * [set_valley_electricity_timer](#set_valley_electricity_timer)
 * [set_wash_towel_mode](#set_wash_towel_mode)
+* [set_wash_water_temperature](#set_wash_water_temperature)
 * [set_water_box_custom_mode](#set_water_box_custom_mode)
 * [start_camera_preview](#start_camera_preview)
 * [start_edit_map](#start_edit_map)
@@ -1327,6 +1329,52 @@ Source: S8 Pro Ultra
 
 * Roborock S7 MaxV Ultra: ✅
 * Roborock S8 Pro Ultra: ✅
+
+### get_wash_water_temperature
+
+Description: Get the water temperature the dock uses to wash the mop (app: water temperature). Available on
+washing docks of devices with the hot wash towel feature (`is_hot_wash_towel_supported`).
+
+Parameters: None
+
+Returns:
+
+    wash_water_temperature: 0 room temperature, 1 warm, 2 hot, 3 steam, 4 pet steam.
+    Docks offer 0 and 2; 1 on high temperature docks and docks without steam; 3 only on steam docks.
+
+Return example:
+
+```json
+    {'wash_water_temperature': 2}
+```
+
+Source: Roborock Saros 10R
+
+**Supported devices:**
+
+* Roborock Saros 10R: ✅
+
+### set_wash_water_temperature
+
+Description: Set the water temperature the dock uses to wash the mop.
+
+Parameters:
+
+    values: 0 room temperature, 1 warm, 2 hot, 3 steam, 4 pet steam.
+    The key differs from the one `get_wash_water_temperature` returns; `{'wash_water_temperature': 2}` is
+    rejected with -10007 invalid params.
+
+Example:
+
+```json
+    {'values': 2}
+```
+
+Source: Roborock Saros 10R
+
+**Supported devices:**
+
+* Roborock Saros 10R: ✅
 
 ### get_collision_avoid_status
 

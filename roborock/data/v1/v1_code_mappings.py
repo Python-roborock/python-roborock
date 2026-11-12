@@ -414,6 +414,17 @@ class RoborockDockDustCollectionFrequencyCode(RoborockEnum):
     high = 2
 
 
+class RoborockDockWashWaterTemperatureCode(RoborockEnum):
+    """Describes the water temperature the dock uses to wash the mop (app: water temperature)."""
+
+    unknown = -1
+    room_temperature = 0
+    warm = 1
+    hot = 2
+    steam = 3
+    pet_steam = 4
+
+
 class RoborockStateCode(RoborockEnum):
     unknown = 0
     starting = 1

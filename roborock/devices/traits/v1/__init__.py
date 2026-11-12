@@ -94,6 +94,7 @@ from . import (
     valley_electricity_timer,
     volume,
     wash_towel_mode,
+    wash_water_temperature,
 )
 from .child_lock import ChildLockTrait
 from .clean_summary import CleanSummaryTrait
@@ -120,6 +121,7 @@ from .status import StatusTrait
 from .valley_electricity_timer import ValleyElectricityTimerTrait
 from .volume import SoundVolumeTrait
 from .wash_towel_mode import WashTowelModeTrait
+from .wash_water_temperature import WashWaterTemperatureTrait
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -150,6 +152,7 @@ __all__ = [
     "valley_electricity_timer",
     "volume",
     "wash_towel_mode",
+    "wash_water_temperature",
 ]
 
 
@@ -184,6 +187,7 @@ class PropertiesApi(Trait):
     dust_collection_frequency: DustCollectionFrequencyTrait | None = None
     wash_towel_mode: WashTowelModeTrait | None = None
     smart_wash_params: SmartWashParamsTrait | None = None
+    wash_water_temperature: WashWaterTemperatureTrait | None = None
     obstacle_photos: ObstaclePhotoTrait | None = None
     mop_dryer: MopDryerTrait | None = None
     customize_clean_mode: CustomizeCleanModeTrait | None = None
@@ -292,6 +296,16 @@ class PropertiesApi(Trait):
             wash_towel_mode._rpc_channel = self._get_rpc_channel(wash_towel_mode)  # type: ignore[assignment]
             self.wash_towel_mode = wash_towel_mode
 
+        # The wash water temperature needs a washing dock and a device that can heat wash water.
+        if (
+            self.wash_water_temperature is None
+            and self.device_features.is_hot_wash_towel_supported
+            and self._is_supported(WashWaterTemperatureTrait, "wash_water_temperature", dock_features)
+        ):
+            wash_water_temperature = WashWaterTemperatureTrait(self.device_features)
+            wash_water_temperature._rpc_channel = self._get_rpc_channel(wash_water_temperature)  # type: ignore[assignment]
+            self.wash_water_temperature = wash_water_temperature
+
         if self.customize_clean_mode is None and self._is_supported(
             CustomizeCleanModeTrait, "customize_clean_mode", dock_features
         ):
@@ -315,7 +329,8 @@ class PropertiesApi(Trait):
 
             # Union args may not be in declared order
             item_type = union_args[0] if union_args[1] is type(None) else union_args[1]
-            if item_type is ObstaclePhotoTrait:
+            # Created above with constructor arguments and extra gating
+            if item_type in (ObstaclePhotoTrait, WashWaterTemperatureTrait):
                 continue
             if not self._is_supported(item_type, item.name, dock_features):
                 _LOGGER.debug("Trait '%s' not supported, skipping", item.name)

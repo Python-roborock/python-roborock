@@ -32,6 +32,7 @@ from .v1_code_mappings import (
     RoborockDockErrorCode,
     RoborockDockState,
     RoborockDockTypeCode,
+    RoborockDockWashWaterTemperatureCode,
     RoborockErrorCode,
     RoborockFinishReason,
     RoborockInCleaning,
@@ -482,6 +483,13 @@ class MultiMapsList(RoborockBase):
 class SmartWashParams(RoborockBase):
     smart_wash: int | None = None
     wash_interval: int | None = None
+
+
+@dataclass
+class WashWaterTemperature(RoborockBase):
+    """Mop wash water temperature, as returned by GET_WASH_WATER_TEMPERATURE."""
+
+    wash_water_temperature: RoborockDockWashWaterTemperatureCode | None = None
 
 
 @dataclass
