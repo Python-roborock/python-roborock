@@ -7,7 +7,7 @@ from collections.abc import Callable
 from typing import Any
 
 from roborock import B01Props
-from roborock.data import HomeDataDevice, HomeDataProduct, Q7MapList, Q7MapListEntry
+from roborock.data import HomeDataDevice, HomeDataProduct, Q7MapList, Q7MapListEntry, Q7RoborockPoint
 from roborock.data.b01_q7.b01_q7_code_mappings import (
     CleanPathPreferenceMapping,
     CleanRepeatMapping,
@@ -35,7 +35,11 @@ __all__ = [
     "MapContentTrait",
     "Q7MapList",
     "Q7MapListEntry",
+    "Q7RoborockPoint",
 ]
+
+# ``service.set_preference_type`` value that selects zone cleaning (``custom_type`` 4).
+_ZONE_PREFERENCE_TYPE = 4
 
 
 class Q7PropertiesApi(Trait):
@@ -189,6 +193,33 @@ class Q7PropertiesApi(Trait):
                 "room_ids": segment_ids,
             },
         )
+
+    async def clean_zone(self, first_corner: Q7RoborockPoint, second_corner: Q7RoborockPoint) -> None:
+        """Clean one rectangular zone given two opposite corners in common Roborock coordinates."""
+        await self.clean_zones([(first_corner, second_corner)])
+
+    async def clean_zones(self, zones: list[tuple[Q7RoborockPoint, Q7RoborockPoint]]) -> None:
+        """Clean one or more rectangular zones in a single task.
+
+        Each zone is given by two opposite corners in common Roborock coordinates.
+        The device takes the zones as a flat list of rectangle corners in world
+        meters (``[x1, y1, x2, y1, x2, y2, x1, y2, ...]``) and needs the zone
+        preference type selected first; ``set_zone_clean`` then starts the task.
+        """
+        if not zones:
+            raise ValueError("at least one zone is required")
+        zone_points: list[float] = []
+        for first_corner, second_corner in zones:
+            x1, y1 = first_corner.to_world()
+            x2, y2 = second_corner.to_world()
+            if x1 == x2 or y1 == y2:
+                raise ValueError(f"zone corners must span an area: {first_corner}, {second_corner}")
+            min_x, max_x = sorted((x1, x2))
+            min_y, max_y = sorted((y1, y2))
+            zone_points += [min_x, min_y, max_x, min_y, max_x, max_y, min_x, max_y]
+        await self.send(RoborockB01Q7Methods.SET_PREFERENCE_TYPE, {"prefer_type": _ZONE_PREFERENCE_TYPE})
+        await self.send(RoborockB01Q7Methods.SET_ZONE_POINTS, {"zone_points": zone_points})
+        await self.send(RoborockB01Q7Methods.SET_ZONE_CLEAN, {"ctrl_value": SCDeviceCleanParam.START.code})
 
     async def pause_clean(self) -> None:
         """Pause cleaning."""
