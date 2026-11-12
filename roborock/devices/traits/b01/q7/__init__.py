@@ -27,12 +27,14 @@ from roborock.roborock_typing import RoborockB01Q7Methods
 from .clean_summary import CleanSummaryTrait
 from .map import MapTrait
 from .map_content import MapContentTrait
+from .remote import RemoteTrait
 
 __all__ = [
     "Q7PropertiesApi",
     "CleanSummaryTrait",
     "MapTrait",
     "MapContentTrait",
+    "RemoteTrait",
     "Q7MapList",
     "Q7MapListEntry",
     "Q7RoborockPoint",
@@ -54,6 +56,9 @@ class Q7PropertiesApi(Trait):
     map_content: MapContentTrait
     """Trait for fetching parsed current map content."""
 
+    remote: RemoteTrait
+    """Trait for remote (manual) control of the robot."""
+
     def __init__(
         self,
         rpc_channel: Q7RpcChannel,
@@ -71,6 +76,7 @@ class Q7PropertiesApi(Trait):
             raise ValueError("B01 Q7 map content requires device serial number and product model metadata")
 
         self.clean_summary = CleanSummaryTrait(rpc_channel)
+        self.remote = RemoteTrait(rpc_channel)
         self.map = MapTrait(rpc_channel)
         self.map_content = MapContentTrait(
             self._map_rpc_channel,
