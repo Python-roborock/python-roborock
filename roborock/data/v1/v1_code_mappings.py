@@ -434,6 +434,15 @@ class RoborockDockCleaningFluidCode(RoborockEnum):
     large = 3
 
 
+class RoborockDockSmartWashModeCode(RoborockEnum):
+    """Describes when the dock washes the mop during a clean (app: mop wash frequency)."""
+
+    unknown = -1
+    by_time = 0
+    by_room = 1
+    new_smart = 2
+
+
 class RoborockStateCode(RoborockEnum):
     unknown = 0
     starting = 1

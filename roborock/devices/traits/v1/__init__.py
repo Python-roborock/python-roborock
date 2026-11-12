@@ -300,6 +300,13 @@ class PropertiesApi(Trait):
             wash_towel_mode._rpc_channel = self._get_rpc_channel(wash_towel_mode)  # type: ignore[assignment]
             self.wash_towel_mode = wash_towel_mode
 
+        if self.smart_wash_params is None and self._is_supported(
+            SmartWashParamsTrait, "smart_wash_params", dock_features
+        ):
+            smart_wash_params = SmartWashParamsTrait(self.device_features)
+            smart_wash_params._rpc_channel = self._get_rpc_channel(smart_wash_params)  # type: ignore[assignment]
+            self.smart_wash_params = smart_wash_params
+
         # The wash water temperature needs a washing dock and a device that can heat wash water.
         if (
             self.wash_water_temperature is None

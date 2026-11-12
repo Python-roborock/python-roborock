@@ -718,48 +718,48 @@ Parameters:
 
 ### get_smart_wash_params
 
-Description: Returns the smartwash parameters
+Description: Returns when the dock washes the mop during a clean (app: mop wash frequency)
 
 Parameters: None
 
-<!--
-    Not clear what this does
--->
-
 Returns:
 
-        smart_wash: 0 is off, 1 is on
+        smart_wash: 0 by time, 1 by room, 2 new smart (only on devices with is_back_wash_new_smart_supported)
 
-        wash_interval: The interval in seconds between washes
+        wash_interval: The interval in seconds between washes when washing by time (app offers 600, 900, 1200, 1500)
 
 Example:
 
 ```json
-{'smart_wash': 0, 'wash_interval': 1200}
+{'smart_wash': 1, 'wash_interval': 1200}
 ```
 
+Source: Roborock Saros 10R
 
 **Supported devices:**
 
 * Roborock S8 Pro Ultra: ✅
+* Roborock Saros 10R: ✅
 
 ### set_smart_wash_params
 
-Description: Sets the smartwash parameters
+Description: Sets when the dock washes the mop during a clean
 
 Parameters:
 
-        smart_wash: 0 is off, 1 is on
+        smart_wash: 0 by time, 1 by room, 2 new smart (only on devices with is_back_wash_new_smart_supported)
 
-        wash_interval: The interval in seconds between washes
+        wash_interval: The interval in seconds between washes when washing by time: 600, 900, 1200 or 1500
 
 
-`{'smart_wash': 0, 'wash_interval': 1200}`
+`{'smart_wash': 1, 'wash_interval': 1200}`
 
+Source: Roborock Saros 10R, Roborock app plugin
 
 **Supported devices:**
 
 * Roborock S8 Pro Ultra: ✅
+* Roborock Saros 10R: ✅
 
 ## Cleaning history
 
