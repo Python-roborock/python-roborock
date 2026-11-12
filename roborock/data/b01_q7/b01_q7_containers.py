@@ -117,6 +117,8 @@ class Q7MapListEntry(RoborockBase):
 
     id: int | None = None
     cur: bool | None = None
+    name: str | None = None
+    """User-visible map name as shown in the app (e.g. ``"Temporary map"`` for an unsaved map)."""
 
 
 @dataclass

@@ -13,6 +13,7 @@ from roborock.data.b01_q7 import (
     CleanRecordList,
     CleanRepeatMapping,
     DustCollectionStateMapping,
+    Q7MapList,
     Q7RoborockPoint,
     SCWindMapping,
     StationStateMapping,
@@ -294,3 +295,18 @@ def test_q7_roborock_point_conversion(world: tuple[float, float], common: tuple[
 
     assert (point.x, point.y) == common
     assert point.to_world() == pytest.approx(world, abs=0.001)
+
+
+def test_q7_map_list_names() -> None:
+    """Test map list entries keep the user-visible map name."""
+    map_list = Q7MapList.from_dict(
+        {
+            "map_list": [
+                {"name": "Home", "id": 1791875181, "cur": True},
+                {"name": "Temporary map", "id": 0, "cur": False},
+            ]
+        }
+    )
+
+    assert [entry.name for entry in map_list.map_list] == ["Home", "Temporary map"]
+    assert map_list.current_map_id == 1791875181

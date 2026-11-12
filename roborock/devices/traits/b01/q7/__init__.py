@@ -227,6 +227,14 @@ class Q7PropertiesApi(Trait):
         await self.send(RoborockB01Q7Methods.SET_ZONE_POINTS, {"zone_points": zone_points})
         await self.send(RoborockB01Q7Methods.SET_ZONE_CLEAN, {"ctrl_value": SCDeviceCleanParam.START.code})
 
+    async def set_carpet_turbo(self, enabled: bool) -> None:
+        """Enable or disable increased suction on carpets."""
+        await self.set_prop(RoborockB01Props.CARPET_TURBO, int(enabled))
+
+    async def set_carpet_avoid(self, enabled: bool) -> None:
+        """Enable or disable carpet avoidance."""
+        await self.set_prop(RoborockB01Props.CARPET_AVOID, int(enabled))
+
     async def pause_clean(self) -> None:
         """Pause cleaning."""
         await self.send(
