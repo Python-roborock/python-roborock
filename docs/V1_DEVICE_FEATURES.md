@@ -1132,7 +1132,7 @@ These features are encoded as individual bits in the `new_feature_info_str` hex 
 **Bit Index:** 109
 **Feature:** Smart Back Wash
 **Description:** Intelligent mop back-washing with dirt detection.
-**Impact:** Wash mop more when it's dirtier, less when cleaner.
+**Impact:** Wash mop more when it's dirtier, less when cleaner. Adds the `new_smart` mode to `SmartWashParamsTrait`.
 
 ---
 

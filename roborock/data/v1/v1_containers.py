@@ -31,6 +31,7 @@ from .v1_code_mappings import (
     RoborockDockDustCollectionFrequencyCode,
     RoborockDockDustCollectionModeCode,
     RoborockDockErrorCode,
+    RoborockDockSmartWashModeCode,
     RoborockDockState,
     RoborockDockTypeCode,
     RoborockDockWashWaterTemperatureCode,
@@ -487,8 +488,9 @@ class MultiMapsList(RoborockBase):
 
 @dataclass
 class SmartWashParams(RoborockBase):
-    smart_wash: int | None = None
+    smart_wash: RoborockDockSmartWashModeCode | None = None
     wash_interval: int | None = None
+    """Seconds between mop washes when washing by time."""
 
 
 @dataclass
