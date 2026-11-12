@@ -17,10 +17,10 @@ from roborock.data.b01_q7.b01_q7_code_mappings import (
     SCWindMapping,
     WaterLevelMapping,
 )
-from roborock.devices.rpc.b01_q7_channel import Q7MapRpcChannel, Q7RpcChannel
+from roborock.devices.rpc.b01_q7_channel import Q7MapRpcChannel, Q7PushChannel, Q7RpcChannel
 from roborock.devices.traits import Trait
 from roborock.exceptions import RoborockException
-from roborock.protocols.b01_q7_protocol import CommandType, ParamsType
+from roborock.protocols.b01_q7_protocol import CommandType, ParamsType, Q7DevicePush
 from roborock.roborock_message import RoborockB01Props
 from roborock.roborock_typing import RoborockB01Q7Methods
 
@@ -63,12 +63,14 @@ class Q7PropertiesApi(Trait):
         self,
         rpc_channel: Q7RpcChannel,
         map_rpc_channel: Q7MapRpcChannel,
+        push_channel: Q7PushChannel,
         device: HomeDataDevice,
         product: HomeDataProduct,
     ) -> None:
         """Initialize the Q7 API."""
         self._rpc_channel = rpc_channel
         self._map_rpc_channel = map_rpc_channel
+        self._push_channel = push_channel
         self._device = device
         self._product = product
 
@@ -83,18 +85,27 @@ class Q7PropertiesApi(Trait):
             self.map,
         )
         self._unsub_map_pushes: Callable[[], None] | None = None
+        self._unsub_device_pushes: Callable[[], None] | None = None
 
     async def start(self) -> None:
-        """Start listening for unsolicited map pushes from the device."""
-        if self._unsub_map_pushes is not None:
-            return
-        self._unsub_map_pushes = await self._map_rpc_channel.subscribe_map_pushes(self.map_content.update_from_push)
+        """Start listening for unsolicited map frames and device pushes."""
+        if self._unsub_map_pushes is None:
+            self._unsub_map_pushes = await self._map_rpc_channel.subscribe_map_pushes(self.map_content.update_from_push)
+        if self._unsub_device_pushes is None:
+            self._unsub_device_pushes = await self._push_channel.subscribe_device_pushes(self._handle_device_push)
 
     async def close(self) -> None:
-        """Stop listening for unsolicited map pushes."""
+        """Stop listening for unsolicited map frames and device pushes."""
         if self._unsub_map_pushes is not None:
             self._unsub_map_pushes()
             self._unsub_map_pushes = None
+        if self._unsub_device_pushes is not None:
+            self._unsub_device_pushes()
+            self._unsub_device_pushes = None
+
+    def _handle_device_push(self, push: Q7DevicePush) -> None:
+        """Route an unsolicited device push to the state that depends on it."""
+        self.map_content.update_from_device_push(push)
 
     async def query_values(self, props: list[RoborockB01Props]) -> B01Props | None:
         """Query the device for the values of the given Q7 properties."""
@@ -281,6 +292,7 @@ def create(
     device: HomeDataDevice,
     rpc_channel: Q7RpcChannel,
     map_rpc_channel: Q7MapRpcChannel,
+    push_channel: Q7PushChannel,
 ) -> Q7PropertiesApi:
     """Create traits for B01 Q7 devices."""
     if device.sn is None or product.model is None:
@@ -290,6 +302,7 @@ def create(
     return Q7PropertiesApi(
         rpc_channel=rpc_channel,
         map_rpc_channel=map_rpc_channel,
+        push_channel=push_channel,
         device=device,
         product=product,
     )

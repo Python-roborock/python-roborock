@@ -3,10 +3,11 @@ from unittest.mock import patch
 import pytest
 from vacuum_map_parser_base.map_data import MapData
 
-from roborock.devices.traits.b01.q7 import Q7PropertiesApi
+from roborock.devices.traits.b01.q7 import Q7PropertiesApi, Q7RoborockPoint
 from roborock.exceptions import RoborockException
 from roborock.map.b01_map_parser import ParsedMapData
 from roborock.map.proto.b01_scmap_pb2 import RobotMap  # type: ignore[attr-defined]
+from roborock.protocols.b01_q7_protocol import Q7DevicePush
 from roborock.roborock_typing import RoborockB01Q7Methods
 
 from .conftest import FakeQ7Channel
@@ -205,5 +206,109 @@ async def test_q7_start_is_idempotent(
     await q7_api.start()
 
     assert fake_channel.map_push_subscribe_count == 1
+    assert fake_channel.device_push_subscribe_count == 1
     await q7_api.close()
     assert fake_channel.map_push_callback is None
+    assert fake_channel.device_push_callback is None
+
+
+def cur_path_push(*samples: tuple[float, float, float, int]) -> Q7DevicePush:
+    """Build a ``prop.post`` push carrying a ``cur_path`` with the given poses."""
+    flat = [value for sample in samples for value in sample]
+    return Q7DevicePush(method="prop.post", params={"cur_path": [35, *flat, 1794476592], "real_clean_time": 7})
+
+
+async def test_q7_robot_position_from_cur_path_push(
+    q7_api: Q7PropertiesApi,
+    fake_channel: FakeQ7Channel,
+):
+    """Live cur_path pushes update the robot position (latest sample) and notify listeners."""
+    await q7_api.start()
+    assert fake_channel.device_push_callback is not None
+    updates: list[Q7RoborockPoint | None] = []
+    q7_api.map_content.add_update_listener(lambda: updates.append(q7_api.map_content.robot_position))
+
+    fake_channel.device_push_callback(cur_path_push((-0.2, -3.0, -2.7, 5), (-0.25, -3.1, -1.9, 5)))
+    # The same position again is not a change.
+    fake_channel.device_push_callback(cur_path_push((-0.25, -3.1, -1.9, 5)))
+
+    assert updates == [Q7RoborockPoint(x=25250, y=22400)]
+    assert fake_channel.published_commands == []
+    await q7_api.close()
+
+
+@pytest.mark.parametrize(
+    "push",
+    [
+        Q7DevicePush(method="prop.post", params={"real_clean_time": 7}),
+        Q7DevicePush(method="prop.post", params={"cur_path": [35, 1794476592]}),
+        Q7DevicePush(method="prop.post", params={"cur_path": [35, -0.2, -3.0, 1794476592]}),
+        Q7DevicePush(method="prop.post", params={"cur_path": [35, "x", "y", 0.0, 5, 1794476592]}),
+        Q7DevicePush(method="event.startClean.post", params={"cur_path": [35, 1.0, 1.0, 0.0, 5, 1]}),
+    ],
+)
+async def test_q7_robot_position_ignores_unrelated_or_malformed_pushes(
+    push: Q7DevicePush,
+    q7_api: Q7PropertiesApi,
+    fake_channel: FakeQ7Channel,
+):
+    """Pushes without a well-formed cur_path leave the position untouched."""
+    await q7_api.start()
+    assert fake_channel.device_push_callback is not None
+    updates: list[bool] = []
+    q7_api.map_content.add_update_listener(lambda: updates.append(True))
+
+    fake_channel.device_push_callback(push)
+
+    assert q7_api.map_content.robot_position is None
+    assert updates == []
+    await q7_api.close()
+
+
+def scmap_frame_with_pose(x: float, y: float) -> bytes:
+    """Serialize a live SCMap frame with a map head and a current pose."""
+    frame = RobotMap(mapType=0)
+    frame.mapHead.minX, frame.mapHead.minY = -10.0, -13.0
+    frame.mapHead.maxX, frame.mapHead.maxY = 6.0, 5.0
+    frame.currentPose.x, frame.currentPose.y = x, y
+    return frame.SerializeToString()
+
+
+async def test_q7_robot_position_from_map_frames_ignores_placeholder(
+    q7_api: Q7PropertiesApi,
+    fake_channel: FakeQ7Channel,
+):
+    """A frame pose inside the map sets the position; the (1100, 1100) placeholder does not."""
+    await q7_api.start()
+    assert fake_channel.map_push_callback is not None
+    parsed_map_data = ParsedMapData(image_content=b"pngbytes", map_data=MapData())
+
+    with patch("roborock.devices.traits.b01.q7.map_content.B01MapParser.parse", return_value=parsed_map_data):
+        fake_channel.map_push_callback(scmap_frame_with_pose(2.89, -2.78))
+        assert q7_api.map_content.robot_position == Q7RoborockPoint(x=28390, y=22720)
+
+        fake_channel.map_push_callback(scmap_frame_with_pose(1100.0, 1100.0))
+        assert q7_api.map_content.robot_position == Q7RoborockPoint(x=28390, y=22720)
+
+        fake_channel.map_push_callback(scmap_frame_with_pose(0.0, 0.0))
+        assert q7_api.map_content.robot_position == Q7RoborockPoint(x=28390, y=22720)
+
+    await q7_api.close()
+
+
+async def test_q7_map_content_refresh_live_requests_live_map(
+    q7_api: Q7PropertiesApi,
+    fake_channel: FakeQ7Channel,
+):
+    """refresh_live() requests the live map by type (no map list needed) and stores the pose."""
+    payload = scmap_frame_with_pose(1.87, -3.45)
+    fake_channel.response_queue.append(payload)
+    parsed_map_data = ParsedMapData(image_content=b"pngbytes", map_data=MapData())
+
+    with patch("roborock.devices.traits.b01.q7.map_content.B01MapParser.parse", return_value=parsed_map_data):
+        await q7_api.map_content.refresh_live()
+
+    assert fake_channel.published_commands == [(RoborockB01Q7Methods.UPLOAD_BY_MAPTYPE, {"map_type": 0})]
+    assert q7_api.map_content.image_content == b"pngbytes"
+    assert q7_api.map_content.raw_api_response == payload
+    assert q7_api.map_content.robot_position == Q7RoborockPoint(x=27370, y=22050)

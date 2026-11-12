@@ -113,6 +113,22 @@ def parse_map_type(payload: bytes) -> int:
     return _parse_scmap_payload(payload).mapType
 
 
+def parse_robot_pose(payload: bytes) -> tuple[float, float] | None:
+    """Return the robot's world position (meters) from an SCMap frame, if valid.
+
+    Frames without a live pose yield ``None``, as do the placeholders the firmware
+    reports while it has no fix: ``(1100.0, 1100.0)`` (outside the map bounds) and
+    an exact ``(0.0, 0.0)`` while a task is starting.
+    """
+    parsed = _parse_scmap_payload(payload)
+    if not parsed.HasField("mapHead") or not parsed.HasField("currentPose"):
+        return None
+    pose = parsed.currentPose
+    if (pose.x == 0.0 and pose.y == 0.0) or not _WorldToPixel(parsed).in_bounds(pose.x, pose.y):
+        return None
+    return pose.x, pose.y
+
+
 def _parse_scmap_payload(payload: bytes) -> RobotMap:
     """Parse inflated SCMap bytes into a generated protobuf message."""
     parsed = RobotMap()
