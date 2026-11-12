@@ -27,6 +27,7 @@ from .v1_code_mappings import (
     DustBagStatus,
     RoborockChargeStatus,
     RoborockCleanType,
+    RoborockDockCleaningFluidCode,
     RoborockDockDustCollectionFrequencyCode,
     RoborockDockDustCollectionModeCode,
     RoborockDockErrorCode,
@@ -490,6 +491,13 @@ class WashWaterTemperature(RoborockBase):
     """Mop wash water temperature, as returned by GET_WASH_WATER_TEMPERATURE."""
 
     wash_water_temperature: RoborockDockWashWaterTemperatureCode | None = None
+
+
+@dataclass
+class CleaningFluidDelivery(RoborockBase):
+    """Cleaning fluid auto-delivery amount, as returned by GET_AUTO_DELIVERY_CLEANING_FLUID."""
+
+    status: RoborockDockCleaningFluidCode | None = None
 
 
 @dataclass

@@ -76,6 +76,7 @@ from roborock.web_api import UserWebApiClient
 from . import (
     child_lock,
     clean_summary,
+    cleaning_fluid,
     command,
     common,
     consumeable,
@@ -103,6 +104,7 @@ from . import (
 )
 from .child_lock import ChildLockTrait
 from .clean_summary import CleanSummaryTrait
+from .cleaning_fluid import CleaningFluidTrait
 from .command import CommandTrait
 from .common import V1TraitMixin
 from .consumeable import ConsumableTrait
@@ -134,6 +136,7 @@ __all__ = [
     "PropertiesApi",
     "child_lock",
     "clean_summary",
+    "cleaning_fluid",
     "command",
     "common",
     "consumeable",
@@ -193,6 +196,7 @@ class PropertiesApi(Trait):
     wash_towel_mode: WashTowelModeTrait | None = None
     smart_wash_params: SmartWashParamsTrait | None = None
     wash_water_temperature: WashWaterTemperatureTrait | None = None
+    cleaning_fluid: CleaningFluidTrait | None = None
     obstacle_photos: ObstaclePhotoTrait | None = None
     mop_dryer: MopDryerTrait | None = None
     customize_clean_mode: CustomizeCleanModeTrait | None = None
