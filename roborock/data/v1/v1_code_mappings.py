@@ -425,6 +425,15 @@ class RoborockDockWashWaterTemperatureCode(RoborockEnum):
     pet_steam = 4
 
 
+class RoborockDockCleaningFluidCode(RoborockEnum):
+    """Describes how much cleaning fluid the dock adds automatically (app: cleaning fluid auto-delivery)."""
+
+    unknown = -1
+    off = 0
+    standard = 1
+    large = 3
+
+
 class RoborockStateCode(RoborockEnum):
     unknown = 0
     starting = 1
