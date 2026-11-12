@@ -12,7 +12,7 @@ from roborock.data.b01_q7 import (
     WaterLevelMapping,
     WorkStatusMapping,
 )
-from roborock.devices.traits.b01.q7 import Q7PropertiesApi
+from roborock.devices.traits.b01.q7 import Q7PropertiesApi, Q7RoborockPoint
 from roborock.roborock_message import RoborockB01Props
 from roborock.roborock_typing import RoborockB01Q7Methods
 
@@ -360,3 +360,52 @@ async def test_q7_api_clean_segments(q7_api: Q7PropertiesApi, fake_channel: Fake
         "ctrl_value": SCDeviceCleanParam.START.code,
         "room_ids": [10, 11],
     }
+
+
+async def test_q7_api_clean_zone(q7_api: Q7PropertiesApi, fake_channel: FakeQ7Channel):
+    """Test zone cleaning converts common coordinates to Q7 world meters."""
+    await q7_api.clean_zone(Q7RoborockPoint(x=27000, y=21900), Q7RoborockPoint(x=26000, y=22700))
+
+    assert fake_channel.published_commands == [
+        (RoborockB01Q7Methods.SET_PREFERENCE_TYPE, {"prefer_type": 4}),
+        (RoborockB01Q7Methods.SET_ZONE_POINTS, {"zone_points": [0.5, -3.6, 1.5, -3.6, 1.5, -2.8, 0.5, -2.8]}),
+        (RoborockB01Q7Methods.SET_ZONE_CLEAN, {"ctrl_value": SCDeviceCleanParam.START.code}),
+    ]
+
+
+async def test_q7_api_clean_zones_multiple(q7_api: Q7PropertiesApi, fake_channel: FakeQ7Channel):
+    """Test several zones are concatenated into a single task."""
+    await q7_api.clean_zones(
+        [
+            (Q7RoborockPoint(x=26000, y=21900), Q7RoborockPoint(x=27000, y=22700)),
+            (Q7RoborockPoint(x=28000, y=21900), Q7RoborockPoint(x=28800, y=22700)),
+        ]
+    )
+
+    _, params = fake_channel.published_commands[1]
+    assert params == {
+        "zone_points": [
+            *[0.5, -3.6, 1.5, -3.6, 1.5, -2.8, 0.5, -2.8],
+            *[2.5, -3.6, 3.3, -3.6, 3.3, -2.8, 2.5, -2.8],
+        ]
+    }
+
+
+@pytest.mark.parametrize(
+    "zones",
+    [
+        [],
+        [(Q7RoborockPoint(x=26000, y=21900), Q7RoborockPoint(x=26000, y=22700))],
+        [(Q7RoborockPoint(x=26000, y=21900), Q7RoborockPoint(x=27000, y=21900))],
+    ],
+)
+async def test_q7_api_clean_zones_invalid(
+    zones: list[tuple[Q7RoborockPoint, Q7RoborockPoint]],
+    q7_api: Q7PropertiesApi,
+    fake_channel: FakeQ7Channel,
+):
+    """Test empty or degenerate zones are rejected before anything is sent."""
+    with pytest.raises(ValueError):
+        await q7_api.clean_zones(zones)
+
+    assert fake_channel.published_commands == []
