@@ -1,6 +1,7 @@
 """Fixtures for V1 trait tests."""
 
 from copy import deepcopy
+from dataclasses import replace
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -76,10 +77,25 @@ def device_info_fixture(trait_home_data: HomeData) -> HomeDataDevice:
     return trait_home_data.get_all_devices()[0]
 
 
+@pytest.fixture(name="product_model")
+def product_model_fixture() -> str | None:
+    """Model of the test device's product, e.g. "roborock.vacuum.a144".
+
+    None keeps the fixture's model: the S7 MaxV (a27, TopazSV), which the app treats as an older product.
+    """
+    return None
+
+
 @pytest.fixture(name="products")
-def products_fixture() -> list[HomeDataProduct]:
+def products_fixture(device_info: HomeDataDevice, product_model: str | None) -> list[HomeDataProduct]:
     """Fixture to provide a Product instance for tests."""
-    return [HomeDataProduct.from_dict(product) for product in mock_data.PRODUCTS.values()]
+    products = [HomeDataProduct.from_dict(product) for product in mock_data.PRODUCTS.values()]
+    if product_model is None:
+        return products
+    return [
+        replace(product, model=product_model) if product.id == device_info.product_id else product
+        for product in products
+    ]
 
 
 @pytest.fixture(autouse=True, name="device")
