@@ -10,6 +10,7 @@ from roborock.data import (
 )
 from roborock.devices.device import RoborockDevice
 from roborock.devices.traits.v1.wash_towel_mode import WashTowelModeTrait
+from roborock.exceptions import RoborockUnsupportedFeature
 from roborock.roborock_typing import RoborockCommand
 from tests.devices.traits.v1.helpers import dock_types_with_capability
 
@@ -83,6 +84,8 @@ async def test_set_wash_towel_mode(
 ) -> None:
     """Test setting the wash towel mode."""
     assert wash_towel_mode is not None
+    # Offer the smart mode, as on the Saros 10R
+    wash_towel_mode.device_feature_trait.is_dirty_replenish_clean_supported = True
 
     await wash_towel_mode.set_wash_towel_mode(wash_mode)
 
@@ -189,3 +192,59 @@ async def test_wash_towel_mode_options(
     wash_towel_mode.device_feature_trait.is_dirty_replenish_clean_supported = is_dirty_replenish_clean_supported
 
     assert wash_towel_mode.wash_towel_mode_options == expected_modes
+
+
+@pytest.mark.parametrize(
+    ("dock_type_code"),
+    [(RoborockDockTypeCode.o4_dock)],
+)
+async def test_set_wash_towel_mode_rejects_unoffered(
+    wash_towel_mode: WashTowelModeTrait,
+    mock_rpc_channel: AsyncMock,
+    dock_type_code: RoborockDockTypeCode,
+) -> None:
+    """Test that a wash mode the device does not offer is rejected without sending."""
+    assert wash_towel_mode is not None
+    wash_towel_mode.device_feature_trait.is_super_deep_wash_supported = True
+    wash_towel_mode.device_feature_trait.is_dirty_replenish_clean_supported = True
+    assert WashTowelModes.SUPER_DEEP not in wash_towel_mode.wash_towel_mode_options
+
+    with pytest.raises(RoborockUnsupportedFeature):
+        await wash_towel_mode.set_wash_towel_mode(WashTowelModes.SUPER_DEEP)
+
+    mock_rpc_channel.send_command.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("dock_type_code"),
+    [(RoborockDockTypeCode.shell_3s_dock)],
+)
+async def test_self_clean_tray(
+    wash_towel_mode: WashTowelModeTrait,
+    mock_rpc_channel: AsyncMock,
+    dock_type_code: RoborockDockTypeCode,
+) -> None:
+    """Test starting the wash tray self-clean on a dock with the carousel."""
+    assert wash_towel_mode is not None
+
+    await wash_towel_mode.self_clean_tray()
+
+    mock_rpc_channel.send_command.assert_called_once_with(RoborockCommand.APP_AMETHYST_SELF_CHECK)
+
+
+@pytest.mark.parametrize(
+    ("dock_type_code"),
+    [(RoborockDockTypeCode.o4_dock)],
+)
+async def test_self_clean_tray_unsupported(
+    wash_towel_mode: WashTowelModeTrait,
+    mock_rpc_channel: AsyncMock,
+    dock_type_code: RoborockDockTypeCode,
+) -> None:
+    """Test that the tray self-clean is rejected without sending on a dock without the carousel."""
+    assert wash_towel_mode is not None
+
+    with pytest.raises(RoborockUnsupportedFeature):
+        await wash_towel_mode.self_clean_tray()
+
+    mock_rpc_channel.send_command.assert_not_called()

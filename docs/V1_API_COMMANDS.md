@@ -6,6 +6,7 @@ Commands do not immediately make it to this page. You can find more commands [he
 
 Commands can have multiple parameters that can change from one model to another.
 
+* [app_amethyst_self_check](#app_amethyst_self_check)
 * [app_charge](#app_charge)
 * [app_get_dryer_setting](#app_get_dryer_setting)
 * [app_get_init_status](#app_get_init_status)
@@ -254,13 +255,15 @@ Parameters: None
 
 ### app_stop_wash
 
-Description: This stops washing the mop whiloe docked
+Description: This stops washing the mop whiloe docked. It also stops a running wash tray self-clean
+([app_amethyst_self_check](#app_amethyst_self_check)).
 
 Parameters: None
 
 **Supported devices:**
 
 * Roborock S8 Pro Ultra: ✅
+* Roborock Saros 10R: ✅
 
 ### app_goto_target
 
@@ -1291,7 +1294,7 @@ Parameters: None
 
 Returns:
 
-    wash_mode:
+    wash_mode: 0 light, 1 balanced, 2 deep, 8 super deep, 10 smart
 
 Return example:
 
@@ -1299,16 +1302,7 @@ Return example:
     {'wash_mode': 1}
 ```
 
-Source: Roborock S7 MaxV Ultra
-
-
-    unknown = -9999
-
-    light = 0
-
-    balanced = 1
-
-    deep = 2
+Source: Roborock S7 MaxV Ultra; smart (10) seen on the Roborock Saros 10R
 
 
 **Supported devices:**
@@ -1323,6 +1317,9 @@ Description: Sets the wash wash_towel_mode
 
 Parameters: {'wash_mode': 2}
 
+    wash_mode: 0 light, 1 balanced, 2 deep, 8 super deep, 10 smart. Super deep and smart are offered only on
+    devices that support them.
+
 Returns: ok or error
 
 Source: S8 Pro Ultra
@@ -1331,6 +1328,25 @@ Source: S8 Pro Ultra
 
 * Roborock S7 MaxV Ultra: ✅
 * Roborock S8 Pro Ultra: ✅
+
+### app_amethyst_self_check
+
+Description: Start the self-clean of the dock's mop wash tray (app: tray self-cleaning). Offered on docks with a
+self-cleaning wash carousel, such as the Saros 10R dock (dock type 16).
+
+Parameters: None
+
+Returns: ok or error
+
+While it runs, `get_status` reports `state` 23 (washing the mop) and `wash_phase` 11, the same as when the
+self-clean is started from the app. The dock needs clean water (`dock_error_status` 38, water empty, otherwise).
+It ends by itself after about a minute; `app_stop_wash` stops it early, like the stop button in the app.
+
+Source: Roborock Saros 10R, Roborock app plugin
+
+**Supported devices:**
+
+* Roborock Saros 10R: ✅
 
 ### get_wash_water_temperature
 
