@@ -1156,7 +1156,7 @@ These features are encoded as individual bits in the `new_feature_info_str` hex 
 **Bit Index:** 112
 **Feature:** Cleaning Fluid Delivery
 **Description:** Automatic delivery of cleaning solution/detergent.
-**Impact:** Enhanced mopping with cleaning agents.
+**Impact:** Enhanced mopping with cleaning agents. Enables `CleaningFluidTrait` on a robot reporting a fluid container, and adds its `large` amount.
 
 ---
 

@@ -30,6 +30,7 @@ Commands can have multiple parameters that can change from one model to another.
 * [del_server_timer](#del_server_timer)
 * [del_timer](#del_timer)
 * [dnld_install_sound](#dnld_install_sound)
+* [get_auto_delivery_cleaning_fluid](#get_auto_delivery_cleaning_fluid)
 * [get_clean_sequence](#get_clean_sequence)
 * [get_consumable](#get_consumable)
 * [get_custom_mode](#get_custom_mode)
@@ -68,6 +69,7 @@ Commands can have multiple parameters that can change from one model to another.
 * [save_map](#save_map)
 * [send_ice_to_robot](#send_ice_to_robot)
 * [send_sdp_to_robot](#send_sdp_to_robot)
+* [set_auto_delivery_cleaning_fluid](#set_auto_delivery_cleaning_fluid)
 * [set_server_timer](#set_server_timer)
 * [set_clean_motor_mode](#set_clean_motor_mode)
 * [set_customize_clean_mode](#set_customize_clean_mode)
@@ -1550,6 +1552,51 @@ Example:
 ```
 
 Source: Roborock Saros 10R
+
+**Supported devices:**
+
+* Roborock Saros 10R: ✅
+
+### get_auto_delivery_cleaning_fluid
+
+Description: Get how much cleaning fluid the dock adds automatically (app: cleaning fluid auto-delivery). Available when
+the robot reports a cleaning fluid container (`dss` bits 10-11 not 0) and either the robot supports cleaning fluid
+delivery (`is_clean_fluid_delivery_supported`) or the dock does auto-delivery. Not available on Shell 4S docks.
+
+Parameters: None
+
+Returns:
+
+    status: 0 off, 1 standard, 3 large. Code 2 is not used. Robots without `is_clean_fluid_delivery_supported`
+    only switch it on (1) or off (0); such a robot reads 3 back as 1.
+
+Return example:
+
+```json
+    {'status': 1}
+```
+
+Source: Roborock Saros 10R, Roborock app plugin
+
+**Supported devices:**
+
+* Roborock Saros 10R: ✅
+
+### set_auto_delivery_cleaning_fluid
+
+Description: Set how much cleaning fluid the dock adds automatically.
+
+Parameters:
+
+    status: 0 off, 1 standard, 3 large (3 only on robots with `is_clean_fluid_delivery_supported`; others accept 0 and 1).
+
+Example:
+
+```json
+    {'status': 1}
+```
+
+Source: Roborock Saros 10R, Roborock app plugin
 
 **Supported devices:**
 

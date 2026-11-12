@@ -2,6 +2,7 @@
 
 from copy import deepcopy
 from dataclasses import replace
+from typing import Any
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -139,12 +140,19 @@ def dock_type_code_fixture(device_info: HomeDataDevice) -> RoborockDockTypeCode 
     return mock_data.PRODUCT_DOCK_TYPE_MAP.get(device_info.product_id, RoborockDockTypeCode.o3_plus_dock)
 
 
+@pytest.fixture(name="status_overrides")
+def status_overrides_fixture() -> dict[str, Any]:
+    """Status fields replacing the defaults in the status the device returns during discovery."""
+    return {}
+
+
 @pytest.fixture(autouse=True)
 async def discover_features_fixture(
     device: RoborockDevice,
     mock_rpc_channel: AsyncMock,
     dock_type_code: RoborockDockTypeCode | None,
     device_info: HomeDataDevice,
+    status_overrides: dict[str, Any],
 ) -> None:
     """Fixture to handle device feature discovery."""
     assert device.v1_properties
@@ -164,6 +172,7 @@ async def discover_features_fixture(
         {
             **mock_data.STATUS,
             "dock_type": dock_type_code,
+            **status_overrides,
         },
     ]
     # Connecting triggers device discovery
