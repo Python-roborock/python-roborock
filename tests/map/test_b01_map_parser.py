@@ -11,7 +11,7 @@ from Crypto.Util.Padding import pad
 from PIL import Image
 
 from roborock.exceptions import RoborockException
-from roborock.map.b01_map_parser import B01MapParser, _parse_scmap_payload
+from roborock.map.b01_map_parser import ROBOT_WORLD_POSITION, B01MapParser, _parse_scmap_payload
 from roborock.map.proto.b01_scmap_pb2 import RobotMap  # type: ignore[attr-defined]
 from roborock.protocols.b01_q7_protocol import create_map_key, decode_map_payload
 
@@ -173,6 +173,7 @@ def test_b01_map_parser_projects_poses_and_path() -> None:
     assert (map_data.charger.x, map_data.charger.y) == pytest.approx((2.0, 1.0))
     assert map_data.vacuum_position is not None
     assert (map_data.vacuum_position.x, map_data.vacuum_position.y) == pytest.approx((3.0, 2.0))
+    assert map_data.additional_parameters[ROBOT_WORLD_POSITION] == pytest.approx((0.05, -0.05))
     assert map_data.path is not None
     assert [(p.x, p.y) for p in map_data.path.path[0]] == [
         pytest.approx((2.0, 1.0)),
@@ -180,22 +181,29 @@ def test_b01_map_parser_projects_poses_and_path() -> None:
     ]
 
 
-def test_b01_map_parser_rejects_placeholder_pose() -> None:
-    """Saved maps carry a placeholder (1100, 1100) pose that must not render."""
+@pytest.mark.parametrize(
+    "pose",
+    [
+        pytest.param((1100.0, 1100.0), id="saved-map-out-of-bounds"),
+        pytest.param((0.0, 0.0), id="task-starting-origin"),
+    ],
+)
+def test_b01_map_parser_rejects_placeholder_pose(pose: tuple[float, float]) -> None:
+    """Placeholder poses (no fix yet) must not render nor be reported as the robot position."""
     payload = _pose_map_payload()
-    payload.chargeStation.x = 0.0
-    payload.chargeStation.y = 0.0
+    payload.chargeStation.x = 0.05
+    payload.chargeStation.y = 0.05
     payload.chargeStation.phi = 0.5
-    payload.currentPose.x = 1100.0
-    payload.currentPose.y = 1100.0
+    payload.currentPose.x, payload.currentPose.y = pose
 
     parsed = B01MapParser().parse(payload.SerializeToString())
     map_data = parsed.map_data
 
-    # The out-of-bounds pose is ignored; the robot is shown at its dock.
+    # The placeholder is ignored; the robot is shown at its dock.
     assert map_data is not None
     assert map_data.vacuum_position is not None
-    assert (map_data.vacuum_position.x, map_data.vacuum_position.y) == pytest.approx((2.0, 1.0))
+    assert (map_data.vacuum_position.x, map_data.vacuum_position.y) == pytest.approx((3.0, 0.0))
+    assert ROBOT_WORLD_POSITION not in map_data.additional_parameters
 
 
 def test_b01_map_parser_extracts_rooms_from_outlines() -> None:

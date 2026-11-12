@@ -27,6 +27,9 @@ _MAP_FILE_FORMAT = "PNG"
 _FLOOR = 127
 _WALL = 128
 
+ROBOT_WORLD_POSITION = "robot_world_position"
+"""``MapData.additional_parameters`` key holding the valid live robot pose ``(x, y)`` in world meters."""
+
 _B01_DRAWABLES = [
     Drawable.CHARGER,
     Drawable.NO_GO_AREAS,
@@ -163,6 +166,21 @@ class _WorldToPixel:
         return px, py
 
 
+def _valid_current_pose(parsed: RobotMap, projector: _WorldToPixel) -> tuple[float, float, float] | None:
+    """Return the live robot pose ``(x, y, phi)`` in world meters, if the frame has a valid one.
+
+    Frames without a live pose yield ``None``, as do the placeholders the firmware
+    reports while it has no fix: ``(1100.0, 1100.0)`` (outside the map bounds) and
+    an exact ``(0.0, 0.0)`` while a task is starting.
+    """
+    if not parsed.HasField("currentPose"):
+        return None
+    pose = parsed.currentPose
+    if (pose.x == 0.0 and pose.y == 0.0) or not projector.in_bounds(pose.x, pose.y):
+        return None
+    return pose.x, pose.y, pose.phi
+
+
 def _place_poses(map_data: MapData, parsed: RobotMap, projector: _WorldToPixel) -> bool:
     """Populate charger, robot position and path from the decoded SCMap."""
     has_drawables = False
@@ -172,9 +190,11 @@ def _place_poses(map_data: MapData, parsed: RobotMap, projector: _WorldToPixel) 
         map_data.charger = Point(px, py, math.degrees(parsed.chargeStation.phi))
         has_drawables = True
 
-    if parsed.HasField("currentPose") and projector.in_bounds(parsed.currentPose.x, parsed.currentPose.y):
-        px, py = projector.to_pixel(parsed.currentPose.x, parsed.currentPose.y)
-        map_data.vacuum_position = Point(px, py, math.degrees(parsed.currentPose.phi))
+    if (pose := _valid_current_pose(parsed, projector)) is not None:
+        x, y, phi = pose
+        px, py = projector.to_pixel(x, y)
+        map_data.vacuum_position = Point(px, py, math.degrees(phi))
+        map_data.additional_parameters[ROBOT_WORLD_POSITION] = (x, y)
         has_drawables = True
     elif map_data.charger is not None:
         # A saved map carries no live pose; show the robot at its dock.
