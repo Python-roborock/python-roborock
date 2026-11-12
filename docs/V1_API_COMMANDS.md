@@ -15,7 +15,10 @@ Commands can have multiple parameters that can change from one model to another.
 * [app_rc_start](#app_rc_start)
 * [app_rc_stop](#app_rc_stop)
 * [app_segment_clean](#app_segment_clean)
+* [app_segment_clean_subdivision](#app_segment_clean_subdivision)
+* [app_set_beautify_blocks](#app_set_beautify_blocks)
 * [app_set_dryer_setting](#app_set_dryer_setting)
+* [app_set_smart_door_sill](#app_set_smart_door_sill)
 * [app_start_collect_dust](#app_start_collect_dust)
 * [app_start_wash](#app_start_wash)
 * [app_start](#app_start)
@@ -25,6 +28,7 @@ Commands can have multiple parameters that can change from one model to another.
 * [change_sound_volume](#change_sound_volume)
 * [close_dnd_timer](#close_dnd_timer)
 * [del_server_timer](#del_server_timer)
+* [del_timer](#del_timer)
 * [dnld_install_sound](#dnld_install_sound)
 * [get_clean_sequence](#get_clean_sequence)
 * [get_consumable](#get_consumable)
@@ -52,6 +56,7 @@ Commands can have multiple parameters that can change from one model to another.
 * [get_valley_electricity_timer](#get_valley_electricity_timer)
 * [get_wash_towel_mode](#get_wash_towel_mode)
 * [load_multi_map](#load_multi_map)
+* [manual_bak_map](#manual_bak_map)
 * [name_segment](#name_segment)
 * [reset_consumable](#reset_consumable)
 * [resume_segment_clean](#resume_segment_clean)
@@ -73,7 +78,10 @@ Commands can have multiple parameters that can change from one model to another.
 * [set_mop_mode](#set_mop_mode)
 * [set_scenes_segments](#set_scenes_segments)
 * [set_scenes_zones](#set_scenes_zones)
+* [set_carpet_area](#set_carpet_area)
 * [set_segment_ground_material](#set_segment_ground_material)
+* [set_timer](#set_timer)
+* [upd_timer](#upd_timer)
 * [set_smart_wash_params](#set_smart_wash_params)
 * [set_timezone](#set_timezone)
 * [set_valley_electricity_timer](#set_valley_electricity_timer)
@@ -192,9 +200,16 @@ Returns:
 
 ### app_start
 
-Description:
+Description: Starts a full clean using the device's current clean mode (for example the per-room settings
+from `set_customize_clean_mode` when the mode is Custom).
 
-Parameters:
+Parameters: optional. The app's "Full cleaning" button sends `[{"clean_mop": 0}]`.
+
+Returns ok or error
+
+**Supported devices:**
+
+* Roborock Saros 20: ✅
 
 ### app_pause
 
@@ -277,6 +292,9 @@ Description: This tells your vacuum to go back to the dock and charge.
 Parameters: None
 
 Returns : ok or error
+
+Sent straight after `app_pause`, it can return `{"code": -10003, "message": "action locked"}`. The app
+retries a few seconds later.
 
 **Supported devices:**
 
@@ -510,13 +528,46 @@ Returns ok or error
 
 * Roborock S8 Pro Ultra: ✅
 
-### set_segment_ground_material
+### app_segment_clean_subdivision
 
-Description: Sets the groud material for the segment
+Description: Starts a clean of the listed segments, each with its own settings. This is what the app sends
+when you pick rooms and start a room clean.
 
-Parameters: "{'data':[[22,3,0]]}"
+Parameters:
+
+```json
+{"data": [{"id": 5, "fan_power": 102, "water_box_mode": 235, "mop_mode": 300, "seq_type": 1, "repeat": 1,
+           "wash_mode": 2, "need_wash": 1}],
+ "clean_order_mode": 1, "is_new_clean": 1, "auto_dustCollection": 1, "auto_dry": 1, "repeat": 1}
+```
+
+* `id`: segment id.
+* `water_box_mode` 200 and `seq_type` 0 = vacuum only; `water_box_mode` 235 and `seq_type` 1 = vacuum, then mop.
+* The app pre-fills each segment from `get_customize_clean_mode`.
 
 Returns ok or error
+
+**Supported devices:**
+
+* Roborock Saros 20: ✅
+
+### set_segment_ground_material
+
+Description: Sets the floor material of one or more segments. Only the segments listed are changed.
+
+Parameters: `{"data": [[segment_id, material, direction]]}`, e.g. `{"data": [[22, 3, 0]]}`
+
+* material: 0 default, 3 wood, 4 tile.
+* direction: 0 or 90 for wood (the direction the boards are laid), -1 otherwise.
+
+The map's floor material block (type 24) can also hold values the app never sets (1 and 2 have been seen);
+their meaning is not confirmed.
+
+Returns ok or error
+
+**Supported devices:**
+
+* Roborock Saros 20: ✅
 
 ### name_segment
 
@@ -939,16 +990,41 @@ Parameters:
 
 ### get_customize_clean_mode
 
-Description:
+Description: Returns the saved per-segment settings ("customised" cleaning). Empty list if none are saved.
 
-Parameters:
+Parameters: None
 
+Return example:
+
+```json
+[{"segment": 3, "fan_power": 102, "water_box_mode": 200, "mop_mode": 300, "repeat": 1, "seq_type": 0},
+ {"segment": 5, "fan_power": 102, "water_box_mode": 235, "mop_mode": 300, "repeat": 1, "seq_type": 1}]
+```
+
+**Supported devices:**
+
+* Roborock Saros 20: ✅
 
 ### set_customize_clean_mode
 
-Description:
+Description: Saves the per-segment settings used by Custom mode and pre-filled for room cleans. The app sends
+the full list, one entry per segment.
 
 Parameters:
+
+```json
+{"data": [{"segment": 3, "fan_power": 102, "water_box_mode": 200, "mop_mode": 300, "repeat": 1, "seq_type": 0}],
+ "need_retry": 1}
+```
+
+`water_box_mode` 200 and `seq_type` 0 = vacuum only; 235 and 1 = vacuum, then mop. Uses the
+[retry handshake](#retry_request).
+
+Returns ok or error
+
+**Supported devices:**
+
+* Roborock Saros 20: ✅
 
 ## Furniture and ground material
 
@@ -1103,9 +1179,17 @@ Comment: Returns a map in a format that is not yet understood by me
 
 ### start_edit_map
 
-Description:
+Description: Sent by the app before saving map edits (walls, zones, door sills, Remove-tool areas). The app
+sends `end_edit_map` with `[]` afterwards. It also sends `end_edit_map` after `set_segment_ground_material`
+and `set_carpet_area`. The app's code ignores errors from it, so it looks like an editing hint rather than a lock.
 
-Parameters:
+Parameters: `[]`
+
+Returns ok or error
+
+**Supported devices:**
+
+* Roborock Saros 20: ✅
 
 
 ### get_room_mapping
@@ -1142,9 +1226,100 @@ Parameters: number (the floor/map index)
 
 ### save_map
 
-Description:
+Description: Saves the invisible walls and no-go zones. **It replaces the whole set**: resend every existing
+wall and zone you want to keep. Deleting one means saving without it.
 
 Parameters:
+
+```json
+{"data": [[1, 25000, 26000, 27000, 26000],
+          [0, 30000, 31000, 31000, 31000, 31000, 30000, 30000, 30000],
+          [100, 0]],
+ "need_retry": 1}
+```
+
+* `[1, x1, y1, x2, y2]`: invisible wall (a line).
+* `[0, x1, y1, x2, y2, x3, y3, x4, y4]`: no-go zone (four corners). The app's code also uses type 2 for
+  no-mop zones (not seen on the wire yet).
+* `[100, map_flag]`: trailer (current map, 0 on single-map devices).
+* Coordinates are map millimetres, as in the map data.
+
+The app wraps it in `start_edit_map` / `end_edit_map` and uses the [retry handshake](#retry_request).
+
+Returns ok or error
+
+**Supported devices:**
+
+* Roborock Saros 20: ✅
+
+### set_carpet_area
+
+Description: Saves the carpet areas (the app's carpet / rug tool). **It replaces the whole list**: the app
+resends every existing carpet, with its stored flags, plus the new or changed one.
+
+Parameters:
+
+```json
+{"map_index": 0, "type": 1,
+ "zone_data": [[25000, 31000, 29000, 31000, 29000, 28000, 25000, 28000]],
+ "flags": [3342336]}
+```
+
+`zone_data` and `flags` are parallel lists. Flag bits seen: bits 7-14 carpet id (0 for a new carpet, the device
+assigns one), bit 15 deep clean. The app's code names further fields (bits 20-22 clean mode, among others);
+a new carpet created while the global carpet mode was "vacuum only" had `0x330000`.
+
+Returns ok or error
+
+**Supported devices:**
+
+* Roborock Saros 20: ✅
+
+### app_set_smart_door_sill
+
+Description: Saves the door sills. Replaces the whole list; an empty list deletes them all.
+
+Parameters:
+
+```json
+{"map_index": 0, "zones": [[2, 25000, 26000, 25000, 25000, 24850, 25000, 24850, 26000]],
+ "attrs": [10], "sides_infos": [[0, 0, 0, 0]], "side_heights": [[0, 0, 0, 0]]}
+```
+
+Type 2 = drawn by the user. `attrs`, `sides_infos` and `side_heights` are per sill, parallel to `zones`.
+
+Returns ok or error
+
+**Supported devices:**
+
+* Roborock Saros 20: ✅
+
+### app_set_beautify_blocks
+
+Description: Saves the areas hidden with the app's Remove tool. Replaces the whole list: resend every area to
+keep.
+
+Parameters: `{"map_index": 0, "data": [[0, x1, y1, x2, y2, x3, y3, x4, y4]]}` (type 0 = drawn by the user)
+
+Returns ok or error
+
+**Supported devices:**
+
+* Roborock Saros 20: ✅
+
+### manual_bak_map
+
+Description: Saves a backup of the current map on the device. Devices report how many backups they keep in
+`get_multi_maps_list` (`max_bak_map`); on a device with one slot, a new backup replaced the old one. Check `bak_maps[].add_time` afterwards.
+
+Parameters: `{"map_flag": 0}`
+
+Returns ok or error. Returns `{"code": -10007, "message": "invalid status"}` while a clean is unfinished
+(including paused or waiting to resume after charging).
+
+**Supported devices:**
+
+* Roborock Saros 20: ✅
 
 ## Operating modes
 
@@ -1487,9 +1662,18 @@ Parameters:
 
 ### retry_request
 
-Description:
+Description: Part of a retry handshake used by some write commands. When a request includes
+`"need_retry": 1` (seen with `save_map`, `set_timer` and `set_customize_clean_mode`), the device may answer
+`["retry"]` instead of `["ok"]`. The app then sends `retry_request` about every 2 seconds, increasing
+`retry_count`, until it gets `["ok"]`. The device may also answer the original request id with a late `["ok"]`.
 
-Parameters:
+Parameters: `{"retry_id": <id of the original request>, "retry_count": 1, "method": "save_map"}`
+
+Returns `["retry"]` or `["ok"]`
+
+**Supported devices:**
+
+* Roborock Saros 20: ✅
 
 ## Timers
 
@@ -1498,6 +1682,55 @@ Parameters:
 Description:
 
 Parameters:
+
+### set_timer
+
+Description: Creates a schedule stored on the device (what the app's schedule screen uses on devices with
+local timers).
+
+Parameters:
+
+```json
+{"data": [["1700000000000", ["30 9 15 6 *", ["start_clean", {"segments": "0", "repeat": 1, "fan_power": 102,
+  "water_box_mode": 235, "mop_mode": 300, "clean_mop": 1, "seq_type": 0, "map_index": -1}]]]],
+ "need_retry": 1}
+```
+
+* First item: timer id chosen by the app (a millisecond timestamp, as a string).
+* Cron `"minute hour day month weekday"` in the device's time zone (the example is a one-off at 09:30 on 15 June;
+  repeating schedules not captured yet).
+* `segments: "0"` = whole home.
+* Uses the [retry handshake](#retry_request). The app creates timers switched on.
+
+Returns ok or error
+
+**Supported devices:**
+
+* Roborock Saros 20: ✅
+
+### upd_timer
+
+Description: Switches a device timer on or off.
+
+Parameters: `["<timer id>", "off"]` (`"on"` presumably switches it back on; not captured)
+
+Returns ok or error
+
+**Supported devices:**
+
+* Roborock Saros 20: ✅
+
+### del_timer
+
+Description: Deletes a device timer.
+
+Parameters: `["<timer id>"]`
+
+Returns ok or error
+
+**Supported devices:**
+
+* Roborock Saros 20: ✅
 
 
 ### dnd_timer
