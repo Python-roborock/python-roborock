@@ -117,6 +117,8 @@ class Q7MapListEntry(RoborockBase):
 
     id: int | None = None
     cur: bool | None = None
+    name: str | None = None
+    """User-visible map name as shown in the app (e.g. ``"Temporary map"`` for an unsaved map)."""
 
 
 @dataclass
@@ -204,6 +206,8 @@ class B01Props(RoborockBase):
     serial_number: str | None = None
     recommend: Recommend | None = None
     add_sweep_status: int | None = None
+    carpet_turbo: int | None = None
+    carpet_avoid: int | None = None
 
     @property
     def battery(self) -> int | None:

@@ -409,3 +409,36 @@ async def test_q7_api_clean_zones_invalid(
         await q7_api.clean_zones(zones)
 
     assert fake_channel.published_commands == []
+
+
+@pytest.mark.parametrize(
+    ("method", "prop"),
+    [
+        ("set_carpet_turbo", RoborockB01Props.CARPET_TURBO),
+        ("set_carpet_avoid", RoborockB01Props.CARPET_AVOID),
+    ],
+)
+@pytest.mark.parametrize(("enabled", "expected_code"), [(True, 1), (False, 0)])
+async def test_q7_api_set_carpet_settings(
+    method: str,
+    prop: RoborockB01Props,
+    enabled: bool,
+    expected_code: int,
+    q7_api: Q7PropertiesApi,
+    fake_channel: FakeQ7Channel,
+):
+    """Test carpet settings are written as individual properties."""
+    await getattr(q7_api, method)(enabled)
+
+    assert fake_channel.published_commands == [(RoborockB01Q7Methods.SET_PROP, {prop: expected_code})]
+
+
+async def test_q7_api_query_carpet_settings(q7_api: Q7PropertiesApi, fake_channel: FakeQ7Channel):
+    """Test carpet settings queried directly are kept as top-level properties."""
+    fake_channel.response_queue.append({"carpet_turbo": 1, "carpet_avoid": 0})
+
+    props = await q7_api.query_values([RoborockB01Props.CARPET_TURBO, RoborockB01Props.CARPET_AVOID])
+
+    assert props is not None
+    assert props.carpet_turbo == 1
+    assert props.carpet_avoid == 0
