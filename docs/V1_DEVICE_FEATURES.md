@@ -684,7 +684,7 @@ These features are encoded as individual bits in the `new_feature_info_str` hex 
 **Bit Index:** 41
 **Feature:** Hot Water Mop Washing
 **Description:** Dock uses hot water to wash mop pads. The robot firmware reports this, so it does not account for the dock: a Shell E dock cannot wash with hot water.
-**Impact:** Better mop cleaning and sanitization.
+**Impact:** Better mop cleaning and sanitization. Required for `WashWaterTemperatureTrait`.
 
 ---
 
