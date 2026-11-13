@@ -1373,6 +1373,7 @@ These features are determined by hardware capabilities and product variant.
 
 ### is_support_water_mode
 **Product Features:** MOP_ELECTRONIC_MODULE, MOP_SHAKE_MODULE, MOP_SPIN_MODULE
+**Also enabled by:** `is_roller_mop_supported` (roller-mop models have no mop module product feature)
 **Feature:** Water Mode Control
 **Description:** Electronic control over water flow for mopping.
 **Impact:** Adjustable water flow rates for different floor wetness.
@@ -1413,6 +1414,7 @@ These features are determined by hardware capabilities and product variant.
 
 ### is_clean_route_setting_supported
 **Product Features:** MOP_SHAKE_MODULE, MOP_SPIN_MODULE
+**Also enabled by:** `is_shake_mop_set_supported`, `is_roller_mop_supported`
 **Feature:** Clean Route Settings
 **Description:** Configure cleaning route patterns.
 **Impact:** Choose between different cleaning patterns (zigzag, edge-first, etc.).
@@ -1429,6 +1431,7 @@ These features are determined by hardware capabilities and product variant.
 
 ### is_customized_clean_supported
 **Product Features:** MOP_SHAKE_MODULE, MOP_SPIN_MODULE
+**Also enabled by:** `is_roller_mop_supported`
 **Feature:** Customized Clean Settings
 **Description:** Advanced customization for mop-equipped models.
 **Impact:** Detailed control over mopping parameters.
