@@ -77,6 +77,21 @@ class SCDeviceCleanParam(RoborockModeEnum):
     PAUSE = ("pause", 2)
 
 
+class Q7RemoteDirection(RoborockModeEnum):
+    """Direction codes for ``service.set_direction`` (remote / manual control).
+
+    Verified live on a Q7 (sc05): the robot must first be in manual mode
+    (``prop.set sweep_type=5`` -> ``work_mode`` 2). Each command moves the robot
+    for a short burst, so callers repeat it while a direction is held. Code 0
+    leaves manual mode.
+    """
+
+    EXIT = ("exit", 0)
+    FORWARD = ("forward", 1)
+    LEFT = ("left", 2)
+    RIGHT = ("right", 3)
+
+
 class WorkModeMapping(RoborockModeEnum):
     """Maps the detailed work modes of the robot."""
 

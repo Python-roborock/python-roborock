@@ -15,15 +15,17 @@ notifies registered update listeners.
 import asyncio
 import logging
 from dataclasses import dataclass
+from typing import Any
 
 from vacuum_map_parser_base.map_data import MapData
 
-from roborock.data import RoborockBase
+from roborock.data import Q7RoborockPoint, RoborockBase
 from roborock.devices.rpc.b01_q7_channel import Q7MapRpcChannel
 from roborock.devices.traits import Trait
 from roborock.devices.traits.common import TraitUpdateListener
 from roborock.exceptions import RoborockException
-from roborock.map.b01_map_parser import B01MapParser, B01MapParserConfig, parse_map_type
+from roborock.map.b01_map_parser import B01MapParser, B01MapParserConfig, parse_map_type, parse_robot_pose
+from roborock.protocols.b01_q7_protocol import Q7DevicePush
 from roborock.roborock_typing import RoborockB01Q7Methods
 
 from .map import MapTrait
@@ -50,11 +52,34 @@ class MapContent(RoborockBase):
     library to re-parse the map data when needed.
     """
 
+    robot_position: Q7RoborockPoint | None = None
+    """Latest known robot position in common Roborock coordinates.
+
+    Updated from map frames and, while the robot moves, from the live
+    ``cur_path`` pushes the device publishes roughly once per second.
+    """
+
     def __repr__(self) -> str:
         img = self.image_content
         if img and len(img) > _TRUNCATE_LENGTH:
             img = img[: _TRUNCATE_LENGTH - 3] + b"..."
-        return f"MapContent(image_content={img!r}, map_data={self.map_data!r})"
+        return f"MapContent(image_content={img!r}, map_data={self.map_data!r}, robot_position={self.robot_position!r})"
+
+
+def latest_position_from_cur_path(cur_path: list[Any]) -> Q7RoborockPoint | None:
+    """Return the newest pose of a ``cur_path`` push, or ``None`` if malformed.
+
+    The device sends ``[start_index, x, y, phi, kind, (x, y, phi, kind)..., timestamp]``
+    with world coordinates in meters; ``kind`` is 0 while travelling and 5 while
+    cleaning.
+    """
+    samples = cur_path[1:-1]
+    if not samples or len(samples) % 4:
+        return None
+    x, y = samples[-4], samples[-3]
+    if not all(isinstance(value, int | float) and not isinstance(value, bool) for value in (x, y)):
+        return None
+    return Q7RoborockPoint.from_world(x, y)
 
 
 class MapContentTrait(MapContent, Trait, TraitUpdateListener):
@@ -89,6 +114,24 @@ class MapContentTrait(MapContent, Trait, TraitUpdateListener):
             raw_payload = await self._map_rpc_channel.send_map_command(
                 RoborockB01Q7Methods.UPLOAD_BY_MAPID,
                 {"map_id": map_id},
+            )
+
+        self._parse_and_store(raw_payload)
+
+    async def refresh_live(self) -> None:
+        """Fetch and parse the live map of the current task, including the robot pose.
+
+        Unlike :meth:`refresh` (the saved map, which carries no live pose), this
+        requests the live map (``service.upload_by_maptype`` with map type 0), as the
+        official app does. Requesting it also makes the device stream ``cur_path``
+        pushes while it moves (verified on a Q7 sc05: without a live-map request no
+        ``cur_path`` is published), keeping :attr:`robot_position` current about
+        once per second.
+        """
+        async with self._map_command_lock:
+            raw_payload = await self._map_rpc_channel.send_map_command(
+                RoborockB01Q7Methods.UPLOAD_BY_MAPTYPE,
+                {"map_type": _LIVE_MAP_TYPE},
             )
 
         self._parse_and_store(raw_payload)
@@ -132,3 +175,23 @@ class MapContentTrait(MapContent, Trait, TraitUpdateListener):
         self.image_content = parsed_data.image_content
         self.map_data = parsed_data.map_data
         self.raw_api_response = raw_payload
+        # Saved maps and frames without a fix carry no usable pose: keep the last known one.
+        try:
+            pose = parse_robot_pose(raw_payload)
+        except RoborockException as ex:
+            _LOGGER.debug("Failed to read robot pose from B01 map frame: %s", ex)
+            return
+        if pose is not None:
+            self.robot_position = Q7RoborockPoint.from_world(*pose)
+
+    def update_from_device_push(self, push: Q7DevicePush) -> None:
+        """Update the robot position from a live ``cur_path`` push and notify listeners."""
+        if push.method != "prop.post" or not isinstance(cur_path := push.params.get("cur_path"), list):
+            return
+        if (position := latest_position_from_cur_path(cur_path)) is None:
+            _LOGGER.debug("Ignoring malformed Q7 cur_path push: %s", cur_path)
+            return
+        if position == self.robot_position:
+            return
+        self.robot_position = position
+        self._notify_update()

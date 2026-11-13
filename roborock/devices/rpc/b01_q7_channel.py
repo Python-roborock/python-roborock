@@ -16,8 +16,10 @@ from roborock.protocols.b01_q7_protocol import (
     CommandType,
     MapKey,
     ParamsType,
+    Q7DevicePush,
     Q7RequestMessage,
     create_map_key,
+    decode_device_push,
     decode_map_payload,
     decode_rpc_response,
     encode_mqtt_payload,
@@ -55,6 +57,14 @@ class Q7MapRpcChannel(Protocol):
 
     async def subscribe_map_pushes(self, callback: Callable[[bytes], None]) -> Callable[[], None]:
         """Subscribe to unsolicited map pushes, invoking callback with decoded SCMap bytes."""
+        ...
+
+
+class Q7PushChannel(Protocol):
+    """Protocol for channels delivering unsolicited Q7 device pushes."""
+
+    async def subscribe_device_pushes(self, callback: Callable[[Q7DevicePush], None]) -> Callable[[], None]:
+        """Subscribe to ``*.post`` messages the device publishes on its own."""
         ...
 
 
@@ -166,7 +176,7 @@ async def send_decoded_command(
         raise
 
 
-class B01Q7Channel(Channel, Q7RpcChannel, Q7MapRpcChannel):
+class B01Q7Channel(Channel, Q7RpcChannel, Q7MapRpcChannel, Q7PushChannel):
     """Unified B01 Q7 channel wrapping MQTT transport."""
 
     def __init__(self, mqtt_channel: MqttChannel, map_key: MapKey) -> None:
@@ -228,6 +238,15 @@ class B01Q7Channel(Channel, Q7RpcChannel, Q7MapRpcChannel):
                 _LOGGER.debug("Failed to decode pushed B01 map payload: %s", ex)
                 return
             callback(decoded)
+
+        return await self._mqtt_channel.subscribe(on_message)
+
+    async def subscribe_device_pushes(self, callback: Callable[[Q7DevicePush], None]) -> Callable[[], None]:
+        """Subscribe to unsolicited ``*.post`` messages (property changes, live path, events)."""
+
+        def on_message(message: RoborockMessage) -> None:
+            if (push := decode_device_push(message)) is not None:
+                callback(push)
 
         return await self._mqtt_channel.subscribe(on_message)
 

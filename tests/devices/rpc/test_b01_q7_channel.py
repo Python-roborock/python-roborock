@@ -16,7 +16,7 @@ from roborock.devices.rpc.b01_q7_channel import (
     send_decoded_command,
 )
 from roborock.exceptions import RoborockException
-from roborock.protocols.b01_q7_protocol import B01_VERSION, Q7RequestMessage
+from roborock.protocols.b01_q7_protocol import B01_VERSION, Q7DevicePush, Q7RequestMessage
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 from tests.fixtures.channel_fixtures import FakeChannel
 
@@ -48,6 +48,17 @@ class B01MessageBuilder:
                 json.dumps(dps_payload).encode(),
                 AES.block_size,
             ),
+            version=b"B01",
+            seq=self.seq,
+        )
+
+    def build_push(self, method: str, params: dict[str, Any]) -> RoborockMessage:
+        """Build an unsolicited device push (``*.post``) as published on dps 10001."""
+        self.seq += 1
+        message = {"msgId": "323022", "method": method, "params": params}
+        return RoborockMessage(
+            protocol=RoborockMessageProtocol.RPC_RESPONSE,
+            payload=pad(json.dumps({"dps": {"10001": json.dumps(message)}}).encode(), AES.block_size),
             version=b"B01",
             seq=self.seq,
         )
@@ -327,6 +338,33 @@ async def test_subscribe_map_pushes_delivers_decoded_frames(
     ):
         fake_channel.notify_subscribers(message_builder.build_map_response(b"raw-map-payload"))
     assert received == [b"inflated-payload"]
+
+
+async def test_subscribe_device_pushes_delivers_post_messages(
+    device: HomeDataDevice,
+    product: HomeDataProduct,
+    fake_channel: FakeChannel,
+    message_builder: B01MessageBuilder,
+) -> None:
+    """``*.post`` messages are delivered; command responses and map frames are not."""
+    channel = create_b01_q7_channel(device, product, fake_channel)  # type: ignore[arg-type]
+
+    received: list[Q7DevicePush] = []
+    unsub = await channel.subscribe_device_pushes(received.append)
+
+    fake_channel.notify_subscribers(message_builder.build_push("prop.post", {"status": 5, "fault": 2110}))
+    fake_channel.notify_subscribers(message_builder.build_push("event.startClean.post", {}))
+    fake_channel.notify_subscribers(message_builder.build({"status": 1}))
+    fake_channel.notify_subscribers(message_builder.build_map_response(b"raw-map-payload"))
+
+    assert received == [
+        Q7DevicePush(method="prop.post", params={"status": 5, "fault": 2110}),
+        Q7DevicePush(method="event.startClean.post", params={}),
+    ]
+
+    unsub()
+    fake_channel.notify_subscribers(message_builder.build_push("prop.post", {"quantity": 89}))
+    assert len(received) == 2
 
 
 async def test_subscribe_map_pushes_skips_undecodable_frames(
