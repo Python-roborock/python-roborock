@@ -6,9 +6,11 @@ from typing import Any
 
 import pytest
 
+from roborock.data.code_mappings import RoborockProductNickname
 from roborock.data.containers import (
     HomeData,
     HomeDataDevice,
+    HomeDataProduct,
     RoborockBase,
     RoborockCategory,
     UserData,
@@ -265,6 +267,22 @@ def test_home_data():
     assert device.silent_ota_switch
     assert hd.rooms[0].id == 2362048
     assert hd.rooms[0].name == "Example room 1"
+
+
+@pytest.mark.parametrize(
+    ("model", "expected"),
+    [
+        ("roborock.vacuum.a144", RoborockProductNickname.CORALPRO),
+        ("roborock.vacuum.a307", RoborockProductNickname.BERYLS),
+        ("roborock.vacuum.a187", RoborockProductNickname.VIVIANC),
+        ("roborock.vacuum.a999", RoborockProductNickname.PEARLPLUS),
+    ],
+)
+def test_home_data_product_nickname(model: str, expected: RoborockProductNickname) -> None:
+    """Test the product nickname comes from the short model and falls back to PearlPlus."""
+    product = HomeDataProduct(id="product-id", name="Vacuum", model=model, category=RoborockCategory.VACUUM)
+
+    assert product.product_nickname == expected
 
 
 def test_serialize_and_unserialize():

@@ -8,7 +8,7 @@ import pytest
 
 from roborock import CleanRoutes, HomeDataProduct, RoborockCategory
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP, YXCleanType
-from roborock.data.code_mappings import completed_warnings
+from roborock.data.code_mappings import SHORT_MODEL_TO_ENUM, RoborockProductNickname, completed_warnings
 from roborock.data.dyad.dyad_code_mappings import DyadCleanMode, DyadError
 from roborock.data.v1.v1_code_mappings import (
     RoborockErrorCode,
@@ -106,6 +106,42 @@ def test_invalid_from_value() -> None:
 def test_from_any_optional(input_value: str | int, expected: B01_Q10_DP | None) -> None:
     """Test from_any_optional method."""
     assert B01_Q10_DP.from_any_optional(input_value) == expected
+
+
+@pytest.mark.parametrize(
+    ("short_model", "expected"),
+    [
+        ("a144", RoborockProductNickname.CORALPRO),
+        ("a308", RoborockProductNickname.CORALPRO),
+        ("a288", RoborockProductNickname.CORALPROSAW),
+        ("a187", RoborockProductNickname.VIVIANC),
+        ("a210", RoborockProductNickname.VIVIANC),
+        ("a185", RoborockProductNickname.VIVIANS),
+        ("a226", RoborockProductNickname.VIVIANSPRO),
+        ("a298", RoborockProductNickname.VIVIANSPROC),
+        ("a296", RoborockProductNickname.VIDA),
+        ("a245", RoborockProductNickname.BERYLLITE),
+        ("a306", RoborockProductNickname.BERYLS),
+        ("a328", RoborockProductNickname.BERYLC),
+        ("a199", RoborockProductNickname.PEARLCLITE),
+        ("a326", RoborockProductNickname.PEARLEH),
+        ("a170", RoborockProductNickname.PEARLELITE),
+        ("a294", RoborockProductNickname.QUINN),
+        ("a179", RoborockProductNickname.R50),
+        ("a279", RoborockProductNickname.VERDELITES),
+        ("a361", RoborockProductNickname.TALCSC),
+        ("a999", None),
+    ],
+)
+def test_short_model_to_product_nickname(short_model: str, expected: RoborockProductNickname | None) -> None:
+    """Test short models resolve to the product nickname the app assigns them."""
+    assert SHORT_MODEL_TO_ENUM.get(short_model) == expected
+
+
+def test_short_models_belong_to_one_product_nickname() -> None:
+    """Test no short model is listed under two product nicknames."""
+    short_models = [model for product in RoborockProductNickname for model in product.value.short_models]
+    assert len(short_models) == len(set(short_models))
 
 
 def test_homedata_product_unknown_category():

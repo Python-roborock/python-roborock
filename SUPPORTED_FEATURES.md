@@ -1,6 +1,6 @@
 | Feature | roborock.vacuum.a10 | roborock.vacuum.a117 | roborock.vacuum.a123 | roborock.vacuum.a125 | roborock.vacuum.a144 | roborock.vacuum.a147 | roborock.vacuum.a15 | roborock.vacuum.a187 | roborock.vacuum.a27 | roborock.vacuum.a87 | roborock.vacuum.s5e | roborock.vacuum.sc01 | roborock.vacuum.sc05 | roborock.vacuum.ss07 | roborock.wm.a102 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| product_nickname | TANOSV | PEARLPLUSS | PEARLSLITE | ULTRONSE | CORALPRO | VERDELITE | TANOSS | Unknown | TOPAZSV | PEARLPLUS | RUBYSLITE | Unknown | PEARLPLUS | Unknown | Unknown |
+| product_nickname | TANOSV | PEARLPLUSS | PEARLSLITE | ULTRONSE | CORALPRO | VERDELITE | TANOSS | VIVIANC | TOPAZSV | PEARLPLUS | RUBYSLITE | Unknown | PEARLPLUS | Unknown | Unknown |
 | protocol_version | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 | B01 | B01 | B01 | A01 |
 | new_feature_info | X | X | 0 | X | X | X | X | X | False | X | X | 0 |  | 0 | 0 |
 | new_feature_info_str |  | X | X | X | X | X | X | X |  | X | X | X |  | X | X |

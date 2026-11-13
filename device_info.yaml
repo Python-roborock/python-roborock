@@ -665,7 +665,7 @@ roborock.vacuum.a15:
       type: RAW
 roborock.vacuum.a187:
   protocol_version: '1.0'
-  product_nickname: Unknown
+  product_nickname: VIVIANC
   new_feature_info: 2247397454282751
   new_feature_info_str: 00040040282834C9C2FA8F5C7EDEFFFE
   product:
@@ -1303,7 +1303,7 @@ roborock.vacuum.sc05:
       property: 'null'
 roborock.vacuum.a288:
   protocol_version: '1.0'
-  product_nickname: PEARLPLUS
+  product_nickname: CORALPROSAW
   new_feature_info: 4499197267967999
   new_feature_info_str: 0000000000099518CCFF7EFDA8E93EDDDBFF8F7F7EFEFFFF
   feature_info:
