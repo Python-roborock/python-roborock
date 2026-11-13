@@ -282,6 +282,7 @@ async def create_device_manager(
                         device,
                         rpc_channel=b01_q7_channel,
                         map_rpc_channel=b01_q7_channel,
+                        push_channel=b01_q7_channel,
                     )
                 else:
                     raise UnsupportedDeviceError(f"Device {device.name} has unsupported B01 model: {product.model}")

@@ -90,6 +90,47 @@ def decode_rpc_response(message: RoborockMessage) -> dict[int, Any]:
 
 
 @dataclass
+class Q7DevicePush:
+    """An unsolicited message the device publishes on its own.
+
+    Examples observed on a Q7 (sc05): ``prop.post`` with changed properties
+    (``{"status": 5, "fault": 2110}``, ``{"cur_path": [...]}``) and events such
+    as ``event.startClean.post``.
+    """
+
+    method: str
+    params: dict[str, Any]
+
+
+def decode_device_push(message: RoborockMessage) -> Q7DevicePush | None:
+    """Return the device push carried by ``message``, or ``None`` if it is not one.
+
+    Pushes are distinguished from command responses by their ``*.post`` method
+    and their ``params`` payload (responses carry ``data`` and a ``code``).
+    """
+    if message.protocol != RoborockMessageProtocol.RPC_RESPONSE or message.version != B01_VERSION:
+        return None
+    try:
+        datapoints = decode_rpc_response(message)
+    except RoborockException:
+        return None
+    for value in datapoints.values():
+        if not isinstance(value, str):
+            continue
+        try:
+            inner = json.loads(value)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(inner, dict):
+            continue
+        method = inner.get("method")
+        params = inner.get("params")
+        if isinstance(method, str) and method.endswith(".post") and isinstance(params, dict):
+            return Q7DevicePush(method=method, params=params)
+    return None
+
+
+@dataclass
 class MapKey:
     """Data class for holding a B01 map decryption key."""
 
