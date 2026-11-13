@@ -90,7 +90,7 @@
     'is_new_data_for_clean_history': True,
     'is_new_data_for_clean_history_detail': True,
     'is_new_endpoint_supported': True,
-    'is_new_remote_view_supported': True,
+    'is_new_remote_view_supported': False,
     'is_no_need_carpet_press_set_supported': True,
     'is_none_pure_clean_mop_with_max_plus': False,
     'is_object_detect_check_supported': True,
@@ -1968,6 +1968,133 @@
     'is_workday_holiday_supported': False,
   })
 # ---
+# name: test_product_feature_map[BERYLCE]
+  list([
+    <ProductFeatures.CLEANMODE_MAXPLUS: 'cleanmode_maxplus'>,
+    <ProductFeatures.AIRECOGNITION_PET: 'airecognition_pet'>,
+    <ProductFeatures.CAMERA_SINGLELINE: 'camera_singleline'>,
+    <ProductFeatures.AIRECOGNITION_SETTING: 'airecognition_setting'>,
+    <ProductFeatures.AIRECOGNITION_OBSTACLE: 'airecognition_obstacle'>,
+    <ProductFeatures.DEFAULT_CLEANMODECUSTOM: 'custom_cleanmode'>,
+    <ProductFeatures.DEFAULT_MAP3D: 'map3d'>,
+    <ProductFeatures.CLEANMODE_PURECLEANMOP: 'cleanmode_purecleanmop'>,
+  ])
+# ---
+# name: test_product_feature_map[BERYLC]
+  list([
+    <ProductFeatures.CLEANMODE_MAXPLUS: 'cleanmode_maxplus'>,
+    <ProductFeatures.CAMERA_RGB: 'camera_rgb'>,
+    <ProductFeatures.AIRECOGNITION_SETTING: 'airecognition_setting'>,
+    <ProductFeatures.AIRECOGNITION_SCENE: 'airecognition_scene'>,
+    <ProductFeatures.AIRECOGNITION_PET: 'airecognition_pet'>,
+    <ProductFeatures.AIRECOGNITION_OBSTACLE: 'airecognition_obstacle'>,
+    <ProductFeatures.REALTIMEVIDEO: 'realtimevideo'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.DEFAULT_CLEANMODECUSTOM: 'custom_cleanmode'>,
+    <ProductFeatures.DEFAULT_MAP3D: 'map3d'>,
+    <ProductFeatures.CLEANMODE_PURECLEANMOP: 'cleanmode_purecleanmop'>,
+  ])
+# ---
+# name: test_product_feature_map[BERYLE]
+  list([
+    <ProductFeatures.CLEANMODE_MAXPLUS: 'cleanmode_maxplus'>,
+    <ProductFeatures.CAMERA_RGB: 'camera_rgb'>,
+    <ProductFeatures.AIRECOGNITION_SETTING: 'airecognition_setting'>,
+    <ProductFeatures.AIRECOGNITION_SCENE: 'airecognition_scene'>,
+    <ProductFeatures.AIRECOGNITION_PET: 'airecognition_pet'>,
+    <ProductFeatures.AIRECOGNITION_OBSTACLE: 'airecognition_obstacle'>,
+    <ProductFeatures.REALTIMEVIDEO: 'realtimevideo'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.DEFAULT_CLEANMODECUSTOM: 'custom_cleanmode'>,
+    <ProductFeatures.DEFAULT_MAP3D: 'map3d'>,
+    <ProductFeatures.CLEANMODE_PURECLEANMOP: 'cleanmode_purecleanmop'>,
+  ])
+# ---
+# name: test_product_feature_map[BERYLLITE]
+  list([
+    <ProductFeatures.CLEANMODE_MAXPLUS: 'cleanmode_maxplus'>,
+    <ProductFeatures.CAMERA_RGB: 'camera_rgb'>,
+    <ProductFeatures.AIRECOGNITION_SETTING: 'airecognition_setting'>,
+    <ProductFeatures.AIRECOGNITION_SCENE: 'airecognition_scene'>,
+    <ProductFeatures.AIRECOGNITION_PET: 'airecognition_pet'>,
+    <ProductFeatures.AIRECOGNITION_OBSTACLE: 'airecognition_obstacle'>,
+    <ProductFeatures.REALTIMEVIDEO: 'realtimevideo'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.DEFAULT_CLEANMODECUSTOM: 'custom_cleanmode'>,
+    <ProductFeatures.DEFAULT_MAP3D: 'map3d'>,
+    <ProductFeatures.CLEANMODE_PURECLEANMOP: 'cleanmode_purecleanmop'>,
+  ])
+# ---
+# name: test_product_feature_map[BERYLS]
+  list([
+    <ProductFeatures.CLEANMODE_MAXPLUS: 'cleanmode_maxplus'>,
+    <ProductFeatures.CAMERA_RGB: 'camera_rgb'>,
+    <ProductFeatures.AIRECOGNITION_SETTING: 'airecognition_setting'>,
+    <ProductFeatures.AIRECOGNITION_SCENE: 'airecognition_scene'>,
+    <ProductFeatures.AIRECOGNITION_PET: 'airecognition_pet'>,
+    <ProductFeatures.AIRECOGNITION_OBSTACLE: 'airecognition_obstacle'>,
+    <ProductFeatures.REALTIMEVIDEO: 'realtimevideo'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.DEFAULT_CLEANMODECUSTOM: 'custom_cleanmode'>,
+    <ProductFeatures.DEFAULT_MAP3D: 'map3d'>,
+    <ProductFeatures.CLEANMODE_PURECLEANMOP: 'cleanmode_purecleanmop'>,
+  ])
+# ---
+# name: test_product_feature_map[BERYL]
+  list([
+    <ProductFeatures.CLEANMODE_MAXPLUS: 'cleanmode_maxplus'>,
+    <ProductFeatures.CAMERA_RGB: 'camera_rgb'>,
+    <ProductFeatures.AIRECOGNITION_SETTING: 'airecognition_setting'>,
+    <ProductFeatures.AIRECOGNITION_SCENE: 'airecognition_scene'>,
+    <ProductFeatures.AIRECOGNITION_PET: 'airecognition_pet'>,
+    <ProductFeatures.AIRECOGNITION_OBSTACLE: 'airecognition_obstacle'>,
+    <ProductFeatures.REALTIMEVIDEO: 'realtimevideo'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.DEFAULT_CLEANMODECUSTOM: 'custom_cleanmode'>,
+    <ProductFeatures.DEFAULT_MAP3D: 'map3d'>,
+    <ProductFeatures.CLEANMODE_PURECLEANMOP: 'cleanmode_purecleanmop'>,
+  ])
+# ---
+# name: test_product_feature_map[CORALPROSAW]
+  list([
+    <ProductFeatures.CLEANMODE_MAXPLUS: 'cleanmode_maxplus'>,
+    <ProductFeatures.CAMERA_RGB: 'camera_rgb'>,
+    <ProductFeatures.AIRECOGNITION_SETTING: 'airecognition_setting'>,
+    <ProductFeatures.AIRECOGNITION_SCENE: 'airecognition_scene'>,
+    <ProductFeatures.AIRECOGNITION_PET: 'airecognition_pet'>,
+    <ProductFeatures.AIRECOGNITION_OBSTACLE: 'airecognition_obstacle'>,
+    <ProductFeatures.REALTIMEVIDEO: 'realtimevideo'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.MOP_SPIN_MODULE: 'mop_spin_module'>,
+    <ProductFeatures.DEFAULT_CLEANMODECUSTOM: 'custom_cleanmode'>,
+    <ProductFeatures.DEFAULT_MAP3D: 'map3d'>,
+    <ProductFeatures.CLEANMODE_PURECLEANMOP: 'cleanmode_purecleanmop'>,
+  ])
+# ---
+# name: test_product_feature_map[CORALPROS]
+  list([
+    <ProductFeatures.REMOTE_BACK: 'remote_back'>,
+    <ProductFeatures.CLEANMODE_MAXPLUS: 'cleanmode_maxplus'>,
+    <ProductFeatures.CAMERA_RGB: 'camera_rgb'>,
+    <ProductFeatures.AIRECOGNITION_SETTING: 'airecognition_setting'>,
+    <ProductFeatures.AIRECOGNITION_SCENE: 'airecognition_scene'>,
+    <ProductFeatures.AIRECOGNITION_PET: 'airecognition_pet'>,
+    <ProductFeatures.AIRECOGNITION_OBSTACLE: 'airecognition_obstacle'>,
+    <ProductFeatures.REALTIMEVIDEO: 'realtimevideo'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.MOP_SPIN_MODULE: 'mop_spin_module'>,
+    <ProductFeatures.DEFAULT_CLEANMODECUSTOM: 'custom_cleanmode'>,
+    <ProductFeatures.DEFAULT_MAP3D: 'map3d'>,
+    <ProductFeatures.CLEANMODE_PURECLEANMOP: 'cleanmode_purecleanmop'>,
+  ])
+# ---
 # name: test_product_feature_map[CORALPRO]
   list([
     <ProductFeatures.REMOTE_BACK: 'remote_back'>,
@@ -2004,7 +2131,83 @@
     <ProductFeatures.CLEANMODE_PURECLEANMOP: 'cleanmode_purecleanmop'>,
   ])
 # ---
+# name: test_product_feature_map[CRAG]
+  list([
+    <ProductFeatures.CLEANMODE_MAXPLUS: 'cleanmode_maxplus'>,
+    <ProductFeatures.CAMERA_RGB: 'camera_rgb'>,
+    <ProductFeatures.AIRECOGNITION_SETTING: 'airecognition_setting'>,
+    <ProductFeatures.AIRECOGNITION_SCENE: 'airecognition_scene'>,
+    <ProductFeatures.AIRECOGNITION_PET: 'airecognition_pet'>,
+    <ProductFeatures.AIRECOGNITION_OBSTACLE: 'airecognition_obstacle'>,
+    <ProductFeatures.REALTIMEVIDEO: 'realtimevideo'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.DEFAULT_CLEANMODECUSTOM: 'custom_cleanmode'>,
+    <ProductFeatures.DEFAULT_MAP3D: 'map3d'>,
+    <ProductFeatures.CLEANMODE_PURECLEANMOP: 'cleanmode_purecleanmop'>,
+  ])
+# ---
+# name: test_product_feature_map[HERA]
+  list([
+    <ProductFeatures.REMOTE_BACK: 'remote_back'>,
+    <ProductFeatures.CLEANMODE_MAXPLUS: 'cleanmode_maxplus'>,
+    <ProductFeatures.CAMERA_RGB: 'camera_rgb'>,
+    <ProductFeatures.AIRECOGNITION_SETTING: 'airecognition_setting'>,
+    <ProductFeatures.AIRECOGNITION_SCENE: 'airecognition_scene'>,
+    <ProductFeatures.AIRECOGNITION_PET: 'airecognition_pet'>,
+    <ProductFeatures.AIRECOGNITION_OBSTACLE: 'airecognition_obstacle'>,
+    <ProductFeatures.REALTIMEVIDEO: 'realtimevideo'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.MOP_SPIN_MODULE: 'mop_spin_module'>,
+    <ProductFeatures.DEFAULT_CLEANMODECUSTOM: 'custom_cleanmode'>,
+    <ProductFeatures.DEFAULT_MAP3D: 'map3d'>,
+    <ProductFeatures.CLEANMODE_PURECLEANMOP: 'cleanmode_purecleanmop'>,
+  ])
+# ---
+# name: test_product_feature_map[PANDORA]
+  list([
+    <ProductFeatures.REMOTE_BACK: 'remote_back'>,
+    <ProductFeatures.CLEANMODE_MAXPLUS: 'cleanmode_maxplus'>,
+    <ProductFeatures.CAMERA_RGB: 'camera_rgb'>,
+    <ProductFeatures.AIRECOGNITION_SETTING: 'airecognition_setting'>,
+    <ProductFeatures.AIRECOGNITION_SCENE: 'airecognition_scene'>,
+    <ProductFeatures.AIRECOGNITION_PET: 'airecognition_pet'>,
+    <ProductFeatures.AIRECOGNITION_OBSTACLE: 'airecognition_obstacle'>,
+    <ProductFeatures.REALTIMEVIDEO: 'realtimevideo'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.MOP_SPIN_MODULE: 'mop_spin_module'>,
+    <ProductFeatures.DEFAULT_CLEANMODECUSTOM: 'custom_cleanmode'>,
+    <ProductFeatures.DEFAULT_MAP3D: 'map3d'>,
+    <ProductFeatures.CLEANMODE_PURECLEANMOP: 'cleanmode_purecleanmop'>,
+  ])
+# ---
+# name: test_product_feature_map[PEARLCLITE]
+  list([
+    <ProductFeatures.CAMERA_SINGLELINE: 'camera_singleline'>,
+    <ProductFeatures.AIRECOGNITION_SETTING: 'airecognition_setting'>,
+    <ProductFeatures.AIRECOGNITION_OBSTACLE: 'airecognition_obstacle'>,
+    <ProductFeatures.CLEANMODE_MAXPLUS: 'cleanmode_maxplus'>,
+    <ProductFeatures.MOP_SPIN_MODULE: 'mop_spin_module'>,
+    <ProductFeatures.DEFAULT_CLEANMODECUSTOM: 'custom_cleanmode'>,
+    <ProductFeatures.DEFAULT_MAP3D: 'map3d'>,
+    <ProductFeatures.CLEANMODE_PURECLEANMOP: 'cleanmode_purecleanmop'>,
+  ])
+# ---
 # name: test_product_feature_map[PEARLC]
+  list([
+    <ProductFeatures.CAMERA_SINGLELINE: 'camera_singleline'>,
+    <ProductFeatures.AIRECOGNITION_SETTING: 'airecognition_setting'>,
+    <ProductFeatures.AIRECOGNITION_OBSTACLE: 'airecognition_obstacle'>,
+    <ProductFeatures.CLEANMODE_MAXPLUS: 'cleanmode_maxplus'>,
+    <ProductFeatures.MOP_SPIN_MODULE: 'mop_spin_module'>,
+    <ProductFeatures.DEFAULT_CLEANMODECUSTOM: 'custom_cleanmode'>,
+    <ProductFeatures.DEFAULT_MAP3D: 'map3d'>,
+    <ProductFeatures.CLEANMODE_PURECLEANMOP: 'cleanmode_purecleanmop'>,
+  ])
+# ---
+# name: test_product_feature_map[PEARLEH]
   list([
     <ProductFeatures.CAMERA_SINGLELINE: 'camera_singleline'>,
     <ProductFeatures.AIRECOGNITION_SETTING: 'airecognition_setting'>,
@@ -2034,6 +2237,24 @@
     <ProductFeatures.AIRECOGNITION_SETTING: 'airecognition_setting'>,
     <ProductFeatures.AIRECOGNITION_OBSTACLE: 'airecognition_obstacle'>,
     <ProductFeatures.CLEANMODE_MAXPLUS: 'cleanmode_maxplus'>,
+    <ProductFeatures.MOP_SPIN_MODULE: 'mop_spin_module'>,
+    <ProductFeatures.DEFAULT_CLEANMODECUSTOM: 'custom_cleanmode'>,
+    <ProductFeatures.DEFAULT_MAP3D: 'map3d'>,
+    <ProductFeatures.CLEANMODE_PURECLEANMOP: 'cleanmode_purecleanmop'>,
+  ])
+# ---
+# name: test_product_feature_map[PEARLFPRO]
+  list([
+    <ProductFeatures.REMOTE_BACK: 'remote_back'>,
+    <ProductFeatures.CLEANMODE_MAXPLUS: 'cleanmode_maxplus'>,
+    <ProductFeatures.CAMERA_RGB: 'camera_rgb'>,
+    <ProductFeatures.AIRECOGNITION_SETTING: 'airecognition_setting'>,
+    <ProductFeatures.AIRECOGNITION_SCENE: 'airecognition_scene'>,
+    <ProductFeatures.AIRECOGNITION_PET: 'airecognition_pet'>,
+    <ProductFeatures.AIRECOGNITION_OBSTACLE: 'airecognition_obstacle'>,
+    <ProductFeatures.REALTIMEVIDEO: 'realtimevideo'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
     <ProductFeatures.MOP_SPIN_MODULE: 'mop_spin_module'>,
     <ProductFeatures.DEFAULT_CLEANMODECUSTOM: 'custom_cleanmode'>,
     <ProductFeatures.DEFAULT_MAP3D: 'map3d'>,
@@ -2112,6 +2333,60 @@
     <ProductFeatures.CLEANMODE_PURECLEANMOP: 'cleanmode_purecleanmop'>,
   ])
 # ---
+# name: test_product_feature_map[QUINNE]
+  list([
+    <ProductFeatures.CAMERA_SINGLELINE: 'camera_singleline'>,
+    <ProductFeatures.AIRECOGNITION_SETTING: 'airecognition_setting'>,
+    <ProductFeatures.AIRECOGNITION_OBSTACLE: 'airecognition_obstacle'>,
+    <ProductFeatures.CLEANMODE_MAXPLUS: 'cleanmode_maxplus'>,
+    <ProductFeatures.MOP_SPIN_MODULE: 'mop_spin_module'>,
+    <ProductFeatures.DEFAULT_CLEANMODECUSTOM: 'custom_cleanmode'>,
+    <ProductFeatures.DEFAULT_MAP3D: 'map3d'>,
+    <ProductFeatures.CLEANMODE_PURECLEANMOP: 'cleanmode_purecleanmop'>,
+  ])
+# ---
+# name: test_product_feature_map[QUINNS]
+  list([
+    <ProductFeatures.CAMERA_SINGLELINE: 'camera_singleline'>,
+    <ProductFeatures.AIRECOGNITION_SETTING: 'airecognition_setting'>,
+    <ProductFeatures.AIRECOGNITION_OBSTACLE: 'airecognition_obstacle'>,
+    <ProductFeatures.CLEANMODE_MAXPLUS: 'cleanmode_maxplus'>,
+    <ProductFeatures.MOP_SPIN_MODULE: 'mop_spin_module'>,
+    <ProductFeatures.DEFAULT_CLEANMODECUSTOM: 'custom_cleanmode'>,
+    <ProductFeatures.DEFAULT_MAP3D: 'map3d'>,
+    <ProductFeatures.CLEANMODE_PURECLEANMOP: 'cleanmode_purecleanmop'>,
+  ])
+# ---
+# name: test_product_feature_map[QUINN]
+  list([
+    <ProductFeatures.CAMERA_SINGLELINE: 'camera_singleline'>,
+    <ProductFeatures.AIRECOGNITION_SETTING: 'airecognition_setting'>,
+    <ProductFeatures.AIRECOGNITION_OBSTACLE: 'airecognition_obstacle'>,
+    <ProductFeatures.CLEANMODE_MAXPLUS: 'cleanmode_maxplus'>,
+    <ProductFeatures.MOP_SPIN_MODULE: 'mop_spin_module'>,
+    <ProductFeatures.DEFAULT_CLEANMODECUSTOM: 'custom_cleanmode'>,
+    <ProductFeatures.DEFAULT_MAP3D: 'map3d'>,
+    <ProductFeatures.CLEANMODE_PURECLEANMOP: 'cleanmode_purecleanmop'>,
+  ])
+# ---
+# name: test_product_feature_map[R50]
+  list([
+    <ProductFeatures.REMOTE_BACK: 'remote_back'>,
+    <ProductFeatures.CLEANMODE_MAXPLUS: 'cleanmode_maxplus'>,
+    <ProductFeatures.CAMERA_RGB: 'camera_rgb'>,
+    <ProductFeatures.AIRECOGNITION_SETTING: 'airecognition_setting'>,
+    <ProductFeatures.AIRECOGNITION_SCENE: 'airecognition_scene'>,
+    <ProductFeatures.AIRECOGNITION_PET: 'airecognition_pet'>,
+    <ProductFeatures.AIRECOGNITION_OBSTACLE: 'airecognition_obstacle'>,
+    <ProductFeatures.REALTIMEVIDEO: 'realtimevideo'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.MOP_SPIN_MODULE: 'mop_spin_module'>,
+    <ProductFeatures.DEFAULT_CLEANMODECUSTOM: 'custom_cleanmode'>,
+    <ProductFeatures.DEFAULT_MAP3D: 'map3d'>,
+    <ProductFeatures.CLEANMODE_PURECLEANMOP: 'cleanmode_purecleanmop'>,
+  ])
+# ---
 # name: test_product_feature_map[RUBYPLUS]
   list([
   ])
@@ -2129,6 +2404,14 @@
     <ProductFeatures.MOP_ELECTRONIC_MODULE: 'mop_electronic_module'>,
     <ProductFeatures.DEFAULT_CLEANMODECUSTOM: 'custom_cleanmode'>,
     <ProductFeatures.DEFAULT_MAP3D: 'map3d'>,
+  ])
+# ---
+# name: test_product_feature_map[TALCSC]
+  list([
+    <ProductFeatures.MOP_ELECTRONIC_MODULE: 'mop_electronic_module'>,
+    <ProductFeatures.DEFAULT_CLEANMODECUSTOM: 'custom_cleanmode'>,
+    <ProductFeatures.DEFAULT_MAP3D: 'map3d'>,
+    <ProductFeatures.CLEANMODE_PURECLEANMOP: 'cleanmode_purecleanmop'>,
   ])
 # ---
 # name: test_product_feature_map[TANOSE]
@@ -2358,6 +2641,23 @@
     <ProductFeatures.CLEANMODE_PURECLEANMOP: 'cleanmode_purecleanmop'>,
   ])
 # ---
+# name: test_product_feature_map[VERDELITES]
+  list([
+    <ProductFeatures.CLEANMODE_MAXPLUS: 'cleanmode_maxplus'>,
+    <ProductFeatures.CAMERA_RGB: 'camera_rgb'>,
+    <ProductFeatures.AIRECOGNITION_SETTING: 'airecognition_setting'>,
+    <ProductFeatures.AIRECOGNITION_SCENE: 'airecognition_scene'>,
+    <ProductFeatures.AIRECOGNITION_PET: 'airecognition_pet'>,
+    <ProductFeatures.AIRECOGNITION_OBSTACLE: 'airecognition_obstacle'>,
+    <ProductFeatures.REALTIMEVIDEO: 'realtimevideo'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.MOP_SHAKE_MODULE: 'mop_shake_module'>,
+    <ProductFeatures.DEFAULT_CLEANMODECUSTOM: 'custom_cleanmode'>,
+    <ProductFeatures.DEFAULT_MAP3D: 'map3d'>,
+    <ProductFeatures.CLEANMODE_PURECLEANMOP: 'cleanmode_purecleanmop'>,
+  ])
+# ---
 # name: test_product_feature_map[VERDELITE]
   list([
     <ProductFeatures.REMOTE_BACK: 'remote_back'>,
@@ -2376,6 +2676,40 @@
     <ProductFeatures.CLEANMODE_PURECLEANMOP: 'cleanmode_purecleanmop'>,
   ])
 # ---
+# name: test_product_feature_map[VIDAS]
+  list([
+    <ProductFeatures.CLEANMODE_MAXPLUS: 'cleanmode_maxplus'>,
+    <ProductFeatures.CAMERA_RGB: 'camera_rgb'>,
+    <ProductFeatures.AIRECOGNITION_SETTING: 'airecognition_setting'>,
+    <ProductFeatures.AIRECOGNITION_SCENE: 'airecognition_scene'>,
+    <ProductFeatures.AIRECOGNITION_PET: 'airecognition_pet'>,
+    <ProductFeatures.AIRECOGNITION_OBSTACLE: 'airecognition_obstacle'>,
+    <ProductFeatures.REALTIMEVIDEO: 'realtimevideo'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.MOP_SPIN_MODULE: 'mop_spin_module'>,
+    <ProductFeatures.DEFAULT_CLEANMODECUSTOM: 'custom_cleanmode'>,
+    <ProductFeatures.DEFAULT_MAP3D: 'map3d'>,
+    <ProductFeatures.CLEANMODE_PURECLEANMOP: 'cleanmode_purecleanmop'>,
+  ])
+# ---
+# name: test_product_feature_map[VIDA]
+  list([
+    <ProductFeatures.CLEANMODE_MAXPLUS: 'cleanmode_maxplus'>,
+    <ProductFeatures.CAMERA_RGB: 'camera_rgb'>,
+    <ProductFeatures.AIRECOGNITION_SETTING: 'airecognition_setting'>,
+    <ProductFeatures.AIRECOGNITION_SCENE: 'airecognition_scene'>,
+    <ProductFeatures.AIRECOGNITION_PET: 'airecognition_pet'>,
+    <ProductFeatures.AIRECOGNITION_OBSTACLE: 'airecognition_obstacle'>,
+    <ProductFeatures.REALTIMEVIDEO: 'realtimevideo'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.MOP_SPIN_MODULE: 'mop_spin_module'>,
+    <ProductFeatures.DEFAULT_CLEANMODECUSTOM: 'custom_cleanmode'>,
+    <ProductFeatures.DEFAULT_MAP3D: 'map3d'>,
+    <ProductFeatures.CLEANMODE_PURECLEANMOP: 'cleanmode_purecleanmop'>,
+  ])
+# ---
 # name: test_product_feature_map[VIVIANC]
   list([
     <ProductFeatures.CLEANMODE_MAXPLUS: 'cleanmode_maxplus'>,
@@ -2383,6 +2717,107 @@
     <ProductFeatures.CAMERA_SINGLELINE: 'camera_singleline'>,
     <ProductFeatures.AIRECOGNITION_SETTING: 'airecognition_setting'>,
     <ProductFeatures.AIRECOGNITION_OBSTACLE: 'airecognition_obstacle'>,
+    <ProductFeatures.DEFAULT_CLEANMODECUSTOM: 'custom_cleanmode'>,
+    <ProductFeatures.DEFAULT_MAP3D: 'map3d'>,
+    <ProductFeatures.CLEANMODE_PURECLEANMOP: 'cleanmode_purecleanmop'>,
+  ])
+# ---
+# name: test_product_feature_map[VIVIANF]
+  list([
+    <ProductFeatures.REMOTE_BACK: 'remote_back'>,
+    <ProductFeatures.CLEANMODE_MAXPLUS: 'cleanmode_maxplus'>,
+    <ProductFeatures.CAMERA_RGB: 'camera_rgb'>,
+    <ProductFeatures.AIRECOGNITION_SETTING: 'airecognition_setting'>,
+    <ProductFeatures.AIRECOGNITION_SCENE: 'airecognition_scene'>,
+    <ProductFeatures.AIRECOGNITION_PET: 'airecognition_pet'>,
+    <ProductFeatures.AIRECOGNITION_OBSTACLE: 'airecognition_obstacle'>,
+    <ProductFeatures.REALTIMEVIDEO: 'realtimevideo'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.MOP_SPIN_MODULE: 'mop_spin_module'>,
+    <ProductFeatures.DEFAULT_CLEANMODECUSTOM: 'custom_cleanmode'>,
+    <ProductFeatures.DEFAULT_MAP3D: 'map3d'>,
+    <ProductFeatures.CLEANMODE_PURECLEANMOP: 'cleanmode_purecleanmop'>,
+  ])
+# ---
+# name: test_product_feature_map[VIVIANSC]
+  list([
+    <ProductFeatures.REMOTE_BACK: 'remote_back'>,
+    <ProductFeatures.CLEANMODE_MAXPLUS: 'cleanmode_maxplus'>,
+    <ProductFeatures.CAMERA_RGB: 'camera_rgb'>,
+    <ProductFeatures.AIRECOGNITION_SETTING: 'airecognition_setting'>,
+    <ProductFeatures.AIRECOGNITION_SCENE: 'airecognition_scene'>,
+    <ProductFeatures.AIRECOGNITION_PET: 'airecognition_pet'>,
+    <ProductFeatures.AIRECOGNITION_OBSTACLE: 'airecognition_obstacle'>,
+    <ProductFeatures.REALTIMEVIDEO: 'realtimevideo'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.MOP_SPIN_MODULE: 'mop_spin_module'>,
+    <ProductFeatures.DEFAULT_CLEANMODECUSTOM: 'custom_cleanmode'>,
+    <ProductFeatures.DEFAULT_MAP3D: 'map3d'>,
+    <ProductFeatures.CLEANMODE_PURECLEANMOP: 'cleanmode_purecleanmop'>,
+  ])
+# ---
+# name: test_product_feature_map[VIVIANSPROC]
+  list([
+    <ProductFeatures.CLEANMODE_MAXPLUS: 'cleanmode_maxplus'>,
+    <ProductFeatures.CAMERA_RGB: 'camera_rgb'>,
+    <ProductFeatures.AIRECOGNITION_SETTING: 'airecognition_setting'>,
+    <ProductFeatures.AIRECOGNITION_SCENE: 'airecognition_scene'>,
+    <ProductFeatures.AIRECOGNITION_PET: 'airecognition_pet'>,
+    <ProductFeatures.AIRECOGNITION_OBSTACLE: 'airecognition_obstacle'>,
+    <ProductFeatures.REALTIMEVIDEO: 'realtimevideo'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.MOP_SPIN_MODULE: 'mop_spin_module'>,
+    <ProductFeatures.DEFAULT_CLEANMODECUSTOM: 'custom_cleanmode'>,
+    <ProductFeatures.DEFAULT_MAP3D: 'map3d'>,
+    <ProductFeatures.CLEANMODE_PURECLEANMOP: 'cleanmode_purecleanmop'>,
+  ])
+# ---
+# name: test_product_feature_map[VIVIANSPROE]
+  list([
+    <ProductFeatures.CAMERA_SINGLELINE: 'camera_singleline'>,
+    <ProductFeatures.AIRECOGNITION_SETTING: 'airecognition_setting'>,
+    <ProductFeatures.AIRECOGNITION_OBSTACLE: 'airecognition_obstacle'>,
+    <ProductFeatures.CLEANMODE_MAXPLUS: 'cleanmode_maxplus'>,
+    <ProductFeatures.MOP_SPIN_MODULE: 'mop_spin_module'>,
+    <ProductFeatures.DEFAULT_CLEANMODECUSTOM: 'custom_cleanmode'>,
+    <ProductFeatures.DEFAULT_MAP3D: 'map3d'>,
+    <ProductFeatures.CLEANMODE_PURECLEANMOP: 'cleanmode_purecleanmop'>,
+  ])
+# ---
+# name: test_product_feature_map[VIVIANSPRO]
+  list([
+    <ProductFeatures.REMOTE_BACK: 'remote_back'>,
+    <ProductFeatures.CLEANMODE_MAXPLUS: 'cleanmode_maxplus'>,
+    <ProductFeatures.CAMERA_RGB: 'camera_rgb'>,
+    <ProductFeatures.AIRECOGNITION_SETTING: 'airecognition_setting'>,
+    <ProductFeatures.AIRECOGNITION_SCENE: 'airecognition_scene'>,
+    <ProductFeatures.AIRECOGNITION_PET: 'airecognition_pet'>,
+    <ProductFeatures.AIRECOGNITION_OBSTACLE: 'airecognition_obstacle'>,
+    <ProductFeatures.REALTIMEVIDEO: 'realtimevideo'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.MOP_SPIN_MODULE: 'mop_spin_module'>,
+    <ProductFeatures.DEFAULT_CLEANMODECUSTOM: 'custom_cleanmode'>,
+    <ProductFeatures.DEFAULT_MAP3D: 'map3d'>,
+    <ProductFeatures.CLEANMODE_PURECLEANMOP: 'cleanmode_purecleanmop'>,
+  ])
+# ---
+# name: test_product_feature_map[VIVIANS]
+  list([
+    <ProductFeatures.REMOTE_BACK: 'remote_back'>,
+    <ProductFeatures.CLEANMODE_MAXPLUS: 'cleanmode_maxplus'>,
+    <ProductFeatures.CAMERA_RGB: 'camera_rgb'>,
+    <ProductFeatures.AIRECOGNITION_SETTING: 'airecognition_setting'>,
+    <ProductFeatures.AIRECOGNITION_SCENE: 'airecognition_scene'>,
+    <ProductFeatures.AIRECOGNITION_PET: 'airecognition_pet'>,
+    <ProductFeatures.AIRECOGNITION_OBSTACLE: 'airecognition_obstacle'>,
+    <ProductFeatures.REALTIMEVIDEO: 'realtimevideo'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.REALTIMEVIDEO_LIVECALL: 'realtimevideo_livecall'>,
+    <ProductFeatures.MOP_SPIN_MODULE: 'mop_spin_module'>,
     <ProductFeatures.DEFAULT_CLEANMODECUSTOM: 'custom_cleanmode'>,
     <ProductFeatures.DEFAULT_MAP3D: 'map3d'>,
     <ProductFeatures.CLEANMODE_PURECLEANMOP: 'cleanmode_purecleanmop'>,

@@ -149,6 +149,31 @@ def test_product_feature_map(product_nickname: RoborockProductNickname, snapshot
     assert PRODUCT_FEATURE_MAP[product_nickname] == snapshot
 
 
+@pytest.mark.parametrize(
+    ("roller_mop_bit", "expected_mop_support"),
+    [
+        (0, False),
+        (1 << 128, True),
+    ],
+)
+def test_roller_mop_product_features(roller_mop_bit: int, expected_mop_support: bool) -> None:
+    """Test a roller-mop model without a mop module gets its mop support from the roller-mop bit."""
+    device_features = DeviceFeatures.from_feature_flags(
+        new_feature_info=0,
+        new_feature_info_str=f"{roller_mop_bit:X}",
+        feature_info=[],
+        product_nickname=RoborockProductNickname.BERYLS,
+    )
+
+    assert device_features.is_max_plus_mode_supported
+    assert device_features.is_ai_recognition_setting_supported
+    assert device_features.is_pure_clean_mop_supported
+    assert not device_features.is_new_remote_view_supported
+    assert device_features.is_support_water_mode is expected_mop_support
+    assert device_features.is_customized_clean_supported is expected_mop_support
+    assert device_features.is_clean_route_setting_supported is expected_mop_support
+
+
 def test_clean_route_setting_support_from_shake_mop_flag() -> None:
     """Test clean-route capability includes the runtime shake-mop flag."""
     device_features = DeviceFeatures.from_feature_flags(
