@@ -184,8 +184,8 @@ def test_clean_route_setting_support_from_spin_mop_model() -> None:
         (129, False),
     ],
 )
-def test_clean_route_setting_support_from_roller_mop_bit(feature_bit: int, expected: bool) -> None:
-    """Test only the RR_API roller-mop bit adds roller route support."""
+def test_mop_support_from_roller_mop_bit(feature_bit: int, expected: bool) -> None:
+    """Test only the RR_API roller-mop bit adds mop support to models without a mop module."""
     device_features = DeviceFeatures.from_feature_flags(
         new_feature_info=0,
         new_feature_info_str=f"{1 << feature_bit:X}",
@@ -195,6 +195,8 @@ def test_clean_route_setting_support_from_roller_mop_bit(feature_bit: int, expec
 
     assert device_features.is_roller_mop_supported is expected
     assert device_features.is_clean_route_setting_supported is expected
+    assert device_features.is_support_water_mode is expected
+    assert device_features.is_customized_clean_supported is expected
 
 
 @pytest.mark.parametrize(

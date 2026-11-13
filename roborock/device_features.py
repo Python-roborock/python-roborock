@@ -651,6 +651,10 @@ class DeviceFeatures(RoborockBase):
         kwargs["is_clean_route_setting_supported"] |= (
             kwargs["is_shake_mop_set_supported"] or kwargs["is_roller_mop_supported"]
         )
+        # Roller-mop models have no mop module product feature; the app treats the
+        # roller mop like one for water modes and customized cleaning.
+        kwargs["is_support_water_mode"] |= kwargs["is_roller_mop_supported"]
+        kwargs["is_customized_clean_supported"] |= kwargs["is_roller_mop_supported"]
 
         return cls(**kwargs)
 
