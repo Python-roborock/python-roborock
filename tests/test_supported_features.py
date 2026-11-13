@@ -9,7 +9,13 @@ from roborock import SHORT_MODEL_TO_ENUM
 from roborock.data import HomeDataProduct
 from roborock.data.code_mappings import RoborockProductNickname
 from roborock.data.v1 import RoborockDockTypeCode
-from roborock.device_features import DeviceFeatures, RoborockDockFeatures, is_valid_dock, is_wash_n_fill_dock
+from roborock.device_features import (
+    PRODUCT_FEATURE_MAP,
+    DeviceFeatures,
+    RoborockDockFeatures,
+    is_valid_dock,
+    is_wash_n_fill_dock,
+)
 from roborock.devices.cache import CacheData, DeviceCache, InMemoryCache
 from roborock.devices.traits.v1.device_features import DeviceFeaturesTrait
 from roborock.roborock_typing import RoborockCommand
@@ -135,6 +141,12 @@ def test_new_feature_str_missing():
     assert not device_features.is_dust_collection_setting_supported
     assert not device_features.is_hot_wash_towel_supported
     assert not device_features.is_show_clean_finish_reason_supported
+
+
+@pytest.mark.parametrize("product_nickname", list(RoborockProductNickname), ids=lambda product: product.name)
+def test_product_feature_map(product_nickname: RoborockProductNickname, snapshot: SnapshotAssertion) -> None:
+    """Snapshot the product features of every nickname so changes show up per product."""
+    assert PRODUCT_FEATURE_MAP[product_nickname] == snapshot
 
 
 def test_clean_route_setting_support_from_shake_mop_flag() -> None:
