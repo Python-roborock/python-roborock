@@ -2,6 +2,7 @@ import datetime
 import json
 from dataclasses import dataclass, field
 from functools import cached_property
+from typing import Self
 
 from ...exceptions import RoborockException
 from ..containers import RoborockBase
@@ -77,12 +78,47 @@ class Recommend(RoborockBase):
     room_id: list[int] = field(default_factory=list)
 
 
+_ROBOROCK_COORDINATE_OFFSET_MM = 25_500
+_MM_PER_METER = 1000
+
+
+@dataclass
+class Q7RoborockPoint(RoborockBase):
+    """A point in the common Roborock millimetre coordinate space.
+
+    Q7 firmware uses world coordinates in meters (floats) whose origin is the
+    map origin next to the dock, with the y axis pointing up. Public Q7 APIs use
+    this common coordinate system instead, matching other Roborock devices and
+    placing the map origin at ``(25500, 25500)``.
+    """
+
+    x: int
+    y: int
+
+    @classmethod
+    def from_world(cls, x: float, y: float) -> Self:
+        """Convert Q7 world coordinates (meters) to common Roborock coordinates."""
+        return cls(
+            x=_ROBOROCK_COORDINATE_OFFSET_MM + round(x * _MM_PER_METER),
+            y=_ROBOROCK_COORDINATE_OFFSET_MM + round(y * _MM_PER_METER),
+        )
+
+    def to_world(self) -> tuple[float, float]:
+        """Convert common Roborock coordinates to Q7 world coordinates (meters)."""
+        return (
+            (self.x - _ROBOROCK_COORDINATE_OFFSET_MM) / _MM_PER_METER,
+            (self.y - _ROBOROCK_COORDINATE_OFFSET_MM) / _MM_PER_METER,
+        )
+
+
 @dataclass
 class Q7MapListEntry(RoborockBase):
     """Single map list entry returned by `service.get_map_list`."""
 
     id: int | None = None
     cur: bool | None = None
+    name: str | None = None
+    """User-visible map name as shown in the app (e.g. ``"Temporary map"`` for an unsaved map)."""
 
 
 @dataclass
