@@ -94,7 +94,7 @@ def test_update_job_api_error(mock_api: Mock, tmp_path: Path, job_data: dict[str
 @pytest.mark.parametrize(
     ("model", "expected_nickname"),
     [
-        ("roborock.vacuum.a294", "Unknown"),
+        ("roborock.vacuum.a294", "QUINN"),
         ("roborock.vacuum.unrecognized", "Unknown"),
         ("roborock.vacuum.a87", "PEARLPLUS"),
         ("roborock.vacuum.a101", "PEARLS"),
