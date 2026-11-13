@@ -71,12 +71,14 @@ from roborock.web_api import UserWebApiClient
 from . import (
     child_lock,
     clean_summary,
+    cleaning_fluid,
     command,
     common,
     consumeable,
     customize_clean_mode,
     device_features,
     do_not_disturb,
+    dust_collection_frequency,
     dust_collection_mode,
     flow_led_status,
     home,
@@ -93,15 +95,18 @@ from . import (
     valley_electricity_timer,
     volume,
     wash_towel_mode,
+    wash_water_temperature,
 )
 from .child_lock import ChildLockTrait
 from .clean_summary import CleanSummaryTrait
+from .cleaning_fluid import CleaningFluidTrait
 from .command import CommandTrait
 from .common import V1TraitMixin
 from .consumeable import ConsumableTrait
 from .customize_clean_mode import CustomizeCleanModeTrait
 from .device_features import DeviceFeaturesTrait
 from .do_not_disturb import DoNotDisturbTrait
+from .dust_collection_frequency import DustCollectionFrequencyTrait
 from .dust_collection_mode import DustCollectionModeTrait
 from .flow_led_status import FlowLedStatusTrait
 from .home import HomeTrait
@@ -118,6 +123,7 @@ from .status import StatusTrait
 from .valley_electricity_timer import ValleyElectricityTimerTrait
 from .volume import SoundVolumeTrait
 from .wash_towel_mode import WashTowelModeTrait
+from .wash_water_temperature import WashWaterTemperatureTrait
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -125,12 +131,14 @@ __all__ = [
     "PropertiesApi",
     "child_lock",
     "clean_summary",
+    "cleaning_fluid",
     "command",
     "common",
     "consumeable",
     "customize_clean_mode",
     "device_features",
     "do_not_disturb",
+    "dust_collection_frequency",
     "dust_collection_mode",
     "flow_led_status",
     "home",
@@ -147,6 +155,7 @@ __all__ = [
     "valley_electricity_timer",
     "volume",
     "wash_towel_mode",
+    "wash_water_temperature",
 ]
 
 
@@ -178,8 +187,11 @@ class PropertiesApi(Trait):
     flow_led_status: FlowLedStatusTrait | None = None
     valley_electricity_timer: ValleyElectricityTimerTrait | None = None
     dust_collection_mode: DustCollectionModeTrait | None = None
+    dust_collection_frequency: DustCollectionFrequencyTrait | None = None
     wash_towel_mode: WashTowelModeTrait | None = None
     smart_wash_params: SmartWashParamsTrait | None = None
+    wash_water_temperature: WashWaterTemperatureTrait | None = None
+    cleaning_fluid: CleaningFluidTrait | None = None
     obstacle_photos: ObstaclePhotoTrait | None = None
     mop_dryer: MopDryerTrait | None = None
     customize_clean_mode: CustomizeCleanModeTrait | None = None
@@ -288,6 +300,23 @@ class PropertiesApi(Trait):
             wash_towel_mode._rpc_channel = self._get_rpc_channel(wash_towel_mode)  # type: ignore[assignment]
             self.wash_towel_mode = wash_towel_mode
 
+        if self.smart_wash_params is None and self._is_supported(
+            SmartWashParamsTrait, "smart_wash_params", dock_features
+        ):
+            smart_wash_params = SmartWashParamsTrait(self.device_features)
+            smart_wash_params._rpc_channel = self._get_rpc_channel(smart_wash_params)  # type: ignore[assignment]
+            self.smart_wash_params = smart_wash_params
+
+        # The wash water temperature needs a washing dock and a device that can heat wash water.
+        if (
+            self.wash_water_temperature is None
+            and self.device_features.is_hot_wash_towel_supported
+            and self._is_supported(WashWaterTemperatureTrait, "wash_water_temperature", dock_features)
+        ):
+            wash_water_temperature = WashWaterTemperatureTrait(self.device_features)
+            wash_water_temperature._rpc_channel = self._get_rpc_channel(wash_water_temperature)  # type: ignore[assignment]
+            self.wash_water_temperature = wash_water_temperature
+
         if self.customize_clean_mode is None and self._is_supported(
             CustomizeCleanModeTrait, "customize_clean_mode", dock_features
         ):
@@ -311,7 +340,8 @@ class PropertiesApi(Trait):
 
             # Union args may not be in declared order
             item_type = union_args[0] if union_args[1] is type(None) else union_args[1]
-            if item_type is ObstaclePhotoTrait:
+            # Created above with constructor arguments and extra gating
+            if item_type in (ObstaclePhotoTrait, WashWaterTemperatureTrait):
                 continue
             if not self._is_supported(item_type, item.name, dock_features):
                 _LOGGER.debug("Trait '%s' not supported, skipping", item.name)

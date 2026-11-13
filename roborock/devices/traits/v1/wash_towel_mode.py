@@ -7,6 +7,7 @@ from roborock.data import WashTowelMode, WashTowelModes, get_wash_towel_modes
 from roborock.device_features import RoborockDockFeatures
 from roborock.devices.traits.v1 import common
 from roborock.devices.traits.v1.device_features import DeviceFeaturesTrait
+from roborock.exceptions import RoborockUnsupportedFeature
 from roborock.roborock_typing import RoborockCommand
 
 
@@ -42,6 +43,8 @@ class WashTowelModeTrait(WashTowelMode, common.V1TraitMixin):
 
     async def set_wash_towel_mode(self, mode: WashTowelModes) -> None:
         """Set the wash towel mode."""
+        if mode not in self.wash_towel_mode_options:
+            raise RoborockUnsupportedFeature(f"Wash towel mode {mode.value} is not supported")
         await self.rpc_channel.send_command(RoborockCommand.SET_WASH_TOWEL_MODE, params={"wash_mode": mode.code})
 
     async def start_wash(self) -> None:
@@ -49,5 +52,14 @@ class WashTowelModeTrait(WashTowelMode, common.V1TraitMixin):
         await self.rpc_channel.send_command(RoborockCommand.APP_START_WASH)
 
     async def stop_wash(self) -> None:
-        """Stop washing the mop."""
+        """Stop washing the mop. Also stops a running wash tray self-clean."""
         await self.rpc_channel.send_command(RoborockCommand.APP_STOP_WASH)
+
+    async def self_clean_tray(self) -> None:
+        """Start the self-clean of the dock's mop wash tray (app: tray self-cleaning).
+
+        It runs for about a minute; `stop_wash()` stops it early, as the app's stop button does.
+        """
+        if not self.device_feature_trait.dock_features.is_clean_carousel_self_clean_supported:
+            raise RoborockUnsupportedFeature("Wash tray self-clean is not supported by this dock")
+        await self.rpc_channel.send_command(RoborockCommand.APP_AMETHYST_SELF_CHECK)
