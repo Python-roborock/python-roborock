@@ -472,3 +472,167 @@ async def test_set_clean_then_mop_concurrent_calls_do_not_clobber(
     # a stale pre-first-call read) would revert whichever room the first
     # call changed.
     assert {segment: entry["seq_type"] for segment, entry in device_table.items()} == {4: 1, 7: 0}
+
+
+@pytest.mark.parametrize("device_info", [SAROS_10R])
+async def test_set_clean_then_mop_preserves_existing_settings_when_omitted(
+    customize_clean_mode_trait: CustomizeCleanModeTrait | None,
+    mock_rpc_channel: AsyncMock,
+    device_info: HomeDataDevice,
+) -> None:
+    """Omitting mode/repeat kwargs on an existing segment preserves its current settings, including repeat=2."""
+    assert customize_clean_mode_trait is not None
+    existing_data = [
+        {"segment": 7, "fan_power": 103, "water_box_mode": 203, "mop_mode": 301, "repeat": 2, "seq_type": 0},
+    ]
+    updated_data = [
+        {"segment": 7, "fan_power": 103, "water_box_mode": 203, "mop_mode": 301, "repeat": 2, "seq_type": 1},
+    ]
+    mock_rpc_channel.send_command.side_effect = [existing_data, "ok", updated_data]
+
+    await customize_clean_mode_trait.set_clean_then_mop(7, True)
+
+    sent_params = mock_rpc_channel.send_command.mock_calls[1].kwargs["params"]
+    assert sent_params == updated_data
+    assert customize_clean_mode_trait.by_segment[7].repeat == 2
+    assert customize_clean_mode_trait.by_segment[7].clean_then_mop is True
+
+
+async def test_set_segment_clean_mode_on_device_without_clean_then_mop(
+    customize_clean_mode_trait: CustomizeCleanModeTrait | None,
+    mock_rpc_channel: AsyncMock,
+) -> None:
+    """Devices without clean-then-mop (e.g. S7 MaxV) can still set per-room suction/water/route/repeat."""
+    assert customize_clean_mode_trait is not None
+    initial = [{"segment": 4, "fan_power": 102, "water_box_mode": 203, "mop_mode": 300, "repeat": 1}]
+    expected = [
+        {"segment": 4, "fan_power": 102, "water_box_mode": 203, "mop_mode": 300, "repeat": 1},
+        {"segment": 9, "fan_power": 104, "water_box_mode": 202, "mop_mode": 301, "repeat": 1},
+    ]
+    mock_rpc_channel.send_command.side_effect = [initial, "ok", expected]
+
+    await customize_clean_mode_trait.set_segment_clean_mode(
+        9,
+        fan_power=VacuumModes.MAX,
+        water_box_mode=WaterModes.MEDIUM,
+        mop_mode=CleanRoutes.DEEP,
+    )
+
+    sent_params = mock_rpc_channel.send_command.mock_calls[1].kwargs["params"]
+    assert sent_params == expected
+    assert customize_clean_mode_trait.by_segment[9].fan_power == VacuumModes.MAX.code
+    assert customize_clean_mode_trait.by_segment[9].repeat == 1
+
+
+@pytest.mark.parametrize("device_info", [SAROS_10R])
+async def test_set_segment_clean_mode_partial_update_preserves_seq_type(
+    customize_clean_mode_trait: CustomizeCleanModeTrait | None,
+    mock_rpc_channel: AsyncMock,
+    device_info: HomeDataDevice,
+) -> None:
+    """Updating repeat/modes via set_segment_clean_mode without clean_then_mop preserves existing seq_type."""
+    assert customize_clean_mode_trait is not None
+    initial = [{"segment": 7, "fan_power": 101, "water_box_mode": 203, "mop_mode": 300, "repeat": 1, "seq_type": 1}]
+    expected = [{"segment": 7, "fan_power": 101, "water_box_mode": 203, "mop_mode": 300, "repeat": 2, "seq_type": 1}]
+    mock_rpc_channel.send_command.side_effect = [initial, "ok", expected]
+
+    await customize_clean_mode_trait.set_segment_clean_mode(7, repeat=2)
+
+    sent_params = mock_rpc_channel.send_command.mock_calls[1].kwargs["params"]
+    assert sent_params == expected
+    assert customize_clean_mode_trait.by_segment[7].repeat == 2
+    assert customize_clean_mode_trait.by_segment[7].clean_then_mop is True
+
+
+@pytest.mark.parametrize("device_info", [SAROS_10R])
+async def test_set_segment_clean_mode_skips_pre_refresh_when_already_loaded(
+    customize_clean_mode_trait: CustomizeCleanModeTrait | None,
+    mock_rpc_channel: AsyncMock,
+    device_info: HomeDataDevice,
+) -> None:
+    """When modes are already loaded, setting a mode only refreshes after SET, not before."""
+    assert customize_clean_mode_trait is not None
+    initial = [{"segment": 7, "fan_power": 101, "water_box_mode": 203, "mop_mode": 300, "repeat": 1, "seq_type": 0}]
+    updated = [{"segment": 7, "fan_power": 101, "water_box_mode": 203, "mop_mode": 300, "repeat": 2, "seq_type": 1}]
+    mock_rpc_channel.send_command.side_effect = [initial]
+    await customize_clean_mode_trait.refresh()
+    mock_rpc_channel.send_command.reset_mock()
+
+    mock_rpc_channel.send_command.side_effect = ["ok", updated]
+    await customize_clean_mode_trait.set_clean_then_mop(7, True, repeat=2)
+
+    assert mock_rpc_channel.send_command.mock_calls == [
+        call(RoborockCommand.SET_CUSTOMIZE_CLEAN_MODE, params=updated),
+        call(RoborockCommand.GET_CUSTOMIZE_CLEAN_MODE),
+    ]
+
+
+async def test_set_segment_clean_mode_new_segment_requires_modes(
+    customize_clean_mode_trait: CustomizeCleanModeTrait | None,
+    mock_rpc_channel: AsyncMock,
+) -> None:
+    """Adding an override for an uncustomized segment requires fan_power, water_box_mode, and mop_mode."""
+    assert customize_clean_mode_trait is not None
+    mock_rpc_channel.send_command.side_effect = [[]]
+
+    with pytest.raises(ValueError, match="not already set on segment 9"):
+        await customize_clean_mode_trait.set_segment_clean_mode(9, fan_power=VacuumModes.BALANCED)
+
+    mock_rpc_channel.send_command.assert_called_once_with(RoborockCommand.GET_CUSTOMIZE_CLEAN_MODE)
+
+
+async def test_set_segment_clean_mode_requires_at_least_one_setting(
+    customize_clean_mode_trait: CustomizeCleanModeTrait | None,
+    mock_rpc_channel: AsyncMock,
+) -> None:
+    """Calling set_segment_clean_mode with no settings raises ValueError without sending an RPC."""
+    assert customize_clean_mode_trait is not None
+
+    with pytest.raises(ValueError, match="At least one clean mode setting"):
+        await customize_clean_mode_trait.set_segment_clean_mode(7)
+
+    mock_rpc_channel.send_command.assert_not_called()
+
+
+@pytest.mark.parametrize("device_info", [SAROS_10R])
+@pytest.mark.parametrize(
+    ("fan_power", "water_box_mode", "mop_mode", "repeat"),
+    [
+        (VacuumModes.CUSTOMIZED, 203, 300, 1),
+        (VacuumModes.SMART_MODE, 203, 300, 1),
+        (106, 203, 300, 1),
+        (110, 203, 300, 1),
+        (101, WaterModes.CUSTOMIZED, 300, 1),
+        (101, WaterModes.SMART_MODE, 300, 1),
+        (101, 204, 300, 1),
+        (101, 209, 300, 1),
+        (101, 203, CleanRoutes.CUSTOMIZED, 1),
+        (101, 203, CleanRoutes.SMART_MODE, 1),
+        (101, 203, 302, 1),
+        (101, 203, 306, 1),
+        (101, 203, 300, 0),
+        (101, 203, 300, -1),
+    ],
+)
+async def test_set_segment_clean_mode_rejects_sentinel_and_invalid_values(
+    customize_clean_mode_trait: CustomizeCleanModeTrait | None,
+    mock_rpc_channel: AsyncMock,
+    device_info: HomeDataDevice,
+    fan_power: VacuumModes | int,
+    water_box_mode: WaterModes | int,
+    mop_mode: CleanRoutes | int,
+    repeat: int,
+) -> None:
+    """Global sentinel codes (CUSTOMIZED / SMART_MODE) and invalid repeat values raise ValueError up front."""
+    assert customize_clean_mode_trait is not None
+
+    with pytest.raises(ValueError):
+        await customize_clean_mode_trait.set_segment_clean_mode(
+            7,
+            fan_power=fan_power,
+            water_box_mode=water_box_mode,
+            mop_mode=mop_mode,
+            repeat=repeat,
+        )
+
+    mock_rpc_channel.send_command.assert_not_called()
