@@ -719,6 +719,7 @@ _CLEAN_FLUID_AUTO_DELIVERY_DOCK_TYPES = {
     RoborockDockTypeCode.o7_dock,
     RoborockDockTypeCode.f1s_dock,
     RoborockDockTypeCode.o7h_dock,
+    RoborockDockTypeCode.k1s_dock,
 }
 
 _CLEAN_FLUID_AUTO_DELIVERY_AM_DOCK_TYPES = {
@@ -726,7 +727,6 @@ _CLEAN_FLUID_AUTO_DELIVERY_AM_DOCK_TYPES = {
     RoborockDockTypeCode.shell_3_dock,
     RoborockDockTypeCode.shell_2c_dock,
     RoborockDockTypeCode.k1_dock,
-    RoborockDockTypeCode.k1s_dock,
     RoborockDockTypeCode.shell_e_dock,
     RoborockDockTypeCode.shell_2e_dock,
     RoborockDockTypeCode.shell_3c_dock,
@@ -769,9 +769,9 @@ _CLEAN_CAROUSEL_SELF_CLEAN_DOCK_TYPES = {
     RoborockDockTypeCode.k1d_dock,
     RoborockDockTypeCode.shell_3p_dock,
     RoborockDockTypeCode.f1_dock,
-    RoborockDockTypeCode.f2r_dock,
     RoborockDockTypeCode.f1s_dock,
     RoborockDockTypeCode.f1c_dock,
+    RoborockDockTypeCode.f1rc_dock,
 }
 
 _WATER_UPDOWN_DRAIN_DOCK_TYPES = {
@@ -805,10 +805,13 @@ _WATER_UPDOWN_DRAIN_AM_DOCK_TYPES = {
     RoborockDockTypeCode.f1r_dock,
     RoborockDockTypeCode.f1s_dock,
     RoborockDockTypeCode.o7h_dock,
+    RoborockDockTypeCode.type_49_dock,
+    RoborockDockTypeCode.f2rs_dock,
 }
 
 _HATCH_DOOR_DOCK_COOL_FAN_DOCK_TYPES = {
     RoborockDockTypeCode.couple_dock,
+    RoborockDockTypeCode.hera_dock,
 }
 
 _SPECIAL_WASH_TEMP_DOCK_TYPES = {
@@ -823,6 +826,9 @@ _HIGH_TMP_WATER_DOCK_TYPES = {
     RoborockDockTypeCode.f1r_dock,
     RoborockDockTypeCode.f2r_dock,
     RoborockDockTypeCode.f1c_dock,
+    RoborockDockTypeCode.f1rc_dock,
+    RoborockDockTypeCode.type_49_dock,
+    RoborockDockTypeCode.f2rs_dock,
 }
 
 _DOUBLE_SERIAL_COMMUNICATION_DOCK_TYPES = {
@@ -841,6 +847,9 @@ _DOUBLE_SERIAL_COMMUNICATION_DOCK_TYPES = {
     RoborockDockTypeCode.f1s_dock,
     RoborockDockTypeCode.o7h_dock,
     RoborockDockTypeCode.f1c_dock,
+    RoborockDockTypeCode.f1rc_dock,
+    RoborockDockTypeCode.type_49_dock,
+    RoborockDockTypeCode.f2rs_dock,
 }
 
 _DOUBLE_SERIAL_COMMUNICATION_AM_DOCK_TYPES = {
@@ -852,6 +861,8 @@ _NO_WATER_FLOW_CAROUSEL_DOCK_TYPES = {
     RoborockDockTypeCode.f1r_dock,
     RoborockDockTypeCode.f2r_dock,
     RoborockDockTypeCode.f1s_dock,
+    RoborockDockTypeCode.type_49_dock,
+    RoborockDockTypeCode.f2rs_dock,
 }
 
 _SIMPLE_WASH_MODE_DOCK_TYPES = {
@@ -859,10 +870,58 @@ _SIMPLE_WASH_MODE_DOCK_TYPES = {
     RoborockDockTypeCode.f1r_dock,
     RoborockDockTypeCode.f2r_dock,
     RoborockDockTypeCode.f1c_dock,
+    RoborockDockTypeCode.f1rc_dock,
+    RoborockDockTypeCode.type_49_dock,
+    RoborockDockTypeCode.f2rs_dock,
 }
 
 _STEAM_WASH_DOCK_TYPES = {
     RoborockDockTypeCode.o7h_dock,
+}
+
+_NO_HOT_WASH_TOWEL_DOCK_TYPES = {
+    RoborockDockTypeCode.shell_e_dock,
+}
+
+_MULTI_CLEAN_FLUID_DOCK_TYPES = {
+    RoborockDockTypeCode.shell_4s_dock,
+}
+
+_CLEAN_CAROUSEL_DOCK_TYPES = {
+    RoborockDockTypeCode.pearl_dock,
+    RoborockDockTypeCode.pearl_plus_dock,
+    RoborockDockTypeCode.shell_2s_dock,
+    RoborockDockTypeCode.couple_dock,
+    RoborockDockTypeCode.shell_3_dock,
+    RoborockDockTypeCode.shell_2c_dock,
+    RoborockDockTypeCode.shell_3s_dock,
+    RoborockDockTypeCode.k1_dock,
+    RoborockDockTypeCode.k1c_dock,
+    RoborockDockTypeCode.k1s_dock,
+    RoborockDockTypeCode.shell_e_dock,
+    RoborockDockTypeCode.shell_2e_dock,
+    RoborockDockTypeCode.shell_3c_dock,
+    RoborockDockTypeCode.hera_dock,
+    RoborockDockTypeCode.k1s_pro_dock,
+    RoborockDockTypeCode.type_27_dock,
+    RoborockDockTypeCode.k1c_lite_dock,
+    RoborockDockTypeCode.k1r_dock,
+    RoborockDockTypeCode.shell_2e_lite_dock,
+    RoborockDockTypeCode.shell_4rc_dock,
+    RoborockDockTypeCode.shell_4p_dock,
+    RoborockDockTypeCode.shell_4s_dock,
+    RoborockDockTypeCode.k1d_dock,
+    RoborockDockTypeCode.shell_3p_dock,
+    RoborockDockTypeCode.shell_4d_dock,
+    RoborockDockTypeCode.shell_2e_heat_dock,
+    RoborockDockTypeCode.f1_dock,
+    RoborockDockTypeCode.f1r_dock,
+    RoborockDockTypeCode.f2r_dock,
+    RoborockDockTypeCode.f1s_dock,
+    RoborockDockTypeCode.f1c_dock,
+    RoborockDockTypeCode.f1rc_dock,
+    RoborockDockTypeCode.type_49_dock,
+    RoborockDockTypeCode.f2rs_dock,
 }
 
 
@@ -963,6 +1022,11 @@ class RoborockDockFeatures:
 
     @property
     def is_special_support_wash_temp(self) -> bool:
+        """Whether the dock is a Shell 2E Lite.
+
+        The app's getter of the same name also depends on the product (true for every product except PearlEPro,
+        which needs a Shell 2E Lite dock). This dock-only property covers the dock part.
+        """
         return self.dock_type in _SPECIAL_WASH_TEMP_DOCK_TYPES
 
     @property
@@ -986,6 +1050,21 @@ class RoborockDockFeatures:
     @property
     def is_steam_wash_supported(self) -> bool:
         return self.dock_type in _STEAM_WASH_DOCK_TYPES
+
+    @property
+    def is_no_support_hot_wash_towel(self) -> bool:
+        """Whether the dock cannot wash mops with hot water, even if the robot reports hot mop washing."""
+        return self.dock_type in _NO_HOT_WASH_TOWEL_DOCK_TYPES
+
+    @property
+    def is_multi_clean_fluid_supported(self) -> bool:
+        """Whether the dock supports the app's multi cleaning fluid feature (Shell 4S without AM)."""
+        return self._matches_non_am_variant(_MULTI_CLEAN_FLUID_DOCK_TYPES)
+
+    @property
+    def is_clean_carousel_supported(self) -> bool:
+        """Whether the dock has a carousel (wash tray strainer) that needs cleaning as a consumable."""
+        return self.dock_type in _CLEAN_CAROUSEL_DOCK_TYPES
 
 
 WASH_N_FILL_DOCK_TYPES = [

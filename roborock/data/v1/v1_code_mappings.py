@@ -342,6 +342,12 @@ class RoborockDockErrorCode(RoborockEnum):
 
 
 class RoborockDockTypeCode(RoborockEnum):
+    """V1 `dock_type` codes.
+
+    The app's "A"/"AM" dock variants (for example Shell 2SA or O5AM) are not separate codes: they report the same
+    code as the base dock, and `Status.has_am` tells them apart.
+    """
+
     unknown = -9999
     o0_dock = 0
     o1_dock = 1
@@ -368,6 +374,7 @@ class RoborockDockTypeCode(RoborockEnum):
     hera_dock = 24
     k1s_pro_dock = 26
     type_27_dock = 27
+    shell_4_dock = 27  # noqa: PIE796  # App name of code 27; alias of type_27_dock.
     k1c_lite_dock = 28
     k1r_dock = 29
     shell_2e_lite_dock = 30
@@ -386,7 +393,10 @@ class RoborockDockTypeCode(RoborockEnum):
     f1s_dock = 44
     o7h_dock = 45
     f1c_dock = 46
+    f1rc_dock = 48
     type_49_dock = 49
+    f1rs_dock = 49  # noqa: PIE796  # App name of code 49; alias of type_49_dock.
+    f2rs_dock = 50
 
 
 class RoborockDockDustCollectionModeCode(RoborockEnum):

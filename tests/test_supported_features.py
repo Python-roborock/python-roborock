@@ -299,6 +299,8 @@ async def test_from_dict_rejects_legacy_missing_capabilities(caplog: pytest.LogC
         (RoborockDockTypeCode.o7h_dock, True, True),
         (RoborockDockTypeCode.f1c_dock, True, True),
         (RoborockDockTypeCode.type_49_dock, True, True),
+        (RoborockDockTypeCode.f1rc_dock, True, True),
+        (RoborockDockTypeCode.f2rs_dock, True, True),
     ],
 )
 def test_dock_features(dock_type: RoborockDockTypeCode, is_collectable: bool, is_washable: bool) -> None:
@@ -319,7 +321,8 @@ def test_all_rr_api_dock_types_are_mapped() -> None:
         if dock_type is not RoborockDockTypeCode.unknown
     }
 
-    observed_docks = {49: "type_49_dock"}  # P30 Pro; not present in the older RR_API snapshot.
+    # Not present in the older RR_API snapshot: 49 seen on a P30 Pro; 48 and 50 from the newest V1 app plugins.
+    observed_docks = {48: "f1rc_dock", 49: "type_49_dock", 50: "f2rs_dock"}
     assert mapped_docks == RR_API_DOCK_TYPES | observed_docks
 
 
@@ -390,6 +393,87 @@ def test_dock_feature_flags_with_am_variants_from_rr_api() -> None:
     assert shell_4rc_am.is_high_tmp_water_supported
     assert not shell_4rc.is_double_serial_communication_supported
     assert shell_4rc_am.is_double_serial_communication_supported
+
+
+def test_dock_type_app_name_aliases() -> None:
+    """App dock names for codes that already had a placeholder member resolve to the same member."""
+    assert RoborockDockTypeCode.shell_4_dock is RoborockDockTypeCode.type_27_dock
+    assert RoborockDockTypeCode.f1rs_dock is RoborockDockTypeCode.type_49_dock
+    assert RoborockDockTypeCode(27).name == "type_27_dock"
+    assert RoborockDockTypeCode(49).name == "type_49_dock"
+    assert RoborockDockTypeCode["f1rs_dock"] is RoborockDockTypeCode.type_49_dock
+    assert "shell_4_dock" not in RoborockDockTypeCode.keys()
+    assert "f1rs_dock" not in RoborockDockTypeCode.keys()
+
+
+# (dock type, has_am, capability, expected) from the DockConfigs table of the newest V1 app plugins.
+@pytest.mark.parametrize(
+    ("dock_type", "has_am", "capability", "expected"),
+    [
+        # F1RC (48): carousel self-clean only without AM, no water drain in either variant.
+        (RoborockDockTypeCode.f1rc_dock, False, "is_collect_wash_dry", True),
+        (RoborockDockTypeCode.f1rc_dock, False, "is_clean_carousel_self_clean_supported", True),
+        (RoborockDockTypeCode.f1rc_dock, True, "is_clean_carousel_self_clean_supported", False),
+        (RoborockDockTypeCode.f1rc_dock, False, "is_double_serial_communication_supported", True),
+        (RoborockDockTypeCode.f1rc_dock, False, "is_high_tmp_water_supported", True),
+        (RoborockDockTypeCode.f1rc_dock, False, "is_simple_wash_mode_supported", True),
+        (RoborockDockTypeCode.f1rc_dock, False, "is_no_water_flow_carousel", False),
+        (RoborockDockTypeCode.f1rc_dock, True, "is_water_updown_drain_supported", False),
+        # F1RS (49) and F2RS (50): no-water-flow carousel, water drain only with AM.
+        (RoborockDockTypeCode.f1rs_dock, False, "is_collect_wash_dry", True),
+        (RoborockDockTypeCode.f1rs_dock, False, "is_clean_carousel_self_clean_supported", False),
+        (RoborockDockTypeCode.f1rs_dock, False, "is_double_serial_communication_supported", True),
+        (RoborockDockTypeCode.f1rs_dock, False, "is_high_tmp_water_supported", True),
+        (RoborockDockTypeCode.f1rs_dock, False, "is_simple_wash_mode_supported", True),
+        (RoborockDockTypeCode.f1rs_dock, False, "is_no_water_flow_carousel", True),
+        (RoborockDockTypeCode.f1rs_dock, False, "is_water_updown_drain_supported", False),
+        (RoborockDockTypeCode.f1rs_dock, True, "is_water_updown_drain_supported", True),
+        (RoborockDockTypeCode.f2rs_dock, False, "is_collect_wash_dry", True),
+        (RoborockDockTypeCode.f2rs_dock, False, "is_clean_carousel_self_clean_supported", False),
+        (RoborockDockTypeCode.f2rs_dock, False, "is_double_serial_communication_supported", True),
+        (RoborockDockTypeCode.f2rs_dock, False, "is_high_tmp_water_supported", True),
+        (RoborockDockTypeCode.f2rs_dock, False, "is_simple_wash_mode_supported", True),
+        (RoborockDockTypeCode.f2rs_dock, False, "is_no_water_flow_carousel", True),
+        (RoborockDockTypeCode.f2rs_dock, False, "is_water_updown_drain_supported", False),
+        (RoborockDockTypeCode.f2rs_dock, True, "is_water_updown_drain_supported", True),
+        # The AM variants keep the code-only capabilities.
+        (RoborockDockTypeCode.f1rc_dock, True, "is_high_tmp_water_supported", True),
+        (RoborockDockTypeCode.f1rs_dock, True, "is_double_serial_communication_supported", True),
+        (RoborockDockTypeCode.f2rs_dock, True, "is_simple_wash_mode_supported", True),
+        # F2R (43): the newest app no longer offers carousel self-cleaning.
+        (RoborockDockTypeCode.f2r_dock, False, "is_clean_carousel_self_clean_supported", False),
+        (RoborockDockTypeCode.f1r_dock, False, "is_clean_carousel_self_clean_supported", False),
+        (RoborockDockTypeCode.f1_dock, False, "is_clean_carousel_self_clean_supported", True),
+        # K1S (20) gets automatic cleaning fluid delivery in both variants.
+        (RoborockDockTypeCode.k1s_dock, False, "is_clean_fluid_auto_delivery_supported", True),
+        (RoborockDockTypeCode.k1s_dock, True, "is_clean_fluid_auto_delivery_supported", True),
+        (RoborockDockTypeCode.k1_dock, False, "is_clean_fluid_auto_delivery_supported", False),
+        # Hera (24) has the hatch-door cool fan, like Couple.
+        (RoborockDockTypeCode.hera_dock, True, "is_hatch_door_dock_cool_fan_supported", True),
+        (RoborockDockTypeCode.couple_dock, True, "is_hatch_door_dock_cool_fan_supported", True),
+        (RoborockDockTypeCode.shell_3_dock, True, "is_hatch_door_dock_cool_fan_supported", False),
+        # Shell E (21) cannot wash mops with hot water, with or without AM.
+        (RoborockDockTypeCode.shell_e_dock, False, "is_no_support_hot_wash_towel", True),
+        (RoborockDockTypeCode.shell_e_dock, True, "is_no_support_hot_wash_towel", True),
+        (RoborockDockTypeCode.shell_2e_dock, False, "is_no_support_hot_wash_towel", False),
+        # Multiple cleaning fluids: Shell 4S (34) without AM only.
+        (RoborockDockTypeCode.shell_4s_dock, False, "is_multi_clean_fluid_supported", True),
+        (RoborockDockTypeCode.shell_4s_dock, True, "is_multi_clean_fluid_supported", False),
+        (RoborockDockTypeCode.shell_4p_dock, False, "is_multi_clean_fluid_supported", False),
+        # Carousel (strainer) present.
+        (RoborockDockTypeCode.pearl_dock, False, "is_clean_carousel_supported", True),
+        (RoborockDockTypeCode.shell_3s_dock, False, "is_clean_carousel_supported", True),
+        (RoborockDockTypeCode.f1rc_dock, True, "is_clean_carousel_supported", True),
+        (RoborockDockTypeCode.o4_dock, False, "is_clean_carousel_supported", False),
+        (RoborockDockTypeCode.o7_dock, True, "is_clean_carousel_supported", False),
+        (RoborockDockTypeCode.shell_4r_dock, False, "is_clean_carousel_supported", False),
+        (RoborockDockTypeCode.o0_dock, False, "is_clean_carousel_supported", False),
+    ],
+)
+def test_dock_capabilities_from_app_dock_configs(
+    dock_type: RoborockDockTypeCode, has_am: bool, capability: str, expected: bool
+) -> None:
+    assert getattr(RoborockDockFeatures.from_dock_type(dock_type, has_am=has_am), capability) is expected
 
 
 @pytest.mark.parametrize(
