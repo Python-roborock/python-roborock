@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v7.22.1 (2026-11-14)
+
+### Bug Fixes
+
+- Wrap empty cleaning record responses as parsing errors
+  ([#1034](https://github.com/Python-roborock/python-roborock/pull/1034),
+  [`590ba8c`](https://github.com/Python-roborock/python-roborock/commit/590ba8cc0e94350e3c2a12c28ab26d50730e897b))
+
+
 ## v7.22.0 (2026-11-09)
 
 ### Bug Fixes
