@@ -10,6 +10,7 @@ import pytest
 
 from roborock.data import HomeData, UserData
 from roborock.devices.transport.mqtt_channel import MqttChannel
+from roborock.mqtt.health_manager import HealthManager
 from roborock.mqtt.session import MqttParams
 from roborock.protocol import create_mqtt_decoder, create_mqtt_encoder
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
@@ -268,3 +269,22 @@ async def test_concurrent_subscribers_with_callback_exception(
     # Unsubscribe all remaining subscribers
     unsub1()
     unsub2()
+
+
+async def test_health_is_tracked_per_device(mqtt_session: Mock) -> None:
+    """Test that a working device on the session does not hide a failing device's timeouts."""
+    restart = AsyncMock()
+    mqtt_session.health_manager = HealthManager(restart)
+    failing, working = (
+        MqttChannel(
+            mqtt_session, duid=duid, local_key=TEST_LOCAL_KEY, rriot=USER_DATA.rriot, mqtt_params=TEST_MQTT_PARAMS
+        )
+        for duid in ("failing", "working")
+    )
+
+    for _ in range(3):
+        restart.assert_not_called()
+        await working.health_manager.on_success()
+        await failing.health_manager.on_timeout()
+
+    restart.assert_called_once()
