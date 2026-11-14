@@ -539,6 +539,102 @@ async def test_session_unauthorized_after_start(
         await session.close()
 
 
+async def test_restart_reconnects_without_backoff(
+    mock_aenter_client: AsyncMock,
+    mqtt_client_lite: AsyncMock,
+) -> None:
+    """Test that a forced restart reconnects right away instead of waiting for the backoff."""
+    params = copy.deepcopy(FAKE_PARAMS)
+    params.diagnostics = Diagnostics()
+    with patch("roborock.mqtt.roborock_session.MIN_BACKOFF_INTERVAL", datetime.timedelta(hours=1)):
+        session = await create_mqtt_session(params)
+        await session.subscribe("topic-1", Subscriber().append)
+
+        try:
+            await session.restart()
+            async with asyncio.timeout(1):
+                while mock_aenter_client.await_count < 2:
+                    await asyncio.sleep(0.01)
+            assert params.diagnostics.as_dict().get("reconnect_restart") == 1
+            assert "reconnect_wait" not in params.diagnostics.as_dict()
+        finally:
+            await session.close()
+
+
+async def test_disconnect_waits_for_backoff(
+    mock_aenter_client: AsyncMock,
+    message_iterator: FakeAsyncIterator,
+    mqtt_client_lite: AsyncMock,
+) -> None:
+    """Test that a connection lost without a forced restart still waits before reconnecting."""
+    params = copy.deepcopy(FAKE_PARAMS)
+    params.diagnostics = Diagnostics()
+    message_iterator.loop = False
+    with patch("roborock.mqtt.roborock_session.MIN_BACKOFF_INTERVAL", datetime.timedelta(hours=1)):
+        session = await create_mqtt_session(params)
+        await session.subscribe("topic-1", Subscriber().append)
+
+        try:
+            await asyncio.sleep(0.1)
+            assert mock_aenter_client.await_count == 1
+            assert params.diagnostics.as_dict().get("reconnect_wait", 0) >= 1
+            assert "reconnect_restart" not in params.diagnostics.as_dict()
+        finally:
+            await session.close()
+
+
+async def test_no_health_restart_while_reconnecting(
+    message_iterator: FakeAsyncIterator,
+    mqtt_client_lite: AsyncMock,
+) -> None:
+    """Test that timeouts while the session waits to reconnect don't count as a restart."""
+    params = copy.deepcopy(FAKE_PARAMS)
+    params.diagnostics = Diagnostics()
+    message_iterator.loop = False
+    with patch("roborock.mqtt.roborock_session.MIN_BACKOFF_INTERVAL", datetime.timedelta(hours=1)):
+        session = await create_mqtt_session(params)
+        await session.subscribe("topic-1", Subscriber().append)
+
+        try:
+            async with asyncio.timeout(1):
+                while session.connected:
+                    await asyncio.sleep(0.01)
+            for _ in range(3):
+                await session.health_manager.on_timeout("device-1")
+            assert "restart" not in params.diagnostics.as_dict()
+        finally:
+            await session.close()
+
+
+async def test_reconnect_resets_health_timeouts(
+    mock_aenter_client: AsyncMock,
+    message_iterator: FakeAsyncIterator,
+    mqtt_client_lite: AsyncMock,
+) -> None:
+    """Test that timeouts counted before a reconnect don't restart the new connection."""
+    params = copy.deepcopy(FAKE_PARAMS)
+    params.diagnostics = Diagnostics()
+    session = await create_mqtt_session(params)
+    await session.subscribe("topic-1", Subscriber().append)
+    health_manager = session.health_manager
+
+    try:
+        await health_manager.on_timeout("device-1")
+        await health_manager.on_timeout("device-1")
+
+        # The connection drops and the session reconnects on its own.
+        message_iterator.loop = False
+        async with asyncio.timeout(1):
+            while mock_aenter_client.await_count < 2:
+                await asyncio.sleep(0.01)
+        message_iterator.loop = True
+
+        await health_manager.on_timeout("device-1")
+        assert "restart" not in params.diagnostics.as_dict()
+    finally:
+        await session.close()
+
+
 async def test_session_defers_reconnect_when_idle(
     mock_aenter_client: AsyncMock,
     message_iterator: FakeAsyncIterator,
