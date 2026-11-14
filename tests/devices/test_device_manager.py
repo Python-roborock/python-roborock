@@ -130,6 +130,9 @@ async def test_with_q10_device(cloud: FakeRoborockCloud, patch_device_manager: N
     assert q10_device.b01_q10_properties.status.status == YXDeviceState.CLEANING
     assert q10_sim.status[121] == 5
 
+    # B01 requests are not tracked by the MQTT health manager, so no empty history is reported.
+    assert "mqtt_health" not in q10_device.diagnostic_data()
+
     await device_manager.close()
 
 
