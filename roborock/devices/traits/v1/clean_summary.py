@@ -39,6 +39,8 @@ class CleanRecordConverter(common.V1TraitDataConverter):
         if isinstance(response, dict):
             return CleanRecord.from_dict(response)
         if isinstance(response, list):
+            if not response:
+                raise ValueError("Empty clean record response")
             if isinstance(response[-1], dict):
                 records = [CleanRecord.from_dict(rec) for rec in response]
                 final_record = records[-1]
