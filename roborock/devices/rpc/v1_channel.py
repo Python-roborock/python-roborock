@@ -18,7 +18,7 @@ from roborock.devices.transport.channel import Channel
 from roborock.devices.transport.local_channel import LocalChannel, LocalSession, create_local_session
 from roborock.devices.transport.mqtt_channel import MqttChannel
 from roborock.exceptions import RoborockException
-from roborock.mqtt.health_manager import HealthManager
+from roborock.mqtt.health_manager import DeviceHealthManager
 from roborock.mqtt.session import MqttParams, MqttSession
 from roborock.protocols.v1_protocol import (
     CommandType,
@@ -67,7 +67,7 @@ class RpcStrategy:
     channel: LocalChannel | MqttChannel
     encoder: Callable[[RequestMessage], RoborockMessage]
     decoder: Callable[[RoborockMessage], ResponseMessage | MapResponse | None]
-    health_manager: HealthManager | None = None
+    health_manager: DeviceHealthManager | None = None
 
 
 class RpcChannel(V1RpcChannel):

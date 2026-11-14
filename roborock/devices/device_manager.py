@@ -21,6 +21,7 @@ from roborock.diagnostics import Diagnostics, redact_device_data
 from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import B01Q10MapParserConfig
 from roborock.map.map_parser import MapParserConfig
+from roborock.mqtt.health_manager import DeviceHealthManager
 from roborock.mqtt.roborock_session import create_lazy_mqtt_session
 from roborock.mqtt.session import MqttSession, SessionUnauthorizedHook
 from roborock.protocol import create_mqtt_params
@@ -290,7 +291,11 @@ async def create_device_manager(
                     f"Device {device.name} has unsupported version {device.pv} {product.model}"
                 )
 
-        dev = RoborockDevice(device, product, channel, trait)
+        # B01 channels don't report their MQTT requests to the health manager yet.
+        mqtt_health = (
+            DeviceHealthManager(mqtt_session.health_manager, device.duid) if device.pv != DeviceVersion.B01 else None
+        )
+        dev = RoborockDevice(device, product, channel, trait, mqtt_health)
         if ready_callback:
             dev.add_ready_callback(ready_callback)
         return dev
