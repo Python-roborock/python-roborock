@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import zlib
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -132,3 +133,70 @@ def _decode_base64_payload(raw_payload: bytes) -> bytes:
         return base64.b64decode(padded, validate=True)
     except binascii.Error as err:
         raise RoborockException("Failed to decode B01 map payload") from err
+
+
+# Number of incomplete multi-part map responses kept while waiting for missing parts.
+_MAX_PENDING_MAP_RESPONSES = 4
+
+
+def create_map_response_assembler() -> Callable[[RoborockMessage], bytes | None]:
+    """Create an assembler for B01 map response messages.
+
+    Large maps are split into multiple messages that share the same ``random``
+    and ``timestamp`` and are numbered by ``seq``. All parts except the last
+    one use protocol ``MAP_RESPONSE_PART`` (300), the last one uses
+    ``MAP_RESPONSE`` (301). Parts may arrive out of order, so they are buffered
+    until complete. A lone final part whose decoded length is not a multiple of
+    the AES block size is a trailing fragment of a split frame, not a complete
+    frame, so it is buffered too. This ports the V1 reassembly from #1004.
+    """
+    # (random, timestamp) -> seq -> (is last part, raw payload)
+    pending: dict[tuple[int, int], dict[int, tuple[bool, bytes]]] = {}
+
+    def _decoded_length(raw_payload: bytes) -> int | None:
+        try:
+            return len(_decode_base64_payload(raw_payload))
+        except RoborockException:
+            return None
+
+    def _remember(key: tuple[int, int], parts: dict[int, tuple[bool, bytes]]) -> None:
+        pending[key] = parts
+        while len(pending) > _MAX_PENDING_MAP_RESPONSES:
+            del pending[next(iter(pending))]
+
+    def _complete_payload(parts: dict[int, tuple[bool, bytes]]) -> bytes | None:
+        seqs = sorted(parts)
+        if not parts[seqs[-1]][0]:
+            return None
+        if seqs != list(range(seqs[0], seqs[-1] + 1)):
+            return None
+        joined = b"".join(parts[seq][1] for seq in seqs)
+        length = _decoded_length(joined)
+        if length is None or length % AES.block_size != 0:
+            return None
+        return joined
+
+    def assemble(message: RoborockMessage) -> bytes | None:
+        """Return the complete raw payload once all parts of a frame arrived."""
+        if not message.payload:
+            return None
+        key = (message.random, message.timestamp)
+        is_last = message.protocol == RoborockMessageProtocol.MAP_RESPONSE
+        if message.protocol == RoborockMessageProtocol.MAP_RESPONSE_PART or (is_last and key in pending):
+            parts = pending.pop(key, {})
+            parts[message.seq] = (is_last, message.payload)
+            if (joined := _complete_payload(parts)) is not None:
+                return joined
+            _remember(key, parts)
+            return None
+        if is_last:
+            length = _decoded_length(message.payload)
+            if length is not None and length % AES.block_size != 0:
+                # Trailing fragment of a split frame whose earlier parts have
+                # not arrived yet; wait for them instead of failing the decode.
+                _remember(key, {message.seq: (True, message.payload)})
+                return None
+            return message.payload
+        return None
+
+    return assemble
