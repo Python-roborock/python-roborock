@@ -28,7 +28,6 @@ from roborock.devices.traits.b01.q10.command import CommandTrait
 from roborock.devices.traits.b01.q10.map import MapContentTrait, MapDpsTrait
 from roborock.exceptions import RoborockException
 from roborock.map.b01_q10_map_parser import (
-    B01Q10MapParserConfig,
     Q10CleanRecordDetail,
     Q10HeaderCalibration,
     Q10MapPacketKind,
@@ -41,6 +40,7 @@ from roborock.map.b01_q10_map_parser import (
 )
 from roborock.map.b01_q10_overlays import Q10RestrictedZone, Q10VirtualWall
 from roborock.map.b01_q10_render import Q10MapOverlays
+from roborock.map.map_parser import MapParserConfig
 from roborock.protocols.b01_q10_protocol import Q10DpsUpdate, Q10Message
 
 from .conftest import FakeB01Q10Channel
@@ -647,10 +647,10 @@ def test_docking_clears_room_and_ignores_late_fixture_trace(status: YXDeviceStat
     assert trait.current_room == packet.rooms[1]
 
 
-async def test_create_forwards_obstacle_drawables_to_rendering(fake_channel: FakeB01Q10Channel) -> None:
-    """The public Q10 factory config changes the rendered image."""
-    enabled = create(fake_channel, map_parser_config=B01Q10MapParserConfig(drawables=[Drawable.OBSTACLES]))
-    disabled = create(fake_channel, map_parser_config=B01Q10MapParserConfig(drawables=[]))
+def test_create_forwards_map_parser_config(fake_channel: FakeB01Q10Channel) -> None:
+    """Q10PropertiesApi forwards MapParserConfig scale and drawables to MapContentTrait rendering."""
+    enabled = create(fake_channel, map_parser_config=MapParserConfig(map_scale=2, drawables=[Drawable.OBSTACLES]))
+    disabled = create(fake_channel, map_parser_config=MapParserConfig(map_scale=2, drawables=[]))
     packet = replace(
         parse_map_packet(FIXTURE.read_bytes()),
         header_calibration=Q10HeaderCalibration(0, 50, 5, -1, -1, 0),
@@ -658,7 +658,12 @@ async def test_create_forwards_obstacle_drawables_to_rendering(fake_channel: Fak
     )
     enabled.map.update_from_map_packet(packet)
     disabled.map.update_from_map_packet(packet)
+
+    assert enabled.map.image_content is not None
+    assert disabled.map.image_content is not None
     assert enabled.map.image_content != disabled.map.image_content
+    image = Image.open(io.BytesIO(enabled.map.image_content))
+    assert image.size == (packet.width * 2, packet.height * 2)
 
 
 async def test_set_current_map_uses_apply_for_listed_string_id(
@@ -892,7 +897,7 @@ def test_archive_owners_reject_wrong_packet_kinds(q10_api: Q10PropertiesApi) -> 
 
 @pytest.mark.parametrize("scale", [1, 2, 4])
 async def test_live_q10_map_renders_at_requested_scale(scale: int, fake_channel: FakeB01Q10Channel) -> None:
-    api = create(fake_channel, map_parser_config=B01Q10MapParserConfig(map_scale=scale))
+    api = create(fake_channel, map_parser_config=MapParserConfig(map_scale=scale))
     payload = FIXTURE.read_bytes()
     fake_channel.messages_to_stream = [
         parse_map_packet(payload),
@@ -1018,7 +1023,7 @@ async def test_cli_listener_is_removed_after_cancellation(q10_api: Q10Properties
 async def test_live_q10_map_honors_drawable_selection(
     drawables: list[Drawable], expected_base: bool, fake_channel: FakeB01Q10Channel
 ) -> None:
-    api = create(fake_channel, map_parser_config=B01Q10MapParserConfig(drawables=drawables))
+    api = create(fake_channel, map_parser_config=MapParserConfig(drawables=drawables))
     base_packet = parse_map_packet(FIXTURE.read_bytes())
     base = create(FakeB01Q10Channel())
     base.map.update_from_map_packet(base_packet)
