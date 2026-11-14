@@ -496,18 +496,54 @@ For each V1 command:
 | **Channel Class** | `V1Channel` | `MqttChannel` directly |
 | **RPC Abstraction** | `RpcChannel` with strategies | Helper functions |
 | **Strategy Pattern** | ✅ Multi-strategy (Local → MQTT) | ❌ Direct MQTT only |
-| **Health Manager** | ✅ Tracks local/MQTT health | ❌ Not needed |
+| **MQTT Health Reporting** | ✅ MQTT requests | ✅ A01 requests; ❌ B01 not yet |
 | **Code Location** | `v1_channel.py` | `a01_channel.py`, `b01_q7_channel.py` |
 
-#### Health Management (V1 Only)
+#### Local Connection Recovery (V1 Only)
 
-Each V1 RPC strategy can have a `HealthManager` that tracks success/failure:
+`V1Channel` keeps the local connection alive in the background:
 
-- **Exponential Backoff**: After failures, wait before retrying
-- **Automatic Recovery**: Periodically attempt to restore failed connections
-- **Network Info Refresh**: Refresh local IP addresses after extended periods
+- **Exponential Backoff**: After a failed local connection, wait before retrying (1 to 10 minutes)
+- **Automatic Recovery**: Check the local connection periodically and reconnect when it drops
+- **Network Info Refresh**: Refresh the device's local IP address after 12 hours
 
-A01/B01 devices don't need health management since they only use MQTT (no fallback).
+#### MQTT Health Management
+
+The broker can stop delivering one device's messages while the MQTT connection itself stays up and
+other devices on the shared session keep working. The client keepalive can't detect this, so the
+outcome of MQTT requests is tracked instead. Subscribing to the device's topic again on the same
+connection doesn't bring its messages back; a new connection does.
+
+The session's `HealthManager` receives the result of every MQTT request through a per-device
+`DeviceHealthManager`, and restarts the whole session (a new connection with all subscriptions
+re-established) when:
+
+- **One device fails**: 3 of its requests time out within 30 minutes. A single response in between
+  doesn't reset the count, because a failing connection may still deliver some of them. The device
+  counts as recovered after 3 responses in a row, or at its first response once its timeouts are
+  older than 30 minutes.
+- **The session fails**: 3 requests in a row time out across more than one device.
+
+Only timeouts on the current connection count: every new connection, whether forced or after the
+session reconnected on its own, starts counting from zero.
+
+Restarts are paced so that a device that is really offline doesn't keep interrupting the others:
+
+- At most one restart every 30 minutes.
+- While the same device keeps failing, the interval between the restarts it triggers doubles
+  (30 minutes, 1, 2, 4 hours, then every 6 hours). It is reset once the device answers 3 requests
+  in a row, so a device that answers once after every restart and then fails again still backs off.
+- Timeouts while the session is already reconnecting don't restart it.
+- A forced restart reconnects right away; other disconnects keep the exponential backoff.
+
+V1 devices answer most requests over the local connection, so their MQTT topic may carry no traffic
+for hours. A broken topic is then noticed when the map (only available over MQTT) is requested
+again, and the session is restarted after the first few map requests time out.
+
+Each device's diagnostics include an `mqtt_health` section: when it started failing, its last
+success and timeout, request counts, and the last 10 health events (newest first): `timeouts_started`,
+`session_restart` (with `cause`: `this_device`, `other_device` or `several_devices`) and `recovered`.
+B01 devices don't report their requests yet, so they have no `mqtt_health` section.
 
 ### Protocol Versions
 
