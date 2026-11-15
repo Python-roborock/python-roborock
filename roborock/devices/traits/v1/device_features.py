@@ -40,6 +40,8 @@ class DeviceTraitsConverter(common.V1TraitDataConverter):
         """Parse an APP_GET_INIT_STATUS response into a DeviceFeatures instance."""
         if not isinstance(response, list):
             raise ValueError(f"Unexpected AppInitStatus response format: {type(response)}: {response!r}")
+        if not response or not isinstance(response[0], dict):
+            raise ValueError(f"Unexpected AppInitStatus response format: {response!r}")
         app_status = AppInitStatus.from_dict(response[0])
         return DeviceFeatures.from_feature_flags(
             new_feature_info=app_status.new_feature_info,
