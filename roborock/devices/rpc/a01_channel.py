@@ -52,6 +52,11 @@ async def send_decoded_command(
 ) -> dict[RoborockDyadDataProtocol, Any] | dict[RoborockZeoProtocol, Any]:
     """Send a command on the MQTT channel and get a decoded response.
 
+    A query returns once every requested data point has arrived. Devices may
+    never report data points they do not support, so if only some arrive
+    before the timeout, that subset is returned. A query that receives none
+    of the requested data points raises `RoborockException`.
+
     Args:
         mqtt_channel: The MQTT channel to send the command on.
         params: The parameters to send.
@@ -98,8 +103,14 @@ async def send_decoded_command(
         try:
             await asyncio.wait_for(finished.wait(), timeout=_TIMEOUT)
         except TimeoutError as ex:
-            await mqtt_channel.health_manager.on_timeout()
-            raise RoborockException(f"Command timed out after {_TIMEOUT}s") from ex
+            if not result:
+                await mqtt_channel.health_manager.on_timeout()
+                raise RoborockException(f"Command timed out after {_TIMEOUT}s") from ex
+            _LOGGER.debug(
+                "Partial query response after %ss, missing data points: %s",
+                _TIMEOUT,
+                [dp for dp in query_values if dp not in result],
+            )
     finally:
         unsub()
 

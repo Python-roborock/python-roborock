@@ -333,13 +333,20 @@ class DyadApi(A01Api[RoborockDyadDataProtocol]):
         return values
 
     async def query_values(self, protocols: list[RoborockDyadDataProtocol]) -> dict[RoborockDyadDataProtocol, Any]:
-        """Query the device for the values of the given Dyad protocols."""
+        """Query the device for the values of the given Dyad protocols.
+
+        Every requested protocol is a key of the result; a protocol the device
+        did not report is `None`.
+        """
         response = await send_decoded_command(
             self._channel,
             {RoborockDyadDataProtocol.ID_QUERY: protocols},
             value_encoder=json.dumps,
         )
-        values = {protocol: convert_dyad_value(protocol, response.get(protocol)) for protocol in protocols}
+        values = {
+            protocol: convert_dyad_value(protocol, response[protocol]) if protocol in response else None
+            for protocol in protocols
+        }
         self._merge_query_response(values)
         return values
 
@@ -436,7 +443,8 @@ class ZeoApi(A01Api[RoborockZeoProtocol]):
         """
         dp_list = build_force_load_dp_list(self._model)
         result = await self.query_values(dp_list)
-        self._feature_bits = result.get(RoborockZeoProtocol.FEATURE_BITS, 0)
+        if (feature_bits := result.get(RoborockZeoProtocol.FEATURE_BITS)) is not None:
+            self._feature_bits = feature_bits
 
     async def _load_feature_dps(self) -> None:
         """Second-stage query for feature-gated DPs.
@@ -466,13 +474,20 @@ class ZeoApi(A01Api[RoborockZeoProtocol]):
         return bool(self._feature_bits & (1 << feature.value))
 
     async def query_values(self, protocols: list[RoborockZeoProtocol]) -> dict[RoborockZeoProtocol, Any]:
-        """Query the device for the values of the given protocols."""
+        """Query the device for the values of the given protocols.
+
+        Every requested protocol is a key of the result; a protocol the device
+        did not report is `None`.
+        """
         response = await send_decoded_command(
             self._channel,
             {RoborockZeoProtocol.ID_QUERY: protocols},
             value_encoder=json.dumps,
         )
-        values = {protocol: convert_zeo_value(protocol, response.get(protocol)) for protocol in protocols}
+        values = {
+            protocol: convert_zeo_value(protocol, response[protocol]) if protocol in response else None
+            for protocol in protocols
+        }
         self._merge_query_response(values)
         return values
 

@@ -8,6 +8,7 @@ from Crypto.Util.Padding import unpad
 from freezegun import freeze_time
 
 from roborock.data import DyadScheduleTask
+from roborock.data.zeo.zeo_code_mappings import ZeoFeatureBits
 from roborock.devices.traits.a01 import DyadApi, ZeoApi, create
 from roborock.devices.traits.a01.device_feature import build_force_load_dp_list
 from roborock.roborock_message import RoborockDyadDataProtocol, RoborockMessageProtocol, RoborockZeoProtocol
@@ -557,6 +558,79 @@ async def test_zeo_invalid_response_value(
 
     result = await zeo_api.query_values(query)
     assert result == expected_result
+
+
+async def test_dyad_partial_query_leaves_missing_values_none(
+    dyad_api: DyadApi, fake_channel: FakeChannel, monkeypatch: pytest.MonkeyPatch
+):
+    """A data point the device does not report is None rather than a converted default."""
+    monkeypatch.setattr("roborock.devices.rpc.a01_channel._TIMEOUT", 0.01)
+    fake_channel.response_queue.append(build_a01_message({201: 3}))
+
+    result = await dyad_api.query_values([RoborockDyadDataProtocol.STATUS, RoborockDyadDataProtocol.AUTO_DRY])
+
+    assert result == {RoborockDyadDataProtocol.STATUS: "charging", RoborockDyadDataProtocol.AUTO_DRY: None}
+    assert dyad_api.values == {RoborockDyadDataProtocol.STATUS: "charging"}
+
+
+async def test_zeo_partial_query_keeps_known_values(fake_channel: FakeChannel, monkeypatch: pytest.MonkeyPatch):
+    """Unreported data points are None and do not replace previously known values."""
+    monkeypatch.setattr("roborock.devices.rpc.a01_channel._TIMEOUT", 0.01)
+    zeo_api = ZeoApi(fake_channel, initial_status={227: 1, 214: 2})  # type: ignore[arg-type]
+    fake_channel.response_queue.append(build_a01_message({203: 1}))
+
+    result = await zeo_api.query_values(
+        [RoborockZeoProtocol.STATE, RoborockZeoProtocol.SOFTENER_TYPE, RoborockZeoProtocol.SOFTENER_EMPTY]
+    )
+
+    assert result == {
+        RoborockZeoProtocol.STATE: "standby",
+        RoborockZeoProtocol.SOFTENER_TYPE: None,
+        RoborockZeoProtocol.SOFTENER_EMPTY: None,
+    }
+    assert zeo_api.values == {
+        RoborockZeoProtocol.STATE: "standby",
+        RoborockZeoProtocol.SOFTENER_TYPE: "medium",
+        RoborockZeoProtocol.SOFTENER_EMPTY: True,
+    }
+
+
+async def test_zeo_start_without_feature_bits(
+    zeo_api: ZeoApi, fake_channel: FakeChannel, monkeypatch: pytest.MonkeyPatch
+):
+    """Start succeeds when the device does not report FEATURE_BITS; no feature is supported."""
+    monkeypatch.setattr("roborock.devices.rpc.a01_channel._TIMEOUT", 0.01)
+    force_load_response = {
+        int(dp): 0 for dp in build_force_load_dp_list(None) if dp != RoborockZeoProtocol.FEATURE_BITS
+    }
+    fake_channel.response_queue.append(build_a01_message(force_load_response))
+
+    await zeo_api.start()
+
+    assert not any(zeo_api.supports(feature) for feature in ZeoFeatureBits)
+
+
+async def test_zeo_restart_without_feature_bits_keeps_features(
+    zeo_api: ZeoApi, fake_channel: FakeChannel, monkeypatch: pytest.MonkeyPatch
+):
+    """A restart whose reply omits FEATURE_BITS keeps the previously reported features."""
+    monkeypatch.setattr("roborock.devices.rpc.a01_channel._TIMEOUT", 0.01)
+    force_load_response = {int(dp): 0 for dp in build_force_load_dp_list(None)}
+    force_load_response[RoborockZeoProtocol.FEATURE_BITS] = 1 << ZeoFeatureBits.dry_care.value
+    fake_channel.response_queue.append(build_a01_message(force_load_response))
+    fake_channel.response_queue.append(build_a01_message({244: 1}))
+    await zeo_api.start()
+
+    del force_load_response[RoborockZeoProtocol.FEATURE_BITS]
+    fake_channel.response_queue.append(build_a01_message(force_load_response))
+    fake_channel.response_queue.append(build_a01_message({244: 1}))
+    await zeo_api.start()
+
+    assert zeo_api.supports(ZeoFeatureBits.dry_care)
+    assert len(fake_channel.published_messages) == 4
+    assert fake_channel.published_messages[3].payload is not None
+    payload_data = json.loads(unpad(fake_channel.published_messages[3].payload, AES.block_size))
+    assert payload_data["dps"] == {"10000": "[244]"}
 
 
 async def test_dyad_api_set_value(dyad_api: DyadApi, fake_channel: FakeChannel):

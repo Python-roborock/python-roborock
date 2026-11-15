@@ -81,3 +81,24 @@ async def test_query_timeout_reports_to_health_manager(mock_mqtt_channel: FakeCh
         await send_decoded_command(mock_mqtt_channel, params)  # type: ignore[call-overload]
 
     mock_mqtt_channel.health_manager.on_timeout.assert_awaited_once()
+
+
+async def test_query_returns_partial_response_after_timeout(mock_mqtt_channel: FakeChannel, monkeypatch):
+    """A device that never reports a requested data point still yields the ones it sent."""
+    monkeypatch.setattr("roborock.devices.rpc.a01_channel._TIMEOUT", 0.01)
+    mock_mqtt_channel.health_manager.on_success = AsyncMock()  # type: ignore[method-assign]
+    mock_mqtt_channel.health_manager.on_timeout = AsyncMock()  # type: ignore[method-assign]
+
+    params: dict[RoborockDyadDataProtocol, Any] = {
+        RoborockDyadDataProtocol.ID_QUERY: [RoborockDyadDataProtocol.WARM_LEVEL, RoborockDyadDataProtocol.POWER]
+    }
+    encoded = encode_mqtt_payload({RoborockDyadDataProtocol.POWER: 75}, value_encoder=lambda x: x)
+    mock_mqtt_channel.response_queue.append(
+        RoborockMessage(protocol=RoborockMessageProtocol.RPC_RESPONSE, payload=encoded.payload, version=encoded.version)
+    )
+
+    result = await send_decoded_command(mock_mqtt_channel, params)  # type: ignore[call-overload]
+
+    assert result == {RoborockDyadDataProtocol.POWER: 75}
+    mock_mqtt_channel.health_manager.on_success.assert_awaited_once()
+    mock_mqtt_channel.health_manager.on_timeout.assert_not_awaited()
