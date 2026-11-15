@@ -70,6 +70,7 @@ from roborock.web_api import UserWebApiClient
 
 from . import (
     camera,
+    carpet_boost,
     child_lock,
     clean_summary,
     command,
@@ -96,6 +97,7 @@ from . import (
     wash_towel_mode,
 )
 from .camera import CameraTrait
+from .carpet_boost import CarpetBoostTrait
 from .child_lock import ChildLockTrait
 from .clean_summary import CleanSummaryTrait
 from .command import CommandTrait
@@ -126,6 +128,7 @@ _LOGGER = logging.getLogger(__name__)
 __all__ = [
     "PropertiesApi",
     "camera",
+    "carpet_boost",
     "child_lock",
     "clean_summary",
     "command",
@@ -177,6 +180,7 @@ class PropertiesApi(Trait):
 
     # Optional features that may not be supported on all devices
     camera: CameraTrait | None = None
+    carpet_boost: CarpetBoostTrait | None = None
     child_lock: ChildLockTrait | None = None
     led_status: LedStatusTrait | None = None
     flow_led_status: FlowLedStatusTrait | None = None
