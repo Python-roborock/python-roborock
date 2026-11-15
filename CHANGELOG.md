@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v7.22.2 (2026-11-15)
+
+### Bug Fixes
+
+- **b01**: Reassemble fragmented B01/Q7 live map responses
+  ([#1048](https://github.com/Python-roborock/python-roborock/pull/1048),
+  [`1fd6b5e`](https://github.com/Python-roborock/python-roborock/commit/1fd6b5efdf071ace9738866b18e2343c2beb0bee))
+
+
 ## v7.22.1 (2026-11-14)
 
 ### Bug Fixes
