@@ -5,7 +5,9 @@ from typing import Any
 from roborock import (
     CleaningMode,
     CleanRoutes,
+    RoborockDockErrorCode,
     RoborockDockState,
+    RoborockErrorCode,
     StatusV2,
     VacuumModes,
     WaterModes,
@@ -158,12 +160,13 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
 
         Without an explicit code this resolves the current dock error if there is one,
         otherwise the current robot error. A dock error such as water_empty stays latched
-        on the device until it is resolved, even after the cause has been fixed.
+        on the device until it is resolved, even after the cause has been fixed. Error
+        codes this library does not recognize are not resolved automatically.
         """
         if error_code is None:
-            if self.dock_error_status:
+            if self.dock_error_status and self.dock_error_status != RoborockDockErrorCode.unknown:
                 error_code = int(self.dock_error_status)
-            elif self.error_code:
+            elif self.error_code and self.error_code != RoborockErrorCode.unknown:
                 error_code = int(self.error_code)
             else:
                 return
