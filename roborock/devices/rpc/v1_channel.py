@@ -17,7 +17,7 @@ from roborock.devices.cache import DeviceCache
 from roborock.devices.transport.channel import Channel
 from roborock.devices.transport.local_channel import LocalChannel, LocalSession, create_local_session
 from roborock.devices.transport.mqtt_channel import MqttChannel
-from roborock.exceptions import RoborockException
+from roborock.exceptions import RoborockException, RoborockTimeout
 from roborock.mqtt.health_manager import HealthManager
 from roborock.mqtt.session import MqttParams, MqttSession
 from roborock.protocols.v1_protocol import (
@@ -47,6 +47,12 @@ __all__ = [
 
 _T = TypeVar("_T", bound=RoborockBase)
 _TIMEOUT = 10.0
+_READ_ONLY_PREFIXES = ("get_", "app_get_")
+
+
+def _is_read_only(method: CommandType) -> bool:
+    """Return True if the command only reads state, so it is safe to resend after a timeout."""
+    return method.startswith(_READ_ONLY_PREFIXES)
 
 
 # Exponential backoff parameters for reconnecting to local
@@ -89,10 +95,18 @@ class RpcChannel(V1RpcChannel):
         request = RequestMessage(method, params=params)
 
         # Try each channel in order until one succeeds
-        last_exception = None
+        last_exception: RoborockException | None = None
         for strategy in self._rpc_strategies_cb():
             try:
                 decoded_response = await self._send_rpc(strategy, request, self._logger)
+            except RoborockTimeout as e:
+                # The request was published, so the device may have received and run it. Only
+                # read-only commands are safe to resend on another channel; resending anything
+                # else could make the device act twice.
+                if not _is_read_only(method):
+                    raise
+                self._logger.debug("Command %s timed out on %s channel: %s", method, strategy.name, e)
+                last_exception = e
             except RoborockException as e:
                 self._logger.debug("Command %s failed on %s channel: %s", method, strategy.name, e)
                 last_exception = e
@@ -154,7 +168,7 @@ class RpcChannel(V1RpcChannel):
             if strategy.health_manager:
                 await strategy.health_manager.on_timeout()
             future.cancel()
-            raise RoborockException(f"Command timed out after {_TIMEOUT}s") from ex
+            raise RoborockTimeout(f"Command timed out after {_TIMEOUT}s") from ex
         finally:
             unsub()
         if strategy.health_manager:
