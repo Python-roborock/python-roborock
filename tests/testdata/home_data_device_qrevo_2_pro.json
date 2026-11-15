@@ -1,0 +1,30 @@
+{
+    "fv": "02.40.54",
+    "share": false,
+    "online": true,
+    "pv": "1.0",
+    "tuyaMigrated": false,
+    "featureSet": "2247397454282751",
+    "newFeatureSet": "0000009021D0B410C0C47EFDA82934C952BA8F507EDEFFFE",
+    "deviceStatus": {
+        "121": 8,
+        "122": 64,
+        "133": 1,
+        "123": 102,
+        "134": 0,
+        "124": 202,
+        "128": 0,
+        "139": 0,
+        "135": 0,
+        "125": 100,
+        "126": 100,
+        "127": 100
+    },
+    "silentOtaSwitch": true,
+    "f": false,
+    "duid": "device-id-a294",
+    "name": "Roborock Qrevo 2 Pro",
+    "localKey": "0123456789abcdef",
+    "productId": "product-id-a294",
+    "sn": "A294SAMPLESNTEST"
+}

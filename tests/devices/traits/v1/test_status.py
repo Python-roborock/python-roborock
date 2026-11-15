@@ -117,6 +117,46 @@ async def test_refresh_status_p30_pro(
     mock_rpc_channel.send_command.assert_awaited_once_with(RoborockCommand.GET_STATUS)
 
 
+@pytest.mark.parametrize(
+    "device_info",
+    [mock_data.DEVICE_PRODUCT_PAIRS["home_data_device_qrevo_2_pro.json"][0]],
+)
+@pytest.mark.parametrize(
+    ("fan_power", "water_box_mode", "mop_mode", "expected_water_mode", "expected_mop_route"),
+    [
+        (102, 235, 300, "medium", "standard"),
+        (104, 243, 303, "high", "deep_plus"),
+    ],
+)
+async def test_refresh_status_qrevo_2_pro(
+    device_info: HomeDataDevice,
+    discover_features_fixture: None,
+    status_trait: StatusTrait,
+    mock_rpc_channel: AsyncMock,
+    fan_power: int,
+    water_box_mode: int,
+    mop_mode: int,
+    expected_water_mode: str,
+    expected_mop_route: str,
+) -> None:
+    """Test captured Qrevo 2 Pro water levels and mop routes after discovery."""
+    mock_rpc_channel.send_command.return_value = [
+        {
+            **STATUS,
+            "fan_power": fan_power,
+            "water_box_mode": water_box_mode,
+            "mop_mode": mop_mode,
+            "dock_type": RoborockDockTypeCode.f1_dock,
+        }
+    ]
+
+    await status_trait.refresh()
+
+    assert status_trait.water_mode_name == expected_water_mode
+    assert status_trait.mop_route_name == expected_mop_route
+    mock_rpc_channel.send_command.assert_awaited_once_with(RoborockCommand.GET_STATUS)
+
+
 async def test_refresh_status_propagates_exception(status_trait: StatusTrait, mock_rpc_channel: AsyncMock) -> None:
     """Test that exceptions from RPC channel are propagated."""
     mock_rpc_channel.send_command.side_effect = RoborockException("Communication error")
