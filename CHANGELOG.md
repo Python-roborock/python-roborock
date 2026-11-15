@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v7.23.1 (2026-11-15)
+
+### Bug Fixes
+
+- Correct unknown model families in device catalogue
+  ([#1029](https://github.com/Python-roborock/python-roborock/pull/1029),
+  [`fe38922`](https://github.com/Python-roborock/python-roborock/commit/fe38922a0b98635398ee7879564f3dc5cc44f8ba))
+
+- Report unknown product families in device info
+  ([#1029](https://github.com/Python-roborock/python-roborock/pull/1029),
+  [`fe38922`](https://github.com/Python-roborock/python-roborock/commit/fe38922a0b98635398ee7879564f3dc5cc44f8ba))
+
+
 ## v7.23.0 (2026-11-15)
 
 ### Features
