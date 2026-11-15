@@ -46,8 +46,9 @@ optional traits:
         and returns a boolean indicating whether the trait is supported for that dock.
 
 Traits that need constructor arguments, or gating on both device and dock features,
-are created explicitly in `PropertiesApi.discover_features` and skipped by the
-generic discovery loop, so the attributes above have no effect on them.
+are created explicitly in `PropertiesApi.discover_features`. Traits gated there by a
+`supports_*` helper bypass `_is_supported`, so the attributes above have no effect on
+them; the other explicitly created traits are still gated through `_is_supported`.
 
 Additionally, DeviceFeaturesTrait has a method `is_field_supported` that is used to
 check individual trait field values. This is a more fine grained version to allow
