@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v7.23.0 (2026-11-15)
+
+### Features
+
+- **camera**: Expose V1 camera signaling commands
+  ([#1023](https://github.com/Python-roborock/python-roborock/pull/1023),
+  [`b77c102`](https://github.com/Python-roborock/python-roborock/commit/b77c1026d54b99d338f27dd611fb2915612ea97f))
+
+
 ## v7.22.2 (2026-11-15)
 
 ### Bug Fixes
