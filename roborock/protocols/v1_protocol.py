@@ -207,7 +207,8 @@ def decode_rpc_response(message: RoborockMessage) -> ResponseMessage:
             )
         result = {}
     else:
-        _LOGGER.debug("Decoded V1 message result: %s", result)
+        # Camera results may contain TURN passwords or SDP/ICE credentials.
+        _LOGGER.debug("Decoded V1 message result type: %s", type(result).__name__)
         if isinstance(result, str):
             if result == "unknown_method":
                 api_error = RoborockUnsupportedFeature("The method called is not recognized by the device.")

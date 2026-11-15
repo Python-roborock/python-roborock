@@ -121,10 +121,11 @@ def decoder_callback(
 
     def wrapper(data: K) -> None:
         if not (messages := decoder(data)):
-            logger.debug("Failed to decode message: %s", data)
+            logger.debug("Failed to decode message of type %s", type(data).__name__)
             return
         for message in messages:
-            logger.debug("Decoded message: %s", message)
+            # Decrypted payloads can contain credentials; log only their shape.
+            logger.debug("Decoded message of type %s", type(message).__name__)
             safe_cb(message)
 
     return wrapper
