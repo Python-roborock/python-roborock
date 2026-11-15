@@ -55,6 +55,20 @@ def encode_mqtt_payload(
     )
 
 
+def decode_datapoint_value(value: Any) -> Any:
+    """Decode a data point value that holds a JSON object or array stored as a string.
+
+    Some data points are sent this way, such as the Dyad schedule and product info.
+    Other values, including strings that are not valid JSON, are returned unchanged.
+    """
+    if not isinstance(value, str) or not value.lstrip().startswith(("{", "[")):
+        return value
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        return value
+
+
 def decode_rpc_response(message: RoborockMessage) -> dict[int, Any]:
     """Decode a V1 RPC_RESPONSE message."""
     if not message.payload:
@@ -73,7 +87,7 @@ def decode_rpc_response(message: RoborockMessage) -> dict[int, Any]:
     if not isinstance(datapoints, dict):
         raise RoborockException(f"Invalid A01 message format: 'dps' should be a dictionary for {message.payload!r}")
     try:
-        return {int(key): value for key, value in datapoints.items()}
+        return {int(key): decode_datapoint_value(value) for key, value in datapoints.items()}
     except ValueError as err:
         raise RoborockException(
             f"Invalid A01 message format: 'dps' key should be an integer for {message.payload!r}"

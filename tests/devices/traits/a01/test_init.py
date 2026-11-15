@@ -338,40 +338,63 @@ PRODUCT_INFO_JSON = json.dumps(
 )
 
 
-async def test_dyad_decodes_json_string_data_points(fake_channel: FakeChannel):
-    """The device reports product info and voice pack state as JSON strings."""
-    api = DyadApi(
-        fake_channel,  # type: ignore[arg-type]
-        initial_status={
-            10004: '{"sid_in_use":21,"sid_version":3,"location":"de","bom":"A.01","language":"en"}',
-            10005: PRODUCT_INFO_JSON,
-        },
-    )
+SND_STATE_JSON = '{"sid_in_use":21,"sid_version":3,"location":"de","bom":"A.01","language":"en"}'
 
-    assert api.values[RoborockDyadDataProtocol.SND_STATE].sid_in_use == 21
-    product_info = api.values[RoborockDyadDataProtocol.PRODUCT_INFO]
+
+def assert_json_string_data_points_decoded(values: dict[RoborockDyadDataProtocol, Any]) -> None:
+    assert values[RoborockDyadDataProtocol.SND_STATE].sid_in_use == 21
+    product_info = values[RoborockDyadDataProtocol.PRODUCT_INFO]
     assert product_info.sn == "TESTSERIAL"
     assert product_info.posix_timezone == "CET-1CEST,M3.5.0/2,M10.5.0/3"
     assert product_info.oba == {"bom": "A.01"}
 
 
+async def test_dyad_decodes_json_string_data_points_from_status_snapshot(fake_channel: FakeChannel):
+    """The cloud status snapshot holds product info and voice pack state as JSON strings."""
+    api = create(
+        DEFAULT_DYAD_PRODUCT,
+        fake_channel,  # type: ignore[arg-type]
+        device_status={"10004": SND_STATE_JSON, "10005": PRODUCT_INFO_JSON},
+    )
+
+    assert_json_string_data_points_decoded(api.values)  # type: ignore[arg-type]
+
+
+async def test_dyad_decodes_json_string_data_points_from_push(dyad_api: DyadApi, fake_channel: FakeChannel):
+    """The device pushes product info and voice pack state as JSON strings over MQTT."""
+    await dyad_api.start()
+    fake_channel.notify_subscribers(build_a01_message({10004: SND_STATE_JSON, 10005: PRODUCT_INFO_JSON}))
+
+    assert_json_string_data_points_decoded(dyad_api.values)
+
+
+async def test_dyad_decodes_json_string_data_points_from_query(dyad_api: DyadApi, fake_channel: FakeChannel):
+    """Query responses over MQTT hold product info and voice pack state as JSON strings."""
+    fake_channel.response_queue.append(build_a01_message({10004: SND_STATE_JSON, 10005: PRODUCT_INFO_JSON}))
+
+    result = await dyad_api.query_values([RoborockDyadDataProtocol.SND_STATE, RoborockDyadDataProtocol.PRODUCT_INFO])
+
+    assert_json_string_data_points_decoded(result)
+
+
 @pytest.mark.parametrize("value", ["", "not json", None])
 async def test_dyad_invalid_json_string_data_point(fake_channel: FakeChannel, value: str | None):
     """A malformed JSON data point leaves the value unset."""
-    api = DyadApi(fake_channel, initial_status={10005: value})  # type: ignore[arg-type]
+    api = create(DEFAULT_DYAD_PRODUCT, fake_channel, device_status={"10005": value})  # type: ignore[arg-type]
 
     assert api.values == {}
 
 
 async def test_dyad_as_dict_is_plain_data(fake_channel: FakeChannel):
     """Decoded values are converted to JSON serializable data for diagnostics."""
-    api = DyadApi(
+    api = create(
+        DEFAULT_DYAD_PRODUCT,
         fake_channel,  # type: ignore[arg-type]
-        initial_status={
-            201: 3,
-            227: 1320,
-            10002: '[{"id":1,"on":false,"cron":"15 14 31 10 *","dpAction":{"200":1}}]',
-            10005: PRODUCT_INFO_JSON,
+        device_status={
+            "201": 3,
+            "227": 1320,
+            "10002": '[{"id":1,"on":false,"cron":"15 14 31 10 *","dpAction":{"200":1}}]',
+            "10005": PRODUCT_INFO_JSON,
         },
     )
 

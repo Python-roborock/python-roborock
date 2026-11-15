@@ -79,7 +79,7 @@ from roborock.devices.traits.a01.device_feature import (
 from roborock.devices.traits.common import TraitUpdateListener
 from roborock.devices.transport.mqtt_channel import MqttChannel
 from roborock.exceptions import RoborockException
-from roborock.protocols.a01_protocol import decode_rpc_response
+from roborock.protocols.a01_protocol import decode_datapoint_value, decode_rpc_response
 from roborock.roborock_message import (
     RoborockDyadDataProtocol,
     RoborockMessage,
@@ -96,11 +96,13 @@ __all__ = [
 ]
 
 
-def _decode_dyad_schedule(value: str) -> list[DyadScheduleTask]:
-    """Decode the schedule data point, which is a JSON list or an empty string."""
+def _decode_dyad_schedule(value: list[dict[str, Any]] | str) -> list[DyadScheduleTask]:
+    """Decode the schedule data point, a list of tasks or an empty string when there are none."""
     if not value:
         return []
-    return [DyadScheduleTask.from_dict(task) for task in json.loads(value)]
+    if not isinstance(value, list):
+        raise ValueError(f"Unexpected schedule value: {value!r}")
+    return [DyadScheduleTask.from_dict(task) for task in value]
 
 
 DYAD_PROTOCOL_ENTRIES: dict[RoborockDyadDataProtocol, Callable] = {
@@ -151,8 +153,8 @@ DYAD_PROTOCOL_ENTRIES: dict[RoborockDyadDataProtocol, Callable] = {
     RoborockDyadDataProtocol.SELF_CLEAN_CUR_TEMP: lambda val: DyadSelfCleanWaterTemp(val).name,
     RoborockDyadDataProtocol.DRY_CUR_MODE: lambda val: DyadDryingMode(val).name,
     RoborockDyadDataProtocol.SCHEDULE_TASK: _decode_dyad_schedule,
-    RoborockDyadDataProtocol.SND_STATE: lambda val: DyadSndState.from_dict(json.loads(val)),
-    RoborockDyadDataProtocol.PRODUCT_INFO: lambda val: DyadProductInfo.from_dict(json.loads(val)),
+    RoborockDyadDataProtocol.SND_STATE: lambda val: DyadSndState.from_dict(val),
+    RoborockDyadDataProtocol.PRODUCT_INFO: lambda val: DyadProductInfo.from_dict(val),
 }
 
 ZEO_PROTOCOL_ENTRIES: dict[RoborockZeoProtocol, Callable] = {
@@ -481,11 +483,11 @@ class ZeoApi(A01Api[RoborockZeoProtocol]):
 
 
 def _parse_device_status(device_status: dict | None) -> dict[int, Any] | None:
-    """Normalize the cloud home data status snapshot to integer datapoint codes."""
+    """Normalize the cloud home data status snapshot to integer datapoint codes and decoded values."""
     if not device_status:
         return None
     try:
-        return {int(code): value for code, value in device_status.items()}
+        return {int(code): decode_datapoint_value(value) for code, value in device_status.items()}
     except (TypeError, ValueError):
         _LOGGER.debug("Ignoring malformed device status snapshot: %s", device_status)
         return None
