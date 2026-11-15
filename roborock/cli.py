@@ -1203,11 +1203,10 @@ async def get_device_info(ctx: click.Context, record: bool, device_info_file: st
                 click.echo(f"    - Skipping duplicate model {model}")
                 continue
 
+            product_nickname = SHORT_MODEL_TO_ENUM.get(model.split(".")[-1])
             current_product_data = {
                 "protocol_version": device.device_info.pv,
-                "product_nickname": device.product.product_nickname.name
-                if device.product.product_nickname
-                else "Unknown",
+                "product_nickname": product_nickname.name if product_nickname else "Unknown",
             }
             if device.v1_properties is not None:
                 try:

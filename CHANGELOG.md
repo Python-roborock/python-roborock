@@ -2,6 +2,46 @@
 
 <!-- version list -->
 
+## v7.23.1 (2026-11-15)
+
+### Bug Fixes
+
+- Correct unknown model families in device catalogue
+  ([#1029](https://github.com/Python-roborock/python-roborock/pull/1029),
+  [`fe38922`](https://github.com/Python-roborock/python-roborock/commit/fe38922a0b98635398ee7879564f3dc5cc44f8ba))
+
+- Report unknown product families in device info
+  ([#1029](https://github.com/Python-roborock/python-roborock/pull/1029),
+  [`fe38922`](https://github.com/Python-roborock/python-roborock/commit/fe38922a0b98635398ee7879564f3dc5cc44f8ba))
+
+
+## v7.23.0 (2026-11-15)
+
+### Features
+
+- **camera**: Expose V1 camera signaling commands
+  ([#1023](https://github.com/Python-roborock/python-roborock/pull/1023),
+  [`b77c102`](https://github.com/Python-roborock/python-roborock/commit/b77c1026d54b99d338f27dd611fb2915612ea97f))
+
+
+## v7.22.2 (2026-11-15)
+
+### Bug Fixes
+
+- **b01**: Reassemble fragmented B01/Q7 live map responses
+  ([#1048](https://github.com/Python-roborock/python-roborock/pull/1048),
+  [`1fd6b5e`](https://github.com/Python-roborock/python-roborock/commit/1fd6b5efdf071ace9738866b18e2343c2beb0bee))
+
+
+## v7.22.1 (2026-11-14)
+
+### Bug Fixes
+
+- Wrap empty cleaning record responses as parsing errors
+  ([#1034](https://github.com/Python-roborock/python-roborock/pull/1034),
+  [`590ba8c`](https://github.com/Python-roborock/python-roborock/commit/590ba8cc0e94350e3c2a12c28ab26d50730e897b))
+
+
 ## v7.22.0 (2026-11-09)
 
 ### Bug Fixes

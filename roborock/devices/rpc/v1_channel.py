@@ -47,6 +47,12 @@ __all__ = [
 
 _T = TypeVar("_T", bound=RoborockBase)
 _TIMEOUT = 10.0
+_SENSITIVE_CAMERA_COMMANDS = {
+    RoborockCommand.CHECK_HOMESEC_PASSWORD,
+    RoborockCommand.START_CAMERA_PREVIEW,
+    RoborockCommand.SEND_SDP_TO_ROBOT,
+    RoborockCommand.SEND_ICE_TO_ROBOT,
+}
 
 
 # Exponential backoff parameters for reconnecting to local
@@ -126,7 +132,7 @@ class RpcChannel(V1RpcChannel):
             strategy.name,
             request.request_id,
             request.method,
-            request.params,
+            "<redacted>" if request.method in _SENSITIVE_CAMERA_COMMANDS else request.params,
         )
 
         message = strategy.encoder(request)
@@ -135,7 +141,7 @@ class RpcChannel(V1RpcChannel):
             try:
                 decoded = strategy.decoder(response_message)
             except RoborockException as ex:
-                logger.debug("Exception while decoding message (%s): %s", response_message, ex)
+                logger.debug("Exception while decoding message (seq=%s): %s", response_message.seq, type(ex).__name__)
                 return
             if decoded is None:
                 return
@@ -530,13 +536,13 @@ class V1Channel(Channel):
 
     def _on_mqtt_message(self, message: RoborockMessage) -> None:
         """Handle incoming MQTT messages."""
-        self._logger.debug("V1Channel received MQTT message: %s", message)
+        self._logger.debug("V1Channel received MQTT message (seq=%s, protocol=%s)", message.seq, message.protocol)
         if self._callback:
             self._callback(message)
         try:
             datapoints = decode_data_protocol_message(message)
         except RoborockException as e:
-            self._logger.debug("Error decoding data protocol message: %s", e)
+            self._logger.debug("Error decoding data protocol message: %s", type(e).__name__)
             return
 
         if datapoints:
@@ -544,7 +550,7 @@ class V1Channel(Channel):
 
     def _on_local_message(self, message: RoborockMessage) -> None:
         """Handle incoming local messages."""
-        self._logger.debug("V1Channel received local message: %s", message)
+        self._logger.debug("V1Channel received local message (seq=%s, protocol=%s)", message.seq, message.protocol)
         if self._callback:
             self._callback(message)
 
