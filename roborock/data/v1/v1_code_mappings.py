@@ -75,6 +75,14 @@ class RoborockChargeStatus(RoborockEnum):
     charging = 1
 
 
+class CollisionAvoidanceMode(RoborockEnum):
+    """Describes the two-level collision avoidance mode."""
+
+    unknown = -1
+    high_coverage = 1
+    less_collision = 2
+
+
 class RoborockDockState(StrEnum):
     """Synthesized high-level dock and power state of the device.
 
