@@ -342,6 +342,7 @@ class CleanRecord(RoborockBase):
         return _attr_repr(self)
 
 
+@dataclass(repr=False)
 class CleanSummaryWithDetail(CleanSummary):
     """CleanSummary with the last CleanRecord included."""
 

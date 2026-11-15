@@ -1,6 +1,6 @@
 import logging
 
-from roborock.data import CleanRecord, CleanSummaryWithDetail, RoborockBase
+from roborock.data import CleanRecord, CleanSummary, CleanSummaryWithDetail, RoborockBase
 from roborock.devices.traits.v1 import common
 from roborock.exceptions import RoborockParsingException
 from roborock.roborock_typing import RoborockCommand
@@ -10,22 +10,26 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class CleanSummaryConverter(common.V1TraitDataConverter):
-    """Converter for CleanSummaryWithDetail objects."""
+    """Converter for CleanSummary objects.
+
+    The summary response carries no clean record, so merging the result leaves
+    the trait's last clean record untouched.
+    """
 
     def convert(self, response: common.V1ResponseData) -> RoborockBase:
         """Parse the response from the device into a CleanSummary."""
         if isinstance(response, dict):
-            return CleanSummaryWithDetail.from_dict(response)
+            return CleanSummary.from_dict(response)
         elif isinstance(response, list):
             clean_time, clean_area, clean_count, records = unpack_list(response, 4)
-            return CleanSummaryWithDetail(
+            return CleanSummary(
                 clean_time=clean_time,
                 clean_area=clean_area,
                 clean_count=clean_count,
                 records=records,
             )
         elif isinstance(response, int):
-            return CleanSummaryWithDetail(clean_time=response)
+            return CleanSummary(clean_time=response)
         raise ValueError(f"Unexpected clean summary format: {response!r}")
 
 
@@ -77,7 +81,8 @@ class CleanSummaryTrait(CleanSummaryWithDetail, common.V1TraitMixin):
     async def refresh(self) -> None:
         """Refresh the clean summary data and last clean record.
 
-        Assumes that the clean summary has already been fetched.
+        Assumes that the clean summary has already been fetched. The previous
+        clean record is kept if fetching the latest record fails.
         """
         await super().refresh()
         if not self.records:
