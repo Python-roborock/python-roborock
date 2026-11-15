@@ -1,7 +1,7 @@
 """Trait for the automatic dust collection frequency."""
 
 from roborock.data import DustCollectionFrequency, RoborockDockDustCollectionFrequencyCode
-from roborock.device_features import RoborockDockFeatures
+from roborock.device_features import DeviceFeatures, RoborockDockFeatures
 from roborock.devices.traits.v1 import common
 from roborock.exceptions import RoborockUnsupportedFeature
 from roborock.roborock_typing import RoborockCommand
@@ -13,8 +13,13 @@ _FREQUENCY_OPTIONS = [
 ]
 
 
-def _supports_dust_collection_frequency(dock_features: RoborockDockFeatures) -> bool:
-    return dock_features.is_collectable
+def supports_dust_collection_frequency(device_features: DeviceFeatures, dock_features: RoborockDockFeatures) -> bool:
+    """Return whether the app shows the auto-empty frequency for this device.
+
+    The app shows the dock's dust collection page only for a collecting dock on a
+    product that supports it (``isCollectDustModeSupported``, not Pearl).
+    """
+    return dock_features.is_collectable and device_features.is_collect_dust_mode_supported
 
 
 class DustCollectionFrequencyTrait(DustCollectionFrequency, common.V1TraitMixin):
@@ -23,11 +28,12 @@ class DustCollectionFrequencyTrait(DustCollectionFrequency, common.V1TraitMixin)
     The same value is reported as ``auto_dust_collection`` on the device status,
     which only picks up a change made here on its next refresh. Verified on the
     Saros 10R; other collecting docks are assumed to answer the same command.
+
+    Created by ``PropertiesApi`` when ``supports_dust_collection_frequency`` is true.
     """
 
     command = RoborockCommand.GET_DUST_COLLECTION_SWITCH_STATUS
     converter = common.DefaultConverter(DustCollectionFrequency)
-    requires_dock_features = _supports_dust_collection_frequency
 
     @property
     def frequency_options(self) -> list[RoborockDockDustCollectionFrequencyCode]:

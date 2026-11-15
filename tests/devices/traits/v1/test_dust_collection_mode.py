@@ -4,14 +4,29 @@ from unittest.mock import AsyncMock, call
 
 import pytest
 
-from roborock.data import RoborockDockDustCollectionModeCode, RoborockDockTypeCode
+from roborock.data import HomeDataDevice, RoborockDockDustCollectionModeCode, RoborockDockTypeCode
 from roborock.devices.device import RoborockDevice
 from roborock.devices.traits.v1.dust_collection_mode import DustCollectionModeTrait
 from roborock.exceptions import RoborockException, RoborockUnsupportedFeature
 from roborock.roborock_typing import RoborockCommand
+from tests import mock_data
 from tests.devices.traits.v1.helpers import dock_types_with_capability
 
 DUST_COLLECTION_MODE_DATA = [{"mode": 2}]
+
+# Saros 10R supports the dust collection setting (DCS) and is not a Pearl product.
+SAROS_10R = mock_data.DEVICE_PRODUCT_PAIRS["home_data_device_saros_10r.json"][0]
+# The S7 MaxV fixture's newFeatureSet (0x2041), as the test fixtures decode it, lacks the
+# dust collection setting bit. This is a property of the fixture, not of the real device.
+S7_MAXV = mock_data.DEVICE_PRODUCT_PAIRS["home_data_device_s7_maxv.json"][0]
+# Q Revo is a Pearl product, for which the app hides the dust collection page.
+Q_REVO = mock_data.DEVICE_PRODUCT_PAIRS["home_data_device_q_revo.json"][0]
+
+
+@pytest.fixture(name="device_info")
+def saros_10r_device_info() -> HomeDataDevice:
+    """Default to a device that supports the dust collection mode."""
+    return SAROS_10R
 
 
 @pytest.fixture(name="dust_collection_mode")
@@ -60,6 +75,17 @@ async def test_unsupported_dust_collection_mode(
     dock_type_code: RoborockDockTypeCode,
 ) -> None:
     """Test that the trait is not available for unsupported dock types."""
+    assert dust_collection_mode is None
+
+
+@pytest.mark.parametrize(("dock_type_code"), [RoborockDockTypeCode.o4_dock])
+@pytest.mark.parametrize(("device_info"), [S7_MAXV, Q_REVO], ids=["fixture_without_dcs", "pearl"])
+async def test_unsupported_device_dust_collection_mode(
+    dust_collection_mode: DustCollectionModeTrait | None,
+    dock_type_code: RoborockDockTypeCode,
+    device_info: HomeDataDevice,
+) -> None:
+    """Test that the trait follows the app's device gating on a collecting dock."""
     assert dust_collection_mode is None
 
 

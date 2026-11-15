@@ -4,12 +4,20 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from roborock.data import RoborockDockDustCollectionFrequencyCode, RoborockDockTypeCode
+from roborock.data import HomeDataDevice, RoborockDockDustCollectionFrequencyCode, RoborockDockTypeCode
 from roborock.devices.device import RoborockDevice
 from roborock.devices.traits.v1.dust_collection_frequency import DustCollectionFrequencyTrait
 from roborock.exceptions import RoborockException, RoborockUnsupportedFeature
 from roborock.roborock_typing import RoborockCommand
+from tests import mock_data
 from tests.devices.traits.v1.helpers import dock_types_with_capability
+
+SAROS_10R = mock_data.DEVICE_PRODUCT_PAIRS["home_data_device_saros_10r.json"][0]
+# The S7 MaxV fixture's newFeatureSet (0x2041), as the test fixtures decode it, lacks the
+# dust collection setting bit, which only the mode needs. This is a property of the fixture.
+S7_MAXV = mock_data.DEVICE_PRODUCT_PAIRS["home_data_device_s7_maxv.json"][0]
+# Q Revo is a Pearl product, for which the app hides the dust collection page.
+Q_REVO = mock_data.DEVICE_PRODUCT_PAIRS["home_data_device_q_revo.json"][0]
 
 
 @pytest.fixture(name="dust_collection_frequency")
@@ -44,6 +52,25 @@ async def test_unsupported_dust_collection_frequency(
 ) -> None:
     """Test that the trait is not available for unsupported dock types."""
     assert dust_collection_frequency is None
+
+
+@pytest.mark.parametrize(("dock_type_code"), [RoborockDockTypeCode.o4_dock])
+@pytest.mark.parametrize(
+    ("device_info", "available"),
+    [(SAROS_10R, True), (S7_MAXV, True), (Q_REVO, False)],
+    ids=["saros_10r", "fixture_without_dcs", "pearl"],
+)
+async def test_dust_collection_frequency_device_gating(
+    dust_collection_frequency: DustCollectionFrequencyTrait | None,
+    dock_type_code: RoborockDockTypeCode,
+    device_info: HomeDataDevice,
+    available: bool,
+) -> None:
+    """Test that the trait follows the app's device gating on a collecting dock.
+
+    Unlike the mode, the frequency does not need the dust collection setting feature.
+    """
+    assert (dust_collection_frequency is not None) is available
 
 
 @pytest.mark.parametrize(("dock_type_code"), [RoborockDockTypeCode.o4_dock])
