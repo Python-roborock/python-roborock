@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from roborock.data.containers import RoborockBase
-from roborock.devices.traits.v1.common import DefaultConverter, V1TraitMixin
+from roborock.devices.traits.v1.common import DefaultConverter, SingleValueConverter, V1TraitMixin
 from roborock.exceptions import RoborockParsingException
 from roborock.roborock_typing import RoborockCommand
 
@@ -50,3 +50,28 @@ async def test_valid_payload() -> None:
     await trait.refresh()
     assert trait.fake_field == 123
     assert trait.other_field == "abc"
+
+
+async def test_empty_list_payload_keeps_state() -> None:
+    """An empty list raises a parsing error and keeps the previous values."""
+    trait = FakeTrait()
+    trait._rpc_channel.send_command.return_value = [{"fake_field": 123, "other_field": "abc"}]
+    await trait.refresh()
+    trait._rpc_channel.send_command.return_value = []
+
+    with pytest.raises(
+        RoborockParsingException,
+        match=r"Failed to parse APP_GET_INIT_STATUS response for FakeTrait. Payload: \[\].*ValueError.*",
+    ):
+        await trait.refresh()
+
+    assert trait.fake_field == 123
+    assert trait.other_field == "abc"
+
+
+def test_single_value_converter_empty_list() -> None:
+    """The single-value converter rejects an empty list with ValueError."""
+    converter = SingleValueConverter(FakeTraitData, "fake_field")
+
+    with pytest.raises(ValueError, match="Empty FakeTraitData response"):
+        converter.convert([])
