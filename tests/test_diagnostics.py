@@ -133,15 +133,20 @@ def test_redact_json_string_in_device_status() -> None:
 
     redacted = redact_device_data({"device": {"deviceStatus": {"10005": product_info, "209": 100}}})
 
-    status: dict[str, Any] = redacted["device"]["deviceStatus"]
-    assert status["209"] == 100
-    assert json.loads(status["10005"]) == {
-        "sn": REDACTED,
-        "ssid": REDACTED,
-        "ip": REDACTED,
-        "mac": REDACTED,
-        "rssi": -53,
-        "oba": {"bom": "A.01"},
+    assert redacted == {
+        "device": {
+            "deviceStatus": {
+                "10005": {
+                    "sn": REDACTED,
+                    "ssid": REDACTED,
+                    "ip": REDACTED,
+                    "mac": REDACTED,
+                    "rssi": -53,
+                    "oba": {"bom": "A.01"},
+                },
+                "209": 100,
+            }
+        }
     }
 
 
@@ -149,23 +154,22 @@ def test_redact_json_string_in_list() -> None:
     """JSON strings inside lists are redacted too."""
     redacted = redact_device_data({"items": ['{"ip": "192.0.2.1"}', "plain"]})
 
-    assert redacted["items"] == [json.dumps({"ip": REDACTED}), "plain"]
+    assert redacted == {"items": [{"ip": REDACTED}, "plain"]}
 
 
 @pytest.mark.parametrize(
-    "value",
+    ("value", "expected"),
     [
-        "plain text",
-        "",
-        '{"RRPhotoPrivacyVersion":   "1"}',  # Not sensitive, so the formatting is kept
-        "[1, 2, 3]",
+        ('{"RRPhotoPrivacyVersion": "1"}', {"RRPhotoPrivacyVersion": "1"}),
+        ("[1, 2, 3]", [1, 2, 3]),
     ],
 )
-def test_redact_keeps_strings_without_sensitive_data(value: str) -> None:
-    """Strings with nothing to redact are returned unchanged."""
+def test_redact_decodes_json_strings(value: str, expected: Any) -> None:
+    """JSON documents stored as strings are decoded even when there is nothing to redact."""
+    assert redact_device_data({"value": value}) == {"value": expected}
+
+
+@pytest.mark.parametrize("value", ["plain text", "", "{not json"])
+def test_redact_keeps_other_strings(value: str) -> None:
+    """Strings that are not JSON documents are returned unchanged."""
     assert redact_device_data({"value": value}) == {"value": value}
-
-
-def test_redact_unparsable_json_string() -> None:
-    """A string that looks like JSON but cannot be checked is fully redacted."""
-    assert redact_device_data({"value": '{"sn": "TESTSERIAL"'}) == {"value": REDACTED}

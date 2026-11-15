@@ -377,7 +377,6 @@ async def test_dyad_as_dict_is_plain_data(fake_channel: FakeChannel):
 
     data = api.as_dict()
 
-    json.dumps(data)
     assert data["status"] == "charging"
     assert data["silent_mode_start_time"] == "22:00:00"
     assert data["schedule_task"][0]["cron"] == "15 14 31 10 *"

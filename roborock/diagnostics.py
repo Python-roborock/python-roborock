@@ -126,27 +126,24 @@ DEVICE_UID = "duid"
 REDACTED = "**REDACTED**"
 
 
-def _redact_json_string(value: str, path: str) -> str:
-    """Redact sensitive data in a JSON document stored as a string.
+def _decode_json_string(value: str) -> Any:
+    """Decode a JSON object or array stored as a string.
 
     Some devices report structured data this way, such as the A01 product info
-    data point. A string that looks like JSON but cannot be parsed is fully
-    redacted, since its contents cannot be checked.
+    data point. Any other string is returned unchanged.
     """
     if not value.lstrip().startswith(("{", "[")):
         return value
     try:
-        decoded = json.loads(value)
+        return json.loads(value)
     except json.JSONDecodeError:
-        return REDACTED
-    redacted = redact_device_data(decoded, path)
-    return value if redacted == decoded else json.dumps(redacted)
+        return value
 
 
 def redact_device_data(data: T, path: str = "") -> T | dict[str, Any]:
-    """Redact sensitive data in a dict, including JSON documents stored as strings."""
+    """Redact sensitive data in a dict, decoding JSON documents stored as strings."""
     if isinstance(data, str):
-        return cast(T, _redact_json_string(data, path))
+        data = _decode_json_string(data)
 
     if not isinstance(data, (Mapping, list)):
         return data
@@ -164,8 +161,10 @@ def redact_device_data(data: T, path: str = "") -> T | dict[str, Any]:
             redacted[key] = REDACTED
         elif key == DEVICE_UID and isinstance(value, str):
             redacted[key] = redact_device_uid(value)
-        else:
+        elif isinstance(value, (dict, str)):
             redacted[key] = redact_device_data(value, curr_path)
+        elif isinstance(value, list):
+            redacted[key] = [redact_device_data(item, curr_path) for item in value]
 
     return redacted
 
