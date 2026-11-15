@@ -12,7 +12,6 @@ from roborock.devices.transport.mqtt_channel import MqttChannel
 from roborock.exceptions import RoborockException
 from roborock.protocols.b01_q7_protocol import (
     B01_Q7_DPS,
-    B01_VERSION,
     CommandType,
     MapKey,
     ParamsType,
@@ -23,7 +22,7 @@ from roborock.protocols.b01_q7_protocol import (
     decode_rpc_response,
     encode_mqtt_payload,
 )
-from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
+from roborock.roborock_message import RoborockMessage
 
 _LOGGER = logging.getLogger(__name__)
 _TIMEOUT = 10.0
@@ -57,14 +56,6 @@ class Q7MapRpcChannel(Protocol):
     async def subscribe_map_pushes(self, callback: Callable[[bytes], None]) -> Callable[[], None]:
         """Subscribe to unsolicited map pushes, invoking callback with decoded SCMap bytes."""
         ...
-
-
-def _is_map_message(response_message: RoborockMessage) -> bool:
-    """Check whether a message is a B01 map response part or final part."""
-    return response_message.protocol in (
-        RoborockMessageProtocol.MAP_RESPONSE_PART,
-        RoborockMessageProtocol.MAP_RESPONSE,
-    )
 
 
 async def _send_command(
@@ -170,19 +161,6 @@ class B01Q7Channel(Channel, Q7RpcChannel, Q7MapRpcChannel):
     def __init__(self, mqtt_channel: MqttChannel, map_key: MapKey) -> None:
         self._mqtt_channel = mqtt_channel
         self._map_key = map_key
-        self._map_assembler = create_map_response_assembler()
-
-    def _match_map_response(self, response_message: RoborockMessage) -> bytes | None:
-        """Return the complete raw map payload for matching map messages.
-
-        Large maps arrive split into several messages; the assembler buffers
-        the parts and returns the joined payload once the frame is complete.
-        """
-        if not _is_map_message(response_message):
-            return None
-        if not response_message.payload or response_message.version != B01_VERSION:
-            return None
-        return self._map_assembler(response_message)
 
     @property
     def is_connected(self) -> bool:
@@ -216,7 +194,7 @@ class B01Q7Channel(Channel, Q7RpcChannel, Q7MapRpcChannel):
             raw_payload = await _send_command(
                 self._mqtt_channel,
                 request_message,
-                response_matcher=self._match_map_response,
+                response_matcher=create_map_response_assembler(),
             )
         except TimeoutError as ex:
             raise RoborockException(f"B01 map command timed out after {_TIMEOUT}s ({request_message})") from ex
@@ -230,9 +208,10 @@ class B01Q7Channel(Channel, Q7RpcChannel, Q7MapRpcChannel):
         callback receives the decoded (inflated) SCMap bytes for each frame.
         Frames split across several messages are reassembled first.
         """
+        assembler = create_map_response_assembler()
 
         def on_message(message: RoborockMessage) -> None:
-            if (raw_payload := self._match_map_response(message)) is None:
+            if (raw_payload := assembler(message)) is None:
                 return
             try:
                 decoded = decode_map_payload(raw_payload, map_key=self._map_key)

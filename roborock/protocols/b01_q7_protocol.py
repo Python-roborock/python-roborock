@@ -168,7 +168,7 @@ def create_map_response_assembler() -> Callable[[RoborockMessage], bytes | None]
         seqs = sorted(parts)
         if not parts[seqs[-1]][0]:
             return None
-        if seqs != list(range(seqs[0], seqs[-1] + 1)):
+        if seqs != list(range(1, seqs[-1] + 1)):
             return None
         joined = b"".join(parts[seq][1] for seq in seqs)
         length = _decoded_length(joined)
@@ -178,7 +178,7 @@ def create_map_response_assembler() -> Callable[[RoborockMessage], bytes | None]
 
     def assemble(message: RoborockMessage) -> bytes | None:
         """Return the complete raw payload once all parts of a frame arrived."""
-        if not message.payload:
+        if not message.payload or message.version != B01_VERSION:
             return None
         key = (message.random, message.timestamp)
         is_last = message.protocol == RoborockMessageProtocol.MAP_RESPONSE
