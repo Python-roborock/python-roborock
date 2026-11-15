@@ -1,5 +1,7 @@
 """Tests for typed mower command and reply payloads."""
 
+import pytest
+
 from roborock.data import (
     MowerAck,
     MowerAckResult,
@@ -161,8 +163,50 @@ def test_robot_msg_robot_info_reply() -> None:
     assert reply.robot_task == MowerRobotTask(
         working_state=MowerFsmState.SUSPEND, robot_detail_state=MowerDetailState.MOW_ZIG_ZAG
     )
-    assert reply.mow_continue == MowerMowContinue(continue_state=1, plan_mow=True, plan_id=7)
+    assert reply.mow_continue == MowerMowContinue(continue_state=MowerFsmState.IDLE, plan_mow=True, plan_id=7)
     assert reply.battery == MowerBattery(charged=False, percent=64, voltage=20100, current=0)
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        (18, MowerFsmState.MOW_GLOBAL),
+        ("MOW_GLOBAL", MowerFsmState.MOW_GLOBAL),
+        (25, MowerFsmState.SHUTDOWN),
+        ("MenuOptions", MowerFsmState.MENU_OPTIONS),
+        (44, MowerFsmState.RECOVERABLE_FAULT),
+        (49, MowerFsmState.WAITING),
+        (50, MowerFsmState.MOW_UNDOCK),
+        (60, MowerFsmState.TO_DOCK),
+        (61, MowerFsmState.SLEEP),
+        (69, MowerFsmState.MOW),
+        ("69", MowerFsmState.MOW),
+        ("MOW", MowerFsmState.MOW),
+        (70, MowerFsmState.DOCK),
+        ("DOCK", MowerFsmState.DOCK),
+        (89, MowerFsmState.PREPARE_EDIT_BOUNDARY),
+        (0, MowerFsmState.UNKNOWN),
+        ("UNKNOWN", MowerFsmState.UNKNOWN),
+        (999, MowerFsmState.UNKNOWN),
+        ("FUTURE_STATE", MowerFsmState.UNKNOWN),
+    ],
+)
+def test_robot_msg_fsm_states(raw: int | str, expected: MowerFsmState) -> None:
+    """Task, continuation and mowing states accept wire names and codes without dropping fields."""
+    reply = MowerRobotMsg.from_dict(
+        {
+            "robot_task": {"working_state": raw},
+            "mow_continue": {"continue_state": raw},
+            "mow_working_state": raw,
+        }
+    )
+
+    assert reply.robot_task is not None
+    assert reply.robot_task.working_state is expected
+    assert reply.mow_continue is not None
+    assert reply.mow_continue.continue_state is expected
+    assert reply.mow_working_state is expected
+    assert MowerRobotMsg.from_dict(reply.as_dict()) == reply
 
 
 def test_robot_msg_feature_set_accepts_decimal_strings() -> None:
@@ -345,3 +389,5 @@ def test_omitted_zero_values_retain_payload_presence() -> None:
     assert MowerAck.from_dict({"id": "5", "result": 0}) == MowerAck(id="5", result=MowerAckResult.OK)
     assert MowerPlanDay.from_dict({}) == MowerPlanDay()
     assert MowerPlanDay.from_dict({"type": 0}) == MowerPlanDay(type=MowerWeekday.SUNDAY)
+    assert MowerMowContinue.from_dict({}).continue_state is None
+    assert MowerMowContinue.from_dict({"continue_state": 0}).continue_state is MowerFsmState.UNKNOWN

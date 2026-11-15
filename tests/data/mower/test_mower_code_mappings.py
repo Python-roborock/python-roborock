@@ -16,6 +16,7 @@ from roborock.data.mower import (
     MowerErrorCode,
     MowerFcState,
     MowerFeature,
+    MowerFsmState,
     MowerMowState,
     MowerMowType,
     MowerNetworkChannel,
@@ -91,10 +92,25 @@ def test_mower_enum_codes_are_unique(enum_cls: type[RoborockModeEnum]) -> None:
         (MowerAckResult, 0, MowerAckResult.OK),
         (MowerWeekday, 0, MowerWeekday.SUNDAY),
         (MowerFeature, 0, MowerFeature.RTK),
+        (MowerFsmState, 25, MowerFsmState.SHUTDOWN),
+        (MowerFsmState, 31, MowerFsmState.MENU_OPTIONS),
+        (MowerFsmState, 44, MowerFsmState.RECOVERABLE_FAULT),
+        (MowerFsmState, 49, MowerFsmState.WAITING),
+        (MowerFsmState, 50, MowerFsmState.MOW_UNDOCK),
+        (MowerFsmState, 60, MowerFsmState.TO_DOCK),
+        (MowerFsmState, 61, MowerFsmState.SLEEP),
+        (MowerFsmState, 69, MowerFsmState.MOW),
+        (MowerFsmState, 70, MowerFsmState.DOCK),
+        (MowerFsmState, 89, MowerFsmState.PREPARE_EDIT_BOUNDARY),
     ],
 )
 def test_mower_enum_code_lookup(enum_cls: type[RoborockModeEnum], code: int, expected: RoborockModeEnum) -> None:
     assert enum_cls.from_code(code) is expected
+
+
+def test_fsm_state_covers_complete_wire_domain() -> None:
+    """The task-machine schema defines every code from UNKNOWN through PREPARE_EDIT_BOUNDARY."""
+    assert {member.code for member in MowerFsmState} == set(range(90))
 
 
 @pytest.mark.parametrize(
@@ -134,6 +150,7 @@ def test_misspelled_wire_names_are_preserved(member: RoborockModeEnum, wire_name
         (MowerEffMode, 1, MowerEffMode.DAILY),
         (MowerEffMode, "1", MowerEffMode.DAILY),
         (MowerDetailState, "MAP_ERASEING", MowerDetailState.MAP_ERASING),
+        (MowerFsmState, "MenuOptions", MowerFsmState.MENU_OPTIONS),
         # Unknown values resolve to the explicit unknown member, synthetic or protocol-defined.
         (MowerMowType, 9999, MowerMowType.UNKNOWN),
         (MowerMowType, "FUTURE_TYPE", MowerMowType.UNKNOWN),

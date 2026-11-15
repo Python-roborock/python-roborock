@@ -267,7 +267,7 @@ class MowerRobotTask(RoborockBase):
 class MowerMowContinue(RoborockBase):
     """Retained-task continuation state (``rock.common.MowContinue``)."""
 
-    continue_state: int | None = None
+    continue_state: MowerFsmState | None = None
     plan_mow: bool | None = None
     mow_dock_manual: bool | None = None
     plan_id: int | None = None
