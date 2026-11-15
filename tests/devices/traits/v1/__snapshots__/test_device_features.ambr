@@ -181,64 +181,82 @@
 # ---
 # name: test_is_consumable_field_supported[home_data_device_p30_pro.json]
   dict({
+    'cleaning_brush_work_times': False,
     'filter_work_time': True,
     'main_brush_work_time': True,
     'side_brush_work_time': True,
+    'strainer_work_times': True,
   })
 # ---
 # name: test_is_consumable_field_supported[home_data_device_pearls.json]
   dict({
+    'cleaning_brush_work_times': False,
     'filter_work_time': True,
     'main_brush_work_time': True,
     'side_brush_work_time': True,
+    'strainer_work_times': True,
   })
 # ---
 # name: test_is_consumable_field_supported[home_data_device_q5_max.json]
   dict({
+    'cleaning_brush_work_times': False,
     'filter_work_time': True,
     'main_brush_work_time': True,
     'side_brush_work_time': True,
+    'strainer_work_times': False,
   })
 # ---
 # name: test_is_consumable_field_supported[home_data_device_q_revo.json]
   dict({
+    'cleaning_brush_work_times': False,
     'filter_work_time': True,
     'main_brush_work_time': True,
     'side_brush_work_time': True,
+    'strainer_work_times': True,
   })
 # ---
 # name: test_is_consumable_field_supported[home_data_device_qrevo_2_pro.json]
   dict({
+    'cleaning_brush_work_times': False,
     'filter_work_time': True,
     'main_brush_work_time': True,
     'side_brush_work_time': True,
+    'strainer_work_times': True,
   })
 # ---
 # name: test_is_consumable_field_supported[home_data_device_s5e.json]
   dict({
+    'cleaning_brush_work_times': False,
     'filter_work_time': True,
     'main_brush_work_time': True,
     'side_brush_work_time': True,
+    'strainer_work_times': False,
   })
 # ---
 # name: test_is_consumable_field_supported[home_data_device_s7_maxv.json]
   dict({
+    'cleaning_brush_work_times': True,
     'filter_work_time': True,
     'main_brush_work_time': True,
     'side_brush_work_time': True,
+    'strainer_work_times': True,
   })
 # ---
 # name: test_is_consumable_field_supported[home_data_device_saros.json]
   dict({
+    'cleaning_brush_work_times': True,
     'filter_work_time': True,
     'main_brush_work_time': True,
     'side_brush_work_time': True,
+    'strainer_work_times': True,
   })
 # ---
 # name: test_is_consumable_field_supported[home_data_device_saros_10r.json]
   dict({
+    'cleaning_brush_work_times': True,
     'filter_work_time': True,
     'main_brush_work_time': True,
     'side_brush_work_time': True,
+    'strainer_work_times': True,
   })
 # ---

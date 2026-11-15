@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 import pytest
 from syrupy import SnapshotAssertion
 
-from roborock.data import HomeDataDevice
+from roborock.data import HomeDataDevice, RoborockDockTypeCode
 from roborock.data.v1.v1_containers import ConsumableField, StatusField
 from roborock.devices.cache import DeviceCache
 from roborock.devices.device import RoborockDevice
@@ -61,6 +61,29 @@ async def test_is_consumable_field_supported(
         field.value: device_features_trait.is_field_supported(ConsumableTrait, field) for field in ConsumableField
     }
     assert is_v1_supported == snapshot
+
+
+@pytest.mark.parametrize(
+    ("dock_type_code", "field", "expected"),
+    [
+        (RoborockDockTypeCode.shell_4r_dock, ConsumableField.STRAINER_WORK_TIME, False),
+        (RoborockDockTypeCode.shell_4s_dock, ConsumableField.STRAINER_WORK_TIME, True),
+        (RoborockDockTypeCode.o4_dock, ConsumableField.STRAINER_WORK_TIME, True),
+        (RoborockDockTypeCode.o1_dock, ConsumableField.STRAINER_WORK_TIME, False),
+        (RoborockDockTypeCode.o4_dock, ConsumableField.CLEANING_BRUSH_WORK_TIME, True),
+        (RoborockDockTypeCode.shell_4r_dock, ConsumableField.CLEANING_BRUSH_WORK_TIME, False),
+    ],
+)
+async def test_is_dock_consumable_field_supported(
+    device: RoborockDevice,
+    discover_features_fixture: None,
+    dock_type_code: RoborockDockTypeCode,
+    field: ConsumableField,
+    expected: bool,
+) -> None:
+    """Test dock consumable support follows the dock type."""
+    assert device.v1_properties is not None
+    assert device.v1_properties.device_features.is_field_supported(ConsumableTrait, field) is expected
 
 
 @pytest.mark.parametrize("payload", [[], ["ok"]], ids=["empty", "non-dict"])
