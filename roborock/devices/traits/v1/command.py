@@ -25,6 +25,13 @@ class CommandTrait:
         """
         self._rpc_channel = None
 
+    async def clean_segments(self, segment_ids: list[int]) -> None:
+        """Start cleaning the given segments (rooms) of the current map.
+
+        Segment ids are the `segment_id` values reported by the `rooms` trait.
+        """
+        await self.send(RoborockCommand.APP_SEGMENT_CLEAN, params=[{"segments": segment_ids}])
+
     async def send(self, command: RoborockCommand | str, params: ParamsType = None) -> Any:
         """Send a command to the device.
 
