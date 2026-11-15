@@ -14,7 +14,7 @@ import time
 from collections import Counter
 from collections.abc import Generator, Mapping
 from contextlib import contextmanager
-from typing import Any, Self, TypeVar, cast
+from typing import Any, Self, TypeVar, overload
 
 
 class Diagnostics:
@@ -131,6 +131,10 @@ def _decode_json_string(value: str) -> Any:
 
     Some devices report structured data this way, such as the A01 product info
     data point. Any other string is returned unchanged.
+
+    `roborock.protocols.a01_protocol.decode_datapoint_value` does the same for A01
+    data points. This module cannot import it: `roborock.util` imports this module,
+    so the import would be circular.
     """
     if not value.lstrip().startswith(("{", "[")):
         return value
@@ -140,8 +144,20 @@ def _decode_json_string(value: str) -> Any:
         return value
 
 
-def redact_device_data(data: T, path: str = "") -> T | dict[str, Any]:
-    """Redact sensitive data in a dict, decoding JSON documents stored as strings."""
+@overload
+def redact_device_data(data: Mapping[str, Any], path: str = "") -> dict[str, Any]: ...
+
+
+@overload
+def redact_device_data(data: T, path: str = "") -> T | dict[str, Any] | list[Any]: ...
+
+
+def redact_device_data(data: Any, path: str = "") -> Any:
+    """Redact sensitive data in a dict or list.
+
+    Strings holding a JSON object or array are decoded and redacted, so a string
+    input can return a dict or a list. Other values are returned unchanged.
+    """
     if isinstance(data, str):
         data = _decode_json_string(data)
 
@@ -149,7 +165,7 @@ def redact_device_data(data: T, path: str = "") -> T | dict[str, Any]:
         return data
 
     if isinstance(data, list):
-        return cast(T, [redact_device_data(item, path) for item in data])
+        return [redact_device_data(item, path) for item in data]
 
     redacted = {**data}
 

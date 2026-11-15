@@ -1,14 +1,18 @@
 import json
+from dataclasses import replace
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from roborock.data import HomeDataDevice
 from roborock.devices.device import RoborockDevice
 from roborock.devices.traits.a01 import DyadApi, ZeoApi, create
 from roborock.roborock_message import RoborockDyadDataProtocol, RoborockZeoProtocol
-from roborock.testing.a01_simulator import DEFAULT_DYAD_PRODUCT
-from tests import mock_data
+from roborock.testing.a01_simulator import (
+    DEFAULT_DYAD_DEVICE_INFO,
+    DEFAULT_DYAD_PRODUCT,
+    DEFAULT_ZEO_DEVICE_INFO,
+    DEFAULT_ZEO_PRODUCT,
+)
 
 
 @pytest.fixture
@@ -58,27 +62,46 @@ async def test_zeo_query_values(mock_channel):
         assert result[RoborockZeoProtocol.COUNTDOWN] == 120
 
 
-def test_dyad_diagnostic_data_includes_redacted_traits(mock_channel):
-    """A01 diagnostics report the decoded state without identifiers."""
-    device_status = {
-        "201": 3,
-        "10005": json.dumps(
-            {
-                "sn": "TESTSERIAL",
-                "ssid": "test-network",
-                "timezone": "Europe/Warsaw",
-                "posix_timezone": "CET-1CEST,M3.5.0/2,M10.5.0/3",
-                "ip": "192.0.2.1",
-                "mac": "00:00:5e:00:53:01",
-                "oba": {"bom": "A.01"},
-            }
-        ),
+DYAD_PRODUCT_INFO_JSON = json.dumps(
+    {
+        "sn": "TESTSERIAL",
+        "ssid": "test-network",
+        "timezone": "Europe/Warsaw",
+        "posix_timezone": "CET-1CEST,M3.5.0/2,M10.5.0/3",
+        "ip": "192.0.2.1",
+        "mac": "00:00:5e:00:53:01",
+        "oba": {"bom": "A.01"},
     }
+)
+
+
+@pytest.mark.parametrize(
+    ("product", "device_info", "device_status", "expected_traits"),
+    [
+        (
+            DEFAULT_DYAD_PRODUCT,
+            DEFAULT_DYAD_DEVICE_INFO,
+            {"201": 3, "10005": DYAD_PRODUCT_INFO_JSON},
+            {"status": "charging", "product_info": {"timezone": "Europe/Warsaw"}},
+        ),
+        (
+            DEFAULT_ZEO_PRODUCT,
+            DEFAULT_ZEO_DEVICE_INFO,
+            {"203": 1, "217": 5},
+            {"state": "standby", "countdown": 5},
+        ),
+    ],
+    ids=["dyad", "zeo"],
+)
+def test_a01_diagnostic_data_includes_redacted_traits(
+    mock_channel, product, device_info, device_status, expected_traits
+):
+    """A01 diagnostics report the decoded state without identifiers."""
     device = RoborockDevice(
-        device_info=HomeDataDevice.from_dict({**mock_data.Q10_DEVICE_DATA, "deviceStatus": device_status}),
-        product=DEFAULT_DYAD_PRODUCT,
+        device_info=replace(device_info, device_status=device_status),
+        product=product,
         channel=AsyncMock(),
-        trait=create(DEFAULT_DYAD_PRODUCT, mock_channel, device_status=device_status),
+        trait=create(product, mock_channel, device_status=device_status),
     )
 
     diagnostics = device.diagnostic_data()
@@ -86,5 +109,9 @@ def test_dyad_diagnostic_data_includes_redacted_traits(mock_channel):
     dumped = json.dumps(diagnostics)
     for private_value in ("TESTSERIAL", "test-network", "192.0.2.1", "00:00:5e:00:53:01"):
         assert private_value not in dumped
-    assert diagnostics["traits"]["status"] == "charging"
-    assert diagnostics["traits"]["product_info"]["timezone"] == "Europe/Warsaw"
+    traits = diagnostics["traits"]
+    for name, expected in expected_traits.items():
+        if isinstance(expected, dict):
+            assert expected.items() <= traits[name].items()
+        else:
+            assert traits[name] == expected

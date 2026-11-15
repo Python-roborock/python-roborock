@@ -96,7 +96,7 @@ __all__ = [
 ]
 
 
-def _decode_dyad_schedule(value: list[dict[str, Any]] | str) -> list[DyadScheduleTask]:
+def _decode_dyad_schedule(value: Any) -> list[DyadScheduleTask]:
     """Decode the schedule data point, a list of tasks or an empty string when there are none."""
     if not value:
         return []

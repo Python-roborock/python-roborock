@@ -161,17 +161,8 @@ class A01DeviceSimulator(RoborockDeviceSimulator):
 
         id_query_key = int(RoborockDyadDataProtocol.ID_QUERY)
         if query_raw := decoded_dps.get(id_query_key):
-            query_list: list[Any] = []
-            if isinstance(query_raw, str):
-                try:
-                    parsed = json.loads(query_raw)
-                    if isinstance(parsed, list):
-                        query_list = parsed
-                except (json.JSONDecodeError, TypeError):
-                    pass
-            elif isinstance(query_raw, list):
-                query_list = query_raw
-
+            # decode_rpc_response already decodes the JSON list of requested data points.
+            query_list: list[Any] = query_raw if isinstance(query_raw, list) else []
             for key_val in query_list:
                 key_int = int(_extract_int_value(key_val))
                 if key_int in self.status:
@@ -184,7 +175,8 @@ class A01DeviceSimulator(RoborockDeviceSimulator):
         # Direct setters: update internal state for received DPS
         for code, val in decoded_dps.items():
             if code != id_query_key:
-                self.status[code] = val
+                # Keep JSON values in the string form the device sends.
+                self.status[code] = json.dumps(val) if isinstance(val, (dict, list)) else val
                 updated_dps[code] = val
 
         if updated_dps:
