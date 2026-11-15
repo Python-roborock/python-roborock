@@ -431,7 +431,7 @@ class MultiMapsListRoom(RoborockBase):
     @property
     def named_room_mapping(self) -> NamedRoomMapping | None:
         """Returns a NamedRoomMapping object if valid."""
-        if self.id is None or self.iot_name_id is None:
+        if self.id is None or not self.iot_name_id:
             return None
         return NamedRoomMapping(
             segment_id=self.id,

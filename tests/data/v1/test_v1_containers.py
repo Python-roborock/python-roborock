@@ -371,6 +371,28 @@ def test_multi_maps_list_info(snapshot: SnapshotAssertion) -> None:
     assert deserialized == snapshot
 
 
+def test_multi_maps_list_rooms_map_skips_rooms_without_iot_name_id() -> None:
+    """Test that room entries with an empty cloud room id are not reported as rooms."""
+    maps_list = MultiMapsList.from_dict(
+        {
+            "map_info": [
+                {
+                    "mapFlag": 0,
+                    "name": "Home",
+                    "rooms": [
+                        {"id": 1, "tag": 2, "iot_name_id": "1000001", "iot_name": "Kitchen"},
+                        {"id": 2, "tag": 3, "iot_name_id": "1000002", "iot_name": "Bedroom"},
+                        {"id": 3, "tag": -1, "iot_name_id": "", "iot_name": "Room"},
+                        {"id": 4, "tag": -1, "iot_name_id": "-1", "iot_name": "Hall"},
+                    ],
+                }
+            ]
+        }
+    )
+    assert maps_list.map_info
+    assert maps_list.map_info[0].rooms_map.keys() == {1, 2, 4}
+
+
 def test_accurate_map_flag() -> None:
     """Test that we parse the map flag accurately."""
     s = StatusV2.from_dict(STATUS)
