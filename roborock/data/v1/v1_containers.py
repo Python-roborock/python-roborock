@@ -279,8 +279,26 @@ class StatusV2(RoborockBase):
 
 
 @dataclass
+class DnDTimerActions(RoborockBase):
+    """Action flags reported with the DND timer, kept as the raw integers."""
+
+    resume: int | None = None
+    """1 when the disable auto top up option is enabled for DND, 0 when disabled."""
+    vol: int | None = None
+    """1 when the quieten voice alerts option is enabled for DND, 0 when disabled."""
+    led: int | None = None
+    """1 when the dim indicator lights option is enabled for DND, 0 when disabled."""
+    dust: int | None = None
+    """1 when the disable auto emptying option is enabled for DND, 0 when disabled."""
+    dry: int | None = None
+    """1 when the disable auto drying option is enabled for DND, 0 when disabled."""
+
+
+@dataclass
 class DnDTimer(RoborockBaseTimer):
     """DnDTimer"""
+
+    actions: DnDTimerActions | None = None
 
 
 @dataclass

@@ -489,7 +489,7 @@
   })
 # ---
 # name: test_device_trait_command_parsing[dnd]
-  DoNotDisturbTrait(start_hour=22, start_minute=0, end_hour=8, end_minute=0, enabled=1)
+  DoNotDisturbTrait(start_hour=22, start_minute=0, end_hour=8, end_minute=0, enabled=1, actions=None)
 # ---
 # name: test_device_trait_command_parsing[dnd].1
   dict({

@@ -4,11 +4,20 @@ from unittest.mock import AsyncMock, call
 
 import pytest
 
-from roborock.data import DnDTimer
+from roborock.data import DnDTimer, DnDTimerActions
 from roborock.devices.device import RoborockDevice
 from roborock.devices.traits.v1.do_not_disturb import DoNotDisturbTrait
 from roborock.exceptions import RoborockException
 from roborock.roborock_typing import RoborockCommand
+
+# Timer fields captured from a Qrevo 2 Pro (roborock.vacuum.a294) with get_dnd_timer.
+DND_TIMER_RESPONSE = {
+    "start_hour": 22,
+    "start_minute": 0,
+    "end_hour": 8,
+    "end_minute": 0,
+    "enabled": 1,
+}
 
 
 @pytest.fixture
@@ -28,7 +37,41 @@ def sample_dnd_timer() -> DnDTimer:
         end_hour=8,
         end_minute=0,
         enabled=1,
+        actions=DnDTimerActions(resume=1, vol=1, led=1, dust=1, dry=1),
     )
+
+
+@pytest.mark.parametrize(
+    ("response", "expected_actions"),
+    [
+        # Action flags read from the same device with different DND options turned on.
+        (
+            {**DND_TIMER_RESPONSE, "actions": {"resume": 1, "dust": 0, "led": 0, "vol": 1, "dry": 0}},
+            DnDTimerActions(resume=1, vol=1, led=0, dust=0, dry=0),
+        ),
+        (
+            {**DND_TIMER_RESPONSE, "actions": {"resume": 0, "dust": 1, "led": 1, "vol": 1, "dry": 0}},
+            DnDTimerActions(resume=0, vol=1, led=1, dust=1, dry=0),
+        ),
+        (
+            {**DND_TIMER_RESPONSE, "actions": {"resume": 1, "dust": 0, "led": 1, "vol": 0, "dry": 0}},
+            DnDTimerActions(resume=1, vol=0, led=1, dust=0, dry=0),
+        ),
+        (DND_TIMER_RESPONSE, None),
+    ],
+)
+async def test_get_dnd_timer_actions(
+    dnd_trait: DoNotDisturbTrait,
+    mock_rpc_channel: AsyncMock,
+    response: dict,
+    expected_actions: DnDTimerActions | None,
+) -> None:
+    """Test reading the action flags reported with the DND timer."""
+    mock_rpc_channel.send_command.return_value = [response]
+
+    await dnd_trait.refresh()
+
+    assert dnd_trait.actions == expected_actions
 
 
 async def test_get_dnd_timer_success(
@@ -48,6 +91,7 @@ async def test_get_dnd_timer_success(
     assert dnd_trait.end_minute == 0
     assert dnd_trait.enabled == 1
     assert dnd_trait.is_on
+    assert dnd_trait.actions == sample_dnd_timer.actions
 
     # Verify the RPC call was made correctly
     mock_rpc_channel.send_command.assert_called_once_with(RoborockCommand.GET_DND_TIMER)
