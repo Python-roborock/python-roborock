@@ -376,7 +376,10 @@ def get_current_cleaning_mode(
     mop_mode: int | CleanRoutes | None,
     features: DeviceFeatures,
 ) -> CleaningMode | None:
-    """Classify the current high-level cleaning mode from individual mode codes."""
+    """Classify the current high-level cleaning mode from individual mode codes.
+
+    The result is None when the classified mode is not in get_cleaning_mode_options(features).
+    """
     if not features.is_support_water_mode:
         return None
     clean_mode_enum = _resolve_clean_mode(clean_mode, features)

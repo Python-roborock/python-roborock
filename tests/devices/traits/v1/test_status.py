@@ -835,10 +835,17 @@ def test_mixed_custom_and_smart_codes_are_custom() -> None:
     assert trait.current_cleaning_mode == CleaningMode.CUSTOM
 
 
-def test_current_mode_outside_options_is_none() -> None:
+@pytest.mark.parametrize(
+    ("features", "codes"),
+    [
+        ({"is_custom_mode_supported": False}, (106, 204, 302)),
+        ({"is_smart_clean_mode_set_supported": False}, (110, 209, 306)),
+    ],
+)
+def test_current_mode_outside_options_is_none(features: dict[str, bool], codes: tuple[int, int, int]) -> None:
     """A mode that the device does not offer is not reported as the current mode."""
-    trait = _create_cleaning_mode_status_trait(is_custom_mode_supported=False)
-    trait.fan_power, trait.water_box_mode, trait.mop_mode = 106, 204, 302
+    trait = _create_cleaning_mode_status_trait(**features)
+    trait.fan_power, trait.water_box_mode, trait.mop_mode = codes
 
     assert trait.current_cleaning_mode is None
 
@@ -976,7 +983,12 @@ def test_water_slide_raw_position_name_unchanged() -> None:
 
 @pytest.mark.parametrize(
     ("soft", "pure_mop", "in_list", "name"),
-    [(True, False, True, "gentle"), (False, True, False, "off"), (False, False, False, "gentle")],
+    [
+        (True, False, True, "gentle"),
+        (True, True, True, "gentle"),
+        (False, True, False, "off"),
+        (False, False, False, "gentle"),
+    ],
 )
 def test_fan_code_105(soft: bool, pure_mop: bool, in_list: bool, name: str) -> None:
     """Code 105 is only selectable as gentle on soft-clean devices but is always named."""

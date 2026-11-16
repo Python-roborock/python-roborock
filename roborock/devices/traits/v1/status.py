@@ -52,11 +52,12 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
     - Water Mode
     - Mop Route
 
-    You should use the _options version of the attribute to know which are
-    supported for your device (i.e. fan_speed_options)
-    Then you can use the _mapping to convert an int value to the actual Enum.
-    (i.e. fan_speed_mapping)
-    You can use the _name property to get the str value of the enum. (i.e. fan_speed_name)
+    The _options and _mapping versions of the attribute (i.e. fan_speed_options,
+    fan_speed_mapping) hold only the user-selectable values, i.e. what you can
+    write to the device. They do not include SmartPlan or custom codes.
+    Use the _name property (i.e. fan_speed_name), or get_fan_speed_name,
+    get_water_mode_name and get_mop_route_name, to name the current value,
+    including SmartPlan and custom codes.
 
     """
 
