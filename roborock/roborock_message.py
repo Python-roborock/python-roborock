@@ -329,6 +329,9 @@ class RoborockB01Props(StrEnum):
     SERIAL_NUMBER = "serial_number"
     RECOMMEND = "recommend"
     ADD_SWEEP_STATUS = "add_sweep_status"
+    # Settable individually via prop.set (reported nested under ``privacy`` by prop.get).
+    CARPET_TURBO = "carpet_turbo"
+    CARPET_AVOID = "carpet_avoid"
 
 
 ROBOROCK_DATA_STATUS_PROTOCOL = [
