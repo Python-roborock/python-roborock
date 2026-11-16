@@ -1296,7 +1296,8 @@ These features are enabled/disabled based on specific device model whitelists or
 ---
 
 ### is_soft_clean_mode_supported
-**Model Whitelist:** TANOSV, TANOSE, TANOS
+**Model Whitelist:** TANOSV, TANOSE, TANOS, RUBYSC, RUBYSLITE, RUBYSE
+**Source:** Roborock app `isSoftCleanModeSupportedInMain`
 **Feature:** Soft Clean Mode
 **Description:** Gentle cleaning mode for delicate floors.
 **Impact:** Reduced suction and brush speed for sensitive surfaces.
@@ -1304,7 +1305,8 @@ These features are enabled/disabled based on specific device model whitelists or
 ---
 
 ### is_custom_mode_supported
-**Model Blacklist:** TANOS (all except TANOS)
+**Model Blacklist:** TANOS, RUBYPLUS, RUBYSC, RUBYSE (all except these)
+**Source:** Roborock app `isCustomModeSupported`
 **Feature:** Custom Cleaning Mode
 **Description:** User-defined custom cleaning modes.
 **Impact:** Create personalized cleaning modes with specific parameters.
