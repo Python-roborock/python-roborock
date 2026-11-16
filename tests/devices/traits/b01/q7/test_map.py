@@ -14,4 +14,4 @@ async def test_q7_map_refresh(q7_api: Q7PropertiesApi, fake_channel: FakeQ7Chann
     command, params = fake_channel.published_commands[0]
     assert command == RoborockB01Q7Methods.GET_MAP_LIST
     assert params == {}
-    assert q7_api.map.map_list == [Q7MapListEntry(id=111)]
+    assert q7_api.map.map_list == [Q7MapListEntry(id=111, name="Map 1")]
