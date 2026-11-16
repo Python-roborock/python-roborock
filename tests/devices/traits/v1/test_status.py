@@ -688,7 +688,9 @@ def test_current_cleaning_mode_water_slide_legacy_codes(
     water_box_mode: int | None, expected_mode: CleaningMode | None
 ) -> None:
     """Keep legacy and unknown status decoding on water-slide devices."""
-    status_trait = _create_cleaning_mode_status_trait(is_water_slide_mode_supported=True)
+    status_trait = _create_cleaning_mode_status_trait(
+        is_water_slide_mode_supported=True, is_smart_clean_mode_set_supported=True
+    )
     status_trait.fan_power = 102
     status_trait.water_box_mode = water_box_mode
     status_trait.mop_mode = 300
@@ -787,21 +789,71 @@ async def test_set_cleaning_mode_water_slide_wire_payload(
     mock_rpc_channel.send_command.assert_called_once_with(RoborockCommand.SET_CLEAN_MOTOR_MODE, params=[expected])
 
 
-def test_cleaning_mode_options_water_slide_device() -> None:
+@pytest.mark.parametrize("water_slide", [False, True])
+@pytest.mark.parametrize(
+    ("custom", "smart", "extra"),
+    [
+        (True, True, [CleaningMode.CUSTOM, CleaningMode.SMART_MODE]),
+        (False, True, [CleaningMode.SMART_MODE]),
+        (True, False, [CleaningMode.CUSTOM]),
+        (False, False, []),
+    ],
+)
+def test_cleaning_mode_options_follow_app_flags(
+    water_slide: bool, custom: bool, smart: bool, extra: list[CleaningMode]
+) -> None:
     """Custom and SmartPlan options depend only on their feature flags, also on water-slide devices."""
     status_trait = _create_cleaning_mode_status_trait(
-        is_water_slide_mode_supported=True,
-        is_customized_clean_supported=True,
-        is_smart_clean_mode_set_supported=True,
+        is_water_slide_mode_supported=water_slide,
+        is_custom_mode_supported=custom,  # the helper keeps is_customized_clean_supported=True
+        is_smart_clean_mode_set_supported=smart,
     )
 
     assert status_trait.cleaning_mode_options == [
         CleaningMode.VACUUM,
         CleaningMode.VAC_AND_MOP,
         CleaningMode.MOP,
-        CleaningMode.CUSTOM,
-        CleaningMode.SMART_MODE,
+        *extra,
     ]
+
+
+def test_cleaning_mode_options_custom_needs_customized_clean() -> None:
+    """Custom mode is not offered without the customized-clean feature, even if the model allows it."""
+    status_trait = _create_cleaning_mode_status_trait(
+        is_custom_mode_supported=True,
+        is_customized_clean_supported=False,
+    )
+
+    assert CleaningMode.CUSTOM not in status_trait.cleaning_mode_options
+
+
+def test_mixed_custom_and_smart_codes_are_custom() -> None:
+    """Custom wins over SmartPlan when the codes mix both."""
+    trait = _create_cleaning_mode_status_trait(is_custom_mode_supported=True, is_smart_clean_mode_set_supported=True)
+    trait.fan_power, trait.water_box_mode, trait.mop_mode = 106, 209, 300
+
+    assert trait.current_cleaning_mode == CleaningMode.CUSTOM
+
+
+def test_current_mode_outside_options_is_none() -> None:
+    """A mode that the device does not offer is not reported as the current mode."""
+    trait = _create_cleaning_mode_status_trait(is_custom_mode_supported=False)
+    trait.fan_power, trait.water_box_mode, trait.mop_mode = 106, 204, 302
+
+    assert trait.current_cleaning_mode is None
+
+
+def test_saros_10r_smartplan_is_listed() -> None:
+    """The Saros 10R SmartPlan codes classify as SmartPlan, which is among the options."""
+    trait = _create_cleaning_mode_status_trait(
+        is_water_slide_mode_supported=True,
+        is_custom_mode_supported=True,
+        is_smart_clean_mode_set_supported=True,
+    )
+    trait.fan_power, trait.water_box_mode, trait.mop_mode = 110, 209, 306
+
+    assert trait.current_cleaning_mode == CleaningMode.SMART_MODE
+    assert trait.current_cleaning_mode in trait.cleaning_mode_options
 
 
 def test_current_cleaning_mode_gentle_not_mop_without_pure_mop() -> None:

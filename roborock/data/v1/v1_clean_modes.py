@@ -270,7 +270,9 @@ def get_cleaning_mode_options(features: DeviceFeatures) -> list[CleaningMode]:
     options = [CleaningMode.VACUUM, CleaningMode.VAC_AND_MOP]
     if features.is_pure_clean_mop_supported:
         options.append(CleaningMode.MOP)
-    if features.is_customized_clean_supported:
+    # The customized-clean flag stays required until the app's custom switch
+    # condition is verified; without it electronic-mop models would gain CUSTOM.
+    if features.is_custom_mode_supported and features.is_customized_clean_supported:
         options.append(CleaningMode.CUSTOM)
     if features.is_smart_clean_mode_set_supported:
         options.append(CleaningMode.SMART_MODE)
@@ -383,17 +385,30 @@ def get_current_cleaning_mode(
     if clean_mode_enum is None or water_mode_enum is None:
         return None
 
-    if is_smart_mode_set(water_mode_enum, clean_mode_enum, mop_mode_enum):
-        return CleaningMode.SMART_MODE
-    if is_mode_customized(clean_mode_enum, water_mode_enum, mop_mode_enum):
+    mode = _classify_cleaning_mode(clean_mode_enum, water_mode_enum, mop_mode_enum, features)
+    if mode not in get_cleaning_mode_options(features):
+        return None
+    return mode
+
+
+def _classify_cleaning_mode(
+    clean_mode: VacuumModes,
+    water_mode: WaterModes,
+    mop_mode: CleanRoutes | None,
+    features: DeviceFeatures,
+) -> CleaningMode:
+    """Classify resolved mode enums, checking custom before SmartPlan like the app."""
+    if is_mode_customized(clean_mode, water_mode, mop_mode):
         return CleaningMode.CUSTOM
-    if water_mode_enum != WaterModes.OFF:
+    if is_smart_mode_set(water_mode, clean_mode, mop_mode):
+        return CleaningMode.SMART_MODE
+    if water_mode != WaterModes.OFF:
         try:
-            if clean_mode_enum == get_mop_only_vacuum_mode(features):
+            if clean_mode == get_mop_only_vacuum_mode(features):
                 return CleaningMode.MOP
         except RoborockUnsupportedFeature:
             pass
-    if water_mode_enum == WaterModes.OFF:
+    if water_mode == WaterModes.OFF:
         return CleaningMode.VACUUM
     return CleaningMode.VAC_AND_MOP
 
