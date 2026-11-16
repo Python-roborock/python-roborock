@@ -2,6 +2,30 @@
 
 <!-- version list -->
 
+## v7.23.2 (2026-11-16)
+
+### Bug Fixes
+
+- **b01**: Isolate Q7 map response assemblers per subscription
+  ([#1051](https://github.com/Python-roborock/python-roborock/pull/1051),
+  [`251a1c4`](https://github.com/Python-roborock/python-roborock/commit/251a1c425b3ca7c3c24f87296d58cbb3380f035b))
+
+### Chores
+
+- Add Qrevo 2 Pro device data
+  ([#1028](https://github.com/Python-roborock/python-roborock/pull/1028),
+  [`f4b4e4e`](https://github.com/Python-roborock/python-roborock/commit/f4b4e4e48b198688713b1156e8c08a71dd487e67))
+
+- Add Saros 10R device info ([#1031](https://github.com/Python-roborock/python-roborock/pull/1031),
+  [`c245569`](https://github.com/Python-roborock/python-roborock/commit/c2455690698cd0774aa0ccac2f543e681e2c77c5))
+
+### Refactoring
+
+- **map**: Consolidate Q10 render config and grid constants
+  ([#1011](https://github.com/Python-roborock/python-roborock/pull/1011),
+  [`916e5e8`](https://github.com/Python-roborock/python-roborock/commit/916e5e8b3473bb939be4f852124b2733a4154811))
+
+
 ## v7.23.1 (2026-11-15)
 
 ### Bug Fixes
