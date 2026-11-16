@@ -4,12 +4,13 @@ from typing import Any
 import pytest
 
 from roborock.data import HomeDataDevice, HomeDataProduct, RoborockCategory
-from roborock.devices.rpc.b01_q7_channel import Q7MapRpcChannel, Q7RpcChannel
+from roborock.devices.rpc.b01_q7_channel import Q7MapRpcChannel, Q7PushChannel, Q7RpcChannel
 from roborock.devices.traits.b01.q7 import Q7PropertiesApi, create
+from roborock.protocols.b01_q7_protocol import Q7DevicePush
 
 
-class FakeQ7Channel(Q7RpcChannel, Q7MapRpcChannel):
-    """A plaintext mock for Q7 Rpc and Map Channel."""
+class FakeQ7Channel(Q7RpcChannel, Q7MapRpcChannel, Q7PushChannel):
+    """A plaintext mock for Q7 Rpc, Map and device-push channels."""
 
     def __init__(self) -> None:
         self.published_commands: list[tuple[Any, Any]] = []
@@ -17,6 +18,8 @@ class FakeQ7Channel(Q7RpcChannel, Q7MapRpcChannel):
         self.side_effect: Exception | None = None
         self.map_push_callback: Callable[[bytes], None] | None = None
         self.map_push_subscribe_count = 0
+        self.device_push_callback: Callable[[Q7DevicePush], None] | None = None
+        self.device_push_subscribe_count = 0
 
     async def send_command(self, command: Any, params: Any = None) -> Any:
         if self.side_effect:
@@ -38,6 +41,15 @@ class FakeQ7Channel(Q7RpcChannel, Q7MapRpcChannel):
 
         def unsub() -> None:
             self.map_push_callback = None
+
+        return unsub
+
+    async def subscribe_device_pushes(self, callback: Callable[[Q7DevicePush], None]) -> Callable[[], None]:
+        self.device_push_subscribe_count += 1
+        self.device_push_callback = callback
+
+        def unsub() -> None:
+            self.device_push_callback = None
 
         return unsub
 
@@ -74,4 +86,4 @@ def q7_api_fixture(
     device: HomeDataDevice,
     product: HomeDataProduct,
 ) -> Q7PropertiesApi:
-    return create(product, device, fake_channel, fake_channel)
+    return create(product, device, fake_channel, fake_channel, fake_channel)
