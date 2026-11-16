@@ -595,7 +595,7 @@ def test_get_cleaning_mode_parameters_qrevo_edge_2() -> None:
             "mop_mode": CleanRoutes.STANDARD.code,
         }
     ]
-    assert VacuumModes.OFF in status_trait.fan_speed_options
+    assert 105 not in {mode.code for mode in status_trait.fan_speed_options}
     assert VacuumModes.OFF_RAISE_MAIN_BRUSH not in status_trait.fan_speed_options
 
 
@@ -788,7 +788,7 @@ async def test_set_cleaning_mode_water_slide_wire_payload(
 
 
 def test_cleaning_mode_options_water_slide_device() -> None:
-    """Water-slide devices should not expose unsupported custom or smart water modes."""
+    """Custom and SmartPlan options depend only on their feature flags, also on water-slide devices."""
     status_trait = _create_cleaning_mode_status_trait(
         is_water_slide_mode_supported=True,
         is_customized_clean_supported=True,
@@ -799,6 +799,8 @@ def test_cleaning_mode_options_water_slide_device() -> None:
         CleaningMode.VACUUM,
         CleaningMode.VAC_AND_MOP,
         CleaningMode.MOP,
+        CleaningMode.CUSTOM,
+        CleaningMode.SMART_MODE,
     ]
 
 
@@ -882,6 +884,61 @@ def test_water_slide_mode_name_covers_slider_positions(water_box_mode: int, expe
     status_trait.water_box_mode = water_box_mode
 
     assert status_trait.water_mode_name == expected_name
+
+
+def test_option_lists_exclude_special_codes() -> None:
+    """SmartPlan and custom codes are never offered as fan, water or mop route choices."""
+    trait = _create_cleaning_mode_status_trait(is_smart_clean_mode_set_supported=True)
+    special = {106, 110, 204, 209, 302, 306}
+    assert special.isdisjoint(m.code for m in trait.fan_speed_options)
+    assert special.isdisjoint(m.code for m in trait.water_mode_options)
+    assert special.isdisjoint(m.code for m in trait.mop_route_options)
+    assert special.isdisjoint(trait.fan_speed_mapping)
+    assert special.isdisjoint(trait.water_mode_mapping)
+    assert special.isdisjoint(trait.mop_route_mapping)
+
+
+@pytest.mark.parametrize("water_slide", [False, True])
+@pytest.mark.parametrize(
+    ("fan", "water", "mop", "names"),
+    [
+        (110, 209, 306, ("smart_mode", "smart_mode", "smart_mode")),
+        (106, 204, 302, ("custom", "custom", "custom")),
+    ],
+)
+def test_special_code_names(water_slide: bool, fan: int, water: int, mop: int, names: tuple[str, str, str]) -> None:
+    """Special codes are still named even though they are not selectable."""
+    trait = _create_cleaning_mode_status_trait(
+        is_smart_clean_mode_set_supported=True, is_water_slide_mode_supported=water_slide
+    )
+    trait.fan_power, trait.water_box_mode, trait.mop_mode = fan, water, mop
+    assert (trait.fan_speed_name, trait.water_mode_name, trait.mop_route_name) == names
+
+
+def test_water_slide_raw_position_name_unchanged() -> None:
+    """Raw slider positions keep resolving to their app range name."""
+    trait = _create_cleaning_mode_status_trait(is_water_slide_mode_supported=True)
+    trait.water_box_mode = 227
+    assert trait.water_mode_name == "low"
+
+
+@pytest.mark.parametrize(
+    ("soft", "pure_mop", "in_list", "name"),
+    [(True, False, True, "gentle"), (False, True, False, "off"), (False, False, False, "gentle")],
+)
+def test_fan_code_105(soft: bool, pure_mop: bool, in_list: bool, name: str) -> None:
+    """Code 105 is only selectable as gentle on soft-clean devices but is always named."""
+    trait = _create_cleaning_mode_status_trait(is_soft_clean_mode_supported=soft, is_pure_clean_mop_supported=pure_mop)
+    trait.fan_power = 105
+    assert (105 in {m.code for m in trait.fan_speed_options}) is in_list
+    assert trait.fan_speed_name == name
+
+
+def test_unknown_codes_have_no_name() -> None:
+    """Codes that are neither selectable nor special have no name."""
+    trait = _create_cleaning_mode_status_trait()
+    trait.fan_power, trait.water_box_mode, trait.mop_mode = 999, 999, 999
+    assert (trait.fan_speed_name, trait.water_mode_name, trait.mop_route_name) == (None, None, None)
 
 
 def test_update_from_dps(status_trait: StatusTrait) -> None:

@@ -15,9 +15,11 @@ from roborock import (
     get_cleaning_mode_parameters,
     get_current_cleaning_mode,
     get_dock_state,
+    get_fan_speed_name,
+    get_mop_route_name,
     get_water_mode_mapping,
+    get_water_mode_name,
     get_water_modes,
-    get_water_slide_mode_name,
     resolve_cleaning_mode,
 )
 from roborock.devices.traits.common import DpsDataConverter, TraitUpdateListener
@@ -115,21 +117,19 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
     def fan_speed_name(self) -> str | None:
         if self.fan_power is None:
             return None
-        return self.fan_speed_mapping.get(self.fan_power)
+        return get_fan_speed_name(self.fan_power, self._device_features_trait)
 
     @property
     def water_mode_name(self) -> str | None:
         if self.water_box_mode is None:
             return None
-        if self._device_features_trait.is_water_slide_mode_supported:
-            return get_water_slide_mode_name(self.water_box_mode)
-        return self.water_mode_mapping.get(self.water_box_mode)
+        return get_water_mode_name(self.water_box_mode, self._device_features_trait)
 
     @property
     def mop_route_name(self) -> str | None:
         if self.mop_mode is None:
             return None
-        return self.mop_route_mapping.get(self.mop_mode)
+        return get_mop_route_name(self.mop_mode, self._device_features_trait, self._region or "us")
 
     @property
     def current_cleaning_mode(self) -> CleaningMode | None:

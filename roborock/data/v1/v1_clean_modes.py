@@ -131,16 +131,8 @@ def get_clean_modes(features: DeviceFeatures) -> list[VacuumModes]:
     if features.is_max_plus_mode_supported or features.is_none_pure_clean_mop_with_max_plus:
         # If the vacuum has max plus mode supported
         modes.append(VacuumModes.MAX_PLUS)
-    if features.is_pure_clean_mop_supported:
-        # If the vacuum is capable of 'pure mop clean' aka no vacuum
-        modes.append(VacuumModes.OFF)
-    else:
-        # If not, we can add gentle
+    if features.is_soft_clean_mode_supported:
         modes.append(VacuumModes.GENTLE)
-    if features.is_smart_clean_mode_set_supported:
-        modes.append(VacuumModes.SMART_MODE)
-    if features.is_customized_clean_supported:
-        modes.append(VacuumModes.CUSTOMIZED)
     return modes
 
 
@@ -165,10 +157,6 @@ def get_clean_routes(features: DeviceFeatures, region: str) -> list[CleanRoutes]
 
     if features.is_clean_route_fast_mode_supported:
         supported.append(CleanRoutes.FAST)
-    if features.is_smart_clean_mode_set_supported:
-        supported.append(CleanRoutes.SMART_MODE)
-    if features.is_customized_clean_supported:
-        supported.append(CleanRoutes.CUSTOMIZED)
 
     return supported
 
@@ -190,12 +178,52 @@ def get_water_modes(features: DeviceFeatures) -> list[WaterModes]:
         supported_modes.append(WaterModes.CUSTOM)
     if features.is_mop_shake_module_supported and features.is_mop_shake_water_max_supported:
         supported_modes.append(WaterModes.EXTREME)
-    if features.is_smart_clean_mode_set_supported:
-        supported_modes.append(WaterModes.SMART_MODE)
-    if features.is_customized_clean_supported:
-        supported_modes.append(WaterModes.CUSTOMIZED)
 
     return supported_modes
+
+
+def get_fan_speed_name(code: int, features: DeviceFeatures) -> str | None:
+    """Name a fan power code: selectable modes first, then SmartPlan, custom and code 105."""
+    for mode in get_clean_modes(features):
+        if mode.code == code:
+            return mode.value
+    if code == VacuumModes.SMART_MODE.code:
+        return VacuumModes.SMART_MODE.value
+    if code == VacuumModes.CUSTOMIZED.code:
+        return VacuumModes.CUSTOMIZED.value
+    if code == VacuumModes.GENTLE.code:
+        # 105 is the mop-only code on pure-mop devices and "gentle" elsewhere.
+        return VacuumModes.OFF.value if features.is_pure_clean_mop_supported else VacuumModes.GENTLE.value
+    return None
+
+
+def get_water_mode_name(code: int, features: DeviceFeatures) -> str | None:
+    """Name a water box code: selectable modes (or slide ranges) first, then SmartPlan and custom."""
+    if features.is_water_slide_mode_supported:
+        slide_mode = _resolve_water_slide_mode(code)
+        if slide_mode is not None:
+            return slide_mode.display_name
+    else:
+        for mode in get_water_modes(features):
+            if mode.code == code:
+                return mode.display_name
+    if code == WaterModes.SMART_MODE.code:
+        return WaterModes.SMART_MODE.display_name
+    if code == WaterModes.CUSTOMIZED.code:
+        return WaterModes.CUSTOMIZED.display_name
+    return None
+
+
+def get_mop_route_name(code: int, features: DeviceFeatures, region: str) -> str | None:
+    """Name a mop route code: selectable routes first, then SmartPlan and custom."""
+    for route in get_clean_routes(features, region):
+        if route.code == code:
+            return route.display_name
+    if code == CleanRoutes.SMART_MODE.code:
+        return CleanRoutes.SMART_MODE.display_name
+    if code == CleanRoutes.CUSTOMIZED.code:
+        return CleanRoutes.CUSTOMIZED.display_name
+    return None
 
 
 def get_water_slide_mode_name(code: int) -> str | None:
@@ -239,13 +267,12 @@ def get_cleaning_mode_options(features: DeviceFeatures) -> list[CleaningMode]:
     if not features.is_support_water_mode:
         return []
 
-    supported_water_modes = get_water_modes(features)
     options = [CleaningMode.VACUUM, CleaningMode.VAC_AND_MOP]
     if features.is_pure_clean_mop_supported:
         options.append(CleaningMode.MOP)
-    if features.is_customized_clean_supported and WaterModes.CUSTOMIZED in supported_water_modes:
+    if features.is_customized_clean_supported:
         options.append(CleaningMode.CUSTOM)
-    if features.is_smart_clean_mode_set_supported and WaterModes.SMART_MODE in supported_water_modes:
+    if features.is_smart_clean_mode_set_supported:
         options.append(CleaningMode.SMART_MODE)
     return options
 
