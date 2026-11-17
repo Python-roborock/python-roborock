@@ -525,6 +525,80 @@ def get_motor_mode_commands(
     return commands
 
 
+def _get_model_options(setting: CleaningSetting, features: DeviceFeatures, region: str) -> list[RoborockModeEnum]:
+    """Return every value the model supports for a setting, regardless of the cleaning mode."""
+    if setting == CleaningSetting.FAN_SPEED:
+        return list(get_clean_modes(features))
+    if setting == CleaningSetting.WATER_MODE:
+        return list(get_water_modes(features))
+    return list(get_clean_routes(features, region))
+
+
+def _get_mode_codes(
+    setting: CleaningSetting, mode: CleaningMode | None, features: DeviceFeatures, region: str
+) -> set[int]:
+    """Return the codes of a setting that are offered in the mode (see get_mode_options)."""
+    options = get_mode_options(setting, mode, features, _get_model_options(setting, features, region))
+    return {option.code for option in options}
+
+
+def _get_tab_route_codes(mode: CleaningMode | None, features: DeviceFeatures, region: str) -> set[int]:
+    """Return the route codes on the mode's tab, whether or not the route is adjustable in it."""
+    if _offers_all_routes(mode, features):
+        return {route.code for route in get_clean_routes(features, region)}
+    return {CleanRoutes.FAST.code, CleanRoutes.STANDARD.code}
+
+
+def get_setting_change_codes(
+    setting: CleaningSetting,
+    code: int,
+    mode: CleaningMode | None,
+    features: DeviceFeatures,
+    region: str,
+    *,
+    fan_power: int,
+    water_box_mode: int | None,
+    mop_mode: int | None,
+) -> tuple[int, int | None, int | None]:
+    """Return the (fan_power, water_box_mode, mop_mode) codes that change one cleaning setting.
+
+    The setting must be adjustable in the current cleaning mode and the code must be one
+    of the values allowed in that mode (get_mode_options), otherwise
+    RoborockUnsupportedFeature is raised. The other two settings keep their current codes,
+    except that a value left over from another tab is replaced when
+    switching modes: a fan speed that is not on the mode's list (Max+, the mop-only 105)
+    becomes balanced (102) and a mop route that is not on the tab's list becomes standard
+    (300). Mopping only always uses the mop-only fan code.
+    The mop route is None when the device has no route setting or no shake module,
+    because the route is only sent with the shake module.
+    The water mode is None only for devices without a mop, which have no water mode.
+    """
+    if setting not in get_adjustable_settings(mode, features):
+        raise RoborockUnsupportedFeature(f"The {setting.value} cannot be changed in the current cleaning mode")
+    selectable = _get_mode_codes(setting, mode, features, region)
+    if setting == CleaningSetting.WATER_MODE and features.is_water_slide_mode_supported:
+        selectable.update(range(221, 251))
+    if code not in selectable:
+        raise RoborockUnsupportedFeature(f"The {setting.value} code {code} is not supported in the current mode")
+
+    fan_codes = _get_mode_codes(CleaningSetting.FAN_SPEED, mode, features, region)
+    if fan_codes and fan_power not in fan_codes:
+        fan_power = VacuumModes.BALANCED.code
+    if mop_mode is not None and mop_mode not in _get_tab_route_codes(mode, features, region):
+        mop_mode = CleanRoutes.STANDARD.code
+
+    if setting == CleaningSetting.FAN_SPEED:
+        fan_power = code
+    elif setting == CleaningSetting.WATER_MODE:
+        water_box_mode = code
+    else:
+        mop_mode = code
+    if mode == CleaningMode.MOP:
+        fan_power = get_mop_only_vacuum_mode(features).code
+    sends_route = features.is_clean_route_setting_supported and features.is_shake_mop_set_supported
+    return fan_power, water_box_mode, mop_mode if sends_route else None
+
+
 def _resolve_mode_code(value: int | ModeEnumT | None, mode_cls: type[ModeEnumT]) -> ModeEnumT | None:
     """Resolve a raw code or enum into a RoborockModeEnum."""
     if value is None:

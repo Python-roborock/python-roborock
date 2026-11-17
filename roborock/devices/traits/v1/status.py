@@ -21,12 +21,14 @@ from roborock import (
     get_fan_speed_name,
     get_mop_route_name,
     get_motor_mode_commands,
+    get_setting_change_codes,
     get_water_mode_mapping,
     get_water_mode_name,
     get_water_modes,
     resolve_cleaning_mode,
 )
 from roborock.devices.traits.common import DpsDataConverter, TraitUpdateListener
+from roborock.exceptions import RoborockException
 from roborock.roborock_message import RoborockDataProtocol
 from roborock.roborock_typing import RoborockCommand
 
@@ -194,6 +196,35 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
         """Set the preferred high-level cleaning mode for the device."""
         fan_power, water_box_mode, mop_mode = get_cleaning_mode_codes(
             resolve_cleaning_mode(cleaning_mode), self._device_features_trait, self.mop_mode
+        )
+        await self._apply_motor_mode(fan_power, water_box_mode, mop_mode)
+
+    async def set_fan_speed(self, mode: VacuumModes) -> None:
+        """Set the fan speed while keeping the water mode and mop route."""
+        await self._set_cleaning_setting(CleaningSetting.FAN_SPEED, mode.code)
+
+    async def set_water_mode(self, mode: WaterModes) -> None:
+        """Set the water mode while keeping the fan speed and mop route."""
+        await self._set_cleaning_setting(CleaningSetting.WATER_MODE, mode.code)
+
+    async def set_mop_route(self, route: CleanRoutes) -> None:
+        """Set the mop route while keeping the fan speed and water mode."""
+        await self._set_cleaning_setting(CleaningSetting.MOP_ROUTE, route.code)
+
+    async def _set_cleaning_setting(self, setting: CleaningSetting, code: int) -> None:
+        features = self._device_features_trait
+        # A device without a mop has no water mode, so only the fan power has to be loaded.
+        if self.fan_power is None or (features.is_support_water_mode and self.water_box_mode is None):
+            raise RoborockException("Status is not loaded, call refresh() first")
+        fan_power, water_box_mode, mop_mode = get_setting_change_codes(
+            setting,
+            code,
+            self.current_cleaning_mode,
+            features,
+            self._region or "us",
+            fan_power=self.fan_power,
+            water_box_mode=self.water_box_mode,
+            mop_mode=self.mop_mode,
         )
         await self._apply_motor_mode(fan_power, water_box_mode, mop_mode)
 
