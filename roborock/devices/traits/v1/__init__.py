@@ -52,6 +52,7 @@ trait. The `dps` field metadata attribute references a schema code in
 HomeDataProduct Schema that is required for the field to be supported.
 """
 
+import asyncio
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field, fields
@@ -122,6 +123,10 @@ from .volume import SoundVolumeTrait
 from .wash_towel_mode import WashTowelModeTrait
 
 _LOGGER = logging.getLogger(__name__)
+
+# Delay before reading status back after a fan power or water mode push. The
+# robot never pushes the mop mode, so a read-back is needed to get it right.
+_STATUS_REFRESH_DELAY = 1.0
 
 __all__ = [
     "PropertiesApi",
@@ -213,6 +218,7 @@ class PropertiesApi(Trait):
         self._device_cache = device_cache
         self._region = region
         self._unsub: Callable[[], None] | None = None
+        self._status_refresh_task: asyncio.Task[None] | None = None
         self._add_dps_listener = add_dps_listener
 
         self.device_features = DeviceFeaturesTrait(product, self._device_cache)
@@ -265,6 +271,9 @@ class PropertiesApi(Trait):
         if self._unsub:
             self._unsub()
             self._unsub = None
+        if self._status_refresh_task:
+            self._status_refresh_task.cancel()
+            self._status_refresh_task = None
 
     def _on_dps_update(self, dps: dict[RoborockDataProtocol, Any]) -> None:
         """Handle incoming messages from the device.
@@ -276,6 +285,24 @@ class PropertiesApi(Trait):
         _LOGGER.debug("Received message from device: %s", dps)
         self.status.update_from_dps(dps)
         self.consumables.update_from_dps(dps)
+        if RoborockDataProtocol.FAN_POWER in dps or RoborockDataProtocol.WATER_BOX_MODE in dps:
+            self._schedule_status_refresh()
+
+    def _schedule_status_refresh(self) -> None:
+        """Schedule a single debounced status read-back unless one is pending."""
+        if self._status_refresh_task:
+            return
+        self._status_refresh_task = asyncio.create_task(self._refresh_status_after_push())
+
+    async def _refresh_status_after_push(self) -> None:
+        """Read status back after a short delay to pick up values that are not pushed."""
+        await asyncio.sleep(_STATUS_REFRESH_DELAY)
+        # Clear first so a push arriving during the refresh schedules another one.
+        self._status_refresh_task = None
+        try:
+            await self.status.refresh()
+        except RoborockException as err:
+            _LOGGER.warning("Failed to refresh status after a push: %s", err)
 
     async def discover_features(self) -> None:
         """Populate any supported traits that were not initialized in __init__."""
