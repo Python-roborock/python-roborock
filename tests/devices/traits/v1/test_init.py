@@ -110,6 +110,28 @@ async def test_close_cancels_pending_read_back(props: Any) -> None:
     props.status.refresh.assert_not_awaited()
 
 
+async def test_close_cancels_in_flight_read_back(props: Any) -> None:
+    """Closing while a read-back is running cancels it."""
+    started = asyncio.Event()
+    cancelled = asyncio.Event()
+
+    async def hanging_refresh() -> None:
+        started.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            cancelled.set()
+            raise
+
+    props.status.refresh.side_effect = hanging_refresh
+    props.push({RoborockDataProtocol.FAN_POWER: 101})
+    await asyncio.wait_for(started.wait(), timeout=1)
+
+    props.close()
+    await asyncio.wait_for(cancelled.wait(), timeout=1)
+    props.status.refresh.assert_awaited_once()
+
+
 async def test_push_during_refresh_schedules_another(props: Any) -> None:
     """A push arriving while a read-back is running is followed by another one."""
     started = asyncio.Event()

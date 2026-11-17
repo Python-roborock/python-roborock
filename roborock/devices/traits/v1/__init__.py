@@ -218,7 +218,10 @@ class PropertiesApi(Trait):
         self._device_cache = device_cache
         self._region = region
         self._unsub: Callable[[], None] | None = None
+        # Read-back task waiting for its delay (debounce) and all live read-back
+        # tasks (kept referenced until done so they are not garbage collected).
         self._status_refresh_task: asyncio.Task[None] | None = None
+        self._status_refresh_tasks: set[asyncio.Task[None]] = set()
         self._add_dps_listener = add_dps_listener
 
         self.device_features = DeviceFeaturesTrait(product, self._device_cache)
@@ -271,9 +274,10 @@ class PropertiesApi(Trait):
         if self._unsub:
             self._unsub()
             self._unsub = None
-        if self._status_refresh_task:
-            self._status_refresh_task.cancel()
-            self._status_refresh_task = None
+        self._status_refresh_task = None
+        for task in self._status_refresh_tasks:
+            task.cancel()
+        self._status_refresh_tasks.clear()
 
     def _on_dps_update(self, dps: dict[RoborockDataProtocol, Any]) -> None:
         """Handle incoming messages from the device.
@@ -292,7 +296,10 @@ class PropertiesApi(Trait):
         """Schedule a single debounced status read-back unless one is pending."""
         if self._status_refresh_task:
             return
-        self._status_refresh_task = asyncio.create_task(self._refresh_status_after_push())
+        task = asyncio.create_task(self._refresh_status_after_push())
+        self._status_refresh_task = task
+        self._status_refresh_tasks.add(task)
+        task.add_done_callback(self._status_refresh_tasks.discard)
 
     async def _refresh_status_after_push(self) -> None:
         """Read status back after a short delay to pick up values that are not pushed."""
