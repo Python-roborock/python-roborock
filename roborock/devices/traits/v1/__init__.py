@@ -218,9 +218,9 @@ class PropertiesApi(Trait):
         self._device_cache = device_cache
         self._region = region
         self._unsub: Callable[[], None] | None = None
-        # Read-back task waiting for its delay (debounce) and all live read-back
-        # tasks (kept referenced until done so they are not garbage collected).
-        self._status_refresh_task: asyncio.Task[None] | None = None
+        # True while a read-back is waiting for its delay (debounce). Live read-back
+        # tasks are kept referenced until done so they are not garbage collected.
+        self._status_refresh_pending = False
         self._status_refresh_tasks: set[asyncio.Task[None]] = set()
         self._add_dps_listener = add_dps_listener
 
@@ -274,7 +274,7 @@ class PropertiesApi(Trait):
         if self._unsub:
             self._unsub()
             self._unsub = None
-        self._status_refresh_task = None
+        self._status_refresh_pending = False
         for task in self._status_refresh_tasks:
             task.cancel()
         self._status_refresh_tasks.clear()
@@ -285,6 +285,9 @@ class PropertiesApi(Trait):
         This will notify all traits of the new values. This can be improved in
         the future to be dynamic when we have more traits that support dynamic
         updates but for now we just invoke them manually.
+
+        A push of the fan power or water mode also schedules a debounced status
+        read-back, since the device never pushes the mop mode.
         """
         _LOGGER.debug("Received message from device: %s", dps)
         self.status.update_from_dps(dps)
@@ -294,10 +297,11 @@ class PropertiesApi(Trait):
 
     def _schedule_status_refresh(self) -> None:
         """Schedule a single debounced status read-back unless one is pending."""
-        if self._status_refresh_task:
+        # At most one read-back per delay window.
+        if self._status_refresh_pending:
             return
+        self._status_refresh_pending = True
         task = asyncio.create_task(self._refresh_status_after_push())
-        self._status_refresh_task = task
         self._status_refresh_tasks.add(task)
         task.add_done_callback(self._status_refresh_tasks.discard)
 
@@ -305,9 +309,9 @@ class PropertiesApi(Trait):
         """Read status back after a short delay to pick up values that are not pushed."""
         await asyncio.sleep(_STATUS_REFRESH_DELAY)
         # Clear first so a push arriving during the refresh schedules another one.
-        self._status_refresh_task = None
+        self._status_refresh_pending = False
         try:
-            await self.status.refresh()
+            await self.status.refresh_and_notify()
         except RoborockException as err:
             _LOGGER.warning("Failed to refresh status after a push: %s", err)
 

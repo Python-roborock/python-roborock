@@ -1003,3 +1003,46 @@ def test_update_listener_ignores_unrelated(status_trait: StatusTrait) -> None:
 
     assert not event.is_set()
     unsubscribe()
+
+
+async def test_refresh_and_notify_notifies_when_values_changed(
+    status_trait: StatusTrait, mock_rpc_channel: AsyncMock
+) -> None:
+    """Listeners hear about water and mop route values that changed in the read-back."""
+    status_trait.water_box_mode = 202
+    status_trait.mop_mode = 300
+    listener = Mock()
+    status_trait.add_update_listener(listener)
+    mock_rpc_channel.send_command.return_value = [{**STATUS, "water_box_mode": 203, "mop_mode": 301}]
+
+    await status_trait.refresh_and_notify()
+
+    assert status_trait.water_box_mode == 203
+    assert status_trait.mop_mode == 301
+    listener.assert_called_once_with()
+
+
+async def test_refresh_and_notify_silent_when_nothing_changed(
+    status_trait: StatusTrait, mock_rpc_channel: AsyncMock
+) -> None:
+    """Listeners are not called when the read-back matches the current state."""
+    mock_rpc_channel.send_command.return_value = [STATUS]
+    await status_trait.refresh()
+    listener = Mock()
+    status_trait.add_update_listener(listener)
+
+    await status_trait.refresh_and_notify()
+
+    listener.assert_not_called()
+
+
+async def test_refresh_and_notify_propagates_exception(status_trait: StatusTrait, mock_rpc_channel: AsyncMock) -> None:
+    """Errors from the read-back reach the caller and do not notify."""
+    listener = Mock()
+    status_trait.add_update_listener(listener)
+    mock_rpc_channel.send_command.side_effect = RoborockException("boom")
+
+    with pytest.raises(RoborockException):
+        await status_trait.refresh_and_notify()
+
+    listener.assert_not_called()

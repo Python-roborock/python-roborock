@@ -192,3 +192,10 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
             decoded_dps = _drop_legacy_water_levels(decoded_dps)
         if _DPS_CONVERTER.update_from_dps(self, decoded_dps):
             self._notify_update()
+
+    async def refresh_and_notify(self) -> None:
+        """Refresh the status and notify update listeners if any value changed."""
+        before = self.as_dict()
+        await self.refresh()
+        if self.as_dict() != before:
+            self._notify_update()
