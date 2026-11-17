@@ -5,6 +5,7 @@ from enum import StrEnum
 from typing import TypeVar, cast
 
 from ...exceptions import RoborockUnsupportedFeature
+from ...roborock_typing import RoborockCommand
 from ..code_mappings import RoborockModeEnum
 
 if typing.TYPE_CHECKING:
@@ -444,16 +445,84 @@ def resolve_cleaning_mode(cleaning_mode: str | CleaningMode) -> CleaningMode:
         raise RoborockUnsupportedFeature(f"Cleaning mode {cleaning_mode!r} is not supported") from err
 
 
+MotorModeCommand = tuple[RoborockCommand, list[int] | list[dict[str, int]]]
+
+
+def get_cleaning_mode_codes(
+    mode: CleaningMode,
+    features: DeviceFeatures,
+    current_mop_mode: int | None,
+) -> tuple[int, int, int | None]:
+    """Return the (fan_power, water_box_mode, mop_mode) codes that switch to a cleaning mode.
+
+    The mop route is None when there is nothing to send: the device has no route
+    setting or no shake module (the route is only sent with it) and its current
+    route does not need to change. When the current route is
+    SmartPlan (306) or custom (302) it is reset to standard (300), so the robot is not
+    still recognized as being in that mode, unless the target mode is the one that
+    owns the current route (SmartPlan for 306, custom for 302).
+    """
+    if mode not in get_cleaning_mode_options(features):
+        raise RoborockUnsupportedFeature(f"Cleaning mode {mode.value!r} is not supported")
+
+    fan_power, water_box_mode, mop_mode = _get_clean_motor_mode_params(mode, features)
+    if features.is_clean_route_setting_supported and features.is_shake_mop_set_supported:
+        route: int | None = mop_mode.code
+    elif current_mop_mode == CleanRoutes.SMART_MODE.code and mode != CleaningMode.SMART_MODE:
+        route = CleanRoutes.STANDARD.code
+    elif current_mop_mode == CleanRoutes.CUSTOMIZED.code and mode != CleaningMode.CUSTOM:
+        route = CleanRoutes.STANDARD.code
+    else:
+        route = None
+    return fan_power.code, water_box_mode.code, route
+
+
 def get_cleaning_mode_parameters(cleaning_mode: CleaningMode, features: DeviceFeatures) -> list[dict[str, int]]:
-    """Get the RPC payload for switching the high-level cleaning mode."""
+    """Get the combined set_clean_motor_mode payload for switching the high-level cleaning mode.
+
+    This does not reflect the per-model command sequencing or the reset of the current
+    route; see get_motor_mode_commands and get_cleaning_mode_codes for what is sent.
+    """
     if cleaning_mode not in get_cleaning_mode_options(features):
         raise RoborockUnsupportedFeature(f"Cleaning mode {cleaning_mode.value!r} is not supported")
-
+    # Unlike get_cleaning_mode_codes this keeps the route of every model with a route setting.
     fan_power, water_box_mode, mop_mode = _get_clean_motor_mode_params(cleaning_mode, features)
     params: dict[str, int] = {"fan_power": fan_power.code, "water_box_mode": water_box_mode.code}
     if features.is_clean_route_setting_supported:
         params["mop_mode"] = mop_mode.code
     return [params]
+
+
+def get_motor_mode_commands(
+    fan_power: int,
+    water_box_mode: int | None,
+    mop_mode: int | None,
+    features: DeviceFeatures,
+) -> list[MotorModeCommand]:
+    """Return the commands, in order, that apply the codes in the order the model needs.
+
+    A device without a mop (no water mode support) only has a fan speed, so it only gets
+    set_custom_mode. The water mode is None only for such devices.
+    """
+    if not features.is_support_water_mode or water_box_mode is None:
+        return [(RoborockCommand.SET_CUSTOM_MODE, [fan_power])]
+    if features.is_shake_mop_set_supported:
+        params = {"fan_power": fan_power, "water_box_mode": water_box_mode}
+        if mop_mode is not None:
+            params["mop_mode"] = mop_mode
+        return [(RoborockCommand.SET_CLEAN_MOTOR_MODE, [params])]
+    if features.is_set_clean_motor_mode_supported:
+        commands: list[MotorModeCommand] = [
+            (RoborockCommand.SET_CLEAN_MOTOR_MODE, [{"fan_power": fan_power, "water_box_mode": water_box_mode}])
+        ]
+    else:
+        commands = [
+            (RoborockCommand.SET_CUSTOM_MODE, [fan_power]),
+            (RoborockCommand.SET_WATER_BOX_CUSTOM_MODE, [water_box_mode]),
+        ]
+    if mop_mode is not None:
+        commands.append((RoborockCommand.SET_MOP_MODE, [mop_mode]))
+    return commands
 
 
 def _resolve_mode_code(value: int | ModeEnumT | None, mode_cls: type[ModeEnumT]) -> ModeEnumT | None:

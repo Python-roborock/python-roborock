@@ -6,15 +6,20 @@ from roborock.data.v1.v1_clean_modes import (
     CleaningMode,
     CleaningSetting,
     CleanRoutes,
+    MotorModeCommand,
     VacuumModes,
     WaterModes,
     get_adjustable_settings,
     get_clean_modes,
     get_clean_routes,
+    get_cleaning_mode_codes,
     get_display_options,
+    get_motor_mode_commands,
     get_water_modes,
 )
 from roborock.device_features import DeviceFeatures
+from roborock.exceptions import RoborockUnsupportedFeature
+from roborock.roborock_typing import RoborockCommand
 
 
 def _features(**overrides: bool) -> DeviceFeatures:
@@ -115,6 +120,129 @@ def test_get_display_options_kinds(mode: CleaningMode, expected: list[VacuumMode
 def test_get_display_options_empty_options_show_nothing(mode: CleaningMode | None) -> None:
     """A setting the device does not have shows nothing, even in SmartPlan or custom mode."""
     assert get_display_options(CleaningSetting.MOP_ROUTE, mode, _features(), []) == []
+
+
+@pytest.mark.parametrize(
+    ("shake", "f118", "mop", "expected"),
+    [
+        (
+            True,
+            False,
+            300,
+            [(RoborockCommand.SET_CLEAN_MOTOR_MODE, [{"fan_power": 102, "water_box_mode": 202, "mop_mode": 300}])],
+        ),
+        (True, True, None, [(RoborockCommand.SET_CLEAN_MOTOR_MODE, [{"fan_power": 102, "water_box_mode": 202}])]),
+        (False, True, None, [(RoborockCommand.SET_CLEAN_MOTOR_MODE, [{"fan_power": 102, "water_box_mode": 202}])]),
+        (
+            False,
+            True,
+            300,
+            [
+                (RoborockCommand.SET_CLEAN_MOTOR_MODE, [{"fan_power": 102, "water_box_mode": 202}]),
+                (RoborockCommand.SET_MOP_MODE, [300]),
+            ],
+        ),
+        (
+            False,
+            False,
+            None,
+            [(RoborockCommand.SET_CUSTOM_MODE, [102]), (RoborockCommand.SET_WATER_BOX_CUSTOM_MODE, [202])],
+        ),
+        (
+            False,
+            False,
+            300,
+            [
+                (RoborockCommand.SET_CUSTOM_MODE, [102]),
+                (RoborockCommand.SET_WATER_BOX_CUSTOM_MODE, [202]),
+                (RoborockCommand.SET_MOP_MODE, [300]),
+            ],
+        ),
+    ],
+)
+def test_get_motor_mode_commands(shake: bool, f118: bool, mop: int | None, expected: list[MotorModeCommand]) -> None:
+    features = _features(is_shake_mop_set_supported=shake, is_set_clean_motor_mode_supported=f118)
+    assert get_motor_mode_commands(102, 202, mop, features) == expected
+
+
+@pytest.mark.parametrize("mop", [None, 300])
+@pytest.mark.parametrize(("shake", "f118"), [(False, False), (True, False), (False, True), (True, True)])
+def test_get_motor_mode_commands_vacuum_only(shake: bool, f118: bool, mop: int | None) -> None:
+    """Devices without a mop only ever get the fan command."""
+    features = _features(
+        is_support_water_mode=False, is_shake_mop_set_supported=shake, is_set_clean_motor_mode_supported=f118
+    )
+    assert get_motor_mode_commands(104, None, mop, features) == [(RoborockCommand.SET_CUSTOM_MODE, [104])]
+
+
+@pytest.mark.parametrize(
+    ("mode", "overrides", "current_mop_mode", "expected"),
+    [
+        (CleaningMode.VACUUM, {}, None, (102, 200, 300)),
+        (CleaningMode.VAC_AND_MOP, {}, 302, (102, 202, 300)),
+        (CleaningMode.MOP, {}, None, (105, 202, 300)),
+        (CleaningMode.CUSTOM, {}, None, (106, 204, 302)),
+        (CleaningMode.SMART_MODE, {"is_smart_clean_mode_set_supported": True}, None, (110, 209, 306)),
+        (CleaningMode.VAC_AND_MOP, {"is_water_slide_mode_supported": True}, None, (102, 235, 300)),
+        # Without a route setting the route is only sent to leave SmartPlan or custom.
+        (CleaningMode.VACUUM, {"is_clean_route_setting_supported": False}, None, (102, 200, None)),
+        (CleaningMode.VACUUM, {"is_clean_route_setting_supported": False}, 300, (102, 200, None)),
+        (CleaningMode.VACUUM, {"is_clean_route_setting_supported": False}, 302, (102, 200, 300)),
+        (CleaningMode.VAC_AND_MOP, {"is_clean_route_setting_supported": False}, 306, (102, 202, 300)),
+        (CleaningMode.VAC_AND_MOP, {"is_clean_route_setting_supported": False}, 302, (102, 202, 300)),
+        # The route of the mode is only sent with the shake module; without it only the reset remains.
+        (CleaningMode.VAC_AND_MOP, {"is_shake_mop_set_supported": False}, None, (102, 202, None)),
+        (CleaningMode.VAC_AND_MOP, {"is_shake_mop_set_supported": False}, 301, (102, 202, None)),
+        (CleaningMode.VAC_AND_MOP, {"is_shake_mop_set_supported": False}, 306, (102, 202, 300)),
+        (CleaningMode.MOP, {"is_shake_mop_set_supported": False}, 302, (105, 202, 300)),
+        (CleaningMode.CUSTOM, {"is_shake_mop_set_supported": False}, None, (106, 204, None)),
+        (CleaningMode.CUSTOM, {"is_shake_mop_set_supported": False}, 302, (106, 204, None)),
+    ],
+)
+def test_get_cleaning_mode_codes(
+    mode: CleaningMode,
+    overrides: dict[str, bool],
+    current_mop_mode: int | None,
+    expected: tuple[int, int, int | None],
+) -> None:
+    features = _features(is_pure_clean_mop_supported=True, is_customized_clean_supported=True, **overrides)
+    features.is_custom_mode_supported = True
+    assert get_cleaning_mode_codes(mode, features, current_mop_mode) == expected
+
+
+@pytest.mark.parametrize(
+    ("mode", "fan_water", "current_mop_mode", "expected_route"),
+    [
+        (CleaningMode.SMART_MODE, (110, 209), None, None),
+        (CleaningMode.SMART_MODE, (110, 209), 300, None),
+        (CleaningMode.SMART_MODE, (110, 209), 302, 300),
+        (CleaningMode.SMART_MODE, (110, 209), 306, None),
+        (CleaningMode.CUSTOM, (106, 204), None, None),
+        (CleaningMode.CUSTOM, (106, 204), 300, None),
+        (CleaningMode.CUSTOM, (106, 204), 302, None),
+        (CleaningMode.CUSTOM, (106, 204), 306, 300),
+    ],
+)
+def test_get_cleaning_mode_codes_special_targets_without_route_setting(
+    mode: CleaningMode,
+    fan_water: tuple[int, int],
+    current_mop_mode: int | None,
+    expected_route: int | None,
+) -> None:
+    """SmartPlan and custom keep the route they already own and only reset the other special one."""
+    features = _features(
+        is_pure_clean_mop_supported=True,
+        is_customized_clean_supported=True,
+        is_custom_mode_supported=True,
+        is_smart_clean_mode_set_supported=True,
+        is_clean_route_setting_supported=False,
+    )
+    assert get_cleaning_mode_codes(mode, features, current_mop_mode) == (*fan_water, expected_route)
+
+
+def test_get_cleaning_mode_codes_unsupported_mode() -> None:
+    with pytest.raises(RoborockUnsupportedFeature, match="not supported"):
+        get_cleaning_mode_codes(CleaningMode.SMART_MODE, _features(), None)
 
 
 _SAROS_10R = {

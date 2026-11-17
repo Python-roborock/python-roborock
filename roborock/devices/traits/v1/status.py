@@ -13,13 +13,14 @@ from roborock import (
     get_adjustable_settings,
     get_clean_modes,
     get_clean_routes,
+    get_cleaning_mode_codes,
     get_cleaning_mode_options,
-    get_cleaning_mode_parameters,
     get_current_cleaning_mode,
     get_display_options,
     get_dock_state,
     get_fan_speed_name,
     get_mop_route_name,
+    get_motor_mode_commands,
     get_water_mode_mapping,
     get_water_mode_name,
     get_water_modes,
@@ -191,10 +192,26 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
 
     async def set_cleaning_mode(self, cleaning_mode: str | CleaningMode) -> None:
         """Set the preferred high-level cleaning mode for the device."""
-        await self.rpc_channel.send_command(
-            RoborockCommand.SET_CLEAN_MOTOR_MODE,
-            params=get_cleaning_mode_parameters(resolve_cleaning_mode(cleaning_mode), self._device_features_trait),
+        fan_power, water_box_mode, mop_mode = get_cleaning_mode_codes(
+            resolve_cleaning_mode(cleaning_mode), self._device_features_trait, self.mop_mode
         )
+        await self._apply_motor_mode(fan_power, water_box_mode, mop_mode)
+
+    async def _apply_motor_mode(self, fan_power: int, water_box_mode: int | None, mop_mode: int | None) -> None:
+        """Send the codes in the order the model needs, then update the cached status.
+
+        The cached fields are updated and listeners are notified once, only after all
+        commands have succeeded. A None water mode or mop route leaves that field as it is.
+        """
+        commands = get_motor_mode_commands(fan_power, water_box_mode, mop_mode, self._device_features_trait)
+        for command, params in commands:
+            await self.rpc_channel.send_command(command, params=params)
+        self.fan_power = fan_power
+        if water_box_mode is not None:
+            self.water_box_mode = water_box_mode
+        if mop_mode is not None:
+            self.mop_mode = mop_mode
+        self._notify_update()
 
     async def resolve_error(self, error_code: int | None = None) -> None:
         """Resolve an error, like tapping "Resolved" in the Roborock app.
