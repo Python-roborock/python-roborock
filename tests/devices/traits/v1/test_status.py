@@ -3,7 +3,7 @@
 import asyncio
 import warnings
 from typing import cast
-from unittest.mock import AsyncMock, call
+from unittest.mock import AsyncMock, Mock, call
 
 import pytest
 
@@ -14,6 +14,7 @@ from roborock import (
     WaterModes,
     get_cleaning_mode_parameters,
     get_current_cleaning_mode,
+    get_water_slide_mode_name,
     resolve_cleaning_mode,
 )
 from roborock.data import SHORT_MODEL_TO_ENUM, HomeDataDevice, RoborockProductNickname
@@ -915,6 +916,52 @@ def test_update_from_dps_partial(status_trait: StatusTrait) -> None:
 
     assert status_trait.battery == 90
     assert status_trait.state == RoborockStateCode.charging  # Unchanged
+
+
+@pytest.mark.parametrize("pushed", [201, 202, 203])
+def test_update_from_dps_water_slide_ignores_legacy_levels(pushed: int) -> None:
+    """Legacy water level codes pushed to a water-slide device do not overwrite the slider value."""
+    status_trait = _create_cleaning_mode_status_trait(is_water_slide_mode_supported=True)
+    status_trait.water_box_mode = 235
+    listener = Mock()
+    status_trait.add_update_listener(listener)
+
+    status_trait.update_from_dps({RoborockDataProtocol.WATER_BOX_MODE: pushed})
+
+    assert status_trait.water_box_mode == 235
+    assert status_trait.water_mode_name == get_water_slide_mode_name(235)
+    listener.assert_not_called()
+
+
+@pytest.mark.parametrize("pushed", [200, 209, 225, 245])
+def test_update_from_dps_water_slide_keeps_other_water_codes(pushed: int) -> None:
+    """Slider codes pushed to a water-slide device are applied."""
+    status_trait = _create_cleaning_mode_status_trait(is_water_slide_mode_supported=True)
+    status_trait.water_box_mode = 235
+
+    status_trait.update_from_dps({RoborockDataProtocol.WATER_BOX_MODE: pushed})
+
+    assert status_trait.water_box_mode == pushed
+
+
+def test_update_from_dps_water_slide_still_applies_other_fields() -> None:
+    """Ignoring a legacy water level does not drop other fields in the same push."""
+    status_trait = _create_cleaning_mode_status_trait(is_water_slide_mode_supported=True)
+    status_trait.water_box_mode = 235
+
+    status_trait.update_from_dps({RoborockDataProtocol.FAN_POWER: 101, RoborockDataProtocol.WATER_BOX_MODE: 202})
+
+    assert status_trait.fan_power == 101
+    assert status_trait.water_box_mode == 235
+
+
+def test_update_from_dps_without_water_slide_keeps_legacy_levels() -> None:
+    """Devices without the water slider use the legacy level codes."""
+    status_trait = _create_cleaning_mode_status_trait(is_water_slide_mode_supported=False)
+
+    status_trait.update_from_dps({RoborockDataProtocol.WATER_BOX_MODE: 202})
+
+    assert status_trait.water_box_mode == 202
 
 
 def test_update_listener(status_trait: StatusTrait) -> None:
