@@ -1227,6 +1227,14 @@ These features are encoded as individual bits in the `new_feature_info_str` hex 
 
 These features are checked by verifying if the feature ID exists in the `feature_info` array.
 
+### is_set_clean_motor_mode_supported
+**Feature ID:** 118
+**Feature:** Set Clean Motor Mode
+**Description:** Models with this flag accept `fan_power` and `water_box_mode` together in `set_clean_motor_mode`; the route goes in `set_mop_mode`. Models with `is_shake_mop_set_supported` send all three in `set_clean_motor_mode`. Other models use `set_custom_mode`, `set_water_box_custom_mode` and `set_mop_mode`.
+**Impact:** Decides which commands are used to change the fan speed, water mode and cleaning mode.
+
+---
+
 ### is_led_status_switch_supported
 **Feature ID:** 119
 **Feature:** LED Status Switch

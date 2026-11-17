@@ -933,9 +933,13 @@ Return example:
 
 ### set_custom_mode
 
-Description:
+Description: Set the fan speed (suction power). Used by `StatusTrait` on models that do not accept the fan speed in `set_clean_motor_mode`. See `set_clean_motor_mode` for the order the commands are sent in.
 
-Parameters:
+Parameters: Fan power code in a list, e.g. `[102]`. `105` (`VacuumModes.OFF`) turns the fan off for mop-only cleaning.
+
+**Supported devices:**
+
+* Roborock Saros 10R: ✅ (`[102]` from mop-only mode switches to vacuum and mop and resets route `301` to `300`)
 
 ### get_customize_clean_mode
 
@@ -1170,9 +1174,9 @@ Example for S8 Pro Ultra:
 
 ### set_mop_mode
 
-Description: Set mop mode.
+Description: Set the mop route. Used by `StatusTrait` on models that do not accept `mop_mode` in `set_clean_motor_mode`. See `set_clean_motor_mode` for when it is sent.
 
-Parameters: mop_mode 300
+Parameters: Mop route code in a list, e.g. `[300]`.
 
 **Supported devices:**
 
@@ -1180,9 +1184,34 @@ Parameters: mop_mode 300
 
 ### set_clean_motor_mode
 
-Description:
+Description: Set the fan speed, water mode and (on some models) mop route in one command. `StatusTrait.set_cleaning_mode`, `set_fan_speed`, `set_water_mode` and `set_mop_route` all apply a full set of codes (the settings they do not change keep their current values), and send the commands in the order the model needs (the lists were compared with the Roborock app):
 
-Parameters:
+| Model | Commands sent, in order |
+| :--- | :--- |
+| `is_shake_mop_set_supported` | `set_clean_motor_mode` with `fan_power`, `water_box_mode` and `mop_mode` (`mop_mode` only when a route is sent) |
+| `is_set_clean_motor_mode_supported` (feature 118) | `set_clean_motor_mode` with `fan_power` and `water_box_mode`, then `set_mop_mode` when a route is sent |
+| Devices without a mop (`is_support_water_mode` false) | `set_custom_mode` (fan) only, whatever the other flags say |
+| Other models | `set_custom_mode` (fan), `set_water_box_custom_mode` (water), then `set_mop_mode` when a route is sent |
+
+A mop route is sent only when the model supports both route setting (`is_clean_route_setting_supported`) and the shake module (`is_shake_mop_set_supported`), because only models with the shake module offer a route choice. Otherwise it is only sent to leave SmartPlan or custom mode: standard `300` is sent when the current route is `306` (SmartPlan) or `302` (custom) and the target mode is not the one that already owns that route (SmartPlan for `306`, custom for `302`), so the robot is not still reported in the mode it left. In every other case the route is not sent, so `set_fan_speed`, `set_water_mode` and `set_mop_route` never send `set_mop_mode` on models without the shake module. (The legacy `get_cleaning_mode_parameters` helper still adds `mop_mode` for every model with route setting.)
+
+Parameters: List with a dictionary, e.g. `[{"fan_power": 102, "water_box_mode": 202}]`. `mop_mode` is added where the table says so.
+
+`StatusTrait` setters: `set_fan_speed`, `set_water_mode` and `set_mop_route` only work when the matching `is_fan_speed_adjustable`, `is_water_mode_adjustable` or `is_mop_route_adjustable` is true, and only accept the values valid in the current cleaning mode, which are the same values that `fan_speed_display_options`, `water_mode_display_options` and `mop_route_display_options` list (`fan_speed_options`, `water_mode_options` and `mop_route_options` stay the model's full lists). SmartPlan, custom and unknown modes, and values that are not offered in the current mode, raise `RoborockUnsupportedFeature`; nothing is sent. They raise `RoborockException` when the status has not been loaded yet. Water slide codes `221`-`250` are accepted when the model supports water slide mode. After the commands succeed the local status fields are updated. Devices without a mop (`is_support_water_mode` false) have no water mode: `set_fan_speed` only needs the fan power loaded and sends only `set_custom_mode`.
+
+The lists depend on the cleaning mode, following the mode tabs of the robot settings:
+
+| Setting | Offered values |
+|---|---|
+| Fan speed | Not offered in mop-only mode (mop-only mode always sends fan code `105`). Max+ (`108`) only in vacuum-only mode with `is_max_plus_mode_supported`, never in vacuum and mop. On devices without mode tabs (`is_pure_clean_mop_supported` false) Max+ is offered in every mode with `is_none_pure_clean_mop_with_max_plus`. |
+| Water mode | The model's list in every mode where it is offered, without `off` (`200`) when the device has a mop-only tab (`is_pure_clean_mop_supported`). Devices without a mop-only tab have one general tab: the water mode is adjustable in every regular mode, so a water-off state (classified as vacuum) can still turn the water on. |
+| Mop route | Needs `is_shake_mop_set_supported`, and outside mop-only mode also `is_clean_route_fast_mode_supported` and `is_clean_route_setting_supported`. In vacuum and mop and in vacuum only only fast (`304`) and standard (`300`); in mop-only mode, and on devices without mode tabs, the model's full list. With `is_clean_efficiency_supported` the full list (which never contains deep, `301`) in every mode, with `is_none_pure_clean_mop_with_max_plus` fast and standard in every mode. |
+
+Values left over from another tab (for example by an older client) are not sent on: `set_fan_speed`, `set_water_mode`, `set_mop_route` and `set_cleaning_mode` replace a fan speed that is not on the mode's list, such as Max+ (`108`) outside vacuum-only mode or the mop-only code `105` left over outside mop-only mode, with balanced (`102`), and a route that is not on the tab's route list with standard (`300`). The route is replaced even when it is not adjustable in the mode, but only when a route is sent at all (see above); the tab's list is the model's full list where the full list is offered and fast and standard otherwise. The robot rejects deep (`301`) in vacuum and mop with error `-10005`. A setting the device does not have (for example the mop route without route setting) always lists nothing, even in SmartPlan or custom mode; the same holds for the mop route without the shake module. In SmartPlan and custom mode only the SmartPlan or custom value is listed.
+
+**Supported devices:**
+
+* Roborock Saros 10R: ✅ (one command with `fan_power`, `water_box_mode` and `mop_mode`; tested in every cleaning mode, including SmartPlan `110`/`209`/`306` and custom `106`/`204`/`302`; deep route `301` returns `-10005` in vacuum and mop)
 
 ### get_dust_collection_mode
 
@@ -1751,7 +1780,7 @@ Parameters: None
 
 Description: Set the water box / mopping water flow mode. Setting mode `200` turns off water dispensing completely (used for vacuum-only cleaning). To perform mop-only cleaning without vacuuming, pair water mode with turning off the vacuum fan (`set_custom_mode` to `105` / `VacuumModes.OFF`).
 
-Parameters: Integer mode code inside a list or dictionary, e.g. `[200]` or `{'water_box_mode': 200}`.
+Parameters: Integer mode code inside a list or dictionary, e.g. `[200]` or `{'water_box_mode': 200}`. On models with water slide support the code can also be in the range `221`-`250`. Models that accept `water_box_mode` in `set_clean_motor_mode` use that command instead, see `set_clean_motor_mode`.
 
 CLI Example:
 
