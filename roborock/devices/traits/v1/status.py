@@ -32,12 +32,18 @@ _LOGGER = logging.getLogger(__name__)
 _DPS_CONVERTER = DpsDataConverter.from_dataclass(StatusV2)
 
 
-_LEGACY_WATER_LEVEL_CODES = frozenset({WaterModes.LOW.code, WaterModes.MEDIUM.code, WaterModes.HIGH.code})
+# Non-slider codes that water-slide devices report as valid (custom and smart mode).
+_WATER_MODE_CODES_KEPT = frozenset({WaterModes.CUSTOMIZED.code, WaterModes.SMART_MODE.code})
 
 
-def _drop_legacy_water_levels(decoded_dps: dict[RoborockDataProtocol, Any]) -> dict[RoborockDataProtocol, Any]:
-    """Return the pushed data without a legacy water level (low, medium or high)."""
-    if decoded_dps.get(RoborockDataProtocol.WATER_BOX_MODE) not in _LEGACY_WATER_LEVEL_CODES:
+def _drop_unresolvable_water_level(decoded_dps: dict[RoborockDataProtocol, Any]) -> dict[RoborockDataProtocol, Any]:
+    """Return the pushed data without a water code a water-slide device cannot name.
+
+    Water-slide devices push legacy codes (201-203, 208) that get_status never
+    returns. Only slider codes, off, smart water, smart mode and custom are kept.
+    """
+    code = decoded_dps.get(RoborockDataProtocol.WATER_BOX_MODE)
+    if code is None or code in _WATER_MODE_CODES_KEPT or get_water_slide_mode_name(code) is not None:
         return decoded_dps
     return {key: value for key, value in decoded_dps.items() if key != RoborockDataProtocol.WATER_BOX_MODE}
 
@@ -186,10 +192,10 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
         This handles unsolicited status updates pushed by the device
         via RoborockDataProtocol codes (e.g. STATE=121, BATTERY=122).
         """
-        # Water-slide devices push legacy level codes (201-203) while get_status
-        # returns slider codes, so a pushed legacy level would overwrite the real value.
+        # Water-slide devices push legacy codes (e.g. 201-203, 208) while get_status
+        # returns slider codes, so a pushed legacy code would overwrite the real value.
         if self._device_features_trait.is_water_slide_mode_supported:
-            decoded_dps = _drop_legacy_water_levels(decoded_dps)
+            decoded_dps = _drop_unresolvable_water_level(decoded_dps)
         if _DPS_CONVERTER.update_from_dps(self, decoded_dps):
             self._notify_update()
 

@@ -918,9 +918,9 @@ def test_update_from_dps_partial(status_trait: StatusTrait) -> None:
     assert status_trait.state == RoborockStateCode.charging  # Unchanged
 
 
-@pytest.mark.parametrize("pushed", [201, 202, 203])
-def test_update_from_dps_water_slide_ignores_legacy_levels(pushed: int) -> None:
-    """Legacy water level codes pushed to a water-slide device do not overwrite the slider value."""
+@pytest.mark.parametrize("pushed", [201, 202, 203, 208, 251, 999])
+def test_update_from_dps_water_slide_ignores_unresolvable_water_codes(pushed: int) -> None:
+    """Water codes the slider cannot name do not overwrite the slider value."""
     status_trait = _create_cleaning_mode_status_trait(is_water_slide_mode_supported=True)
     status_trait.water_box_mode = 235
     listener = Mock()
@@ -933,7 +933,7 @@ def test_update_from_dps_water_slide_ignores_legacy_levels(pushed: int) -> None:
     listener.assert_not_called()
 
 
-@pytest.mark.parametrize("pushed", [200, 209, 225, 245])
+@pytest.mark.parametrize("pushed", [200, WaterModes.CUSTOMIZED.code, 209, 221, 225, 245, 250])
 def test_update_from_dps_water_slide_keeps_other_water_codes(pushed: int) -> None:
     """Slider codes pushed to a water-slide device are applied."""
     status_trait = _create_cleaning_mode_status_trait(is_water_slide_mode_supported=True)
@@ -955,13 +955,14 @@ def test_update_from_dps_water_slide_still_applies_other_fields() -> None:
     assert status_trait.water_box_mode == 235
 
 
-def test_update_from_dps_without_water_slide_keeps_legacy_levels() -> None:
+@pytest.mark.parametrize("pushed", [201, 202, 203, 208])
+def test_update_from_dps_without_water_slide_keeps_legacy_levels(pushed: int) -> None:
     """Devices without the water slider use the legacy level codes."""
     status_trait = _create_cleaning_mode_status_trait(is_water_slide_mode_supported=False)
 
-    status_trait.update_from_dps({RoborockDataProtocol.WATER_BOX_MODE: 202})
+    status_trait.update_from_dps({RoborockDataProtocol.WATER_BOX_MODE: pushed})
 
-    assert status_trait.water_box_mode == 202
+    assert status_trait.water_box_mode == pushed
 
 
 def test_update_listener(status_trait: StatusTrait) -> None:
