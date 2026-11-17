@@ -56,6 +56,8 @@ def _create_cleaning_mode_status_trait(**feature_overrides: bool) -> StatusTrait
     features.is_pure_clean_mop_supported = True
     features.is_customized_clean_supported = True
     features.is_clean_route_setting_supported = True
+    features.is_shake_mop_set_supported = True
+    features.is_clean_route_fast_mode_supported = True
     for feature_name, value in feature_overrides.items():
         if not hasattr(features, feature_name):
             raise AttributeError(f"Unknown DeviceFeatures override: {feature_name}")
@@ -283,6 +285,92 @@ def test_feature_aware_dock_and_charging_state(
         warnings.simplefilter("error", DeprecationWarning)
         assert status_trait.dock_state == expected_dock_state
         assert status_trait.is_battery_charging is expected_is_battery_charging
+
+
+@pytest.mark.parametrize(
+    ("fan", "water", "mop", "expected"),
+    [
+        (110, 209, 306, (False, False, False)),
+        (106, 204, 302, (False, False, False)),
+        (102, 200, 300, (True, False, True)),
+        (102, 202, 300, (True, True, True)),
+        (105, 202, 300, (False, True, True)),
+    ],
+)
+def test_adjustable_settings_per_mode(fan: int, water: int, mop: int, expected: tuple[bool, bool, bool]) -> None:
+    trait = _create_cleaning_mode_status_trait(is_smart_clean_mode_set_supported=True, is_shake_mop_set_supported=True)
+    trait.fan_power, trait.water_box_mode, trait.mop_mode = fan, water, mop
+    assert (trait.is_fan_speed_adjustable, trait.is_water_mode_adjustable, trait.is_mop_route_adjustable) == expected
+
+
+@pytest.mark.parametrize(
+    ("route_flag", "shake", "expected_options", "expected_adjustable"),
+    [
+        (True, True, True, True),
+        (False, True, False, True),
+        # The route is only offered with the shake module, even when the model lists routes.
+        (True, False, True, False),
+        (False, False, False, False),
+    ],
+)
+def test_mop_route_needs_shake_module(
+    route_flag: bool, shake: bool, expected_options: bool, expected_adjustable: bool
+) -> None:
+    trait = _create_cleaning_mode_status_trait(
+        is_shake_mop_set_supported=shake, is_clean_route_setting_supported=route_flag
+    )
+    trait.fan_power, trait.water_box_mode, trait.mop_mode = 105, 202, 300  # MOP
+    assert trait.is_mop_route_adjustable is expected_adjustable
+    assert bool(trait.mop_route_options) is expected_options
+    assert bool(trait.mop_route_display_options) is (expected_adjustable and expected_options)
+
+
+@pytest.mark.parametrize(
+    ("codes", "expected"),
+    [
+        ((110, 209, 306), ([VacuumModes.SMART_MODE], [WaterModes.SMART_MODE], [CleanRoutes.SMART_MODE])),
+        ((106, 204, 302), ([VacuumModes.CUSTOMIZED], [WaterModes.CUSTOMIZED], [CleanRoutes.CUSTOMIZED])),
+    ],
+)
+def test_display_options_locked_in_special_modes(
+    codes: tuple[int, int, int],
+    expected: tuple[list[VacuumModes], list[WaterModes], list[CleanRoutes]],
+) -> None:
+    trait = _create_cleaning_mode_status_trait(is_smart_clean_mode_set_supported=True, is_custom_mode_supported=True)
+    trait.fan_power, trait.water_box_mode, trait.mop_mode = codes
+    assert (
+        trait.fan_speed_display_options,
+        trait.water_mode_display_options,
+        trait.mop_route_display_options,
+    ) == expected
+    # The current value's name is among the options to show (HA SelectEntity.state).
+    assert trait.water_mode_name in {m.display_name for m in trait.water_mode_display_options}
+
+
+def test_display_options_regular_and_hidden() -> None:
+    trait = _create_cleaning_mode_status_trait()
+    trait.fan_power, trait.water_box_mode, trait.mop_mode = 102, 200, 300  # VACUUM
+    assert trait.fan_speed_display_options == trait.fan_speed_options
+    assert trait.water_mode_display_options == []
+
+
+@pytest.mark.parametrize("codes", [(110, 209, 306), (106, 204, 302)])
+def test_mop_route_display_options_empty_without_route_setting(codes: tuple[int, int, int]) -> None:
+    """A device without a route setting shows no routes, even in SmartPlan or custom mode."""
+    trait = _create_cleaning_mode_status_trait(
+        is_smart_clean_mode_set_supported=True,
+        is_custom_mode_supported=True,
+        is_clean_route_setting_supported=False,
+    )
+    trait.fan_power, trait.water_box_mode, trait.mop_mode = codes
+    assert trait.mop_route_display_options == []
+    assert trait.water_mode_display_options != []
+
+
+def test_vacuum_only_device_fan_adjustable() -> None:
+    trait = _create_cleaning_mode_status_trait(is_support_water_mode=False)
+    trait.fan_power = 102
+    assert (trait.is_fan_speed_adjustable, trait.is_water_mode_adjustable) == (True, False)
 
 
 def test_options(status_trait: StatusTrait) -> None:
@@ -1077,3 +1165,95 @@ def test_update_listener_ignores_unrelated(status_trait: StatusTrait) -> None:
 
     assert not event.is_set()
     unsubscribe()
+
+
+_SAROS_10R_FEATURES = {
+    "is_water_slide_mode_supported": True,
+    "is_careful_slow_mop_supported": True,
+    "is_max_plus_mode_supported": True,
+}
+
+
+_SLIDE_WATER_WITHOUT_OFF = [
+    WaterModes.PURE_WATER_FLOW_START,
+    WaterModes.PURE_WATER_FLOW_SMALL,
+    WaterModes.PURE_WATER_FLOW_GENTLE,
+    WaterModes.PURE_WATER_FLOW_MIDDLE,
+    WaterModes.PURE_WATER_FLOW_LARGE,
+    WaterModes.PURE_WATER_SUPER_BEGIN,
+    WaterModes.PURE_WATER_FLOW_END,
+]
+
+
+@pytest.mark.parametrize(
+    ("codes", "expected"),
+    [
+        # VAC_AND_MOP: no Max+, routes fast and standard only, no OFF.
+        (
+            (102, 235, 300),
+            (
+                [VacuumModes.QUIET, VacuumModes.BALANCED, VacuumModes.TURBO, VacuumModes.MAX],
+                {CleanRoutes.FAST, CleanRoutes.STANDARD},
+                _SLIDE_WATER_WITHOUT_OFF,
+            ),
+        ),
+        # VACUUM: Max+ is offered, routes fast and standard only.
+        (
+            (102, 200, 300),
+            (
+                [VacuumModes.QUIET, VacuumModes.BALANCED, VacuumModes.TURBO, VacuumModes.MAX, VacuumModes.MAX_PLUS],
+                {CleanRoutes.FAST, CleanRoutes.STANDARD},
+                [],
+            ),
+        ),
+        # MOP: no fan speed, the full route list.
+        (
+            (105, 235, 300),
+            (
+                [],
+                {CleanRoutes.STANDARD, CleanRoutes.DEEP, CleanRoutes.DEEP_PLUS, CleanRoutes.FAST},
+                _SLIDE_WATER_WITHOUT_OFF,
+            ),
+        ),
+    ],
+)
+def test_display_options_follow_the_cleaning_mode(
+    codes: tuple[int, int, int],
+    expected: tuple[list[VacuumModes], set[CleanRoutes], list[WaterModes]],
+) -> None:
+    trait = _create_cleaning_mode_status_trait(**_SAROS_10R_FEATURES)
+    trait.fan_power, trait.water_box_mode, trait.mop_mode = codes
+    assert trait.fan_speed_display_options == expected[0]
+    assert set(trait.mop_route_display_options) == expected[1]
+    assert trait.water_mode_display_options == expected[2]
+
+
+@pytest.mark.parametrize(
+    ("overrides", "expected_fan"),
+    [
+        ({"is_pure_clean_mop_supported": False, "is_none_pure_clean_mop_with_max_plus": True}, True),
+        ({"is_pure_clean_mop_supported": False, "is_max_plus_mode_supported": True}, False),
+    ],
+)
+def test_max_plus_without_sub_tabs(overrides: dict[str, bool], expected_fan: bool) -> None:
+    trait = _create_cleaning_mode_status_trait(**overrides)
+    trait.fan_power, trait.water_box_mode, trait.mop_mode = 102, 202, 300
+    assert (VacuumModes.MAX_PLUS in trait.fan_speed_display_options) is expected_fan
+
+
+def test_vacuum_without_a_mop_keeps_max_plus() -> None:
+    trait = _create_cleaning_mode_status_trait(is_support_water_mode=False, is_max_plus_mode_supported=True)
+    trait.fan_power = 102
+    assert VacuumModes.MAX_PLUS in trait.fan_speed_display_options
+
+
+@pytest.mark.parametrize("codes", [(110, 209, 306), (106, 204, 302)])
+def test_mop_route_special_values_need_shake(codes: tuple[int, int, int]) -> None:
+    """Without the shake module no route is listed, not even the SmartPlan or custom value."""
+    trait = _create_cleaning_mode_status_trait(
+        is_smart_clean_mode_set_supported=True, is_custom_mode_supported=True, is_shake_mop_set_supported=False
+    )
+    trait.fan_power, trait.water_box_mode, trait.mop_mode = codes
+    assert trait.mop_route_options
+    assert trait.mop_route_display_options == []
+    assert trait.water_mode_display_options != []

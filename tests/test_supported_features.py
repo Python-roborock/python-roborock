@@ -437,3 +437,12 @@ def test_custom_and_soft_clean_mode_model_lists(nickname: RoborockProductNicknam
     )
     assert features.is_custom_mode_supported is custom
     assert features.is_soft_clean_mode_supported is soft
+
+
+@pytest.mark.parametrize(("feature_info", "expected"), [([118], True), ([], False)])
+def test_set_clean_motor_mode_supported(feature_info: list[int], expected: bool) -> None:
+    """Robot feature 118 means fan_power and water_box_mode are sent together in set_clean_motor_mode."""
+    features = DeviceFeatures.from_feature_flags(
+        new_feature_info=0, new_feature_info_str="", feature_info=feature_info, product_nickname=None
+    )
+    assert features.is_set_clean_motor_mode_supported is expected

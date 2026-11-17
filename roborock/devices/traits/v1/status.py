@@ -4,16 +4,19 @@ from typing import Any
 
 from roborock import (
     CleaningMode,
+    CleaningSetting,
     CleanRoutes,
     RoborockDockState,
     StatusV2,
     VacuumModes,
     WaterModes,
+    get_adjustable_settings,
     get_clean_modes,
     get_clean_routes,
     get_cleaning_mode_options,
     get_cleaning_mode_parameters,
     get_current_cleaning_mode,
+    get_display_options,
     get_dock_state,
     get_fan_speed_name,
     get_mop_route_name,
@@ -146,6 +149,45 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
         if (cleaning_mode := self.current_cleaning_mode) is None:
             return None
         return cleaning_mode.value
+
+    @property
+    def is_fan_speed_adjustable(self) -> bool:
+        """Whether the fan speed can be changed in the current cleaning mode."""
+        adjustable = get_adjustable_settings(self.current_cleaning_mode, self._device_features_trait)
+        return CleaningSetting.FAN_SPEED in adjustable
+
+    @property
+    def is_water_mode_adjustable(self) -> bool:
+        """Whether the water mode can be changed in the current cleaning mode."""
+        adjustable = get_adjustable_settings(self.current_cleaning_mode, self._device_features_trait)
+        return CleaningSetting.WATER_MODE in adjustable
+
+    @property
+    def is_mop_route_adjustable(self) -> bool:
+        """Whether the mop route can be changed in the current cleaning mode."""
+        adjustable = get_adjustable_settings(self.current_cleaning_mode, self._device_features_trait)
+        return CleaningSetting.MOP_ROUTE in adjustable
+
+    @property
+    def fan_speed_display_options(self) -> list[VacuumModes]:
+        """Fan speeds to show for the current cleaning mode."""
+        return get_display_options(
+            CleaningSetting.FAN_SPEED, self.current_cleaning_mode, self._device_features_trait, self.fan_speed_options
+        )
+
+    @property
+    def water_mode_display_options(self) -> list[WaterModes]:
+        """Water modes to show for the current cleaning mode."""
+        return get_display_options(
+            CleaningSetting.WATER_MODE, self.current_cleaning_mode, self._device_features_trait, self.water_mode_options
+        )
+
+    @property
+    def mop_route_display_options(self) -> list[CleanRoutes]:
+        """Mop routes to show for the current cleaning mode."""
+        return get_display_options(
+            CleaningSetting.MOP_ROUTE, self.current_cleaning_mode, self._device_features_trait, self.mop_route_options
+        )
 
     async def set_cleaning_mode(self, cleaning_mode: str | CleaningMode) -> None:
         """Set the preferred high-level cleaning mode for the device."""
