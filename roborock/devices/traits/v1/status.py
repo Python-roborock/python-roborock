@@ -96,7 +96,6 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
 
     @cached_property
     def water_mode_options(self) -> list[WaterModes]:
-        
         return get_water_modes(self._device_features_trait)
 
     @cached_property
