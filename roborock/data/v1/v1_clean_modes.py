@@ -297,12 +297,17 @@ def get_display_options(
     mode: CleaningMode | None,
     features: DeviceFeatures,
     options: list[ModeEnumT],
+    current_code: int | None,
 ) -> list[ModeEnumT]:
     """Return the values of a setting to show for the current cleaning mode.
 
     In SmartPlan only its SmartPlan value is shown and in custom mode only its custom value.
-    A setting that can be changed shows the values of the mode (see get_mode_options)
-    and any other setting shows nothing.
+    A setting that can be changed shows the values of the mode (see get_mode_options).
+    A setting the model has but the current mode sets itself (for example the fan speed
+    while mopping only, or the water mode while vacuuming only) shows exactly one value,
+    the current one (current_code), so that consumers can show it read-only. The value is
+    resolved like get_fan_speed_name, get_water_mode_name and get_mop_route_name name it;
+    when the code is None or cannot be named, nothing is shown.
     A setting the device does not have (no options) always shows nothing, and so does the
     mop route without the shake module, SmartPlan and custom values included.
     """
@@ -315,7 +320,32 @@ def get_display_options(
         return [cast(ModeEnumT, smart_value)]
     if mode == CleaningMode.CUSTOM:
         return [cast(ModeEnumT, custom_value)]
-    return get_mode_options(setting, mode, features, options)
+    if setting in get_adjustable_settings(mode, features):
+        return get_mode_options(setting, mode, features, options)
+    if setting not in get_supported_settings(features) or current_code is None:
+        return []
+    current = _resolve_current_option(setting, current_code, features, options)
+    return [cast(ModeEnumT, current)] if current is not None else []
+
+
+def _resolve_current_option(
+    setting: CleaningSetting, code: int, features: DeviceFeatures, options: list[ModeEnumT]
+) -> RoborockModeEnum | None:
+    """Resolve a reported code to the enum member that the name helpers name, or None if they cannot."""
+    if setting == CleaningSetting.WATER_MODE and features.is_water_slide_mode_supported:
+        if (slide_mode := _resolve_water_slide_mode(code)) is not None:
+            return slide_mode
+    else:
+        for option in options:
+            if option.code == code:
+                return option
+    for special in _SMART_AND_CUSTOM_VALUES[setting]:
+        if special.code == code:
+            return special
+    if setting == CleaningSetting.FAN_SPEED and code == VacuumModes.GENTLE.code:
+        # 105 is the mop-only code on pure-mop devices and "gentle" elsewhere.
+        return VacuumModes.OFF if features.is_pure_clean_mop_supported else VacuumModes.GENTLE
+    return None
 
 
 def get_fan_speed_name(code: int, features: DeviceFeatures) -> str | None:

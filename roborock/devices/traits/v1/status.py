@@ -208,23 +208,35 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
 
     @property
     def fan_speed_display_options(self) -> list[VacuumModes]:
-        """Fan speeds to show for the current cleaning mode."""
+        """Fan speeds to show for the current cleaning mode, or only the current value when the mode sets it."""
         return get_display_options(
-            CleaningSetting.FAN_SPEED, self._rules_mode, self._device_features_trait, self.fan_speed_options
+            CleaningSetting.FAN_SPEED,
+            self._rules_mode,
+            self._device_features_trait,
+            self.fan_speed_options,
+            self.fan_power,
         )
 
     @property
     def water_mode_display_options(self) -> list[WaterModes]:
-        """Water modes to show for the current cleaning mode."""
+        """Water modes to show for the current cleaning mode, or only the current value when the mode sets it."""
         return get_display_options(
-            CleaningSetting.WATER_MODE, self._rules_mode, self._device_features_trait, self.water_mode_options
+            CleaningSetting.WATER_MODE,
+            self._rules_mode,
+            self._device_features_trait,
+            self.water_mode_options,
+            self.water_box_mode,
         )
 
     @property
     def mop_route_display_options(self) -> list[CleanRoutes]:
-        """Mop routes to show for the current cleaning mode."""
+        """Mop routes to show for the current cleaning mode, or only the current value when the mode sets it."""
         return get_display_options(
-            CleaningSetting.MOP_ROUTE, self._rules_mode, self._device_features_trait, self.mop_route_options
+            CleaningSetting.MOP_ROUTE,
+            self._rules_mode,
+            self._device_features_trait,
+            self.mop_route_options,
+            self.mop_mode,
         )
 
     async def set_cleaning_mode(self, cleaning_mode: str | CleaningMode) -> None:
