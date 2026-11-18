@@ -346,7 +346,6 @@ def _resolve_clean_mode(value: int | VacuumModes | None, features: DeviceFeature
         if features.is_pure_clean_mop_supported:
             return get_mop_only_vacuum_mode(features)
         return VacuumModes.GENTLE
-        
     return VacuumModes.from_code_optional(value)
 
 
