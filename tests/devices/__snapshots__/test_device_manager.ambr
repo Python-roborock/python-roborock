@@ -305,7 +305,6 @@
             'isPetAlbumSupported': False,
             'isPetSnapshotSupported': False,
             'isPetSuppliesDeepCleanSupported': False,
-            'isPhotoUploadSupported': False,
             'isProductExperienceImprovementSupported': False,
             'isProgramModeSupported': False,
             'isPumpingWaterSupported': False,

@@ -318,8 +318,8 @@ PRODUCT_FEATURE_MAP: dict[RoborockProductNickname, list[ProductFeatures]] = {
     for product, features in _BASE_PRODUCT_FEATURE_MAP.items()
 }
 
-# Products the app treats as map-segment capable without robotFeatures 116.
-_MAP_SEGMENT_MODELS = {
+# Older products that support map segments only when they report robotFeatures 116.
+_MAP_SEGMENT_FEATURE_REQUIRED_MODELS = {
     RoborockProductNickname.RUBYSC,
     RoborockProductNickname.RUBYPLUS,
 }
@@ -350,8 +350,6 @@ class DeviceFeatures(RoborockBase):
     is_multi_map_segment_timer_supported: bool = field(metadata={"robot_new_features": 4096})
     is_current_map_restore_enabled: bool = field(metadata={"robot_new_features": 8192})
     is_room_name_supported: bool = field(metadata={"robot_new_features": 16384})
-    # The app also enables photo upload for some models in the China and Mi apps only.
-    is_photo_upload_supported: bool = field(metadata={"robot_new_features": 65536})
     is_shake_mop_set_supported: bool = field(metadata={"robot_new_features": 262144})
     is_map_beautify_internal_debug_supported: bool = field(metadata={"robot_new_features": 2097152})
     is_new_data_for_clean_history: bool = field(metadata={"robot_new_features": 4194304})
@@ -651,7 +649,7 @@ class DeviceFeatures(RoborockBase):
     is_timer_segment_zone_hybrid_supported: bool = field(
         metadata={"new_feature_str_bit": NewFeatureStrBit.TIMER_SEGMENT_ZONE_HYBRID}
     )
-    # Also true for roller mops; see from_feature_flags.
+    # Only true together with a roller mop; see from_feature_flags.
     is_smart_water_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.SMART_WATER})
     is_firmware_cloud_backup_privacy_supported: bool = field(
         metadata={"new_feature_str_bit": NewFeatureStrBit.FIRMWARE_CLOUD_BACKUP_PRIVACY}
@@ -665,7 +663,7 @@ class DeviceFeatures(RoborockBase):
     is_fds_endpoint_supported: bool = field(metadata={"robot_features": 111})
     is_auto_split_segments_supported: bool = field(metadata={"robot_features": 112})
     is_order_segment_clean_supported: bool = field(metadata={"robot_features": 114})
-    # The app also enables map segments for RubySC and RubyPlus; see from_feature_flags.
+    # True for every model except RubySC and RubyPlus, which need this id; see from_feature_flags.
     is_map_segment_supported: bool = field(metadata={"robot_features": 116})
     is_led_status_switch_supported: bool = field(metadata={"robot_features": 119})
     is_multi_floor_supported: bool = field(metadata={"robot_features": 120})
@@ -844,10 +842,12 @@ class DeviceFeatures(RoborockBase):
         # roller mop like one for water modes and customized cleaning.
         kwargs["is_support_water_mode"] |= kwargs["is_roller_mop_supported"]
         kwargs["is_customized_clean_supported"] |= kwargs["is_roller_mop_supported"]
-        kwargs["is_map_segment_supported"] |= product_nickname in _MAP_SEGMENT_MODELS
+        # Only RubySC and RubyPlus need robotFeatures 116 for map segments; all other
+        # models, including unknown ones, support them without it.
+        kwargs["is_map_segment_supported"] |= product_nickname not in _MAP_SEGMENT_FEATURE_REQUIRED_MODELS
         kwargs["is_support_wash_phase_pumping_supported"] |= product_nickname in _WASH_PHASE_PUMPING_MODELS
-        # The app offers smart mop water for roller mops even without the smart-water bit.
-        kwargs["is_smart_water_supported"] |= kwargs["is_roller_mop_supported"]
+        # Smart mop water is a roller-mop option, so it needs both the smart-water bit and a roller mop.
+        kwargs["is_smart_water_supported"] &= kwargs["is_roller_mop_supported"]
 
         return cls(**kwargs)
 
