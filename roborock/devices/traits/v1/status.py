@@ -103,7 +103,7 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
         return {fan.code: fan.value for fan in self.fan_speed_options}
 
     @property
-    def supported_cleaning_settings(self) -> frozenset[CleaningSetting]:
+    def supported_cleaning_settings(self) -> list[CleaningSetting]:
         """The cleaning settings this model has at all, independent of the current cleaning mode.
 
         Use it to decide which settings to offer. Whether a setting can be changed right
@@ -111,8 +111,11 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
         The options and mapping of a setting the model does not have are empty. The cleaning
         mode has no entry here: it exists exactly when cleaning_mode_options is not empty,
         which is the case for models with a mop (is_support_water_mode).
+
+        The list is in the definition order of CleaningSetting, so it is stable across runs.
         """
-        return get_supported_settings(self._device_features_trait)
+        supported = get_supported_settings(self._device_features_trait)
+        return [setting for setting in CleaningSetting if setting in supported]
 
     @cached_property
     def water_mode_options(self) -> list[WaterModes]:

@@ -1639,7 +1639,7 @@ _ROUTE = CleaningSetting.MOP_ROUTE
 def test_supported_cleaning_settings(overrides: dict[str, bool], expected: set[CleaningSetting]) -> None:
     """The option lists and mappings are empty exactly for the settings the model does not have."""
     trait = _create_cleaning_mode_status_trait(**overrides)
-    assert trait.supported_cleaning_settings == frozenset(expected)
+    assert trait.supported_cleaning_settings == [setting for setting in CleaningSetting if setting in expected]
     assert bool(trait.fan_speed_options) and bool(trait.fan_speed_mapping)
     assert bool(trait.water_mode_options) is (_WATER in expected)
     assert bool(trait.water_mode_mapping) is (_WATER in expected)
