@@ -13,7 +13,11 @@ if typing.TYPE_CHECKING:
 
 class VacuumModes(RoborockModeEnum):
     GENTLE = ("gentle", 105)
-    OFF = ("off", 105)
+    # OFF has no wire code of its own: the app sends 105 (CleanModeZero) for
+    # mop-only cleaning, so OFF shares its wire code with GENTLE. It keeps a
+    # distinct enum code so code lookups are unambiguous; use
+    # vacuum_mode_wire_code() when sending a code to the device.
+    OFF = ("off", 107)
     QUIET = ("quiet", 101)
     BALANCED = ("balanced", 102)
     TURBO = ("turbo", 103)
@@ -259,6 +263,17 @@ def get_mop_only_vacuum_mode(features: DeviceFeatures) -> VacuumModes:
     return VacuumModes.OFF
 
 
+def vacuum_mode_wire_code(mode: VacuumModes) -> int:
+    """Return the wire code to send for a vacuum mode.
+
+    OFF has no wire code of its own: the app sends 105 (CleanModeZero) for
+    mop-only cleaning, so OFF shares its wire code with GENTLE.
+    """
+    if mode is VacuumModes.OFF:
+        return VacuumModes.GENTLE.code
+    return mode.code
+
+
 def _get_default_mopping_water_mode(features: DeviceFeatures) -> WaterModes:
     """Pick a sensible default water mode when mopping for the device."""
     # Water-slide devices use a disjoint set of water codes; pick a mid-flow
@@ -306,7 +321,7 @@ def get_cleaning_mode_parameters(cleaning_mode: CleaningMode, features: DeviceFe
         raise RoborockUnsupportedFeature(f"Cleaning mode {cleaning_mode.value!r} is not supported")
 
     fan_power, water_box_mode, mop_mode = _get_clean_motor_mode_params(cleaning_mode, features)
-    params: dict[str, int] = {"fan_power": fan_power.code, "water_box_mode": water_box_mode.code}
+    params: dict[str, int] = {"fan_power": vacuum_mode_wire_code(fan_power), "water_box_mode": water_box_mode.code}
     if features.is_clean_route_setting_supported:
         params["mop_mode"] = mop_mode.code
     return [params]
@@ -325,10 +340,13 @@ def _resolve_clean_mode(value: int | VacuumModes | None, features: DeviceFeature
     """Resolve a vacuum mode code, accounting for feature-specific code aliases."""
     if value is None or isinstance(value, VacuumModes):
         return value
-    if value == VacuumModes.OFF.code:
+    if value == VacuumModes.GENTLE.code:
+        # Code 105 is shared on the wire: gentle suction, or vacuum off
+        # (mop-only) on pure-mop devices. The app sends the same code for both.
         if features.is_pure_clean_mop_supported:
             return get_mop_only_vacuum_mode(features)
         return VacuumModes.GENTLE
+        
     return VacuumModes.from_code_optional(value)
 
 
