@@ -1245,7 +1245,7 @@ Parameters: None
 
 Returns:
 
-    status: 0 off, 1 balanced, 2 high. Mirrors `auto_dust_collection` in `get_status`.
+    status: 0 off, 1 balanced, 2 high. Devices without new feature string bit 53 only use 0 (off) and 1 (on). Mirrors `auto_dust_collection` in `get_status`.
 
 Return example:
 
@@ -1265,7 +1265,7 @@ Description: Set how often the dock empties the dustbin automatically.
 
 Parameters:
 
-    status: 0 off, 1 balanced, 2 high.
+    status: 0 off, 1 balanced, 2 high. Devices without new feature string bit 53 only use 0 (off) and 1 (on).
 
 Example:
 

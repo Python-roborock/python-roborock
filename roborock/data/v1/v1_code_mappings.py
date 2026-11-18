@@ -406,7 +406,11 @@ class RoborockDockDustCollectionModeCode(RoborockEnum):
 
 
 class RoborockDockDustCollectionFrequencyCode(RoborockEnum):
-    """Describes how often the dock empties the dustbin automatically (app: auto-empty frequency)."""
+    """Describes how often the dock empties the dustbin automatically (app: auto-empty frequency).
+
+    Devices without the auto-empty frequency only use ``off`` and ``balanced`` (code 1),
+    which then means auto-empty is on.
+    """
 
     unknown = -1
     off = 0

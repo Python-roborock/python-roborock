@@ -32,8 +32,8 @@ class DustCollectionModeTrait(DustCollectionMode, common.V1TraitMixin):
     """Trait for the dock dust collection mode.
 
     ``set_dust_collection_mode`` changes how strongly the dock empties the
-    dustbin. ``start_dust_collection`` and ``stop_dust_collection`` control a
-    manual dust collection directly.
+    dustbin. Manual dust collection is on ``DustCollectionTrait``, which
+    every collecting dock has.
 
     Created by ``PropertiesApi`` when ``supports_dust_collection_mode`` is true.
     """
@@ -53,11 +53,3 @@ class DustCollectionModeTrait(DustCollectionMode, common.V1TraitMixin):
         await self.rpc_channel.send_command(RoborockCommand.SET_DUST_COLLECTION_MODE, params={"mode": mode.value})
         # Optimistic update to avoid an extra refresh
         self.mode = mode
-
-    async def start_dust_collection(self) -> None:
-        """Start a manual dust collection."""
-        await self.rpc_channel.send_command(RoborockCommand.APP_START_COLLECT_DUST)
-
-    async def stop_dust_collection(self) -> None:
-        """Stop the running dust collection."""
-        await self.rpc_channel.send_command(RoborockCommand.APP_STOP_COLLECT_DUST)

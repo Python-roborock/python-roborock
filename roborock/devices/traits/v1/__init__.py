@@ -82,7 +82,7 @@ from . import (
     customize_clean_mode,
     device_features,
     do_not_disturb,
-    dust_collection_frequency,
+    dust_collection,
     dust_collection_mode,
     flow_led_status,
     home,
@@ -108,7 +108,7 @@ from .consumeable import ConsumableTrait
 from .customize_clean_mode import CustomizeCleanModeTrait
 from .device_features import DeviceFeaturesTrait
 from .do_not_disturb import DoNotDisturbTrait
-from .dust_collection_frequency import DustCollectionFrequencyTrait, supports_dust_collection_frequency
+from .dust_collection import DustCollectionTrait
 from .dust_collection_mode import DustCollectionModeTrait, supports_dust_collection_mode
 from .flow_led_status import FlowLedStatusTrait
 from .home import HomeTrait
@@ -138,7 +138,7 @@ __all__ = [
     "customize_clean_mode",
     "device_features",
     "do_not_disturb",
-    "dust_collection_frequency",
+    "dust_collection",
     "dust_collection_mode",
     "flow_led_status",
     "home",
@@ -186,7 +186,7 @@ class PropertiesApi(Trait):
     flow_led_status: FlowLedStatusTrait | None = None
     valley_electricity_timer: ValleyElectricityTimerTrait | None = None
     dust_collection_mode: DustCollectionModeTrait | None = None
-    dust_collection_frequency: DustCollectionFrequencyTrait | None = None
+    dust_collection: DustCollectionTrait | None = None
     wash_towel_mode: WashTowelModeTrait | None = None
     smart_wash_params: SmartWashParamsTrait | None = None
     obstacle_photos: ObstaclePhotoTrait | None = None
@@ -297,18 +297,16 @@ class PropertiesApi(Trait):
             wash_towel_mode._rpc_channel = self._get_rpc_channel(wash_towel_mode)  # type: ignore[assignment]
             self.wash_towel_mode = wash_towel_mode
 
-        # Dust collection traits need both device and dock features, like the app
+        # The dust collection mode needs both device and dock features
         if self.dust_collection_mode is None and supports_dust_collection_mode(self.device_features, dock_features):
             dust_collection_mode = DustCollectionModeTrait()
             dust_collection_mode._rpc_channel = self._get_rpc_channel(dust_collection_mode)
             self.dust_collection_mode = dust_collection_mode
 
-        if self.dust_collection_frequency is None and supports_dust_collection_frequency(
-            self.device_features, dock_features
-        ):
-            dust_collection_frequency = DustCollectionFrequencyTrait()
-            dust_collection_frequency._rpc_channel = self._get_rpc_channel(dust_collection_frequency)
-            self.dust_collection_frequency = dust_collection_frequency
+        if self.dust_collection is None and self._is_supported(DustCollectionTrait, "dust_collection", dock_features):
+            dust_collection = DustCollectionTrait(self.device_features)
+            dust_collection._rpc_channel = self._get_rpc_channel(dust_collection)  # type: ignore[assignment]
+            self.dust_collection = dust_collection
 
         if self.customize_clean_mode is None and self._is_supported(
             CustomizeCleanModeTrait, "customize_clean_mode", dock_features
@@ -334,7 +332,7 @@ class PropertiesApi(Trait):
             # Union args may not be in declared order
             item_type = union_args[0] if union_args[1] is type(None) else union_args[1]
             # Created above with constructor arguments or extra gating
-            if item_type in (ObstaclePhotoTrait, DustCollectionModeTrait, DustCollectionFrequencyTrait):
+            if item_type in (ObstaclePhotoTrait, DustCollectionModeTrait):
                 continue
             if not self._is_supported(item_type, item.name, dock_features):
                 _LOGGER.debug("Trait '%s' not supported, skipping", item.name)

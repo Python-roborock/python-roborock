@@ -192,26 +192,3 @@ async def test_refresh_unknown_code(
 
     mock_rpc_channel.send_command.assert_called_once_with(RoborockCommand.GET_DUST_COLLECTION_MODE)
     assert dust_collection_mode.mode == expected
-
-
-@pytest.mark.parametrize(("dock_type_code"), [RoborockDockTypeCode.o4_dock])
-@pytest.mark.parametrize(
-    ("method_name", "command"),
-    [
-        ("start_dust_collection", RoborockCommand.APP_START_COLLECT_DUST),
-        ("stop_dust_collection", RoborockCommand.APP_STOP_COLLECT_DUST),
-    ],
-)
-async def test_dust_collection_actions(
-    dust_collection_mode: DustCollectionModeTrait | None,
-    mock_rpc_channel: AsyncMock,
-    dock_type_code: RoborockDockTypeCode,
-    method_name: str,
-    command: RoborockCommand,
-) -> None:
-    """Test starting and stopping a manual dust collection."""
-    assert dust_collection_mode is not None
-
-    await getattr(dust_collection_mode, method_name)()
-
-    mock_rpc_channel.send_command.assert_called_once_with(command)
