@@ -157,13 +157,6 @@ An array of integer feature IDs. Feature is supported if ID is present in the ar
 
 ---
 
-### is_photo_upload_supported
-**Bit Mask:** `65536` (bit 16)
-**Feature:** Photo Upload
-**Description:** The robot can upload photos. The app also enables this for TanosV, TopazSV and UltronSV in the China and Mi apps only. The library reads the bit alone.
-
----
-
 ### is_shake_mop_set_supported
 **Bit Mask:** `262144` (bit 18)
 **Feature:** Shake/Vibrating Mop Settings
@@ -1263,7 +1256,7 @@ Bit 6 and bits 121-169 follow the `NewFeatureStr` names in the newest Roborock a
 ### is_roller_mop_supported
 **Bit Index:** 128
 **Feature:** Roller Mop
-**Description:** The robot has a roller mop. This bit also enables `is_clean_route_setting_supported`, `is_support_water_mode`, `is_customized_clean_supported` and `is_smart_water_supported`, as in the app.
+**Description:** The robot has a roller mop. This bit also enables `is_clean_route_setting_supported`, `is_support_water_mode` and `is_customized_clean_supported`, and together with bit 166 it enables `is_smart_water_supported`.
 
 ---
 
@@ -1501,7 +1494,7 @@ Bit 6 and bits 121-169 follow the `NewFeatureStr` names in the newest Roborock a
 ### is_smart_water_supported
 **Bit Index:** 166
 **Feature:** Smart Mop Water
-**Description:** Smart mop water. Also true when `is_roller_mop_supported` is true, as in the app (`isSmartMopWaterSupported`).
+**Description:** Smart mop water for roller mops. True only when the robot also reports a roller mop (bit 128, `is_roller_mop_supported`).
 
 ---
 
@@ -1554,7 +1547,7 @@ These features are checked by verifying if the feature ID exists in the `feature
 ### is_map_segment_supported
 **Feature ID:** 116
 **Feature:** Map Segments
-**Description:** The map is split into rooms. Also true for RubySC and RubyPlus, as in the app.
+**Description:** The map is split into rooms. True for every model except RubySC and RubyPlus, which need feature ID 116. Also true when the model is unknown.
 
 ---
 

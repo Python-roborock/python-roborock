@@ -222,7 +222,28 @@ def test_mop_support_from_roller_mop_bit(feature_bit: int, expected: bool) -> No
     assert device_features.is_clean_route_setting_supported is expected
     assert device_features.is_support_water_mode is expected
     assert device_features.is_customized_clean_supported is expected
-    # The app also offers smart mop water for roller mops.
+    # Smart mop water also needs its own bit, so the roller-mop bit alone does not enable it.
+    assert device_features.is_smart_water_supported is False
+
+
+@pytest.mark.parametrize(
+    ("feature_bits", "expected"),
+    [
+        ([], False),
+        ([128], False),
+        ([166], False),
+        ([128, 166], True),
+    ],
+)
+def test_smart_water_support_needs_roller_mop(feature_bits: list[int], expected: bool) -> None:
+    """Test smart mop water needs both the smart-water bit and the roller-mop bit."""
+    device_features = DeviceFeatures.from_feature_flags(
+        new_feature_info=0,
+        new_feature_info_str=f"{sum(1 << bit for bit in feature_bits):X}",
+        feature_info=[],
+        product_nickname=None,
+    )
+
     assert device_features.is_smart_water_supported is expected
 
 
@@ -294,13 +315,24 @@ APP_NEW_FEATURE_STR_BITS = {
     169: "is_swing_arm_wheel_control_supported",
 }
 
+# Bits that only count together with another bit, mapped to that bit and its field.
+NEW_FEATURE_STR_BIT_PREREQUISITES = {
+    166: (128, "is_roller_mop_supported"),
+}
+
 
 @pytest.mark.parametrize(("feature_bit", "feature_name"), APP_NEW_FEATURE_STR_BITS.items())
 def test_new_feature_str_bits_from_app(feature_bit: int, feature_name: str) -> None:
     """Test each app NewFeatureStr bit enables only its own capability."""
+    feature_bits = [feature_bit]
+    expected = {feature_name}
+    if prerequisite := NEW_FEATURE_STR_BIT_PREREQUISITES.get(feature_bit):
+        prerequisite_bit, prerequisite_name = prerequisite
+        feature_bits.append(prerequisite_bit)
+        expected.add(prerequisite_name)
     device_features = DeviceFeatures.from_feature_flags(
         new_feature_info=0,
-        new_feature_info_str=f"{1 << feature_bit:X}",
+        new_feature_info_str=f"{sum(1 << bit for bit in feature_bits):X}",
         feature_info=[],
         product_nickname=None,
     )
@@ -310,21 +342,20 @@ def test_new_feature_str_bits_from_app(feature_bit: int, feature_name: str) -> N
         for f in fields(DeviceFeatures)
         if "new_feature_str_bit" in f.metadata and getattr(device_features, f.name)
     }
-    assert enabled == {feature_name}
+    assert enabled == expected
 
 
 def test_new_feature_str_bits_from_app_all_set() -> None:
     """Test the app NewFeatureStr bits are read from one long feature string."""
-    feature_str = f"{sum(1 << bit for bit in APP_NEW_FEATURE_STR_BITS):X}"
+    feature_bits = set(APP_NEW_FEATURE_STR_BITS) | {bit for bit, _ in NEW_FEATURE_STR_BIT_PREREQUISITES.values()}
     device_features = DeviceFeatures.from_feature_flags(
         new_feature_info=0,
-        new_feature_info_str=feature_str,
+        new_feature_info_str=f"{sum(1 << bit for bit in feature_bits):X}",
         feature_info=[],
         product_nickname=None,
     )
 
     assert all(getattr(device_features, name) for name in APP_NEW_FEATURE_STR_BITS.values())
-    assert not device_features.is_roller_mop_supported
 
 
 @pytest.mark.parametrize(
@@ -362,17 +393,18 @@ def test_wash_phase_pumping_support_from_model(
 )
 def test_robot_features_from_app(feature_id: int, feature_name: str) -> None:
     """Test the app robotFeatures ids enable their capability."""
+    # RubySC is one of the models that needs robotFeatures 116 for map segments.
     without_feature = DeviceFeatures.from_feature_flags(
         new_feature_info=0,
         new_feature_info_str="",
         feature_info=[feature_id - 1, feature_id + 1],
-        product_nickname=RoborockProductNickname.TANOSS,
+        product_nickname=RoborockProductNickname.RUBYSC,
     )
     with_feature = DeviceFeatures.from_feature_flags(
         new_feature_info=0,
         new_feature_info_str="",
         feature_info=[feature_id],
-        product_nickname=RoborockProductNickname.TANOSS,
+        product_nickname=RoborockProductNickname.RUBYSC,
     )
 
     assert getattr(without_feature, feature_name) is False
@@ -382,15 +414,15 @@ def test_robot_features_from_app(feature_id: int, feature_name: str) -> None:
 @pytest.mark.parametrize(
     ("product_nickname", "expected"),
     [
-        (RoborockProductNickname.RUBYSC, True),
-        (RoborockProductNickname.RUBYPLUS, True),
-        (RoborockProductNickname.RUBYSLITE, False),
-        (RoborockProductNickname.TANOSS, False),
-        (None, False),
+        (RoborockProductNickname.RUBYSC, False),
+        (RoborockProductNickname.RUBYPLUS, False),
+        (RoborockProductNickname.RUBYSLITE, True),
+        (RoborockProductNickname.TANOSS, True),
+        (None, True),
     ],
 )
 def test_map_segment_support_from_model(product_nickname: RoborockProductNickname | None, expected: bool) -> None:
-    """Test the app enables map segments for RubySC and RubyPlus without the feature id."""
+    """Test only RubySC and RubyPlus need robotFeatures 116 for map segments."""
     device_features = DeviceFeatures.from_feature_flags(
         new_feature_info=0,
         new_feature_info_str="",
@@ -401,26 +433,17 @@ def test_map_segment_support_from_model(product_nickname: RoborockProductNicknam
     assert device_features.is_map_segment_supported is expected
 
 
-@pytest.mark.parametrize(
-    ("new_feature_info", "expected"),
-    [
-        (0, False),
-        (32768, False),
-        (65536, True),
-        (131072, False),
-        (1 << 48, False),
-    ],
-)
-def test_photo_upload_feature_bit(new_feature_info: int, expected: bool) -> None:
-    """Test only the robotNewFeatures photo-upload bit enables photo upload."""
+@pytest.mark.parametrize("product_nickname", [RoborockProductNickname.RUBYSC, RoborockProductNickname.RUBYPLUS])
+def test_map_segment_support_from_feature_id(product_nickname: RoborockProductNickname) -> None:
+    """Test RubySC and RubyPlus support map segments when they report robotFeatures 116."""
     device_features = DeviceFeatures.from_feature_flags(
-        new_feature_info=new_feature_info,
+        new_feature_info=0,
         new_feature_info_str="",
-        feature_info=[],
-        product_nickname=None,
+        feature_info=[116],
+        product_nickname=product_nickname,
     )
 
-    assert device_features.is_photo_upload_supported is expected
+    assert device_features.is_map_segment_supported is True
 
 
 async def test_from_dict_rejects_legacy_missing_capabilities(caplog: pytest.LogCaptureFixture) -> None:
