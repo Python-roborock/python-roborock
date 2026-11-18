@@ -438,7 +438,6 @@ def test_cleaning_mode_options() -> None:
             WaterModes.STANDARD.code,
             CleanRoutes.STANDARD.code,
             CleaningMode.MOP,
-            
         ),
         (
             VacuumModes.CUSTOMIZED.code,
@@ -834,9 +833,8 @@ def test_fan_speed_name_off_on_pure_mop_device() -> None:
     assert status_trait.fan_speed_mapping[105] == "gentle"
     assert status_trait.fan_speed_name == "gentle"
 
-    
-    
-    def test_water_slide_mode_mapping() -> None:
+
+def test_water_slide_mode_mapping() -> None:
     """Test feature-aware water mode mapping for water slide mode devices."""
     short_model = mock_data.A114_PRODUCT_DATA["model"].split(".")[-1]
     features = DeviceFeatures.from_feature_flags(
