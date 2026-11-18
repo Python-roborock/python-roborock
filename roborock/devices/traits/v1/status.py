@@ -21,7 +21,9 @@ from roborock import (
     get_fan_speed_name,
     get_mop_route_name,
     get_motor_mode_commands,
+    get_reported_special_mode,
     get_setting_change_codes,
+    get_supported_settings,
     get_water_mode_mapping,
     get_water_mode_name,
     get_water_modes,
@@ -100,16 +102,34 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
     def fan_speed_mapping(self) -> dict[int, str]:
         return {fan.code: fan.value for fan in self.fan_speed_options}
 
+    @property
+    def supported_cleaning_settings(self) -> frozenset[CleaningSetting]:
+        """The cleaning settings this model has at all, independent of the current cleaning mode.
+
+        Use it to decide which settings to offer. Whether a setting can be changed right
+        now is is_fan_speed_adjustable, is_water_mode_adjustable and is_mop_route_adjustable.
+        The options and mapping of a setting the model does not have are empty. The cleaning
+        mode has no entry here: it exists exactly when cleaning_mode_options is not empty,
+        which is the case for models with a mop (is_support_water_mode).
+        """
+        return get_supported_settings(self._device_features_trait)
+
     @cached_property
     def water_mode_options(self) -> list[WaterModes]:
+        if CleaningSetting.WATER_MODE not in self.supported_cleaning_settings:
+            return []
         return get_water_modes(self._device_features_trait)
 
     @cached_property
     def water_mode_mapping(self) -> dict[int, str]:
+        if CleaningSetting.WATER_MODE not in self.supported_cleaning_settings:
+            return {}
         return get_water_mode_mapping(self._device_features_trait)
 
     @cached_property
     def mop_route_options(self) -> list[CleanRoutes]:
+        if CleaningSetting.MOP_ROUTE not in self.supported_cleaning_settings:
+            return []
         return get_clean_routes(self._device_features_trait, self._region or "us")
 
     @cached_property
@@ -154,42 +174,54 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
         return cleaning_mode.value
 
     @property
+    def _rules_mode(self) -> CleaningMode | None:
+        """The mode the adjustable, display and setter rules use.
+
+        A reported SmartPlan or custom state counts even when the model lacks the support
+        flags that would make current_cleaning_mode report it.
+        """
+        special = get_reported_special_mode(
+            self.fan_power, self.water_box_mode, self.mop_mode, self._device_features_trait
+        )
+        return special or self.current_cleaning_mode
+
+    @property
     def is_fan_speed_adjustable(self) -> bool:
         """Whether the fan speed can be changed in the current cleaning mode."""
-        adjustable = get_adjustable_settings(self.current_cleaning_mode, self._device_features_trait)
+        adjustable = get_adjustable_settings(self._rules_mode, self._device_features_trait)
         return CleaningSetting.FAN_SPEED in adjustable
 
     @property
     def is_water_mode_adjustable(self) -> bool:
         """Whether the water mode can be changed in the current cleaning mode."""
-        adjustable = get_adjustable_settings(self.current_cleaning_mode, self._device_features_trait)
+        adjustable = get_adjustable_settings(self._rules_mode, self._device_features_trait)
         return CleaningSetting.WATER_MODE in adjustable
 
     @property
     def is_mop_route_adjustable(self) -> bool:
         """Whether the mop route can be changed in the current cleaning mode."""
-        adjustable = get_adjustable_settings(self.current_cleaning_mode, self._device_features_trait)
+        adjustable = get_adjustable_settings(self._rules_mode, self._device_features_trait)
         return CleaningSetting.MOP_ROUTE in adjustable
 
     @property
     def fan_speed_display_options(self) -> list[VacuumModes]:
         """Fan speeds to show for the current cleaning mode."""
         return get_display_options(
-            CleaningSetting.FAN_SPEED, self.current_cleaning_mode, self._device_features_trait, self.fan_speed_options
+            CleaningSetting.FAN_SPEED, self._rules_mode, self._device_features_trait, self.fan_speed_options
         )
 
     @property
     def water_mode_display_options(self) -> list[WaterModes]:
         """Water modes to show for the current cleaning mode."""
         return get_display_options(
-            CleaningSetting.WATER_MODE, self.current_cleaning_mode, self._device_features_trait, self.water_mode_options
+            CleaningSetting.WATER_MODE, self._rules_mode, self._device_features_trait, self.water_mode_options
         )
 
     @property
     def mop_route_display_options(self) -> list[CleanRoutes]:
         """Mop routes to show for the current cleaning mode."""
         return get_display_options(
-            CleaningSetting.MOP_ROUTE, self.current_cleaning_mode, self._device_features_trait, self.mop_route_options
+            CleaningSetting.MOP_ROUTE, self._rules_mode, self._device_features_trait, self.mop_route_options
         )
 
     async def set_cleaning_mode(self, cleaning_mode: str | CleaningMode) -> None:
@@ -219,7 +251,7 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
         fan_power, water_box_mode, mop_mode = get_setting_change_codes(
             setting,
             code,
-            self.current_cleaning_mode,
+            self._rules_mode,
             features,
             self._region or "us",
             fan_power=self.fan_power,

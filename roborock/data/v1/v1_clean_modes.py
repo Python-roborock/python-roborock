@@ -226,6 +226,26 @@ def get_adjustable_settings(mode: CleaningMode | None, features: DeviceFeatures)
     return frozenset(settings)
 
 
+def get_supported_settings(features: DeviceFeatures) -> frozenset[CleaningSetting]:
+    """Return the cleaning settings the model has at all, whatever the current cleaning mode.
+
+    This is the set of settings that can be adjusted in at least one regular cleaning
+    mode. The fan speed is on every model. The water mode needs a mop module. The mop
+    route needs water mode, the shake module, and either the mop-only tab or fast mode
+    with the route setting.
+    """
+    settings = {CleaningSetting.FAN_SPEED}
+    if not features.is_support_water_mode:
+        return frozenset(settings)
+    settings.add(CleaningSetting.WATER_MODE)
+    if features.is_shake_mop_set_supported and (
+        features.is_pure_clean_mop_supported
+        or (features.is_clean_route_fast_mode_supported and features.is_clean_route_setting_supported)
+    ):
+        settings.add(CleaningSetting.MOP_ROUTE)
+    return frozenset(settings)
+
+
 def get_mode_options(
     setting: CleaningSetting,
     mode: CleaningMode | None,
@@ -672,6 +692,32 @@ def _classify_cleaning_mode(
     if water_mode == WaterModes.OFF:
         return CleaningMode.VACUUM
     return CleaningMode.VAC_AND_MOP
+
+
+def get_reported_special_mode(
+    clean_mode: int | VacuumModes | None,
+    water_mode: int | WaterModes | None,
+    mop_mode: int | CleanRoutes | None,
+    features: DeviceFeatures,
+) -> CleaningMode | None:
+    """Return CUSTOM or SMART_MODE when the reported codes say the robot is in that mode.
+
+    The codes decide, whatever the model's support flags say: a robot that reports
+    custom or SmartPlan values is in that mode, even if get_current_cleaning_mode
+    returns None because the mode is not in get_cleaning_mode_options. Custom is
+    checked before SmartPlan. Devices without a mop only report the fan power.
+    """
+    clean_enum = _resolve_clean_mode(clean_mode, features)
+    if not features.is_support_water_mode:
+        water_enum, mop_enum = None, None
+    else:
+        water_enum = _resolve_water_mode(water_mode, features)
+        mop_enum = _resolve_mode_code(mop_mode, CleanRoutes)
+    if is_mode_customized(clean_enum, water_enum, mop_enum):
+        return CleaningMode.CUSTOM
+    if is_smart_mode_set(water_enum, clean_enum, mop_enum):
+        return CleaningMode.SMART_MODE
+    return None
 
 
 def is_mode_customized(
