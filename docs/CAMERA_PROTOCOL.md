@@ -129,6 +129,51 @@ Camera viewing is protected by a separate PIN / pattern lock configured in the m
 
 ## Commands Reference
 
+### Library command interface
+
+Camera-equipped V1 vacuums expose `device.v1_properties.camera` after feature
+discovery, gated by `is_video_monitor_supported`. It is `None` on unsupported
+devices. The device manager also restricts V1 traits to V1 vacuum products.
+
+`CameraTrait` sends preview control, quality selection, TURN requests, SDP/ICE
+exchange, and voice chat control through the existing cloud MQTT channel.
+Cloud connectivity is required even when the robot is reachable locally.
+PIN hashes and WebRTC signaling therefore pass through Roborock's cloud.
+A single channel strategy prevents a PIN attempt that fails or times out on
+one connection from being sent again through local/cloud fallback.
+
+It adds no WebRTC dependency and does not open a media connection. Callers
+provide PIN/pattern digits, not a precomputed hash. Use a unique caller-owned
+`client_id` for the session, and close any other viewer first.
+
+```python
+from contextlib import suppress
+
+from roborock.exceptions import RoborockException
+
+camera = device.v1_properties.camera
+if camera is not None:
+    await camera.start_preview(client_id="my-viewer", password=camera_pin)
+    try:
+        turn_server = await camera.get_turn_server()
+        # Create a WebRTC peer using turn_server, then exchange SDP and ICE.
+        # get_sdp_answer() returns None for "retry"; bound polling in the caller.
+    finally:
+        # Best-effort cleanup must not mask an earlier signaling failure.
+        with suppress(RoborockException):
+            await camera.stop_preview()
+```
+
+`stop_preview()` is not scoped to a client ID. Call it after a successful
+start, rather than automatically stopping after an explicit start rejection.
+If starting times out, the robot may already have activated the camera;
+the caller must decide how to reconcile or clean up that ambiguous session.
+
+The caller owns polling deadlines, ICE deduplication and session teardown.
+If voice chat is started, stop it before stopping preview. No polling tasks,
+listeners, media objects or session credentials are retained by the trait.
+The streaming/session manager is a separate layer to be added later.
+
 See also [V1_API_COMMANDS.md](V1_API_COMMANDS.md) for general V1 device RPC references.
 
 > [!NOTE]

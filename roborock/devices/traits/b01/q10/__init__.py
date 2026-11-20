@@ -9,12 +9,12 @@ from roborock.data.containers import RoborockBase
 from roborock.devices.rpc.b01_q10_channel import B01Q10Channel
 from roborock.devices.traits import Trait
 from roborock.map.b01_q10_map_parser import (
-    B01Q10MapParserConfig,
     Q10CleanRecordDetail,
     Q10MapPacket,
     Q10MapPacketKind,
     Q10TracePacket,
 )
+from roborock.map.map_parser import MapParserConfig
 from roborock.protocols.b01_q10_protocol import Q10DpsUpdate, Q10Message
 
 from .button_light import ButtonLightTrait
@@ -102,7 +102,7 @@ class Q10PropertiesApi(Trait):
         self,
         channel: B01Q10Channel,
         *,
-        map_parser_config: B01Q10MapParserConfig | None = None,
+        map_parser_config: MapParserConfig | None = None,
     ) -> None:
         """Initialize the B01Props API."""
         self._channel = channel
@@ -202,7 +202,7 @@ class Q10PropertiesApi(Trait):
 def create(
     channel: B01Q10Channel,
     *,
-    map_parser_config: B01Q10MapParserConfig | None = None,
+    map_parser_config: MapParserConfig | None = None,
 ) -> Q10PropertiesApi:
     """Create traits for B01 devices."""
     return Q10PropertiesApi(

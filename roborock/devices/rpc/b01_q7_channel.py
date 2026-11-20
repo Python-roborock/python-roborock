@@ -12,17 +12,17 @@ from roborock.devices.transport.mqtt_channel import MqttChannel
 from roborock.exceptions import RoborockException
 from roborock.protocols.b01_q7_protocol import (
     B01_Q7_DPS,
-    B01_VERSION,
     CommandType,
     MapKey,
     ParamsType,
     Q7RequestMessage,
     create_map_key,
+    create_map_response_assembler,
     decode_map_payload,
     decode_rpc_response,
     encode_mqtt_payload,
 )
-from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
+from roborock.roborock_message import RoborockMessage
 
 _LOGGER = logging.getLogger(__name__)
 _TIMEOUT = 10.0
@@ -56,17 +56,6 @@ class Q7MapRpcChannel(Protocol):
     async def subscribe_map_pushes(self, callback: Callable[[bytes], None]) -> Callable[[], None]:
         """Subscribe to unsolicited map pushes, invoking callback with decoded SCMap bytes."""
         ...
-
-
-def _matches_map_response(response_message: RoborockMessage, *, version: bytes | None) -> bytes | None:
-    """Return raw map payload bytes for matching MAP_RESPONSE messages."""
-    if (
-        response_message.protocol == RoborockMessageProtocol.MAP_RESPONSE
-        and response_message.payload
-        and response_message.version == version
-    ):
-        return response_message.payload
-    return None
 
 
 async def _send_command(
@@ -205,7 +194,7 @@ class B01Q7Channel(Channel, Q7RpcChannel, Q7MapRpcChannel):
             raw_payload = await _send_command(
                 self._mqtt_channel,
                 request_message,
-                response_matcher=lambda response_message: _matches_map_response(response_message, version=B01_VERSION),
+                response_matcher=create_map_response_assembler(),
             )
         except TimeoutError as ex:
             raise RoborockException(f"B01 map command timed out after {_TIMEOUT}s ({request_message})") from ex
@@ -217,10 +206,12 @@ class B01Q7Channel(Channel, Q7RpcChannel, Q7MapRpcChannel):
 
         The device streams full SCMap frames on its own during cleaning; the
         callback receives the decoded (inflated) SCMap bytes for each frame.
+        Frames split across several messages are reassembled first.
         """
+        assembler = create_map_response_assembler()
 
         def on_message(message: RoborockMessage) -> None:
-            if (raw_payload := _matches_map_response(message, version=B01_VERSION)) is None:
+            if (raw_payload := assembler(message)) is None:
                 return
             try:
                 decoded = decode_map_payload(raw_payload, map_key=self._map_key)
