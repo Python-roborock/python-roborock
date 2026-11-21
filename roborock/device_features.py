@@ -876,12 +876,24 @@ class RoborockDockFeatures:
 
     dock_type: RoborockDockTypeCode
     has_am: bool | None = None
+    supports_drying: bool | None = None
+    """Whether the device advertises the drying device feature.
+
+    Used for docks that can dry only when an optional dryer module is
+    installed (e.g. the HADM02RR module on the o3 Empty Wash Fill dock), where
+    the dock type alone cannot answer the question.
+    """
 
     @classmethod
     @cache
-    def from_dock_type(cls, dock_type: RoborockDockTypeCode | None, has_am: bool | None = None) -> Self:
+    def from_dock_type(
+        cls,
+        dock_type: RoborockDockTypeCode | None,
+        has_am: bool | None = None,
+        supports_drying: bool | None = None,
+    ) -> Self:
         """Return cached capabilities for a V1 dock type."""
-        return cls(dock_type or RoborockDockTypeCode.o0_dock, has_am=has_am)
+        return cls(dock_type or RoborockDockTypeCode.o0_dock, has_am=has_am, supports_drying=supports_drying)
 
     def _matches_am_variant(self, dock_types: set[RoborockDockTypeCode]) -> bool:
         return self.has_am is True and self.dock_type in dock_types
@@ -919,7 +931,7 @@ class RoborockDockFeatures:
 
     @property
     def is_dryable(self) -> bool:
-        return self.is_collect_wash_dry
+        return self.is_collect_wash_dry or self.supports_drying is True
 
     @property
     def is_only_x_series(self) -> bool:
