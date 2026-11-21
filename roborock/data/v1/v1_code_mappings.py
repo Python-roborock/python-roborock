@@ -5,6 +5,7 @@ from ..code_mappings import RoborockEnum
 
 
 class RoborockFinishReason(RoborockEnum):
+    unknown = -1
     manual_interrupt = 21  # Cleaning interrupted by user
     cleanup_interrupted = 24  # Cleanup interrupted
     manual_interrupt_2 = 21
@@ -49,6 +50,7 @@ class RoborockFinishReason(RoborockEnum):
 
 
 class RoborockInCleaning(RoborockEnum):
+    unknown = -1
     complete = 0
     global_clean_not_complete = 1
     zone_clean_not_complete = 2
@@ -56,6 +58,7 @@ class RoborockInCleaning(RoborockEnum):
 
 
 class RoborockCleanType(RoborockEnum):
+    unknown = -1
     all_zone = 1
     draw_zone = 2
     select_zone = 3
@@ -119,6 +122,7 @@ class RoborockDockState(StrEnum):
 
 
 class RoborockStartType(RoborockEnum):
+    unknown = -1
     button = 1
     app = 2
     schedule = 3
@@ -188,6 +192,7 @@ class CleanFluidStatus(RoborockDssCodes):
 
 
 class RoborockErrorCode(RoborockEnum):
+    unknown = -1
     none = 0
     lidar_blocked = 1
     bumper_stuck = 2
@@ -297,6 +302,9 @@ class RoborockMopIntensityV2(RoborockMopIntensityCode):
 
 class RoborockDockErrorCode(RoborockEnum):
     """Describes the error code of the dock."""
+
+    unknown = -1
+    """Error code not recognized by this library."""
 
     ok = 0
     """No error condition."""
