@@ -180,25 +180,40 @@ async def test_push_during_refresh_schedules_another(
     release = asyncio.Event()
     second_ran = asyncio.Event()
     calls = 0
+    running = 0
+    max_running = 0
 
     async def slow_refresh() -> None:
-        nonlocal calls
+        nonlocal calls, running, max_running
         calls += 1
-        if calls == 2:
+        call = calls
+        running += 1
+        max_running = max(max_running, running)
+        try:
+            if call == 1:
+                started.set()
+                await release.wait()
+            # Each response is applied when its call finishes.
+            api.status.mop_mode = call
+        finally:
+            running -= 1
+        if call == 2:
             second_ran.set()
-            return
-        started.set()
-        await release.wait()
 
     api.status.refresh_and_notify.side_effect = slow_refresh  # type: ignore[attr-defined]
     push({RoborockDataProtocol.FAN_POWER: 101})
     await asyncio.wait_for(started.wait(), timeout=TIMEOUT)
 
     push({RoborockDataProtocol.WATER_BOX_MODE: 202})
+    # Give a (wrongly) concurrent second read-back the chance to start.
+    await asyncio.sleep(SETTLE)
+    assert calls == 1
     release.set()
 
     await asyncio.wait_for(second_ran.wait(), timeout=TIMEOUT)
     assert calls == 2
+    assert max_running == 1
+    assert api.status.mop_mode == 2
 
 
 async def test_read_back_notifies_status_listeners(props: tuple[v1.PropertiesApi, DpsListener]) -> None:

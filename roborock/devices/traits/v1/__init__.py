@@ -218,10 +218,11 @@ class PropertiesApi(Trait):
         self._device_cache = device_cache
         self._region = region
         self._unsub: Callable[[], None] | None = None
-        # True while a read-back is waiting for its delay (debounce). Live read-back
-        # tasks are kept referenced until done so they are not garbage collected.
-        self._status_refresh_pending = False
-        self._status_refresh_tasks: set[asyncio.Task[None]] = set()
+        # A single task serializes the status read-backs after pushes; the flag
+        # records that a push still needs one. The task reference is kept so it
+        # is not garbage collected and can be cancelled in close().
+        self._status_refresh_needed = False
+        self._status_refresh_task: asyncio.Task[None] | None = None
         self._add_dps_listener = add_dps_listener
 
         self.device_features = DeviceFeaturesTrait(product, self._device_cache)
@@ -274,10 +275,10 @@ class PropertiesApi(Trait):
         if self._unsub:
             self._unsub()
             self._unsub = None
-        self._status_refresh_pending = False
-        for task in self._status_refresh_tasks:
-            task.cancel()
-        self._status_refresh_tasks.clear()
+        self._status_refresh_needed = False
+        if self._status_refresh_task:
+            self._status_refresh_task.cancel()
+            self._status_refresh_task = None
 
     def _on_dps_update(self, dps: dict[RoborockDataProtocol, Any]) -> None:
         """Handle incoming messages from the device.
@@ -296,24 +297,23 @@ class PropertiesApi(Trait):
             self._schedule_status_refresh()
 
     def _schedule_status_refresh(self) -> None:
-        """Schedule a single debounced status read-back unless one is pending."""
-        # At most one read-back per delay window.
-        if self._status_refresh_pending:
+        """Request a debounced status read-back, starting the worker if it is idle."""
+        self._status_refresh_needed = True
+        # At most one read-back per delay window, and never two at once.
+        if self._status_refresh_task and not self._status_refresh_task.done():
             return
-        self._status_refresh_pending = True
-        task = asyncio.create_task(self._refresh_status_after_push())
-        self._status_refresh_tasks.add(task)
-        task.add_done_callback(self._status_refresh_tasks.discard)
+        self._status_refresh_task = asyncio.create_task(self._refresh_status_after_push())
 
     async def _refresh_status_after_push(self) -> None:
         """Read status back after a short delay to pick up values that are not pushed."""
-        await asyncio.sleep(_STATUS_REFRESH_DELAY)
-        # Clear first so a push arriving during the refresh schedules another one.
-        self._status_refresh_pending = False
-        try:
-            await self.status.refresh_and_notify()
-        except RoborockException as err:
-            _LOGGER.warning("Failed to refresh status after a push: %s", err)
+        while self._status_refresh_needed:
+            await asyncio.sleep(_STATUS_REFRESH_DELAY)
+            # Clear before reading so a push during the read-back requests another one.
+            self._status_refresh_needed = False
+            try:
+                await self.status.refresh_and_notify()
+            except RoborockException as err:
+                _LOGGER.warning("Failed to refresh status after a push: %s", err)
 
     async def discover_features(self) -> None:
         """Populate any supported traits that were not initialized in __init__."""
