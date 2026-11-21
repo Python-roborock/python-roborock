@@ -511,10 +511,22 @@ class DeviceFeatures(RoborockBase):
                 RoborockProductNickname.TANOSV,
                 RoborockProductNickname.TANOSE,
                 RoborockProductNickname.TANOS,
+                RoborockProductNickname.RUBYSC,
+                RoborockProductNickname.RUBYSLITE,
+                RoborockProductNickname.RUBYSE,
             ]
         }
     )
-    is_custom_mode_supported: bool = field(metadata={"model_blacklist": [RoborockProductNickname.TANOS]})
+    is_custom_mode_supported: bool = field(
+        metadata={
+            "model_blacklist": [
+                RoborockProductNickname.TANOS,
+                RoborockProductNickname.RUBYPLUS,
+                RoborockProductNickname.RUBYSC,
+                RoborockProductNickname.RUBYSE,
+            ]
+        }
+    )
     is_support_custom_carpet: bool = field(metadata={"model_whitelist": [RoborockProductNickname.ULTRONLITE]})
     is_show_general_obstacle_supported: bool = field(metadata={"model_whitelist": [RoborockProductNickname.TANOSSPLUS]})
     is_show_obstacle_photo_supported: bool = field(

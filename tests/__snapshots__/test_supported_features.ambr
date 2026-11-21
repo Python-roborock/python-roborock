@@ -1375,7 +1375,7 @@
     'is_small_side_mop_supported': False,
     'is_smart_clean_mode_set_supported': False,
     'is_soak_and_wash_supported': False,
-    'is_soft_clean_mode_supported': False,
+    'is_soft_clean_mode_supported': True,
     'is_sr_map_supported': False,
     'is_super_deep_wash_supported': False,
     'is_support_api_app_stop_grasp_supported': False,
