@@ -21,6 +21,7 @@ from roborock import (
     resolve_cleaning_mode,
 )
 from roborock.devices.traits.common import DpsDataConverter, TraitUpdateListener
+from roborock.exceptions import RoborockException, RoborockUnsupportedFeature
 from roborock.roborock_message import RoborockDataProtocol
 from roborock.roborock_typing import RoborockCommand
 
@@ -30,6 +31,8 @@ from .device_features import DeviceFeaturesTrait
 _LOGGER = logging.getLogger(__name__)
 
 _DPS_CONVERTER = DpsDataConverter.from_dataclass(StatusV2)
+
+_SEQ_TYPE_CLEAN_THEN_MOP = 1
 
 
 class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
@@ -49,6 +52,7 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
     - Fan Speed
     - Water Mode
     - Mop Route
+    - Clean then mop (``clean_then_mop``, independent of the cleaning mode)
 
     You should use the _options version of the attribute to know which are
     supported for your device (i.e. fan_speed_options)
@@ -132,6 +136,32 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
         return self.mop_route_mapping.get(self.mop_mode)
 
     @property
+    def clean_then_mop(self) -> bool | None:
+        """Whether each room is vacuumed fully before it is mopped.
+
+        Reported by the device as ``seq_type`` and persisted on the device: it
+        tracks the "vacuum then mop" toggle in the vendor app, also while docked.
+
+        This is a separate axis from ``current_cleaning_mode``. The cleaning
+        mode is derived from ``fan_power``, ``water_box_mode`` and ``mop_mode``
+        and describes *what* the robot does in a room (vacuum, mop, both). This
+        flag describes the *order* when it does both. On the device the two are
+        stored independently: writing one leaves the other untouched. Set it
+        with ``set_clean_then_mop``.
+
+        The vendor app presents it as a fourth choice next to "vacuum and mop",
+        "mop only" and "vacuum only", and clears it when one of those is picked.
+        A consumer that wants the same experience should turn this off when it
+        selects a cleaning mode other than vacuum and mop; this library does
+        not do that implicitly.
+
+        ``None`` means the device does not support the feature.
+        """
+        if self.seq_type is None:
+            return None
+        return self.seq_type == _SEQ_TYPE_CLEAN_THEN_MOP
+
+    @property
     def current_cleaning_mode(self) -> CleaningMode | None:
         return get_current_cleaning_mode(
             clean_mode=self.fan_power,
@@ -169,6 +199,30 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
                 return
         await self.rpc_channel.send_command(RoborockCommand.RESOLVE_ERROR, params={"error_code": error_code})
         await self.refresh()
+
+    async def set_clean_then_mop(self, enabled: bool) -> None:
+        """Set whether each room is vacuumed fully before it is mopped.
+
+        Independent of ``set_cleaning_mode``. The firmware requires the current
+        motor-mode values in this request, so they are echoed back unchanged.
+        """
+        if not self._device_features_trait.is_clean_then_mop_mode_supported:
+            raise RoborockUnsupportedFeature("Clean then mop is not supported")
+        if self.fan_power is None or self.water_box_mode is None:
+            raise RoborockException("Status is not loaded, call refresh() first")
+        seq_type = _SEQ_TYPE_CLEAN_THEN_MOP if enabled else 0
+        params: dict[str, int] = {
+            "type": seq_type,
+            "fan_power": self.fan_power,
+            "water_box_mode": self.water_box_mode,
+        }
+        if self.mop_mode is not None:
+            params["mop_mode"] = self.mop_mode
+        if enabled and self._device_features_trait.is_ctm_with_repeat_supported:
+            params["repeat"] = 1
+        await self.rpc_channel.send_command(RoborockCommand.APP_SET_CLEAN_SEQUENCE_TYPE, params=params)
+        self.seq_type = seq_type
+        self._notify_update()
 
     def update_from_dps(self, decoded_dps: dict[RoborockDataProtocol, Any]) -> None:
         """Update the trait from data protocol push message data.
