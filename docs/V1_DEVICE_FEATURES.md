@@ -200,8 +200,8 @@ An array of integer feature IDs. Feature is supported if ID is present in the ar
 ### is_dust_collection_setting_supported
 **Bit Mask:** `33554432` (bit 25)
 **Feature:** Dust Collection Settings
-**Description:** Options for auto-empty dock dust collection frequency and duration.
-**Impact:** Configure when and how aggressively the dock empties the dustbin.
+**Description:** The app loads and shows the dock's dust collection mode (`get_dust_collection_mode`) only with this feature. The auto-empty frequency and manual dust collection do not depend on it.
+**Impact:** Gates `DustCollectionModeTrait`, together with `is_collect_dust_mode_supported` and a collecting dock.
 
 ---
 
@@ -762,8 +762,8 @@ These features are encoded as individual bits in the `new_feature_info_str` hex 
 ### is_auto_collection_2_supported
 **Bit Index:** 53
 **Feature:** Auto-Empty 2.0
-**Description:** Second generation auto-empty dock system.
-**Impact:** Improved dustbin emptying with better suction and reliability.
+**Description:** Second generation auto-empty dock system. With this feature the app offers an auto-empty frequency (off, balanced, high); without it, collecting docks only have an auto-empty on/off switch.
+**Impact:** `DustCollectionTrait.frequency_options` includes `high` only with this feature.
 
 ---
 
@@ -1362,8 +1362,8 @@ These features are enabled/disabled based on specific device model whitelists or
 ### is_collect_dust_mode_supported
 **Model Blacklist:** PEARL (all except PEARL)
 **Feature:** Dust Collection Mode
-**Description:** Auto-empty dock dust collection.
-**Impact:** Automatic dustbin emptying at dock.
+**Description:** Auto-empty dock dust collection mode. The app shows the dock's dust collection mode page only with this feature and a collecting dock. The auto-empty frequency and manual dust collection do not depend on it.
+**Impact:** Gates `DustCollectionModeTrait`, together with `is_dust_collection_setting_supported` and a collecting dock.
 
 ---
 

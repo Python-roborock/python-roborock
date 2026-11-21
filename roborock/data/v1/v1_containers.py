@@ -27,10 +27,14 @@ from .v1_code_mappings import (
     DustBagStatus,
     RoborockChargeStatus,
     RoborockCleanType,
+    RoborockDockCleaningFluidCode,
+    RoborockDockDustCollectionFrequencyCode,
     RoborockDockDustCollectionModeCode,
     RoborockDockErrorCode,
+    RoborockDockSmartWashModeCode,
     RoborockDockState,
     RoborockDockTypeCode,
+    RoborockDockWashWaterTemperatureCode,
     RoborockErrorCode,
     RoborockFinishReason,
     RoborockInCleaning,
@@ -479,8 +483,23 @@ class MultiMapsList(RoborockBase):
 
 @dataclass
 class SmartWashParams(RoborockBase):
-    smart_wash: int | None = None
+    smart_wash: RoborockDockSmartWashModeCode | None = None
     wash_interval: int | None = None
+    """Seconds between mop washes when washing by time."""
+
+
+@dataclass
+class WashWaterTemperature(RoborockBase):
+    """Mop wash water temperature, as returned by GET_WASH_WATER_TEMPERATURE."""
+
+    wash_water_temperature: RoborockDockWashWaterTemperatureCode | None = None
+
+
+@dataclass
+class CleaningFluidDelivery(RoborockBase):
+    """Cleaning fluid auto-delivery amount, as returned by GET_AUTO_DELIVERY_CLEANING_FLUID."""
+
+    status: RoborockDockCleaningFluidCode | None = None
 
 
 @dataclass
@@ -508,6 +527,13 @@ class MopDryerSetting(RoborockBase):
 @dataclass
 class DustCollectionMode(RoborockBase):
     mode: RoborockDockDustCollectionModeCode | None = None
+
+
+@dataclass
+class DustCollectionFrequency(RoborockBase):
+    """Automatic dust collection frequency, as returned by GET_DUST_COLLECTION_SWITCH_STATUS."""
+
+    status: RoborockDockDustCollectionFrequencyCode | None = None
 
 
 @dataclass
