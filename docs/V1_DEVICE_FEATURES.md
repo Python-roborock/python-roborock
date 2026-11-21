@@ -12,6 +12,7 @@ This document provides comprehensive documentation for each `DeviceFeature` in t
 - [Robot Features (Array-based)](#robot-features-array-based)
 - [Model-Specific Features](#model-specific-features)
 - [Product Features](#product-features)
+- [Dock Features](#dock-features)
 
 ---
 
@@ -1432,3 +1433,58 @@ These features are determined by hardware capabilities and product variant.
 **Feature:** Customized Clean Settings
 **Description:** Advanced customization for mop-equipped models.
 **Impact:** Detailed control over mopping parameters.
+
+---
+
+## Dock Features
+
+Dock capabilities are not part of `DeviceFeatures`. `RoborockDockFeatures.from_dock_type(dock_type, has_am)` derives
+them from two status values:
+
+- `Status.dock_type` (`RoborockDockTypeCode`): the dock family. Unknown codes fall back to `unknown`, which counts as
+  no dock.
+- `Status.has_am` (`(dss & 3) == 2`): whether the dock is the "A"/"AM" variant. The app lists these variants under
+  their own names (for example Shell 2SA, O5AM, K1SProA), but they report the same `dock_type` code as the base dock.
+
+Some codes have two member names. `type_27_dock` and `type_49_dock` are the original names and stay the canonical
+ones; `shell_4_dock` (27) and `f1rs_dock` (49) are aliases with the app's dock names.
+
+| Code | Member | App dock names |
+|---|---|---|
+| 27 | `type_27_dock` (alias `shell_4_dock`) | Shell4, Shell4A |
+| 48 | `f1rc_dock` | F1RC, F1RCA |
+| 49 | `type_49_dock` (alias `f1rs_dock`) | F1RS, F1RSA |
+| 50 | `f2rs_dock` | F2RS, F2RSA |
+
+The table lists the codes that are new or whose member name differs from the app's dock name. Every other member name
+follows the app's dock name (for example `shell_3s_dock` is Shell 3S / Shell 3SA).
+
+Dock types: `has_dock`, `is_pure_collect`, `is_pure_wash`, `is_collect_wash`, `is_collect_wash_dry` and the derived
+`is_collectable`, `is_washable` and `is_dryable`. Every dock type except no dock (O0, `unknown`), pure collect (O1,
+OC), pure wash (O2) and collect-wash (O3) is a collect, wash and dry dock.
+
+Capabilities that depend on `has_am`:
+
+- `is_clean_fluid_auto_delivery_supported`: several Shell and K1 docks only in the AM variant.
+- `is_clean_carousel_self_clean_supported`: only docks without AM. The F2R dock (43) is not included: the newest app
+  plugins no longer offer carousel self-cleaning for it. Older plugins still did, and earlier library versions
+  reported it as supported.
+- `is_water_updown_drain_supported`: mostly the AM variant (it has the water drain module).
+- `is_double_serial_communication_supported`: Shell 4RC and Shell 4D only in the AM variant.
+- `is_multi_clean_fluid_supported`: Shell 4S without AM.
+
+Other capabilities depend only on the code:
+
+### is_no_support_hot_wash_towel
+**Docks:** Shell E
+**Description:** The dock cannot wash mops with hot water. The app hides hot mop washing for these docks even when
+`DeviceFeatures.is_hot_wash_towel_supported` is true.
+
+### is_clean_carousel_supported
+**Docks:** Pearl, Couple, Hera, Shell (except Shell 4R), K1 and F-series docks; none of the O-series docks.
+**Description:** The dock has a carousel (wash tray strainer) that the app shows as a consumable.
+
+### is_special_support_wash_temp
+**Docks:** Shell 2E Lite
+**Description:** Dock part of the app's check of the same name. The app also checks the product: it is true for every
+product except PearlEPro, which needs a Shell 2E Lite dock.
