@@ -216,6 +216,22 @@ async def test_push_during_refresh_schedules_another(
     assert api.status.mop_mode == 2
 
 
+async def test_malformed_water_code_does_not_stop_push_handling(
+    props: tuple[v1.PropertiesApi, DpsListener], read_back: asyncio.Event
+) -> None:
+    """A malformed water code does not stop the consumables update or the read-back."""
+    api, push = props
+    api.device_features.is_water_slide_mode_supported = True  # type: ignore[attr-defined]
+    updated = Mock()
+    api.consumables.add_update_listener(updated)
+
+    push({RoborockDataProtocol.WATER_BOX_MODE: "abc", RoborockDataProtocol.MAIN_BRUSH_WORK_TIME: 1234})
+
+    await asyncio.wait_for(read_back.wait(), timeout=TIMEOUT)
+    updated.assert_called_once_with()
+    assert api.consumables.main_brush_work_time == 1234
+
+
 async def test_read_back_notifies_status_listeners(props: tuple[v1.PropertiesApi, DpsListener]) -> None:
     """Status listeners hear about values changed by the read-back."""
     api, push = props

@@ -944,6 +944,28 @@ def test_update_from_dps_water_slide_keeps_other_water_codes(pushed: int) -> Non
     assert status_trait.water_box_mode == pushed
 
 
+def test_update_from_dps_water_slide_applies_numeric_string_code() -> None:
+    """A stringified slider code is resolved like the integer."""
+    status_trait = _create_cleaning_mode_status_trait(is_water_slide_mode_supported=True)
+    status_trait.water_box_mode = 225
+
+    status_trait.update_from_dps({RoborockDataProtocol.WATER_BOX_MODE: "235"})
+
+    assert status_trait.water_box_mode == 235
+
+
+@pytest.mark.parametrize("pushed", ["abc", "", True, 1.5, None, [235], {"code": 235}])
+def test_update_from_dps_water_slide_ignores_non_integer_codes(pushed: object) -> None:
+    """Malformed water codes are dropped without raising and other fields still apply."""
+    status_trait = _create_cleaning_mode_status_trait(is_water_slide_mode_supported=True)
+    status_trait.water_box_mode = 235
+
+    status_trait.update_from_dps({RoborockDataProtocol.WATER_BOX_MODE: pushed, RoborockDataProtocol.FAN_POWER: 101})
+
+    assert status_trait.water_box_mode == 235
+    assert status_trait.fan_power == 101
+
+
 def test_update_from_dps_water_slide_still_applies_other_fields() -> None:
     """Ignoring a legacy water level does not drop other fields in the same push."""
     status_trait = _create_cleaning_mode_status_trait(is_water_slide_mode_supported=True)

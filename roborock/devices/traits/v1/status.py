@@ -42,8 +42,19 @@ def _drop_unresolvable_water_level(decoded_dps: dict[RoborockDataProtocol, Any])
     Water-slide devices push legacy codes (201-203, 208) that get_status never
     returns. Only slider codes, off, smart water, smart mode and custom are kept.
     """
-    code = decoded_dps.get(RoborockDataProtocol.WATER_BOX_MODE)
-    if code is None or code in _WATER_MODE_CODES_KEPT or get_water_slide_mode_name(code) is not None:
+    if RoborockDataProtocol.WATER_BOX_MODE not in decoded_dps:
+        return decoded_dps
+    # The pushed value is raw JSON, so narrow it to an integer before resolving it.
+    raw = decoded_dps[RoborockDataProtocol.WATER_BOX_MODE]
+    code: int | None = None
+    if isinstance(raw, int) and not isinstance(raw, bool):
+        code = raw
+    elif isinstance(raw, str):
+        try:
+            code = int(raw)
+        except ValueError:
+            code = None
+    if code is not None and (code in _WATER_MODE_CODES_KEPT or get_water_slide_mode_name(code) is not None):
         return decoded_dps
     return {key: value for key, value in decoded_dps.items() if key != RoborockDataProtocol.WATER_BOX_MODE}
 
