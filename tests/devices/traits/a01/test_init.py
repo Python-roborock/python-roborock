@@ -242,6 +242,8 @@ async def test_dyad_f25_ultra_status_snapshot(dyad_api: DyadApi, fake_channel: F
         (RoborockDyadDataProtocol.FEATURE_INFO, 102, 102),
         (RoborockDyadDataProtocol.SELF_CLEAN_PROGRESS, 50, 50),
         (RoborockDyadDataProtocol.MECHANICAL_ARM, 1, True),
+        (RoborockDyadDataProtocol.SELF_CLEAN_REMINDER, 0, False),
+        (RoborockDyadDataProtocol.SELF_CLEAN_REMINDER, 1, True),
         (RoborockDyadDataProtocol.POWERWHEEL_SPEED, 15, 15),
         (RoborockDyadDataProtocol.DRY_CUR_MODE, 5, "fast"),
         (RoborockDyadDataProtocol.DRY_CUR_MODE, 22, "silent"),
@@ -563,6 +565,16 @@ async def test_dyad_action_commands(
     assert len(fake_channel.published_messages) == 1
     payload_data = json.loads(unpad(fake_channel.published_messages[0].payload, AES.block_size))
     assert payload_data["dps"] == expected_dps
+
+
+async def test_dyad_stop_drying_is_deprecated(dyad_api: DyadApi, fake_channel: FakeChannel):
+    """The old name still stops the device and warns that `stop` replaces it."""
+    with pytest.warns(DeprecationWarning, match="DyadApi.stop"):
+        await dyad_api.stop_drying()
+
+    assert len(fake_channel.published_messages) == 1
+    payload_data = json.loads(unpad(fake_channel.published_messages[0].payload, AES.block_size))
+    assert payload_data["dps"] == {"200": 0}
 
 
 @pytest.mark.parametrize(

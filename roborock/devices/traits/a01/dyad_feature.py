@@ -16,7 +16,7 @@ _COMBO = frozenset({"a82", "a83", "a99", "a108"})  # Dyad Pro Combo
 _SABER_BASE = frozenset({"a80", "a81"})
 _SABER_PLUS = frozenset({"a137", "a138"})
 _DAGGER = frozenset({"a109", "a110", "a111", "a112", "a113", "a132", "a145"})  # Flexi, Flexi Pro
-_MARVIS = frozenset({"a365", "a366", "a367", "a368", "a369"})
+_MARVIS = frozenset({"a365", "a366", "a367", "a368", "a369", "a370"})
 _MORPH_WITH_INTENSITY = frozenset(
     {
         "a150",

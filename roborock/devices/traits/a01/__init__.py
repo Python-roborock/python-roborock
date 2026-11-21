@@ -26,6 +26,7 @@ of everything seen so far. State tracking is active once the device is connected
 
 import json
 import logging
+import warnings
 from abc import abstractmethod
 from collections.abc import Callable
 from datetime import UTC, datetime, time
@@ -158,7 +159,7 @@ DYAD_PROTOCOL_ENTRIES: dict[RoborockDyadDataProtocol, Callable] = {
     RoborockDyadDataProtocol.SPRAY_MODE: lambda val: int(val),
     RoborockDyadDataProtocol.MECHANICAL_ARM: lambda val: bool(val),
     RoborockDyadDataProtocol.TRIGGER_MODE: lambda val: int(val),
-    RoborockDyadDataProtocol.SELF_CLEAN_REMINDER: lambda val: int(val),
+    RoborockDyadDataProtocol.SELF_CLEAN_REMINDER: lambda val: bool(val),
     RoborockDyadDataProtocol.BATTERY_THRESHOLD: lambda val: int(val),
     RoborockDyadDataProtocol.SELF_CLEAN_CUR_MODE: lambda val: DyadSelfCleanIntensity(val).name,
     RoborockDyadDataProtocol.SELF_CLEAN_CUR_TEMP: lambda val: DyadSelfCleanWaterTemp(val).name,
@@ -401,6 +402,19 @@ class DyadApi(A01Api[RoborockDyadDataProtocol]):
         The device has one stop command for both cycles.
         """
         await send_decoded_command(self._channel, {RoborockDyadDataProtocol.START: 0})
+
+    async def stop_drying(self) -> None:
+        """Stop a running drying cycle.
+
+        .. deprecated::
+            Use `stop` instead, which sends the same command.
+        """
+        warnings.warn(
+            "DyadApi.stop_drying is deprecated and will be removed in a future release. Use DyadApi.stop instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        await self.stop()
 
     async def set_drying_mode(self, mode: DyadDryingMode) -> None:
         """Set the drying mode on models that have one, such as the F25 series.
