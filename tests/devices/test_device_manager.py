@@ -279,30 +279,32 @@ async def test_start_connect_failure(
     fake_device.local_channel.inject_error(channel_exception)
 
     ready_devices: list[RoborockDevice] = []
-    device_manager = await create_device_manager(USER_PARAMS, ready_callback=ready_devices.append)
-    devices = await device_manager.get_devices()
+    ready = asyncio.Event()
 
-    # Device should exist but not be connected
-    assert len(devices) == 1
-    assert not devices[0].is_connected
-    assert not ready_devices
+    def on_ready(device: RoborockDevice) -> None:
+        ready_devices.append(device)
+        ready.set()
 
-    # Clear error so connection succeeds on retry
-    fake_device.mqtt_channel.clear_error()
-    fake_device.local_channel.clear_error()
+    device_manager = await create_device_manager(USER_PARAMS, ready_callback=on_ready)
+    try:
+        devices = await device_manager.get_devices()
 
-    # Wait for the device to attempt to connect again and succeed
-    attempts = 0
-    while not devices[0].is_connected:
-        await asyncio.sleep(0.01)
-        attempts += 1
-        assert attempts < 10, "Device did not connect after multiple attempts"
+        # Device should exist but not be connected
+        assert len(devices) == 1
+        assert not devices[0].is_connected
+        assert not ready_devices
 
-    assert devices[0].is_connected
-    assert ready_devices
-    assert len(ready_devices) == 1
+        # Clear error so connection succeeds on retry
+        fake_device.mqtt_channel.clear_error()
+        fake_device.local_channel.clear_error()
 
-    await device_manager.close()
+        # Transport connection can precede initialization and the ready callback.
+        await asyncio.wait_for(ready.wait(), timeout=5)
+
+        assert devices[0].is_connected
+        assert ready_devices == devices
+    finally:
+        await device_manager.close()
 
 
 async def test_rediscover_devices(
