@@ -3,7 +3,9 @@
 import logging
 from unittest.mock import Mock
 
-from roborock.callbacks import CallbackList, CallbackMap, safe_callback
+import pytest
+
+from roborock.callbacks import CallbackList, CallbackMap, decoder_callback, safe_callback
 
 
 def test_safe_callback_successful_execution():
@@ -247,3 +249,13 @@ def test_callback_list_custom_logger():
     callback_list("test_value")
 
     mock_logger.error.assert_called_once()
+
+
+def test_decoder_callback_does_not_log_decoded_payload(caplog: pytest.LogCaptureFixture) -> None:
+    """Decoded messages can contain credentials even when transport bytes were encrypted."""
+    secret = "secret-decoded-credential"
+    received: list[str] = []
+    with caplog.at_level(logging.DEBUG):
+        decoder_callback(lambda _: [secret], received.append)(b"encrypted")
+    assert received == [secret]
+    assert secret not in caplog.text

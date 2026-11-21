@@ -31,7 +31,6 @@ from PIL import Image
 from vacuum_map_parser_base.config.drawable import Drawable
 
 from roborock.map.b01_q10_map_parser import (
-    B01Q10MapParserConfig,
     Q10MapPacket,
     Q10MapPacketKind,
     Q10Room,
@@ -185,7 +184,7 @@ def test_benchmark_q10_map_packet_unpack(benchmark: BenchmarkFixture) -> None:
 def test_benchmark_q10_map_parse_and_render(benchmark: BenchmarkFixture) -> None:
     """Benchmark end-to-end Q10 small map packet decoding and PNG rendering."""
     raw_data = _Q10_MAP.read_bytes()
-    config = B01Q10MapParserConfig()
+    config = MapParserConfig()
     overlays = Q10MapOverlays()
     result = benchmark(lambda: render_q10_map(parse_map_packet(raw_data), None, overlays, config=config))
     _validate_image(result, (32, 24))
@@ -194,7 +193,7 @@ def test_benchmark_q10_map_parse_and_render(benchmark: BenchmarkFixture) -> None
 def test_benchmark_q10_map_full_scale_render_scale_1(benchmark: BenchmarkFixture) -> None:
     """Benchmark Q10 composite rendering on a realistic 200x200 4-room floorplan at scale 1."""
     packet = _build_synthetic_q10_grid(200, 200)
-    config = B01Q10MapParserConfig(map_scale=1)
+    config = MapParserConfig(map_scale=1)
     result = benchmark(render_q10_map, packet, None, Q10MapOverlays(), config=config)
     _validate_image(result, (200, 200))
 
@@ -202,7 +201,7 @@ def test_benchmark_q10_map_full_scale_render_scale_1(benchmark: BenchmarkFixture
 def test_benchmark_q10_map_full_scale_render_scale_4(benchmark: BenchmarkFixture) -> None:
     """Benchmark Q10 composite rendering on a realistic 200x200 4-room floorplan at scale 4."""
     packet = _build_synthetic_q10_grid(200, 200)
-    config = B01Q10MapParserConfig(map_scale=4)
+    config = MapParserConfig(map_scale=4)
     result = benchmark(render_q10_map, packet, None, Q10MapOverlays(), config=config)
     _validate_image(result, (800, 800))
 
@@ -213,7 +212,7 @@ def test_benchmark_q10_map_render_with_trace(benchmark: BenchmarkFixture) -> Non
     trace_bytes = _Q10_TRACE.read_bytes()
     packet = parse_map_packet(map_bytes)
     trace = parse_trace_packet(trace_bytes)
-    config = B01Q10MapParserConfig(map_scale=4)
+    config = MapParserConfig(map_scale=4)
     result = benchmark(render_q10_map, packet, trace=trace, overlays=Q10MapOverlays(), config=config)
     _validate_image(result, (32, 24))
 
@@ -236,8 +235,8 @@ def _run_benchmarks(iterations: int, warmup: int, profile: bool) -> None:
     p_v1_s6_no_draw = MapParser(MapParserConfig(map_scale=4, drawables=[]))
     p_v1_s6_all_draw = MapParser(MapParserConfig(map_scale=4, drawables=list(Drawable)))
 
-    q10_config_scale1 = B01Q10MapParserConfig(map_scale=1)
-    q10_render_config = B01Q10MapParserConfig(map_scale=4)
+    q10_config_scale1 = MapParserConfig(map_scale=1)
+    q10_render_config = MapParserConfig(map_scale=4)
     q10_overlays = Q10MapOverlays()
 
     q10_trace_data = _Q10_TRACE.read_bytes()

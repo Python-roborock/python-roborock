@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 import math
 import time
@@ -61,6 +62,35 @@ class B01MessageBuilder:
             version=b"B01",
             seq=self.seq,
         )
+
+    def build_map_part(
+        self,
+        payload: bytes,
+        protocol: RoborockMessageProtocol,
+        seq: int,
+        random: int,
+        timestamp: int,
+    ) -> RoborockMessage:
+        """Build a MAP_RESPONSE_PART (300) or MAP_RESPONSE (301) message."""
+        return RoborockMessage(
+            protocol=protocol,
+            payload=payload,
+            version=b"B01",
+            seq=seq,
+            random=random,
+            timestamp=timestamp,
+        )
+
+
+def _fragmented_map_payload() -> tuple[bytes, bytes, bytes]:
+    """A base64 map payload split into two fragments, like issue #1043.
+
+    The full payload decodes to 48 bytes (a multiple of the AES block size);
+    each fragment alone decodes to 24 bytes, so neither fragment is decodable
+    on its own.
+    """
+    full = base64.b64encode(bytes(range(48)))
+    return full, full[:32], full[32:]
 
 
 @pytest.fixture(name="fake_channel")
@@ -350,3 +380,151 @@ async def test_subscribe_map_pushes_skips_undecodable_frames(
     ):
         fake_channel.notify_subscribers(message_builder.build_map_response(b"raw-map-payload"))
     assert received == [b"inflated-payload"]
+
+
+# ----------------------------------------------------------------------------- fragmented map responses (#1043)
+
+MAP_RANDOM = 2716216127
+MAP_TIMESTAMP = 1794578237
+
+
+@pytest.mark.parametrize("out_of_order", [False, True], ids=["in_order", "out_of_order"])
+async def test_send_map_command_reassembles_fragmented_frames(
+    device: HomeDataDevice,
+    product: HomeDataProduct,
+    fake_channel: FakeChannel,
+    message_builder: B01MessageBuilder,
+    out_of_order: bool,
+) -> None:
+    """A map split across 300 and 301 parts is joined before decoding regardless of arrival order."""
+    channel = create_b01_q7_channel(device, product, fake_channel)  # type: ignore[arg-type]
+    full, first_part, last_part = _fragmented_map_payload()
+    parts = [
+        message_builder.build_map_part(
+            first_part, RoborockMessageProtocol.MAP_RESPONSE_PART, 1, MAP_RANDOM, MAP_TIMESTAMP
+        ),
+        message_builder.build_map_part(last_part, RoborockMessageProtocol.MAP_RESPONSE, 2, MAP_RANDOM, MAP_TIMESTAMP),
+    ]
+    if out_of_order:
+        parts.reverse()
+
+    with patch(
+        "roborock.devices.rpc.b01_q7_channel.decode_map_payload",
+        return_value=b"inflated-payload",
+    ) as mock_decode:
+        task = asyncio.create_task(channel.send_map_command("service.upload_by_mapid", {"map_id": 123}))
+        await asyncio.sleep(0)
+
+        fake_channel.notify_subscribers(parts[0])
+        await asyncio.sleep(0)
+        assert not task.done()
+        fake_channel.notify_subscribers(parts[1])
+        assert await task == b"inflated-payload"
+        mock_decode.assert_called_once()
+        assert mock_decode.call_args[0][0] == full
+
+
+@pytest.mark.parametrize("out_of_order", [False, True], ids=["in_order", "out_of_order"])
+async def test_subscribe_map_pushes_reassembles_fragmented_frames(
+    device: HomeDataDevice,
+    product: HomeDataProduct,
+    fake_channel: FakeChannel,
+    message_builder: B01MessageBuilder,
+    out_of_order: bool,
+) -> None:
+    """Fragmented map pushes are buffered until all parts arrive and delivered once."""
+    channel = create_b01_q7_channel(device, product, fake_channel)  # type: ignore[arg-type]
+    full, first_part, last_part = _fragmented_map_payload()
+    parts = [
+        message_builder.build_map_part(
+            first_part, RoborockMessageProtocol.MAP_RESPONSE_PART, 1, MAP_RANDOM, MAP_TIMESTAMP
+        ),
+        message_builder.build_map_part(last_part, RoborockMessageProtocol.MAP_RESPONSE, 2, MAP_RANDOM, MAP_TIMESTAMP),
+    ]
+    if out_of_order:
+        parts.reverse()
+
+    received: list[bytes] = []
+    await channel.subscribe_map_pushes(received.append)
+
+    with patch(
+        "roborock.devices.rpc.b01_q7_channel.decode_map_payload",
+        return_value=b"inflated-payload",
+    ) as mock_decode:
+        fake_channel.notify_subscribers(parts[0])
+        assert received == []
+        fake_channel.notify_subscribers(parts[1])
+        assert received == [b"inflated-payload"]
+        mock_decode.assert_called_once()
+        assert mock_decode.call_args[0][0] == full
+
+
+@pytest.mark.parametrize("out_of_order", [False, True], ids=["in_order", "out_of_order"])
+async def test_send_map_command_with_active_map_push_subscription(
+    device: HomeDataDevice,
+    product: HomeDataProduct,
+    fake_channel: FakeChannel,
+    message_builder: B01MessageBuilder,
+    out_of_order: bool,
+) -> None:
+    """Active push subscriptions must not drain fragments needed by send_map_command."""
+    channel = create_b01_q7_channel(device, product, fake_channel)  # type: ignore[arg-type]
+    full, first_part, last_part = _fragmented_map_payload()
+    parts = [
+        message_builder.build_map_part(
+            first_part, RoborockMessageProtocol.MAP_RESPONSE_PART, 1, MAP_RANDOM, MAP_TIMESTAMP
+        ),
+        message_builder.build_map_part(last_part, RoborockMessageProtocol.MAP_RESPONSE, 2, MAP_RANDOM, MAP_TIMESTAMP),
+    ]
+    if out_of_order:
+        parts.reverse()
+
+    received: list[bytes] = []
+    await channel.subscribe_map_pushes(received.append)
+
+    with (
+        patch(
+            "roborock.devices.rpc.b01_q7_channel.decode_map_payload",
+            return_value=b"inflated-payload",
+        ) as mock_decode,
+        patch("roborock.devices.rpc.b01_q7_channel._TIMEOUT", 0.05),
+    ):
+        task = asyncio.create_task(channel.send_map_command("service.upload_by_mapid", {"map_id": 123}))
+        await asyncio.sleep(0)
+
+        fake_channel.notify_subscribers(parts[0])
+        await asyncio.sleep(0)
+        assert not task.done()
+        assert received == []
+
+        fake_channel.notify_subscribers(parts[1])
+        assert await task == b"inflated-payload"
+        assert received == [b"inflated-payload"]
+        assert mock_decode.call_count == 2
+        assert [call.args[0] for call in mock_decode.call_args_list] == [full, full]
+
+
+async def test_subscribe_map_pushes_ignores_incomplete_frame(
+    device: HomeDataDevice,
+    product: HomeDataProduct,
+    fake_channel: FakeChannel,
+    message_builder: B01MessageBuilder,
+) -> None:
+    """A lone 300 part with no final part delivers nothing."""
+    channel = create_b01_q7_channel(device, product, fake_channel)  # type: ignore[arg-type]
+    _full, first_part, _last_part = _fragmented_map_payload()
+
+    received: list[bytes] = []
+    await channel.subscribe_map_pushes(received.append)
+
+    with patch(
+        "roborock.devices.rpc.b01_q7_channel.decode_map_payload",
+        return_value=b"inflated-payload",
+    ) as mock_decode:
+        fake_channel.notify_subscribers(
+            message_builder.build_map_part(
+                first_part, RoborockMessageProtocol.MAP_RESPONSE_PART, 1, MAP_RANDOM, MAP_TIMESTAMP
+            )
+        )
+        assert received == []
+        mock_decode.assert_not_called()
