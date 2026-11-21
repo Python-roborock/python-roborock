@@ -432,7 +432,9 @@ def test_cleaning_mode_options() -> None:
             CleaningMode.VACUUM,
         ),
         (
-            VacuumModes.OFF.code,
+            # 105 is the wire code the device reports for mop-only cleaning,
+            # shared by VacuumModes.OFF and VacuumModes.GENTLE.
+            105,
             WaterModes.STANDARD.code,
             CleanRoutes.STANDARD.code,
             CleaningMode.MOP,
@@ -473,7 +475,9 @@ def test_current_cleaning_mode_with_main_brush_lift() -> None:
         is_support_main_brush_up_down_supported=True,
         is_water_slide_mode_supported=True,
     )
-    status_trait.fan_power = VacuumModes.OFF.code
+    # 105 is the wire code the device reports for mop-only cleaning,
+    # shared by VacuumModes.OFF and VacuumModes.GENTLE.
+    status_trait.fan_power = 105
     status_trait.water_box_mode = 235
     status_trait.mop_mode = CleanRoutes.STANDARD.code
 
@@ -590,7 +594,7 @@ def test_get_cleaning_mode_parameters_qrevo_edge_2() -> None:
 
     assert get_cleaning_mode_parameters(CleaningMode.MOP, status_trait._device_features_trait) == [
         {
-            "fan_power": VacuumModes.OFF.code,
+            "fan_power": 105,  # Wire code shared by VacuumModes.OFF and VacuumModes.GENTLE
             "water_box_mode": 235,
             "mop_mode": CleanRoutes.STANDARD.code,
         }
@@ -620,7 +624,7 @@ def test_get_cleaning_mode_parameters_without_clean_route_setting() -> None:
     ]
     assert get_cleaning_mode_parameters(CleaningMode.MOP, status_trait._device_features_trait) == [
         {
-            "fan_power": VacuumModes.OFF.code,
+            "fan_power": 105,  # Wire code shared by VacuumModes.OFF and VacuumModes.GENTLE
             "water_box_mode": WaterModes.STANDARD.code,
         }
     ]
@@ -646,7 +650,7 @@ def test_get_cleaning_mode_parameters_water_slide_device() -> None:
     ]
     assert get_cleaning_mode_parameters(CleaningMode.MOP, status_trait._device_features_trait) == [
         {
-            "fan_power": VacuumModes.OFF.code,
+            "fan_power": 105,  # Wire code shared by VacuumModes.OFF and VacuumModes.GENTLE
             "water_box_mode": 235,
             "mop_mode": CleanRoutes.STANDARD.code,
         }
@@ -810,6 +814,24 @@ def test_current_cleaning_mode_gentle_not_mop_without_pure_mop() -> None:
     status_trait.mop_mode = CleanRoutes.STANDARD.code
 
     assert status_trait.current_cleaning_mode == CleaningMode.VAC_AND_MOP
+
+
+def test_fan_speed_name_off_on_pure_mop_device() -> None:
+    """Code 105 reports as off on pure-mop devices, where OFF is the offered mode."""
+    status_trait = _create_cleaning_mode_status_trait()
+    status_trait.fan_power = 105
+
+    assert status_trait.fan_speed_mapping[105] == "off"
+    assert status_trait.fan_speed_name == "off"
+
+
+    def test_fan_speed_name_gentle_without_pure_mop() -> None:
+        """Code 105 reports as gentle on devices without pure mop, where GENTLE is offered."""
+        status_trait = _create_cleaning_mode_status_trait(is_pure_clean_mop_supported=False)
+        status_trait.fan_power = 105
+
+    assert status_trait.fan_speed_mapping[105] == "gentle"
+    assert status_trait.fan_speed_name == "gentle"
 
 
 def test_water_slide_mode_mapping() -> None:

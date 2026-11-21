@@ -12,7 +12,7 @@ is cleaned, until overwritten or cleared from the vendor app.
 import asyncio
 
 from roborock.data import CustomizeCleanModes, SegmentCleanMode
-from roborock.data.v1.v1_clean_modes import CleanRoutes, VacuumModes, WaterModes
+from roborock.data.v1.v1_clean_modes import CleanRoutes, VacuumModes, WaterModes, vacuum_mode_wire_code
 from roborock.data.v1.v1_containers import SEQ_TYPE_CLEAN_THEN_MOP
 from roborock.devices.traits.v1 import common
 from roborock.devices.traits.v1.device_features import DeviceFeaturesTrait
@@ -169,7 +169,7 @@ class CustomizeCleanModeTrait(CustomizeCleanModes, common.V1TraitMixin):
             seq_type = SEQ_TYPE_CLEAN_THEN_MOP if enabled else 0
             new_entry = {
                 "segment": segment,
-                "fan_power": fan_power.code if isinstance(fan_power, VacuumModes) else fan_power,
+                "fan_power": (vacuum_mode_wire_code(fan_power) if isinstance(fan_power, VacuumModes) else fan_power),
                 "water_box_mode": water_box_mode.code if isinstance(water_box_mode, WaterModes) else water_box_mode,
                 "mop_mode": mop_mode.code if isinstance(mop_mode, CleanRoutes) else mop_mode,
                 "repeat": repeat,
