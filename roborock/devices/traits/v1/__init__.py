@@ -52,6 +52,7 @@ trait. The `dps` field metadata attribute references a schema code in
 HomeDataProduct Schema that is required for the field to be supported.
 """
 
+import asyncio
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field, fields
@@ -122,6 +123,10 @@ from .volume import SoundVolumeTrait
 from .wash_towel_mode import WashTowelModeTrait
 
 _LOGGER = logging.getLogger(__name__)
+
+# Delay before reading status back after a fan power or water mode push. The
+# robot never pushes the mop mode, so a read-back is needed to get it right.
+_STATUS_REFRESH_DELAY = 1.0
 
 __all__ = [
     "PropertiesApi",
@@ -213,6 +218,11 @@ class PropertiesApi(Trait):
         self._device_cache = device_cache
         self._region = region
         self._unsub: Callable[[], None] | None = None
+        # A single task serializes the status read-backs after pushes; the flag
+        # records that a push still needs one. The task reference is kept so it
+        # is not garbage collected and can be cancelled in close().
+        self._status_refresh_needed = False
+        self._status_refresh_task: asyncio.Task[None] | None = None
         self._add_dps_listener = add_dps_listener
 
         self.device_features = DeviceFeaturesTrait(product, self._device_cache)
@@ -265,6 +275,10 @@ class PropertiesApi(Trait):
         if self._unsub:
             self._unsub()
             self._unsub = None
+        self._status_refresh_needed = False
+        if self._status_refresh_task:
+            self._status_refresh_task.cancel()
+            self._status_refresh_task = None
 
     def _on_dps_update(self, dps: dict[RoborockDataProtocol, Any]) -> None:
         """Handle incoming messages from the device.
@@ -272,10 +286,34 @@ class PropertiesApi(Trait):
         This will notify all traits of the new values. This can be improved in
         the future to be dynamic when we have more traits that support dynamic
         updates but for now we just invoke them manually.
+
+        A push of the fan power or water mode also schedules a debounced status
+        read-back, since the device never pushes the mop mode.
         """
         _LOGGER.debug("Received message from device: %s", dps)
         self.status.update_from_dps(dps)
         self.consumables.update_from_dps(dps)
+        if RoborockDataProtocol.FAN_POWER in dps or RoborockDataProtocol.WATER_BOX_MODE in dps:
+            self._schedule_status_refresh()
+
+    def _schedule_status_refresh(self) -> None:
+        """Request a debounced status read-back, starting the worker if it is idle."""
+        self._status_refresh_needed = True
+        # At most one read-back per delay window, and never two at once.
+        if self._status_refresh_task and not self._status_refresh_task.done():
+            return
+        self._status_refresh_task = asyncio.create_task(self._refresh_status_after_push())
+
+    async def _refresh_status_after_push(self) -> None:
+        """Read status back after a short delay to pick up values that are not pushed."""
+        while self._status_refresh_needed:
+            await asyncio.sleep(_STATUS_REFRESH_DELAY)
+            # Clear before reading so a push during the read-back requests another one.
+            self._status_refresh_needed = False
+            try:
+                await self.status.refresh_and_notify()
+            except RoborockException as err:
+                _LOGGER.warning("Failed to refresh status after a push: %s", err)
 
     async def discover_features(self) -> None:
         """Populate any supported traits that were not initialized in __init__."""

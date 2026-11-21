@@ -32,6 +32,33 @@ _LOGGER = logging.getLogger(__name__)
 _DPS_CONVERTER = DpsDataConverter.from_dataclass(StatusV2)
 
 
+# Non-slider codes that water-slide devices report as valid (custom and smart mode).
+_WATER_MODE_CODES_KEPT = frozenset({WaterModes.CUSTOMIZED.code, WaterModes.SMART_MODE.code})
+
+
+def _drop_unresolvable_water_level(decoded_dps: dict[RoborockDataProtocol, Any]) -> dict[RoborockDataProtocol, Any]:
+    """Return the pushed data without a water code a water-slide device cannot name.
+
+    Water-slide devices push legacy codes (201-203, 208) that get_status never
+    returns. Only slider codes, off, smart water, smart mode and custom are kept.
+    """
+    if RoborockDataProtocol.WATER_BOX_MODE not in decoded_dps:
+        return decoded_dps
+    # The pushed value is raw JSON, so narrow it to an integer before resolving it.
+    raw = decoded_dps[RoborockDataProtocol.WATER_BOX_MODE]
+    code: int | None = None
+    if isinstance(raw, int) and not isinstance(raw, bool):
+        code = raw
+    elif isinstance(raw, str):
+        try:
+            code = int(raw)
+        except ValueError:
+            code = None
+    if code is not None and (code in _WATER_MODE_CODES_KEPT or get_water_slide_mode_name(code) is not None):
+        return decoded_dps
+    return {key: value for key, value in decoded_dps.items() if key != RoborockDataProtocol.WATER_BOX_MODE}
+
+
 class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
     """Trait for managing the status of Roborock devices.
 
@@ -176,5 +203,16 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
         This handles unsolicited status updates pushed by the device
         via RoborockDataProtocol codes (e.g. STATE=121, BATTERY=122).
         """
+        # Water-slide devices push legacy codes (e.g. 201-203, 208) while get_status
+        # returns slider codes, so a pushed legacy code would overwrite the real value.
+        if self._device_features_trait.is_water_slide_mode_supported:
+            decoded_dps = _drop_unresolvable_water_level(decoded_dps)
         if _DPS_CONVERTER.update_from_dps(self, decoded_dps):
+            self._notify_update()
+
+    async def refresh_and_notify(self) -> None:
+        """Refresh the status and notify update listeners if any value changed."""
+        before = self.as_dict()
+        await self.refresh()
+        if self.as_dict() != before:
             self._notify_update()
