@@ -308,12 +308,10 @@ def get_display_options(
     the current one (current_code), so that consumers can show it read-only. The value is
     resolved like get_fan_speed_name, get_water_mode_name and get_mop_route_name name it;
     when the code is None or cannot be named, nothing is shown.
-    A setting the device does not have (no options) always shows nothing, and so does the
-    mop route without the shake module, SmartPlan and custom values included.
+    A setting the model does not have (no options, or not in get_supported_settings) always
+    shows nothing, SmartPlan and custom values included.
     """
-    if not options:
-        return []
-    if setting == CleaningSetting.MOP_ROUTE and not features.is_shake_mop_set_supported:
+    if not options or setting not in get_supported_settings(features):
         return []
     smart_value, custom_value = _SMART_AND_CUSTOM_VALUES[setting]
     if mode == CleaningMode.SMART_MODE:
@@ -322,7 +320,7 @@ def get_display_options(
         return [cast(ModeEnumT, custom_value)]
     if setting in get_adjustable_settings(mode, features):
         return get_mode_options(setting, mode, features, options)
-    if setting not in get_supported_settings(features) or current_code is None:
+    if current_code is None:
         return []
     current = _resolve_current_option(setting, current_code, features, options)
     return [cast(ModeEnumT, current)] if current is not None else []

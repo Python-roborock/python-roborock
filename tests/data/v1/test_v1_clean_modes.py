@@ -529,6 +529,40 @@ def test_get_display_options_route_special_values_need_shake(mode: CleaningMode,
     assert bool(shown) is shake
 
 
+@pytest.mark.parametrize("mode", [CleaningMode.SMART_MODE, CleaningMode.CUSTOM])
+@pytest.mark.parametrize(
+    ("setting", "overrides", "expect_shown"),
+    [
+        (CleaningSetting.WATER_MODE, {"is_support_water_mode": False}, False),
+        (CleaningSetting.MOP_ROUTE, {"is_support_water_mode": False}, False),
+        (CleaningSetting.MOP_ROUTE, {"is_shake_mop_set_supported": False}, False),
+        (
+            CleaningSetting.MOP_ROUTE,
+            {"is_pure_clean_mop_supported": False, "is_clean_route_fast_mode_supported": False},
+            False,
+        ),
+        (CleaningSetting.WATER_MODE, {}, True),
+        (CleaningSetting.MOP_ROUTE, {}, True),
+    ],
+)
+def test_get_display_options_special_values_need_a_supported_setting(
+    mode: CleaningMode, setting: CleaningSetting, overrides: dict[str, bool], expect_shown: bool
+) -> None:
+    """Direct callers get no SmartPlan or custom value for a setting the model lacks."""
+    features = _features(**overrides)
+    # The model list must be non-empty, so that the supported-settings guard is what hides the value.
+    if setting == CleaningSetting.WATER_MODE:
+        water_options = get_water_modes(features)
+        assert water_options
+        shown = bool(get_display_options(setting, mode, features, water_options, 300))
+    else:
+        route_options = get_clean_routes(features, "us")
+        assert route_options
+        shown = bool(get_display_options(setting, mode, features, route_options, 300))
+    assert (setting in get_supported_settings(features)) is expect_shown
+    assert shown is expect_shown
+
+
 def test_water_mode_display_options_include_off_when_turning_water_on_without_mode_tabs() -> None:
     options = _mode_display_options(
         CleaningSetting.WATER_MODE, CleaningMode.VACUUM, {"is_pure_clean_mop_supported": False}
