@@ -59,3 +59,29 @@ async def test_send_command_propagates_exception(command_trait: CommandTrait) ->
     # Verify the exception is propagated
     with pytest.raises(RoborockException, match="Communication error"):
         await command_trait.send(RoborockCommand.APP_START)
+
+
+@pytest.mark.parametrize(
+    ("command", "params"),
+    [
+        (RoborockCommand.GET_RT_CLEAN_DETAIL, {"type": 0, "from": 0}),
+        (RoborockCommand.GET_CLEAN_DETAIL, {"begin": 1794867592, "type": 0, "id": 0, "from": 0}),
+    ],
+)
+async def test_send_clean_detail(command_trait: CommandTrait, command: RoborockCommand, params: dict) -> None:
+    """Test the clean timeline commands with the parameters a Saros 10R accepts."""
+    mock_rpc_channel = command_trait._rpc_channel
+    assert mock_rpc_channel is not None
+    response = {
+        "begin": 1794867592,
+        "from": 0,
+        "num": 1,
+        "more": 0,
+        "events": [{"t": 1794867611, "i": 41, "e": '{"2":8}'}],
+    }
+    mock_rpc_channel.send_command.return_value = response
+
+    result = await command_trait.send(command, params)
+
+    assert result == response
+    mock_rpc_channel.send_command.assert_called_once_with(command, params=params)
