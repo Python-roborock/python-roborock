@@ -15,6 +15,7 @@ from roborock.callbacks import CallbackList
 from roborock.data import HomeDataDevice, HomeDataProduct
 from roborock.diagnostics import redact_device_data
 from roborock.exceptions import RoborockException
+from roborock.mqtt.health_manager import DeviceHealthManager
 from roborock.roborock_message import RoborockMessage
 from roborock.util import RoborockLoggerAdapter
 
@@ -59,12 +60,15 @@ class RoborockDevice(ABC, TraitsMixin):
         product: HomeDataProduct,
         channel: Channel,
         trait: Trait,
+        mqtt_health: DeviceHealthManager | None = None,
     ) -> None:
         """Initialize the RoborockDevice.
 
         The device takes ownership of the channel for communication with the device.
         Use `connect()` to establish the connection, which will set up the appropriate
         protocol channel. Use `close()` to clean up all connections.
+
+        The optional `mqtt_health` adds the device's MQTT request history to its diagnostics.
         """
         TraitsMixin.__init__(self, trait)
         self._duid = device_info.duid
@@ -73,6 +77,7 @@ class RoborockDevice(ABC, TraitsMixin):
         self._device_info = device_info
         self._product = product
         self._channel = channel
+        self._mqtt_health = mqtt_health
         self._connect_task: asyncio.Task[None] | None = None
         self._unsub: Callable[[], None] | None = None
         self._ready_callbacks = CallbackList["RoborockDevice"]()
@@ -257,6 +262,8 @@ class RoborockDevice(ABC, TraitsMixin):
             extra["traits"] = self.v1_properties.as_dict()
         elif self.b01_q10_properties:
             extra["traits"] = self.b01_q10_properties.as_dict()
+        if self._mqtt_health:
+            extra["mqtt_health"] = self._mqtt_health.diagnostic_data()
         return redact_device_data(
             {
                 "device": self.device_info.as_dict(),

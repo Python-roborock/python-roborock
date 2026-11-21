@@ -7,7 +7,7 @@ from collections.abc import AsyncGenerator, Callable
 from roborock.callbacks import decoder_callback
 from roborock.data import HomeDataDevice, RRiot, UserData
 from roborock.exceptions import RoborockException
-from roborock.mqtt.health_manager import HealthManager
+from roborock.mqtt.health_manager import DeviceHealthManager
 from roborock.mqtt.session import MqttParams, MqttQos, MqttSession, MqttSessionException
 from roborock.protocol import create_mqtt_decoder, create_mqtt_encoder
 from roborock.roborock_message import RoborockMessage
@@ -45,9 +45,9 @@ class MqttChannel(Channel):
         return self._mqtt_session.connected
 
     @property
-    def health_manager(self) -> HealthManager:
-        """Return the health manager for the session."""
-        return self._mqtt_session.health_manager
+    def health_manager(self) -> DeviceHealthManager:
+        """Return the health manager that reports this device's events to the session."""
+        return DeviceHealthManager(self._mqtt_session.health_manager, self._duid)
 
     @property
     def is_local_connected(self) -> bool:
