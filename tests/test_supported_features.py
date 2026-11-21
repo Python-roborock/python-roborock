@@ -416,3 +416,33 @@ def test_device_features_from_home_data(
     )
     feature_dict = {k: v for k, v in asdict(device_features).items() if isinstance(v, bool)}
     assert feature_dict == snapshot
+
+
+@pytest.mark.parametrize(
+    ("nickname", "custom", "soft"),
+    [
+        (RoborockProductNickname.TANOS, False, True),
+        (RoborockProductNickname.RUBYPLUS, False, False),
+        (RoborockProductNickname.RUBYSC, False, True),
+        (RoborockProductNickname.RUBYSE, False, True),
+        (RoborockProductNickname.RUBYSLITE, True, True),
+        (RoborockProductNickname.TANOSV, True, True),
+        (RoborockProductNickname.PEARL, True, False),
+    ],
+)
+def test_custom_and_soft_clean_mode_model_lists(nickname: RoborockProductNickname, custom: bool, soft: bool) -> None:
+    """Custom and soft clean mode model lists match the Roborock app."""
+    features = DeviceFeatures.from_feature_flags(
+        new_feature_info=0, new_feature_info_str="", feature_info=[], product_nickname=nickname
+    )
+    assert features.is_custom_mode_supported is custom
+    assert features.is_soft_clean_mode_supported is soft
+
+
+@pytest.mark.parametrize(("feature_info", "expected"), [([118], True), ([], False)])
+def test_set_clean_motor_mode_supported(feature_info: list[int], expected: bool) -> None:
+    """Robot feature 118 means fan_power and water_box_mode are sent together in set_clean_motor_mode."""
+    features = DeviceFeatures.from_feature_flags(
+        new_feature_info=0, new_feature_info_str="", feature_info=feature_info, product_nickname=None
+    )
+    assert features.is_set_clean_motor_mode_supported is expected

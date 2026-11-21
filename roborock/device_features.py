@@ -478,6 +478,7 @@ class DeviceFeatures(RoborockBase):
     is_roller_mop_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.ROLLER_MOP})
 
     # Features from feature_info list
+    is_set_clean_motor_mode_supported: bool = field(metadata={"robot_features": 118})
     is_led_status_switch_supported: bool = field(metadata={"robot_features": 119})
     is_multi_floor_supported: bool = field(metadata={"robot_features": 120})
     is_support_fetch_timer_summary: bool = field(metadata={"robot_features": 122})
@@ -511,10 +512,22 @@ class DeviceFeatures(RoborockBase):
                 RoborockProductNickname.TANOSV,
                 RoborockProductNickname.TANOSE,
                 RoborockProductNickname.TANOS,
+                RoborockProductNickname.RUBYSC,
+                RoborockProductNickname.RUBYSLITE,
+                RoborockProductNickname.RUBYSE,
             ]
         }
     )
-    is_custom_mode_supported: bool = field(metadata={"model_blacklist": [RoborockProductNickname.TANOS]})
+    is_custom_mode_supported: bool = field(
+        metadata={
+            "model_blacklist": [
+                RoborockProductNickname.TANOS,
+                RoborockProductNickname.RUBYPLUS,
+                RoborockProductNickname.RUBYSC,
+                RoborockProductNickname.RUBYSE,
+            ]
+        }
+    )
     is_support_custom_carpet: bool = field(metadata={"model_whitelist": [RoborockProductNickname.ULTRONLITE]})
     is_show_general_obstacle_supported: bool = field(metadata={"model_whitelist": [RoborockProductNickname.TANOSSPLUS]})
     is_show_obstacle_photo_supported: bool = field(
