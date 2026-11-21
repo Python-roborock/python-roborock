@@ -2,6 +2,23 @@
 
 <!-- version list -->
 
+## v7.25.0 (2026-11-21)
+
+### Features
+
+- Add Q7 zone cleaning ([#1038](https://github.com/Python-roborock/python-roborock/pull/1038),
+  [`e9d8b34`](https://github.com/Python-roborock/python-roborock/commit/e9d8b34f9d754420695c0432f1c5bb444319d0d3))
+
+
+## v7.24.0 (2026-11-21)
+
+### Features
+
+- **map**: Plan V1 dynamic element page updates
+  ([#1010](https://github.com/Python-roborock/python-roborock/pull/1010),
+  [`769f35f`](https://github.com/Python-roborock/python-roborock/commit/769f35f60bb6bc2b4746cf46efd29994acfdcb29))
+
+
 ## v7.23.2 (2026-11-16)
 
 ### Bug Fixes
