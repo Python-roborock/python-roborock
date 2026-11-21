@@ -291,15 +291,15 @@ async def test_start_connect_failure(
     fake_device.mqtt_channel.clear_error()
     fake_device.local_channel.clear_error()
 
-    # Wait for the device to attempt to connect again and succeed
+    # The ready callback runs once the device has finished starting, which is after
+    # the channel reports that it is connected.
     attempts = 0
-    while not devices[0].is_connected:
+    while not ready_devices:
         await asyncio.sleep(0.01)
         attempts += 1
-        assert attempts < 10, "Device did not connect after multiple attempts"
+        assert attempts < 100, "Device did not become ready after multiple attempts"
 
     assert devices[0].is_connected
-    assert ready_devices
     assert len(ready_devices) == 1
 
     await device_manager.close()
