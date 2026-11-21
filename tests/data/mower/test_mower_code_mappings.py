@@ -7,17 +7,24 @@ import pytest
 from roborock.data import mower
 from roborock.data.code_mappings import RoborockModeEnum
 from roborock.data.mower import (
+    MowerAckResult,
+    MowerAppButton,
     MowerChargeState,
     MowerDetailState,
     MowerEffMode,
     MowerEnum,
     MowerErrorCode,
     MowerFcState,
+    MowerFeature,
+    MowerFsmState,
     MowerMowState,
     MowerMowType,
     MowerNetworkChannel,
     MowerOfflineStatus,
     MowerPendType,
+    MowerRemoteMsgType,
+    MowerRobotMsgType,
+    MowerWeekday,
 )
 
 ALL_MOWER_ENUMS: list[type[RoborockModeEnum]] = sorted(
@@ -76,10 +83,34 @@ def test_mower_enum_codes_are_unique(enum_cls: type[RoborockModeEnum]) -> None:
         (MowerErrorCode, 48, MowerErrorCode.CAMERA_REAR_SIDE_DIRTY),
         (MowerErrorCode, 55, MowerErrorCode.N_RTK_NETWORK_ERROR),
         (MowerErrorCode, 118, MowerErrorCode.REAR_SIDE_CAMERA_FAULT),
+        # Separate request/reply domains and boundary values in the app schema.
+        (MowerRemoteMsgType, 6, MowerRemoteMsgType.APP_BUTTON),
+        (MowerRobotMsgType, 6, MowerRobotMsgType.SELF_CHECK_STATUS),
+        (MowerRemoteMsgType, 166, MowerRemoteMsgType.SAVE_S1G_IOT_CONFIG),
+        (MowerRobotMsgType, 122, MowerRobotMsgType.S1G_PAIR_STATUS),
+        (MowerAppButton, 16, MowerAppButton.MOW_SELECT),
+        (MowerAckResult, 0, MowerAckResult.OK),
+        (MowerWeekday, 0, MowerWeekday.SUNDAY),
+        (MowerFeature, 0, MowerFeature.RTK),
+        (MowerFsmState, 25, MowerFsmState.SHUTDOWN),
+        (MowerFsmState, 31, MowerFsmState.MENU_OPTIONS),
+        (MowerFsmState, 44, MowerFsmState.RECOVERABLE_FAULT),
+        (MowerFsmState, 49, MowerFsmState.WAITING),
+        (MowerFsmState, 50, MowerFsmState.MOW_UNDOCK),
+        (MowerFsmState, 60, MowerFsmState.TO_DOCK),
+        (MowerFsmState, 61, MowerFsmState.SLEEP),
+        (MowerFsmState, 69, MowerFsmState.MOW),
+        (MowerFsmState, 70, MowerFsmState.DOCK),
+        (MowerFsmState, 89, MowerFsmState.PREPARE_EDIT_BOUNDARY),
     ],
 )
 def test_mower_enum_code_lookup(enum_cls: type[RoborockModeEnum], code: int, expected: RoborockModeEnum) -> None:
     assert enum_cls.from_code(code) is expected
+
+
+def test_fsm_state_covers_complete_wire_domain() -> None:
+    """The task-machine schema defines every code from UNKNOWN through PREPARE_EDIT_BOUNDARY."""
+    assert {member.code for member in MowerFsmState} == set(range(90))
 
 
 @pytest.mark.parametrize(
@@ -119,6 +150,7 @@ def test_misspelled_wire_names_are_preserved(member: RoborockModeEnum, wire_name
         (MowerEffMode, 1, MowerEffMode.DAILY),
         (MowerEffMode, "1", MowerEffMode.DAILY),
         (MowerDetailState, "MAP_ERASEING", MowerDetailState.MAP_ERASING),
+        (MowerFsmState, "MenuOptions", MowerFsmState.MENU_OPTIONS),
         # Unknown values resolve to the explicit unknown member, synthetic or protocol-defined.
         (MowerMowType, 9999, MowerMowType.UNKNOWN),
         (MowerMowType, "FUTURE_TYPE", MowerMowType.UNKNOWN),
@@ -176,3 +208,12 @@ def test_optional_mower_enum_lookups_remain_silent(caplog: pytest.LogCaptureFixt
         assert MowerErrorCode.from_any_optional("FUTURE_VALUE") is None
 
     assert not caplog.records
+
+
+@pytest.mark.parametrize("enum_cls", ALL_MOWER_ENUMS, ids=lambda cls: cls.__name__)
+def test_unknown_firmware_value_has_a_fallback(enum_cls: type[MowerEnum]) -> None:
+    """Future names and codes must not drop typed command fields or raise."""
+    expected = enum_cls.from_name("UNKNOWN")
+    assert enum_cls.from_code(999999) is expected
+    assert enum_cls.from_code("FUTURE_FIRMWARE_VALUE") is expected
+    assert enum_cls.from_code_optional(999999) is None
