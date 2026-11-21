@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 from Crypto.Cipher import AES
-from Crypto.Util.Padding import unpad
+from Crypto.Util.Padding import pad, unpad
 
 from roborock.exceptions import RoborockException
 from roborock.protocols.a01_protocol import decode_rpc_response, encode_mqtt_payload
@@ -141,6 +141,31 @@ def test_decode_rpc_response_string_keys():
     assert result[1] == "first"
     assert result[100] == "hundred"
     assert result[999] == {"nested": "data"}
+
+
+def test_decode_rpc_response_decodes_json_string_values():
+    """Values that hold a JSON object or array as a string are decoded, other values are kept."""
+    payload_data = {
+        "dps": {
+            "10005": '{"sn": "TESTSERIAL", "rssi": -53}',
+            "10002": '[{"id": 1, "on": false}]',
+            "229": "",
+            "1": "plain",
+            "2": "{not json",
+            "209": 100,
+        }
+    }
+    padded_payload = pad(json.dumps(payload_data).encode("utf-8"), AES.block_size)
+    message = RoborockMessage(protocol=RoborockMessageProtocol.RPC_RESPONSE, payload=padded_payload)
+
+    assert decode_rpc_response(message) == {
+        10005: {"sn": "TESTSERIAL", "rssi": -53},
+        10002: [{"id": 1, "on": False}],
+        229: "",
+        1: "plain",
+        2: "{not json",
+        209: 100,
+    }
 
 
 def test_decode_rpc_response_missing_payload():
