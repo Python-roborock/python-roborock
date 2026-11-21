@@ -27,6 +27,7 @@ from .v1_code_mappings import (
     DustBagStatus,
     RoborockChargeStatus,
     RoborockCleanType,
+    RoborockDockDustCollectionFrequencyCode,
     RoborockDockDustCollectionModeCode,
     RoborockDockErrorCode,
     RoborockDockState,
@@ -508,6 +509,13 @@ class MopDryerSetting(RoborockBase):
 @dataclass
 class DustCollectionMode(RoborockBase):
     mode: RoborockDockDustCollectionModeCode | None = None
+
+
+@dataclass
+class DustCollectionFrequency(RoborockBase):
+    """Automatic dust collection frequency, as returned by GET_DUST_COLLECTION_SWITCH_STATUS."""
+
+    status: RoborockDockDustCollectionFrequencyCode | None = None
 
 
 @dataclass
