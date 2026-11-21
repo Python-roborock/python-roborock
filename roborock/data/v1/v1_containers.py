@@ -554,6 +554,16 @@ class SegmentCleanMode(RoborockBase):
 
 
 @dataclass
+class CleanSequence(RoborockBase):
+    """The order in which the device cleans rooms, as segment ids.
+
+    Rooms that are not listed are cleaned after the listed ones.
+    """
+
+    rooms: list[int] | None = None
+
+
+@dataclass
 class CustomizeCleanModes(RoborockBase):
     """Collection of per-room clean mode overrides."""
 
