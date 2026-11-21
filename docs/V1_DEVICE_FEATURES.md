@@ -607,6 +607,15 @@ These features are encoded in the last 8 characters of the `new_feature_info_str
 
 These features are encoded as individual bits in the `new_feature_info_str` hex string.
 
+Bit 6 and bits 121-169 follow the `NewFeatureStr` names in the newest Roborock app plugins, without a trailing `Supported` (`SmartWaterSupported` becomes `SMART_WATER`). Where the app adds conditions the library cannot check, such as the account region, the field reports the firmware bit alone and the description says so.
+
+### is_support_silent_ota_supported
+**Bit Index:** 6
+**Feature:** Silent OTA
+**Description:** Silent over-the-air firmware updates.
+
+---
+
 ### is_two_key_real_time_video_supported
 **Bit Index:** 32
 **Feature:** Two-Key Real-Time Video
@@ -1223,9 +1232,324 @@ These features are encoded as individual bits in the `new_feature_info_str` hex 
 
 ---
 
+### is_product_experience_improvement_supported
+**Bit Index:** 121
+**Feature:** Product Experience Improvement
+**Description:** The robot supports the app's product experience improvement setting.
+
+---
+
+### is_floor_plan_map_supported
+**Bit Index:** 122
+**Feature:** Floor Plan Map
+**Description:** Floor plan view of the map.
+
+---
+
+### is_invasion_detection_supported
+**Bit Index:** 125
+**Feature:** Invasion Detection
+**Description:** Intrusion detection (app name `InvasionDetection`).
+
+---
+
+### is_roller_mop_supported
+**Bit Index:** 128
+**Feature:** Roller Mop
+**Description:** The robot has a roller mop. This bit also enables `is_clean_route_setting_supported`, `is_support_water_mode` and `is_customized_clean_supported`, and together with bit 166 it enables `is_smart_water_supported`.
+
+---
+
+### is_change_mop_supported
+**Bit Index:** 129
+**Feature:** Change Mop
+**Description:** Mop changing at the dock. The app reads the bit alone for `isChangeMopMachine` and also requires a Shell4S or Shell4SA dock for `isSupportChangeMop`.
+
+---
+
+### is_forbid_pure_mop_supported
+**Bit Index:** 130
+**Feature:** Forbid Pure Mop
+**Description:** The app hides the mop-only cleaning mode (`isPureMopForbidden`).
+
+---
+
+### is_dynamic_obstacle_supplementary_clean_supported
+**Bit Index:** 131
+**Feature:** Dynamic Obstacle Supplementary Clean
+**Description:** Supplementary cleaning of areas that moving obstacles blocked.
+
+---
+
+### is_zone_replenish_clean_supported
+**Bit Index:** 132
+**Feature:** Zone Replenish Clean
+**Description:** Zone replenish cleaning. The app also checks the account region.
+
+---
+
+### is_exhibition_for_dance_and_pick_supported
+**Bit Index:** 133
+**Feature:** Exhibition Dance and Pick
+**Description:** Exhibition mode with dance and pick-up demonstrations (`isSupportDanceAndPick`).
+
+---
+
+### is_dock_independent_mop_wash_supported
+**Bit Index:** 134
+**Feature:** Dock Independent Mop Wash
+**Description:** Mop washing at the dock as its own action.
+
+---
+
+### is_intelligent_object_search_supported
+**Bit Index:** 135
+**Feature:** Intelligent Object Search
+**Description:** Object search (`isSupportObjectSearch`).
+
+---
+
+### is_stair_door_sill_supported
+**Bit Index:** 136
+**Feature:** Stair Door Sill
+**Description:** Stair-type door sills.
+
+---
+
+### is_no_mop_avoid_stroll_supported
+**Bit Index:** 137
+**Feature:** No Mop Avoid Stroll
+**Description:** App name `NoMopAvoidStroll` (`isSupportNoMopAvoidStroll`).
+
+---
+
+### is_curtain_supported
+**Bit Index:** 138
+**Feature:** Curtain
+**Description:** Curtain handling (`isSupportCurtain`).
+
+---
+
+### is_support_retractable_mop_supported
+**Bit Index:** 139
+**Feature:** Retractable Mop
+**Description:** The robot has a retractable mop.
+
+---
+
+### is_support_multiple_dnd_time_periods_supported
+**Bit Index:** 140
+**Feature:** Multiple Do Not Disturb Periods
+**Description:** More than one Do Not Disturb time period.
+
+---
+
+### is_iot_base_msg_supported
+**Bit Index:** 141
+**Feature:** IoT Base Message
+**Description:** App name `IOTBaseMsg` (`isSupportIotBaseMsg`).
+
+---
+
+### is_vibrate_mop_supported
+**Bit Index:** 142
+**Feature:** Vibrate Mop
+**Description:** Vibrating mop.
+
+---
+
+### is_cancel_one_time_sweep_then_mop_supported
+**Bit Index:** 143
+**Feature:** Cancel One-Time Sweep Then Mop
+**Description:** App name `CancelOneTimeSweepThenMop`. The app plugins have no feature getter for this bit.
+
+---
+
+### is_support_ai_wash_towel_supported
+**Bit Index:** 144
+**Feature:** AI Mop Wash
+**Description:** AI mop washing at the dock (`isAiWashTowelSupported`).
+
+---
+
+### is_show_sewage_box_clean_state_supported
+**Bit Index:** 145
+**Feature:** Dirty Water Tank Clean State
+**Description:** The app shows the cleaning state of the dirty water tank.
+
+---
+
+### is_support_baidu_voice_control_supported
+**Bit Index:** 146
+**Feature:** Baidu Voice Control
+**Description:** Voice control through Baidu.
+
+---
+
+### is_carpet_stair_clean_supported
+**Bit Index:** 147
+**Feature:** Carpet Stair Clean
+**Description:** Cleaning of carpeted stairs.
+
+---
+
+### is_support_wash_phase_pumping_supported
+**Bit Index:** 148
+**Feature:** Wash Phase Pumping
+**Description:** Water pumping during the mop wash phase. Also true for BerylLite and CoralProSAw, as in the app.
+
+---
+
+### is_support_download_voice_ota_url_supported
+**Bit Index:** 149
+**Feature:** Voice Pack OTA URL
+**Description:** Voice packs downloaded from an OTA URL (`isDownLoadVoiceOTAUrlSupported`).
+
+---
+
+### is_support_only_smart_wash_towel_supported
+**Bit Index:** 150
+**Feature:** Only Smart Mop Wash
+**Description:** The app offers only the smart mop wash mode (`isOnlySmartWashTowelSupported`).
+
+---
+
+### is_support_app_backup_and_restore_supported
+**Bit Index:** 151
+**Feature:** App Backup and Restore
+**Description:** Backup and restore of robot settings from the app. The app also checks AES encryption support (`isSupportAESEncrypt`) before it offers this.
+
+---
+
+### is_patrol_photo_storage_optimization_supported
+**Bit Index:** 152
+**Feature:** Patrol Photo Storage Optimization
+**Description:** Optimized storage of patrol photos.
+
+---
+
+### is_support_clean_before_dust_collection_supported
+**Bit Index:** 153
+**Feature:** Clean Before Dust Collection
+**Description:** App name `SupportCleanBeforeDustCollection` (`isCleanBeforeDustCollectionSupported`).
+
+---
+
+### is_zone_replenish_clean_switch_supported
+**Bit Index:** 154
+**Feature:** Zone Replenish Clean Switch
+**Description:** A switch for zone replenish cleaning. The app also checks the account region.
+
+---
+
+### is_pet_album_supported
+**Bit Index:** 155
+**Feature:** Pet Album
+**Description:** Album of pet photos.
+
+---
+
+### is_door_sill_mat_supported
+**Bit Index:** 156
+**Feature:** Door Sill Mat
+**Description:** Door sill mats.
+
+---
+
+### is_timer_interval_days_and_temp_off_supported
+**Bit Index:** 158
+**Feature:** Timer Interval Days and Temporary Off
+**Description:** Timers that repeat every few days and can be turned off temporarily.
+
+---
+
+### is_no_arm_right_brush_stretch_supported
+**Bit Index:** 160
+**Feature:** No Arm Right Brush Stretch
+**Description:** App name `NoArmRightBrushStretch`. The app plugins have no feature getter for this bit.
+
+---
+
+### is_multi_skip_clean_supported
+**Bit Index:** 161
+**Feature:** Multi Skip Clean
+**Description:** App name `MultiSkipClean` (`isSupportMultiSkipClean`).
+
+---
+
+### is_replenish_zone_edit_supported
+**Bit Index:** 164
+**Feature:** Replenish Zone Edit
+**Description:** Editing of replenish zones (`isSupportReplenishZone`).
+
+---
+
+### is_timer_segment_zone_hybrid_supported
+**Bit Index:** 165
+**Feature:** Timer Segment and Zone Hybrid
+**Description:** Timers that combine rooms and zones.
+
+---
+
+### is_smart_water_supported
+**Bit Index:** 166
+**Feature:** Smart Mop Water
+**Description:** Smart mop water for roller mops. True only when the robot also reports a roller mop (bit 128, `is_roller_mop_supported`).
+
+---
+
+### is_firmware_cloud_backup_privacy_supported
+**Bit Index:** 167
+**Feature:** Firmware Cloud Backup Privacy
+**Description:** App name `FirmwareCloudBackupPrivacy`. The app plugins have no feature getter for this bit.
+
+---
+
+### is_sound_record_supported
+**Bit Index:** 168
+**Feature:** Sound Record
+**Description:** Sound recording.
+
+---
+
+### is_swing_arm_wheel_control_supported
+**Bit Index:** 169
+**Feature:** Swing Arm Wheel Control
+**Description:** Control of the swing arm wheels.
+
+---
+
 ## Robot Features (Array-based)
 
 These features are checked by verifying if the feature ID exists in the `feature_info` array.
+
+### is_fds_endpoint_supported
+**Feature ID:** 111
+**Feature:** FDS Endpoint
+**Description:** App name `isSupportFDSEndPoint`.
+
+---
+
+### is_auto_split_segments_supported
+**Feature ID:** 112
+**Feature:** Automatic Room Splitting
+**Description:** Automatic splitting of the map into rooms.
+
+---
+
+### is_order_segment_clean_supported
+**Feature ID:** 114
+**Feature:** Ordered Room Cleaning
+**Description:** Rooms are cleaned in a set order.
+
+---
+
+### is_map_segment_supported
+**Feature ID:** 116
+**Feature:** Map Segments
+**Description:** The map is split into rooms. True for every model except RubySC and RubyPlus, which need feature ID 116. Also true when the model is unknown.
+
+---
 
 ### is_led_status_switch_supported
 **Feature ID:** 119
@@ -1373,6 +1697,7 @@ These features are determined by hardware capabilities and product variant.
 
 ### is_support_water_mode
 **Product Features:** MOP_ELECTRONIC_MODULE, MOP_SHAKE_MODULE, MOP_SPIN_MODULE
+**Also enabled by:** `is_roller_mop_supported` (roller-mop models have no mop module product feature)
 **Feature:** Water Mode Control
 **Description:** Electronic control over water flow for mopping.
 **Impact:** Adjustable water flow rates for different floor wetness.
@@ -1413,6 +1738,7 @@ These features are determined by hardware capabilities and product variant.
 
 ### is_clean_route_setting_supported
 **Product Features:** MOP_SHAKE_MODULE, MOP_SPIN_MODULE
+**Also enabled by:** `is_shake_mop_set_supported`, `is_roller_mop_supported`
 **Feature:** Clean Route Settings
 **Description:** Configure cleaning route patterns.
 **Impact:** Choose between different cleaning patterns (zigzag, edge-first, etc.).
@@ -1429,6 +1755,7 @@ These features are determined by hardware capabilities and product variant.
 
 ### is_customized_clean_supported
 **Product Features:** MOP_SHAKE_MODULE, MOP_SPIN_MODULE
+**Also enabled by:** `is_roller_mop_supported`
 **Feature:** Customized Clean Settings
 **Description:** Advanced customization for mop-equipped models.
 **Impact:** Detailed control over mopping parameters.
