@@ -7,6 +7,7 @@ import pytest
 from roborock.devices.device import RoborockDevice
 from roborock.devices.traits.v1.maps import MapsTrait
 from roborock.devices.traits.v1.status import StatusTrait
+from roborock.exceptions import RoborockParsingException
 from roborock.roborock_typing import RoborockCommand
 from tests import mock_data
 
@@ -154,3 +155,25 @@ async def test_set_current_map(
     assert mock_mqtt_rpc_channel.send_command.call_count == 2
     mock_mqtt_rpc_channel.send_command.assert_any_call(RoborockCommand.GET_MULTI_MAPS_LIST)
     mock_mqtt_rpc_channel.send_command.assert_any_call(RoborockCommand.LOAD_MULTI_MAP, params=[123])
+
+
+async def test_refresh_maps_trait_empty_list_keeps_state(
+    maps_trait: MapsTrait,
+    mock_mqtt_rpc_channel: AsyncMock,
+) -> None:
+    """An empty map list raises a parsing error and keeps the previous maps."""
+    mock_mqtt_rpc_channel.send_command.side_effect = [
+        MULTI_MAP_LIST_DATA,
+        [],
+    ]
+    await maps_trait.refresh()
+
+    with pytest.raises(
+        RoborockParsingException,
+        match=r"Failed to parse GET_MULTI_MAPS_LIST response for MapsTrait. Payload: \[\].*ValueError.*",
+    ):
+        await maps_trait.refresh()
+
+    assert maps_trait.multi_map_count == 1
+    assert maps_trait.map_info
+    assert [map_info.name for map_info in maps_trait.map_info] == ["Map 1", "Map 2"]

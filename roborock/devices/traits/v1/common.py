@@ -113,6 +113,8 @@ class DefaultConverter(V1TraitDataConverter):
         Subclasses can override to implement custom parsing logic
         """
         if isinstance(response, list):
+            if not response:
+                raise ValueError(f"Empty {self._dataclass_type.__name__} response")
             response = response[0]
         if not isinstance(response, dict):
             raise ValueError(f"Unexpected {self._dataclass_type.__name__} response format: {response!r}")
@@ -136,6 +138,8 @@ class SingleValueConverter(DefaultConverter):
     def convert(self, response: V1ResponseData) -> RoborockBase:
         """Parse the response from the device into a RoborockValueBase."""
         if isinstance(response, list):
+            if not response:
+                raise ValueError(f"Empty {self._dataclass_type.__name__} response")
             response = response[0]
         if not isinstance(response, int):
             raise ValueError(f"Unexpected response format: {response!r}")
