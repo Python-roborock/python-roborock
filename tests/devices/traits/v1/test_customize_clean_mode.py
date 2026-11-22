@@ -227,7 +227,7 @@ async def test_set_clean_then_mop_accepts_typed_modes(
         "repeat": 1,
         "seq_type": 1,
     }
-    
+
 
 @pytest.mark.parametrize("device_info", [SAROS_10R])
 async def test_set_clean_then_mop_sends_wire_code_for_off(
@@ -257,11 +257,10 @@ async def test_set_clean_then_mop_sends_wire_code_for_off(
         "repeat": 1,
         "seq_type": 1,
     }
-    
+
 
 @pytest.mark.parametrize("device_info", [SAROS_10R])
 async def test_set_clean_then_mop_preserves_other_rooms(
-    
     customize_clean_mode_trait: CustomizeCleanModeTrait | None,
     mock_rpc_channel: AsyncMock,
     device_info: HomeDataDevice,
