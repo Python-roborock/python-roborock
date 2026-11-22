@@ -43,6 +43,8 @@ class WashTowelModeTrait(WashTowelMode, common.V1TraitMixin):
     async def set_wash_towel_mode(self, mode: WashTowelModes) -> None:
         """Set the wash towel mode."""
         await self.rpc_channel.send_command(RoborockCommand.SET_WASH_TOWEL_MODE, params={"wash_mode": mode.code})
+        # Optimistic update to avoid an extra refresh
+        self.wash_mode = mode
 
     async def start_wash(self) -> None:
         """Start washing the mop."""
