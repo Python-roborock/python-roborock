@@ -452,10 +452,6 @@ def test_dock_type_app_name_aliases() -> None:
         (RoborockDockTypeCode.hera_dock, True, "is_hatch_door_dock_cool_fan_supported", True),
         (RoborockDockTypeCode.couple_dock, True, "is_hatch_door_dock_cool_fan_supported", True),
         (RoborockDockTypeCode.shell_3_dock, True, "is_hatch_door_dock_cool_fan_supported", False),
-        # Shell E (21) cannot wash mops with hot water, with or without AM.
-        (RoborockDockTypeCode.shell_e_dock, False, "is_no_support_hot_wash_towel", True),
-        (RoborockDockTypeCode.shell_e_dock, True, "is_no_support_hot_wash_towel", True),
-        (RoborockDockTypeCode.shell_2e_dock, False, "is_no_support_hot_wash_towel", False),
         # Multiple cleaning fluids: Shell 4S (34) without AM only.
         (RoborockDockTypeCode.shell_4s_dock, False, "is_multi_clean_fluid_supported", True),
         (RoborockDockTypeCode.shell_4s_dock, True, "is_multi_clean_fluid_supported", False),

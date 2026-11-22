@@ -879,10 +879,6 @@ _STEAM_WASH_DOCK_TYPES = {
     RoborockDockTypeCode.o7h_dock,
 }
 
-_NO_HOT_WASH_TOWEL_DOCK_TYPES = {
-    RoborockDockTypeCode.shell_e_dock,
-}
-
 _MULTI_CLEAN_FLUID_DOCK_TYPES = {
     RoborockDockTypeCode.shell_4s_dock,
 }
@@ -1050,11 +1046,6 @@ class RoborockDockFeatures:
     @property
     def is_steam_wash_supported(self) -> bool:
         return self.dock_type in _STEAM_WASH_DOCK_TYPES
-
-    @property
-    def is_no_support_hot_wash_towel(self) -> bool:
-        """Whether the dock cannot wash mops with hot water, even if the robot reports hot mop washing."""
-        return self.dock_type in _NO_HOT_WASH_TOWEL_DOCK_TYPES
 
     @property
     def is_multi_clean_fluid_supported(self) -> bool:

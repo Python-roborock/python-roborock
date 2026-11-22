@@ -683,7 +683,7 @@ These features are encoded as individual bits in the `new_feature_info_str` hex 
 ### is_hot_wash_towel_supported
 **Bit Index:** 41
 **Feature:** Hot Water Mop Washing
-**Description:** Dock uses hot water to wash mop pads.
+**Description:** Dock uses hot water to wash mop pads. The robot firmware reports this, so it does not account for the dock: a Shell E dock cannot wash with hot water.
 **Impact:** Better mop cleaning and sanitization.
 
 ---
@@ -1474,11 +1474,6 @@ Capabilities that depend on `has_am`:
 - `is_multi_clean_fluid_supported`: Shell 4S without AM.
 
 Other capabilities depend only on the code:
-
-### is_no_support_hot_wash_towel
-**Docks:** Shell E
-**Description:** The dock cannot wash mops with hot water. The app hides hot mop washing for these docks even when
-`DeviceFeatures.is_hot_wash_towel_supported` is true.
 
 ### is_clean_carousel_supported
 **Docks:** Pearl, Couple, Hera, Shell (except Shell 4R), K1 and F-series docks; none of the O-series docks.
