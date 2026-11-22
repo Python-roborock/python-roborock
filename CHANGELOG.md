@@ -2,6 +2,29 @@
 
 <!-- version list -->
 
+## v7.27.0 (2026-11-22)
+
+### Chores
+
+- Align mypy config and type stubs in pyproject.toml
+  ([#1072](https://github.com/Python-roborock/python-roborock/pull/1072),
+  [`8551bd8`](https://github.com/Python-roborock/python-roborock/commit/8551bd8106bebfd368448a193c9cd85b6221db33))
+
+- **deps**: Allow pycryptodome 4
+  ([#1076](https://github.com/Python-roborock/python-roborock/pull/1076),
+  [`aaea795`](https://github.com/Python-roborock/python-roborock/commit/aaea7959961f2c5382a4ebf6661ec4b77b31d88a))
+
+- **test**: Remove redundant mock test for clean detail commands
+  ([#1063](https://github.com/Python-roborock/python-roborock/pull/1063),
+  [`8f857ce`](https://github.com/Python-roborock/python-roborock/commit/8f857ce83c1d31cfbde8a5eb72d620de10ad274e))
+
+### Features
+
+- Add GET_CLEAN_DETAIL and GET_RT_CLEAN_DETAIL commands
+  ([#1063](https://github.com/Python-roborock/python-roborock/pull/1063),
+  [`8f857ce`](https://github.com/Python-roborock/python-roborock/commit/8f857ce83c1d31cfbde8a5eb72d620de10ad274e))
+
+
 ## v7.26.1 (2026-11-22)
 
 ### Bug Fixes
