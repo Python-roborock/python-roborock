@@ -1357,7 +1357,7 @@ wheels = [
 
 [[package]]
 name = "python-roborock"
-version = "7.26.0"
+version = "7.26.1"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },

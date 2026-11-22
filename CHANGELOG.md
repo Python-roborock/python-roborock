@@ -2,6 +2,35 @@
 
 <!-- version list -->
 
+## v7.26.1 (2026-11-22)
+
+### Bug Fixes
+
+- Wait for device readiness in reconnect test
+  ([#1071](https://github.com/Python-roborock/python-roborock/pull/1071),
+  [`223d18f`](https://github.com/Python-roborock/python-roborock/commit/223d18fff0478ca3f67c564421a6812902970417))
+
+- **v1**: Aggregate multi-phase cleaning records
+  ([#1058](https://github.com/Python-roborock/python-roborock/pull/1058),
+  [`4f8ca86`](https://github.com/Python-roborock/python-roborock/commit/4f8ca86839fe09a78421750db742378190f406df))
+
+- **v1**: Decode unrecognized error and status codes as unknown
+  ([#1057](https://github.com/Python-roborock/python-roborock/pull/1057),
+  [`2527d9a`](https://github.com/Python-roborock/python-roborock/commit/2527d9a979876f0474c65d062a6046f02b064c25))
+
+- **v1**: Report empty trait list replies as parsing errors
+  ([#1056](https://github.com/Python-roborock/python-roborock/pull/1056),
+  [`85d7514`](https://github.com/Python-roborock/python-roborock/commit/85d75144ec225f1284b408be44827c4e23b54c9d))
+
+- **v1**: Serialize the last clean record of the clean summary
+  ([#1059](https://github.com/Python-roborock/python-roborock/pull/1059),
+  [`bf5b6f2`](https://github.com/Python-roborock/python-roborock/commit/bf5b6f28e31a6d1234f29831fd12fb9e7a775ead))
+
+- **v1**: Update wash towel mode after setting it
+  ([#1060](https://github.com/Python-roborock/python-roborock/pull/1060),
+  [`e1220ee`](https://github.com/Python-roborock/python-roborock/commit/e1220eec4e38ed28c6ed3c893f9a5065af21e1ed))
+
+
 ## v7.26.0 (2026-11-22)
 
 ### Bug Fixes
