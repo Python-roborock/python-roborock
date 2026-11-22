@@ -8,11 +8,15 @@ import pytest
 
 from roborock import CleanRoutes, HomeDataProduct, RoborockCategory
 from roborock.data.b01_q10.b01_q10_code_mappings import B01_Q10_DP, YXCleanType
-from roborock.data.code_mappings import completed_warnings
+from roborock.data.code_mappings import RoborockEnum, completed_warnings
 from roborock.data.dyad.dyad_code_mappings import DyadCleanMode, DyadError
 from roborock.data.v1.v1_code_mappings import (
+    RoborockCleanType,
+    RoborockDockErrorCode,
     RoborockErrorCode,
     RoborockFinishReason,
+    RoborockInCleaning,
+    RoborockStartType,
     RoborockStateCode,
 )
 
@@ -193,3 +197,19 @@ def test_dyad_clean_mode_codes(code: int, expected: DyadCleanMode, caplog: pytes
 def test_dyad_clean_mode_unknown_code() -> None:
     """An unrecognized Dyad clean mode falls back to 'unknown' instead of 'auto'."""
     assert DyadCleanMode(99) == DyadCleanMode.unknown
+
+
+@pytest.mark.parametrize(
+    ("enum_cls", "code"),
+    [
+        (RoborockErrorCode, 57),
+        (RoborockDockErrorCode, 9),
+        (RoborockInCleaning, 4),
+        (RoborockFinishReason, 78),
+        (RoborockCleanType, 9),
+        (RoborockStartType, 999),
+    ],
+)
+def test_v1_enum_unknown_code(enum_cls: type[RoborockEnum], code: int) -> None:
+    """An unrecognized V1 code falls back to 'unknown' instead of the first member."""
+    assert enum_cls(code).name == "unknown"
