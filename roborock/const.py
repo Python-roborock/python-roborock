@@ -29,6 +29,7 @@ ROBOROCK_Q5 = "roborock.vacuum.a34"
 ROBOROCK_Q5_PRO = "roborock.vacuum.a72"
 ROBOROCK_Q7 = "roborock.vacuum.a40"
 ROBOROCK_Q7_MAX = "roborock.vacuum.a38"
+ROBOROCK_Q7_TF_PLUS = "roborock.vacuum.sc05"
 ROBOROCK_Q7PLUS = "roborock.vacuum.a40"
 ROBOROCK_QREVO_MASTER = "roborock.vacuum.a117"
 ROBOROCK_QREVO_CURV = "roborock.vacuum.a135"
@@ -67,6 +68,7 @@ SUPPORTED_VACUUMS = [
     ROBOROCK_Q5,
     ROBOROCK_Q7,
     ROBOROCK_Q7_MAX,
+    ROBOROCK_Q7_TF_PLUS,
     ROBOROCK_S4,
     ROBOROCK_S5_MAX,
     ROBOROCK_S6,
