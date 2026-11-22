@@ -84,9 +84,19 @@ class CleaningMode(StrEnum):
 
     VACUUM = "vacuum"
     VAC_AND_MOP = "vac_and_mop"
+    VAC_THEN_MOP = "vac_then_mop"
+    """Vacuum first with the mop pads detached, then return for the pads and mop.
+
+    Uses the same motor settings as `VAC_AND_MOP`; the order is a separate
+    device setting (`seq_type`) that the app writes alongside them.
+    """
     MOP = "mop"
     CUSTOM = "custom"
     SMART_MODE = "smart_mode"
+
+
+# `seq_type` value for "vacuum first, then mop"; 0 means both in one pass.
+SEQ_TYPE_CLEAN_THEN_MOP = 1
 
 
 _WATER_SLIDE_MODES: tuple[WaterModes, ...] = (
@@ -241,6 +251,8 @@ def get_cleaning_mode_options(features: DeviceFeatures) -> list[CleaningMode]:
 
     supported_water_modes = get_water_modes(features)
     options = [CleaningMode.VACUUM, CleaningMode.VAC_AND_MOP]
+    if features.is_clean_then_mop_mode_supported:
+        options.append(CleaningMode.VAC_THEN_MOP)
     if features.is_pure_clean_mop_supported:
         options.append(CleaningMode.MOP)
     if features.is_customized_clean_supported and WaterModes.CUSTOMIZED in supported_water_modes:
@@ -275,7 +287,7 @@ def _get_clean_motor_mode_params(
     """Return (fan_power, water_box_mode, mop_mode) enums for the high-level mode."""
     if mode == CleaningMode.VACUUM:
         return (VacuumModes.BALANCED, WaterModes.OFF, CleanRoutes.STANDARD)
-    if mode == CleaningMode.VAC_AND_MOP:
+    if mode in (CleaningMode.VAC_AND_MOP, CleaningMode.VAC_THEN_MOP):
         return (VacuumModes.BALANCED, _get_default_mopping_water_mode(features), CleanRoutes.STANDARD)
     if mode == CleaningMode.MOP:
         return (
@@ -312,6 +324,27 @@ def get_cleaning_mode_parameters(cleaning_mode: CleaningMode, features: DeviceFe
     return [params]
 
 
+def get_clean_sequence_parameters(
+    cleaning_mode: CleaningMode,
+    motor_params: dict[str, int],
+    features: DeviceFeatures,
+) -> dict[str, int]:
+    """Get the `app_set_clean_sequence_type` payload for a high-level cleaning mode.
+
+    The firmware requires the motor settings (`fan_power`, `water_box_mode` and
+    `mop_mode`) in the request, so `motor_params` should be the values just sent
+    with `set_clean_motor_mode`. The app adds `repeat: 1` when enabling the
+    sequence on devices with `is_ctm_with_repeat_supported`.
+    """
+    if not features.is_clean_then_mop_mode_supported:
+        raise RoborockUnsupportedFeature("Clean then mop is not supported")
+    enabled = cleaning_mode == CleaningMode.VAC_THEN_MOP
+    params = {"type": SEQ_TYPE_CLEAN_THEN_MOP if enabled else 0, **motor_params}
+    if enabled and features.is_ctm_with_repeat_supported:
+        params["repeat"] = 1
+    return params
+
+
 def _resolve_mode_code(value: int | ModeEnumT | None, mode_cls: type[ModeEnumT]) -> ModeEnumT | None:
     """Resolve a raw code or enum into a RoborockModeEnum."""
     if value is None:
@@ -346,8 +379,14 @@ def get_current_cleaning_mode(
     water_mode: int | WaterModes | None,
     mop_mode: int | CleanRoutes | None,
     features: DeviceFeatures,
+    seq_type: int | None = None,
 ) -> CleaningMode | None:
-    """Classify the current high-level cleaning mode from individual mode codes."""
+    """Classify the current high-level cleaning mode from individual mode codes.
+
+    `seq_type` is the device's cleaning order (`get_status`); when it is
+    `SEQ_TYPE_CLEAN_THEN_MOP` on a device that supports it, vacuum-and-mop
+    settings are reported as `CleaningMode.VAC_THEN_MOP`.
+    """
     if not features.is_support_water_mode:
         return None
     clean_mode_enum = _resolve_clean_mode(clean_mode, features)
@@ -368,6 +407,8 @@ def get_current_cleaning_mode(
             pass
     if water_mode_enum == WaterModes.OFF:
         return CleaningMode.VACUUM
+    if features.is_clean_then_mop_mode_supported and seq_type == SEQ_TYPE_CLEAN_THEN_MOP:
+        return CleaningMode.VAC_THEN_MOP
     return CleaningMode.VAC_AND_MOP
 
 
