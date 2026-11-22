@@ -17,11 +17,11 @@ This document serves as the authoritative, single source of truth for engineerin
 # Environment setup
 uv venv && uv sync
 
-# Run tests (--benchmark-disable skips map benchmarks for faster iteration)
+# Run tests (benchmarks are disabled by default; pass --benchmark-enable to run them)
 uv run pytest
-uv run pytest --benchmark-disable
 uv run pytest tests/devices/traits/v1/test_status.py
 uv run pytest tests/protocols/test_v1_protocol.py
+uv run pytest tests/map/test_benchmarks.py --benchmark-enable
 
 # Lint and typecheck
 uv run pre-commit run --all-files
