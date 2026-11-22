@@ -2,6 +2,7 @@
 
 import asyncio
 import warnings
+from collections.abc import Iterator
 from typing import cast
 from unittest.mock import AsyncMock, Mock, call
 
@@ -28,6 +29,7 @@ from roborock.data.v1 import (
 )
 from roborock.device_features import DeviceFeatures
 from roborock.devices.device import RoborockDevice
+from roborock.devices.traits.v1 import status as status_module
 from roborock.devices.traits.v1.device_features import DeviceFeaturesTrait
 from roborock.devices.traits.v1.status import StatusTrait
 from roborock.exceptions import RoborockException, RoborockParsingException, RoborockUnsupportedFeature
@@ -920,7 +922,7 @@ def test_water_slide_mode_name_covers_slider_positions(water_box_mode: int, expe
     assert status_trait.water_mode_name == expected_name
 
 
-def test_update_from_dps(status_trait: StatusTrait) -> None:
+async def test_update_from_dps(status_trait: StatusTrait) -> None:
     """Test updating status from data protocol push message."""
     assert status_trait.battery is None
     assert status_trait.state is None
@@ -935,6 +937,14 @@ def test_update_from_dps(status_trait: StatusTrait) -> None:
 
     assert status_trait.state == 5
     assert status_trait.battery == 85
+    assert status_trait.fan_power == 102
+
+
+def test_update_from_dps_applies_values_even_if_read_back_cannot_be_scheduled(status_trait: StatusTrait) -> None:
+    """Without a running event loop the read-back cannot be scheduled, but the push is still applied."""
+    with pytest.raises(RuntimeError):
+        status_trait.update_from_dps({RoborockDataProtocol.FAN_POWER: 102})
+
     assert status_trait.fan_power == 102
 
 
@@ -954,7 +964,7 @@ def test_update_from_dps_partial(status_trait: StatusTrait) -> None:
 
 
 @pytest.mark.parametrize("pushed", [201, 202, 203, 208, 251, 999])
-def test_update_from_dps_water_slide_ignores_unresolvable_water_codes(pushed: int) -> None:
+async def test_update_from_dps_water_slide_ignores_unresolvable_water_codes(pushed: int) -> None:
     """Water codes the slider cannot name do not overwrite the slider value."""
     status_trait = _create_cleaning_mode_status_trait(is_water_slide_mode_supported=True)
     status_trait.water_box_mode = 235
@@ -969,7 +979,7 @@ def test_update_from_dps_water_slide_ignores_unresolvable_water_codes(pushed: in
 
 
 @pytest.mark.parametrize("pushed", [200, WaterModes.CUSTOMIZED.code, 209, 221, 225, 245, 250])
-def test_update_from_dps_water_slide_keeps_other_water_codes(pushed: int) -> None:
+async def test_update_from_dps_water_slide_keeps_other_water_codes(pushed: int) -> None:
     """Slider codes pushed to a water-slide device are applied."""
     status_trait = _create_cleaning_mode_status_trait(is_water_slide_mode_supported=True)
     status_trait.water_box_mode = 235
@@ -979,7 +989,7 @@ def test_update_from_dps_water_slide_keeps_other_water_codes(pushed: int) -> Non
     assert status_trait.water_box_mode == pushed
 
 
-def test_update_from_dps_water_slide_applies_numeric_string_code() -> None:
+async def test_update_from_dps_water_slide_applies_numeric_string_code() -> None:
     """A stringified slider code is resolved like the integer."""
     status_trait = _create_cleaning_mode_status_trait(is_water_slide_mode_supported=True)
     status_trait.water_box_mode = 225
@@ -990,7 +1000,7 @@ def test_update_from_dps_water_slide_applies_numeric_string_code() -> None:
 
 
 @pytest.mark.parametrize("pushed", ["abc", "", True, 1.5, None, [235], {"code": 235}])
-def test_update_from_dps_water_slide_ignores_non_integer_codes(pushed: object) -> None:
+async def test_update_from_dps_water_slide_ignores_non_integer_codes(pushed: object) -> None:
     """Malformed water codes are dropped without raising and other fields still apply."""
     status_trait = _create_cleaning_mode_status_trait(is_water_slide_mode_supported=True)
     status_trait.water_box_mode = 235
@@ -1001,7 +1011,7 @@ def test_update_from_dps_water_slide_ignores_non_integer_codes(pushed: object) -
     assert status_trait.fan_power == 101
 
 
-def test_update_from_dps_water_slide_still_applies_other_fields() -> None:
+async def test_update_from_dps_water_slide_still_applies_other_fields() -> None:
     """Ignoring a legacy water level does not drop other fields in the same push."""
     status_trait = _create_cleaning_mode_status_trait(is_water_slide_mode_supported=True)
     status_trait.water_box_mode = 235
@@ -1013,7 +1023,7 @@ def test_update_from_dps_water_slide_still_applies_other_fields() -> None:
 
 
 @pytest.mark.parametrize("pushed", [201, 202, 203, 208])
-def test_update_from_dps_without_water_slide_keeps_legacy_levels(pushed: int) -> None:
+async def test_update_from_dps_without_water_slide_keeps_legacy_levels(pushed: int) -> None:
     """Devices without the water slider use the legacy level codes."""
     status_trait = _create_cleaning_mode_status_trait(is_water_slide_mode_supported=False)
 
@@ -1061,3 +1071,242 @@ def test_update_listener_ignores_unrelated(status_trait: StatusTrait) -> None:
 
     assert not event.is_set()
     unsubscribe()
+
+
+async def test_refresh_and_notify_notifies_when_values_changed(
+    status_trait: StatusTrait, mock_rpc_channel: AsyncMock
+) -> None:
+    """Listeners hear about water and mop route values that changed in the read-back."""
+    status_trait.water_box_mode = 202
+    status_trait.mop_mode = 300
+    listener = Mock()
+    status_trait.add_update_listener(listener)
+    mock_rpc_channel.send_command.return_value = [{**STATUS, "water_box_mode": 203, "mop_mode": 301}]
+
+    await status_trait.refresh_and_notify()
+
+    assert status_trait.water_box_mode == 203
+    assert status_trait.mop_mode == 301
+    listener.assert_called_once_with()
+
+
+async def test_refresh_and_notify_silent_when_nothing_changed(
+    status_trait: StatusTrait, mock_rpc_channel: AsyncMock
+) -> None:
+    """Listeners are not called when the read-back matches the current state."""
+    mock_rpc_channel.send_command.return_value = [STATUS]
+    await status_trait.refresh()
+    listener = Mock()
+    status_trait.add_update_listener(listener)
+
+    await status_trait.refresh_and_notify()
+
+    listener.assert_not_called()
+
+
+async def test_refresh_and_notify_propagates_exception(status_trait: StatusTrait, mock_rpc_channel: AsyncMock) -> None:
+    """Errors from the read-back reach the caller and do not notify."""
+    listener = Mock()
+    status_trait.add_update_listener(listener)
+    mock_rpc_channel.send_command.side_effect = RoborockException("boom")
+
+    with pytest.raises(RoborockException):
+        await status_trait.refresh_and_notify()
+
+    listener.assert_not_called()
+
+
+READ_BACK_DELAY = 0.01
+# Long enough for a read-back that should not happen to have run.
+READ_BACK_SETTLE = READ_BACK_DELAY * 8
+READ_BACK_TIMEOUT = 1
+
+
+@pytest.fixture(autouse=True)
+def close_scheduled_read_backs(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Close every trait that scheduled a read-back so no task is left pending after a test."""
+    scheduled: list[StatusTrait] = []
+    schedule = StatusTrait._schedule_status_refresh
+
+    def recording_schedule(self: StatusTrait) -> None:
+        scheduled.append(self)
+        schedule(self)
+
+    monkeypatch.setattr(StatusTrait, "_schedule_status_refresh", recording_schedule)
+    yield
+    for trait in scheduled:
+        trait.close()
+
+
+@pytest.fixture(name="read_back")
+def read_back_fixture(status_trait: StatusTrait, monkeypatch: pytest.MonkeyPatch) -> asyncio.Event:
+    """Shorten the read-back delay, mock the read-back and return an event set each time it runs."""
+    monkeypatch.setattr(status_module, "_STATUS_REFRESH_DELAY", READ_BACK_DELAY)
+    ran = asyncio.Event()
+
+    async def refresh() -> None:
+        ran.set()
+
+    status_trait.refresh_and_notify = AsyncMock(side_effect=refresh)  # type: ignore[method-assign]
+    return ran
+
+
+async def test_fan_and_water_push_reads_status_back(status_trait: StatusTrait, read_back: asyncio.Event) -> None:
+    """A fan power and water mode push triggers one status read-back."""
+    status_trait.update_from_dps({RoborockDataProtocol.FAN_POWER: 101, RoborockDataProtocol.WATER_BOX_MODE: 202})
+    status_trait.refresh_and_notify.assert_not_awaited()  # type: ignore[attr-defined]
+
+    await asyncio.wait_for(read_back.wait(), timeout=READ_BACK_TIMEOUT)
+    await asyncio.sleep(READ_BACK_SETTLE)
+    status_trait.refresh_and_notify.assert_awaited_once()  # type: ignore[attr-defined]
+
+
+async def test_repeated_pushes_are_debounced(status_trait: StatusTrait, read_back: asyncio.Event) -> None:
+    """Several pushes before the delay elapses cause a single read-back."""
+    status_trait.update_from_dps({RoborockDataProtocol.FAN_POWER: 101})
+    status_trait.update_from_dps({RoborockDataProtocol.WATER_BOX_MODE: 202})
+    status_trait.update_from_dps({RoborockDataProtocol.FAN_POWER: 102})
+
+    await asyncio.wait_for(read_back.wait(), timeout=READ_BACK_TIMEOUT)
+    await asyncio.sleep(READ_BACK_SETTLE)
+    status_trait.refresh_and_notify.assert_awaited_once()  # type: ignore[attr-defined]
+
+
+async def test_unrelated_push_does_not_read_back(status_trait: StatusTrait, read_back: asyncio.Event) -> None:
+    """Pushes without fan power or water mode do not refresh status."""
+    status_trait.update_from_dps({RoborockDataProtocol.BATTERY: 80})
+
+    await asyncio.sleep(READ_BACK_SETTLE)
+    status_trait.refresh_and_notify.assert_not_awaited()  # type: ignore[attr-defined]
+
+
+async def test_read_back_failure_is_contained(status_trait: StatusTrait, read_back: asyncio.Event) -> None:
+    """A failing read-back does not raise and later pushes still read back."""
+    ran = asyncio.Event()
+
+    async def failing_refresh() -> None:
+        ran.set()
+        raise RoborockException("boom")
+
+    status_trait.refresh_and_notify.side_effect = failing_refresh  # type: ignore[attr-defined]
+    status_trait.update_from_dps({RoborockDataProtocol.FAN_POWER: 101})
+    await asyncio.wait_for(ran.wait(), timeout=READ_BACK_TIMEOUT)
+
+    ran.clear()
+    status_trait.update_from_dps({RoborockDataProtocol.FAN_POWER: 102})
+    await asyncio.wait_for(ran.wait(), timeout=READ_BACK_TIMEOUT)
+    assert status_trait.refresh_and_notify.await_count == 2  # type: ignore[attr-defined]
+
+
+async def test_close_cancels_pending_read_back(status_trait: StatusTrait, read_back: asyncio.Event) -> None:
+    """Closing while a read-back is pending prevents it from running."""
+    status_trait.update_from_dps({RoborockDataProtocol.FAN_POWER: 101})
+    status_trait.close()
+
+    await asyncio.sleep(READ_BACK_SETTLE)
+    status_trait.refresh_and_notify.assert_not_awaited()  # type: ignore[attr-defined]
+
+
+async def test_close_cancels_in_flight_read_back(status_trait: StatusTrait, read_back: asyncio.Event) -> None:
+    """Closing while a read-back is running cancels it."""
+    started = asyncio.Event()
+    cancelled = asyncio.Event()
+
+    async def hanging_refresh() -> None:
+        started.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            cancelled.set()
+            raise
+
+    status_trait.refresh_and_notify.side_effect = hanging_refresh  # type: ignore[attr-defined]
+    status_trait.update_from_dps({RoborockDataProtocol.FAN_POWER: 101})
+    await asyncio.wait_for(started.wait(), timeout=READ_BACK_TIMEOUT)
+
+    status_trait.close()
+    await asyncio.wait_for(cancelled.wait(), timeout=READ_BACK_TIMEOUT)
+    status_trait.refresh_and_notify.assert_awaited_once()  # type: ignore[attr-defined]
+
+
+async def test_push_during_read_back_schedules_another_after_it(
+    status_trait: StatusTrait, read_back: asyncio.Event
+) -> None:
+    """A push arriving while a read-back runs is followed by another one, never concurrently."""
+    started = asyncio.Event()
+    release = asyncio.Event()
+    second_ran = asyncio.Event()
+    calls = 0
+    running = 0
+    max_running = 0
+
+    async def slow_refresh() -> None:
+        nonlocal calls, running, max_running
+        calls += 1
+        call = calls
+        running += 1
+        max_running = max(max_running, running)
+        try:
+            if call == 1:
+                started.set()
+                await release.wait()
+            # Each response is applied when its call finishes.
+            status_trait.mop_mode = call
+        finally:
+            running -= 1
+        if call == 2:
+            second_ran.set()
+
+    status_trait.refresh_and_notify.side_effect = slow_refresh  # type: ignore[attr-defined]
+    status_trait.update_from_dps({RoborockDataProtocol.FAN_POWER: 101})
+    await asyncio.wait_for(started.wait(), timeout=READ_BACK_TIMEOUT)
+
+    status_trait.update_from_dps({RoborockDataProtocol.WATER_BOX_MODE: 202})
+    # Give a (wrongly) concurrent second read-back the chance to start.
+    await asyncio.sleep(READ_BACK_SETTLE)
+    assert calls == 1
+    release.set()
+
+    await asyncio.wait_for(second_ran.wait(), timeout=READ_BACK_TIMEOUT)
+    assert calls == 2
+    assert max_running == 1
+    assert status_trait.mop_mode == 2
+
+
+async def test_malformed_water_code_still_applies_other_fields_and_reads_back(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A malformed water code on a slide device does not stop the other fields or the read-back."""
+    monkeypatch.setattr(status_module, "_STATUS_REFRESH_DELAY", READ_BACK_DELAY)
+    status_trait = _create_cleaning_mode_status_trait(is_water_slide_mode_supported=True)
+    ran = asyncio.Event()
+
+    async def refresh() -> None:
+        ran.set()
+
+    status_trait.refresh_and_notify = AsyncMock(side_effect=refresh)  # type: ignore[method-assign]
+    status_trait.update_from_dps({RoborockDataProtocol.WATER_BOX_MODE: "abc", RoborockDataProtocol.FAN_POWER: 101})
+
+    assert status_trait.fan_power == 101
+    await asyncio.wait_for(ran.wait(), timeout=READ_BACK_TIMEOUT)
+    status_trait.close()
+
+
+async def test_read_back_notifies_status_listeners(status_trait: StatusTrait, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Status listeners hear about values changed by the read-back."""
+    monkeypatch.setattr(status_module, "_STATUS_REFRESH_DELAY", READ_BACK_DELAY)
+    changed = asyncio.Event()
+    listener = Mock(side_effect=lambda: changed.set())
+    status_trait.add_update_listener(listener)
+
+    async def refresh() -> None:
+        status_trait.mop_mode = 301
+
+    status_trait.refresh = AsyncMock(side_effect=refresh)  # type: ignore[method-assign]
+    status_trait.update_from_dps({RoborockDataProtocol.WATER_BOX_MODE: 202})
+    # The push itself notifies once; the read-back's change is the second call.
+    changed.clear()
+
+    await asyncio.wait_for(changed.wait(), timeout=READ_BACK_TIMEOUT)
+    assert status_trait.mop_mode == 301
+    assert listener.call_count == 2
