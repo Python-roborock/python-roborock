@@ -43,6 +43,31 @@ def test_work_status_mapping(code: int, expected: WorkStatusMapping) -> None:
     assert WorkStatusMapping.from_code(code) is expected
 
 
+@pytest.mark.parametrize(
+    ("code", "expected", "display_name"),
+    [
+        (511, B01Fault.F_511, "docking_error"),
+        (512, B01Fault.F_512, "docking_error"),
+        (513, B01Fault.F_513, "robot_trapped"),
+        (514, B01Fault.F_514, "robot_trapped"),
+        (502, B01Fault.F_502, "low_battery"),
+        (518, B01Fault.F_518, "low_battery"),
+        (568, B01Fault.F_568, "main_wheels_entangled"),
+        (569, B01Fault.F_569, "main_wheels_entangled"),
+        (570, B01Fault.F_570, "main_brush_entangled"),
+        (572, B01Fault.F_572, "main_brush_entangled"),
+        (2007, B01Fault.F_2007, "cannot_reach_target"),
+        (2012, B01Fault.F_2012, "cannot_reach_target"),
+    ],
+)
+def test_b01props_fault_codes_sharing_a_name(code: int, expected: B01Fault, display_name: str) -> None:
+    """Faults that share a user-facing name each keep their own code."""
+    deserialized = B01Props.from_dict({"fault": code})
+    assert deserialized.fault is expected
+    assert deserialized.fault.code == code
+    assert deserialized.fault.display_name == display_name
+
+
 def test_b01props_deserialization():
     """Test that B01Props can be deserialized after its module is dynamically imported."""
 
