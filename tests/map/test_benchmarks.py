@@ -8,9 +8,9 @@ Includes permutations for:
 - Pixel output validation (dimensions, format, bounding box)
 
 Can be run via pytest:
-    uv run pytest tests/map/test_benchmarks.py
-    uv run pytest tests/map/test_benchmarks.py --benchmark-only
-    uv run pytest tests/map/test_benchmarks.py --benchmark-autosave
+    uv run pytest tests/map/test_benchmarks.py --benchmark-enable
+    uv run pytest tests/map/test_benchmarks.py --benchmark-enable --benchmark-only
+    uv run pytest tests/map/test_benchmarks.py --benchmark-enable --benchmark-autosave
 
 Or directly as a standalone profiling CLI:
     uv run python -m tests.map.test_benchmarks

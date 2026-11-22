@@ -13,11 +13,12 @@ All reviews are evaluated against the engineering conventions defined in [AGENTS
 
 ## Review Workflow
 
-1. **Classify Changed Files & Scope**:
-   Group changed files according to the 3-tier architectural hierarchy and evaluate PR scoping:
-   - **Priority 1: Public Trait APIs & Consumer Contracts** (`roborock/devices/traits/`, `roborock/data/containers.py`)
-   - **Priority 2: Data Lifecycle & State Management** (trait state, callbacks, `RoborockDevice.close()`, map/render pipelines)
-   - **Priority 3: Wire Protocols, Codecs & Cryptography** (`roborock/protocols/`, `roborock/devices/transport/`, `roborock/devices/rpc/`)
+1. **Fetch PR Context & Classify Scope**:
+   - **Fetch Metadata & Prior Thread History**: Fetch PR metadata, diff, and all prior reviews and inline threads (`gh pr view <N> -R Python-roborock/python-roborock --json ...` and `gh api repos/Python-roborock/python-roborock/pulls/<N>/comments --paginate`). Note that `gh pr checks <N>` exits non-zero when a first-time contributor's workflow awaits approval—treat that as pending CI approval rather than a failure. When cleaning up or re-reviewing an existing PR, also inspect GraphQL `reviewThreads` to verify and resolve addressed threads (including Copilot comments).
+   - **Classify Changed Files**: Group changed files according to the 3-tier architectural hierarchy and evaluate PR scoping:
+     - **Priority 1: Public Trait APIs & Consumer Contracts** (`roborock/devices/traits/`, `roborock/data/containers.py`)
+     - **Priority 2: Data Lifecycle & State Management** (trait state, callbacks, `RoborockDevice.close()`, map/render pipelines)
+     - **Priority 3: Wire Protocols, Codecs & Cryptography** (`roborock/protocols/`, `roborock/devices/transport/`, `roborock/devices/rpc/`)
    - **PR Scoping**: Flag PRs that mix unrelated subsystems or combine large protocol/parser additions with trait consumption when they should be split into focused PRs.
    - **Automated Conformance**: Structural invariants (`RoborockBase` inheritance, `RoborockEnum` fallback members, `RoborockException` rooting, and trait boundary types) are enforced in `tests/conformance/`. Flag any unjustified allowlist exemptions added to `tests/conformance/` and focus deeper review energy on semantic, lifecycle, and design issues.
 
@@ -47,22 +48,25 @@ All reviews are evaluated against the engineering conventions defined in [AGENTS
 5. **Evaluate Tests & Fixtures**:
    - **Test Mirroring & Colocation**: Are tests colocated in the matching mirror path under `tests/` for the module being tested (e.g., tests for `roborock/devices/traits/v1/status.py` in `tests/devices/traits/v1/test_status.py`; new modules have corresponding new test suites under the mirror directory)?
    - **No One-Off Bugfix Test Files**: Flag any fragmented single-bug or single-PR test files (e.g., `tests/test_battery_low_voltage_fix.py`). Tests must be integrated into the module's corresponding test suite.
-   - Are tests using `fake_channel` and `@pytest.mark.parametrize` rather than hand-rolled mocks or duplicate methods?
+   - Are tests reusing shared module fixtures (`mock_rpc_channel`, `fake_channel`, `device_fixture`), `roborock.testing` simulators (`V1VacuumSimulator`, `Q10VacuumSimulator`, `DyadSimulator`, `ZeoSimulator`), and `@pytest.mark.parametrize` rather than hand-rolled inline command-dict fakes or duplicate test methods?
    - Do assertions verify public behavior rather than private `_state` variables?
 
 6. **Adversarial Self-Check on Candidate Findings**:
    Before presenting or posting any review comment, subject every candidate finding and suggested diff to hostile adversarial scrutiny and discard any that fail:
    - **Baseline & History Check**: Trace concrete inputs across `upstream/main`, the PR, and your proposed fix (inspecting `git log` / blame when existing test or helper intent is non-obvious). Discard suggestions that silently regress `main` behavior on valid inputs or introduce magic-number/boundary duplication.
-   - **Verify Rationale Against Peer Cases**: Check sibling functions and enum codes in the same module to confirm your stated invariant actually holds across the codebase rather than inventing a stricter rule for the touched lines alone.
-   - **Independent Check of Prior Reviews**: When comparing competing PRs or prior review comments (human or AI), evaluate those claims with the same adversarial skepticism instead of carrying them forward uncritically.
+   - **Verify Rationale Against Peer Cases**: Check sibling functions, traits, and enum codes in the same module to confirm your stated invariant actually holds across the codebase rather than inventing a stricter rule for the touched lines alone.
+   - **Prior Review Continuity & Independent Check**: On re-reviews, verify candidate findings against earlier maintainer comments on the PR—never move the goalposts by flagging a pattern the maintainer previously asked the author to adopt (unless explicitly noting why we are reconsidering earlier guidance), and check whether prior maintainer questions were answered. Conversely, evaluate third-party or competing-PR claims with adversarial skepticism instead of carrying them forward uncritically.
    - **Drop Low-Value Nits & Allow Zero-Defect Approvals**: Drop trivial docstring or comment wording nits (especially in tests) unless factually harmful, and verify any suggested replacement text accurately reflects what the code/test asserts. If no findings survive adversarial scrutiny, report that the PR is clean and ready to approve rather than manufacturing filler comments.
 
-7. **Format Review Output**:
-   Structure review comments with clear rationale and actionable code recommendations:
-   - **Priority Level & File Reference**
-   - **Issue / Anti-Pattern Identified**
-   - **Grounded Rationale** (citing protocol resilience, consumer stability, or maintainability)
-   - **Concrete Before / After Diff or Suggested Fix**
-   Keep feedback high-signal: focus on architectural violations, state/concurrency bugs, protocol safety, and test gaps; avoid nitpicking formatting or style already enforced by Ruff and Mypy.
-   - **Interactive / Summary Reviews**: Group findings by Priority Layer (1 → 3) with file references, the anti-pattern identified, grounded rationale (citing protocol resilience, consumer stability, or maintainability), and a concrete before/after diff or suggested fix.
-   - **Inline PR Review Comments**: State the issue, grounded rationale (citing `AGENTS.md` conventions), and suggested fix concisely right on the affected lines.
+7. **Format Review Output & Calibrate Delivery**:
+   - **Lead with Verdict & Clickable Link**: Always open interactive and subagent review reports with a clickable PR link (`[#N](https://github.com/Python-roborock/python-roborock/pull/N)`) and an explicit 1-line bottom-line verdict (**Approve / LGTM — no changes needed**, **Comment with non-blocking question/simplification**, or **Request Changes**).
+   - **Structure Actionable Findings**:
+     - **Priority Level & File Reference**
+     - **Issue / Anti-Pattern Identified**
+     - **Grounded Rationale** (citing protocol resilience, consumer stability, or maintainability)
+     - **Concrete Before / After Diff or Suggested Fix**
+     Keep feedback high-signal: focus on architectural violations, state/concurrency bugs, protocol safety, and test gaps; avoid nitpicking formatting or style already enforced by Ruff and Mypy.
+   - **Calibrate GitHub Comment Style**:
+     - **Simplifications & Design Questions**: Frame optional simplifications as collaborative questions with a proposed `diff` (`COMMENT` review) rather than rigid blockers.
+     - **Fundamental Design Pushback**: When a PR addresses a real problem with an over-complicated design, prefer **one high-level review comment** acknowledging the real problem, listing the core failure modes, and sketching a simpler alternative instead of leaving inline nits on code that shouldn't stay.
+     - **Unanswered Prior Questions**: Restate unanswered questions from earlier reviews concisely in 2–3 sentences focused on the core consumer/design question rather than pasting long verbatim self-quotes.

@@ -158,7 +158,7 @@ module = ["roborock.cli", "roborock.map.proto.*"]
 ignore_errors = true
 
 [tool.pytest.ini_options]
-addopts = "-m 'not mqtt_broker'"
+addopts = "-m 'not mqtt_broker' --benchmark-disable"
 markers = ["mqtt_broker: tests requiring a real MQTT broker"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
