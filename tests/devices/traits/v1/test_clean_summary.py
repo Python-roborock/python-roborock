@@ -304,3 +304,19 @@ async def test_get_clean_summary_no_records(
 
     # Verify the RPC call was made correctly
     mock_rpc_channel.send_command.assert_called_once_with(RoborockCommand.GET_CLEAN_SUMMARY)
+
+
+async def test_get_clean_summary_keeps_last_record_when_record_fetch_fails(
+    clean_summary_trait: CleanSummaryTrait, mock_rpc_channel: AsyncMock
+) -> None:
+    """Keep the previous clean record when fetching the latest record fails."""
+    mock_rpc_channel.send_command.side_effect = [CLEAN_SUMMARY_DATA, CLEAN_RECORD_DATA]
+    await clean_summary_trait.refresh()
+    previous_record = clean_summary_trait.last_clean_record
+    assert previous_record is not None
+
+    mock_rpc_channel.send_command.side_effect = [CLEAN_SUMMARY_DATA, RoborockException("Communication error")]
+    with pytest.raises(RoborockException, match="Communication error"):
+        await clean_summary_trait.refresh()
+
+    assert clean_summary_trait.last_clean_record == previous_record

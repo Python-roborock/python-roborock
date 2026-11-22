@@ -206,6 +206,12 @@
         'cleanArea': 24258125000,
         'cleanCount': 296,
         'cleanTime': 1442559,
+        'lastCleanRecord': dict({
+          'area': 81122500,
+          'begin': 1738864366,
+          'duration': 4358,
+          'end': 1738868964,
+        }),
         'records': list([
           1756848207,
           1754930385,
