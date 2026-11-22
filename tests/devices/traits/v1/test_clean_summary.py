@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, call
 
 import pytest
 
-from roborock.data import CleanSummary
+from roborock.data import CleanRecord, CleanSummary, RoborockStartType
 from roborock.devices.device import RoborockDevice
 from roborock.devices.traits.v1.clean_summary import CleanSummaryTrait
 from roborock.exceptions import RoborockException, RoborockParsingException
@@ -245,6 +245,47 @@ async def test_get_clean_record_structured_responses(
     assert record.end == response[-1]["end"]
 
 
+async def test_get_clean_record_multi_phase_totals(
+    clean_summary_trait: CleanSummaryTrait, mock_rpc_channel: AsyncMock
+) -> None:
+    """Sum phase totals, keep the first phase's start and the last phase's outcome."""
+    mock_rpc_channel.send_command.return_value = [
+        {"begin": 1700000000, "end": 1700000100, "duration": 100, "area": 1000000, "start_type": 2, "complete": 0},
+        {"begin": 1700000200, "end": 1700000300, "duration": 100, "area": 1000000, "avoid_count": 3, "complete": 0},
+        {"begin": 1700000400, "end": 1700000500, "duration": 50, "area": 500000, "start_type": 3, "complete": 1},
+    ]
+
+    record = await clean_summary_trait.get_clean_record(1700000000)
+
+    assert record == CleanRecord(
+        begin=1700000000,
+        end=1700000500,
+        duration=250,
+        area=2500000,
+        complete=1,
+        start_type=RoborockStartType.app,
+        avoid_count=3,
+        wash_count=None,
+    )
+
+
+@pytest.mark.parametrize(
+    "response",
+    [[{"begin": 1700000000}, 42], [42, {"begin": 1700000000}]],
+    ids=["dict-first", "dict-last"],
+)
+async def test_get_clean_record_mixed_phase_formats(
+    clean_summary_trait: CleanSummaryTrait, mock_rpc_channel: AsyncMock, response: list
+) -> None:
+    """Reject a record mixing structured and list phases."""
+    mock_rpc_channel.send_command.return_value = response
+
+    with pytest.raises(RoborockParsingException, match="GET_CLEAN_RECORD") as exc:
+        await clean_summary_trait.get_clean_record(1700000000)
+
+    assert isinstance(exc.value.__cause__, ValueError)
+
+
 async def test_get_clean_record_dict_response(
     clean_summary_trait: CleanSummaryTrait,
     mock_rpc_channel: AsyncMock,
@@ -304,3 +345,19 @@ async def test_get_clean_summary_no_records(
 
     # Verify the RPC call was made correctly
     mock_rpc_channel.send_command.assert_called_once_with(RoborockCommand.GET_CLEAN_SUMMARY)
+
+
+async def test_get_clean_summary_keeps_last_record_when_record_fetch_fails(
+    clean_summary_trait: CleanSummaryTrait, mock_rpc_channel: AsyncMock
+) -> None:
+    """Keep the previous clean record when fetching the latest record fails."""
+    mock_rpc_channel.send_command.side_effect = [CLEAN_SUMMARY_DATA, CLEAN_RECORD_DATA]
+    await clean_summary_trait.refresh()
+    previous_record = clean_summary_trait.last_clean_record
+    assert previous_record is not None
+
+    mock_rpc_channel.send_command.side_effect = [CLEAN_SUMMARY_DATA, RoborockException("Communication error")]
+    with pytest.raises(RoborockException, match="Communication error"):
+        await clean_summary_trait.refresh()
+
+    assert clean_summary_trait.last_clean_record == previous_record

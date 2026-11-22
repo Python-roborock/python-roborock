@@ -9,11 +9,12 @@ data is collected and exposed to clients via higher level APIs like the
 DeviceManager.
 """
 
+import json
 import time
 from collections import Counter
 from collections.abc import Generator, Mapping
 from contextlib import contextmanager
-from typing import Any, Self, TypeVar, cast
+from typing import Any, Self, TypeVar, overload
 
 
 class Diagnostics:
@@ -106,7 +107,9 @@ REDACT_KEYS = {
     "ipAddress",
     "ipAdress",
     "wifiName",
+    "ssid",
     "rawName",
+    "iotName",
     "lat",
     "long",
 }
@@ -123,13 +126,46 @@ DEVICE_UID = "duid"
 REDACTED = "**REDACTED**"
 
 
-def redact_device_data(data: T, path: str = "") -> T | dict[str, Any]:
-    """Redact sensitive data in a dict."""
+def _decode_json_string(value: str) -> Any:
+    """Decode a JSON object or array stored as a string.
+
+    Some devices report structured data this way, such as the A01 product info
+    data point. Any other string is returned unchanged.
+
+    `roborock.protocols.a01_protocol.decode_datapoint_value` does the same for A01
+    data points. This module cannot import it: `roborock.util` imports this module,
+    so the import would be circular.
+    """
+    if not value.lstrip().startswith(("{", "[")):
+        return value
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        return value
+
+
+@overload
+def redact_device_data(data: Mapping[str, Any], path: str = "") -> dict[str, Any]: ...
+
+
+@overload
+def redact_device_data(data: T, path: str = "") -> T | dict[str, Any] | list[Any]: ...
+
+
+def redact_device_data(data: Any, path: str = "") -> Any:
+    """Redact sensitive data in a dict or list.
+
+    Strings holding a JSON object or array are decoded and redacted, so a string
+    input can return a dict or a list. Other values are returned unchanged.
+    """
+    if isinstance(data, str):
+        data = _decode_json_string(data)
+
     if not isinstance(data, (Mapping, list)):
         return data
 
     if isinstance(data, list):
-        return cast(T, [redact_device_data(item, path) for item in data])
+        return [redact_device_data(item, path) for item in data]
 
     redacted = {**data}
 
@@ -141,7 +177,7 @@ def redact_device_data(data: T, path: str = "") -> T | dict[str, Any]:
             redacted[key] = REDACTED
         elif key == DEVICE_UID and isinstance(value, str):
             redacted[key] = redact_device_uid(value)
-        elif isinstance(value, dict):
+        elif isinstance(value, (dict, str)):
             redacted[key] = redact_device_data(value, curr_path)
         elif isinstance(value, list):
             redacted[key] = [redact_device_data(item, curr_path) for item in value]

@@ -157,7 +157,7 @@ def test_packet_layers_decompose_q10_fixture() -> None:
 
     living = layers.render_room(2, (255, 0, 0, 255))
     image = Image.open(io.BytesIO(living))
-    opaque = sum(1 for *_rgb, alpha in image.getdata() if alpha > 0)
+    opaque = sum(1 for alpha in image.getchannel("A").tobytes() if alpha > 0)
     assert opaque == next(room.pixel_count for room in layers.rooms if room.id == 2)
 
 

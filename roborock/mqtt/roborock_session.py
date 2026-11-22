@@ -12,7 +12,7 @@ import asyncio
 import datetime
 import logging
 import ssl
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 
 import aiomqtt
@@ -249,7 +249,7 @@ class RoborockMqttSession(MqttSession):
             raise
 
     @asynccontextmanager
-    async def _mqtt_client(self, params: MqttParams) -> aiomqtt.Client:
+    async def _mqtt_client(self, params: MqttParams) -> AsyncIterator[aiomqtt.Client]:
         """Connect to the MQTT broker and listen for messages."""
         _LOGGER.debug("Connecting to %s:%s for %s", params.host, params.port, params.username)
         tls_params = None

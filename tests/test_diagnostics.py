@@ -1,5 +1,8 @@
 """Tests for diagnostics module."""
 
+import json
+from typing import Any
+
 import pytest
 
 from roborock.diagnostics import REDACTED, Diagnostics, redact_device_data, redact_device_uid, redact_topic_name
@@ -106,3 +109,67 @@ def test_redact_q10_raw_room_name() -> None:
     assert redact_device_data(
         {"map": {"rooms": [{"rawName": "Owner’s bedroom"}], "currentRoom": {"rawName": "Salle d’eau"}}}
     ) == {"map": {"rooms": [{"rawName": REDACTED}], "currentRoom": {"rawName": REDACTED}}}
+
+
+def test_redact_iot_room_name() -> None:
+    """Room names reported in the map list are as private as raw room names."""
+    assert redact_device_data({"rooms": [{"iotName": "Owner’s bedroom", "tag": 1}]}) == {
+        "rooms": [{"iotName": REDACTED, "tag": 1}]
+    }
+
+
+def test_redact_json_string_in_device_status() -> None:
+    """Identifiers inside a data point that holds a JSON string are redacted."""
+    product_info = json.dumps(
+        {
+            "sn": "TESTSERIAL",
+            "ssid": "test-network",
+            "ip": "192.0.2.1",
+            "mac": "00:00:5e:00:53:01",
+            "rssi": -53,
+            "oba": {"bom": "A.01"},
+        }
+    )
+
+    redacted = redact_device_data({"device": {"deviceStatus": {"10005": product_info, "209": 100}}})
+
+    assert redacted == {
+        "device": {
+            "deviceStatus": {
+                "10005": {
+                    "sn": REDACTED,
+                    "ssid": REDACTED,
+                    "ip": REDACTED,
+                    "mac": REDACTED,
+                    "rssi": -53,
+                    "oba": {"bom": "A.01"},
+                },
+                "209": 100,
+            }
+        }
+    }
+
+
+def test_redact_json_string_in_list() -> None:
+    """JSON strings inside lists are redacted too."""
+    redacted = redact_device_data({"items": ['{"ip": "192.0.2.1"}', "plain"]})
+
+    assert redacted == {"items": [{"ip": REDACTED}, "plain"]}
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ('{"RRPhotoPrivacyVersion": "1"}', {"RRPhotoPrivacyVersion": "1"}),
+        ("[1, 2, 3]", [1, 2, 3]),
+    ],
+)
+def test_redact_decodes_json_strings(value: str, expected: Any) -> None:
+    """JSON documents stored as strings are decoded even when there is nothing to redact."""
+    assert redact_device_data({"value": value}) == {"value": expected}
+
+
+@pytest.mark.parametrize("value", ["plain text", "", "{not json"])
+def test_redact_keeps_other_strings(value: str) -> None:
+    """Strings that are not JSON documents are returned unchanged."""
+    assert redact_device_data({"value": value}) == {"value": value}
