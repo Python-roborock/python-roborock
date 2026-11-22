@@ -2,6 +2,45 @@
 
 <!-- version list -->
 
+## v7.28.0 (2026-11-22)
+
+### Bug Fixes
+
+- Treat the roller mop as a mop module for water and custom modes
+  ([#1046](https://github.com/Python-roborock/python-roborock/pull/1046),
+  [`8c17286`](https://github.com/Python-roborock/python-roborock/commit/8c17286b9af05850187739c5ea64ebaf3566f2f6))
+
+### Chores
+
+- Disable pytest benchmarks by default
+  ([#1073](https://github.com/Python-roborock/python-roborock/pull/1073),
+  [`bddf50c`](https://github.com/Python-roborock/python-roborock/commit/bddf50c9677c915f743b57442d7b6bfd94f1aecc))
+
+- Refine agent skills, add triage CLI, and disable benchmarks by default
+  ([#1073](https://github.com/Python-roborock/python-roborock/pull/1073),
+  [`bddf50c`](https://github.com/Python-roborock/python-roborock/commit/bddf50c9677c915f743b57442d7b6bfd94f1aecc))
+
+### Documentation
+
+- Extract pr-triage GraphQL query and bucketing into script
+  ([#1073](https://github.com/Python-roborock/python-roborock/pull/1073),
+  [`bddf50c`](https://github.com/Python-roborock/python-roborock/commit/bddf50c9677c915f743b57442d7b6bfd94f1aecc))
+
+- Refine agent guidelines, code-review, and pr-triage skills
+  ([#1073](https://github.com/Python-roborock/python-roborock/pull/1073),
+  [`bddf50c`](https://github.com/Python-roborock/python-roborock/commit/bddf50c9677c915f743b57442d7b6bfd94f1aecc))
+
+### Features
+
+- Add V1 product nicknames for models that fall back to PEARLPLUS
+  ([#1046](https://github.com/Python-roborock/python-roborock/pull/1046),
+  [`8c17286`](https://github.com/Python-roborock/python-roborock/commit/8c17286b9af05850187739c5ea64ebaf3566f2f6))
+
+- Add V1 product nicknames from the Roborock app
+  ([#1046](https://github.com/Python-roborock/python-roborock/pull/1046),
+  [`8c17286`](https://github.com/Python-roborock/python-roborock/commit/8c17286b9af05850187739c5ea64ebaf3566f2f6))
+
+
 ## v7.27.0 (2026-11-22)
 
 ### Chores
