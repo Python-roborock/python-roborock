@@ -825,10 +825,10 @@ def test_fan_speed_name_off_on_pure_mop_device() -> None:
     assert status_trait.fan_speed_name == "off"
 
 
-    def test_fan_speed_name_gentle_without_pure_mop() -> None:
-        """Code 105 reports as gentle on devices without pure mop, where GENTLE is offered."""
-        status_trait = _create_cleaning_mode_status_trait(is_pure_clean_mop_supported=False)
-        status_trait.fan_power = 105
+def test_fan_speed_name_gentle_without_pure_mop() -> None:
+    """Code 105 reports as gentle on devices without pure mop, where GENTLE is offered."""
+    status_trait = _create_cleaning_mode_status_trait(is_pure_clean_mop_supported=False)
+    status_trait.fan_power = 105
 
     assert status_trait.fan_speed_mapping[105] == "gentle"
     assert status_trait.fan_speed_name == "gentle"
