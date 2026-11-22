@@ -9,7 +9,13 @@ from roborock import SHORT_MODEL_TO_ENUM
 from roborock.data import HomeDataProduct
 from roborock.data.code_mappings import RoborockProductNickname
 from roborock.data.v1 import RoborockDockTypeCode
-from roborock.device_features import DeviceFeatures, RoborockDockFeatures, is_valid_dock, is_wash_n_fill_dock
+from roborock.device_features import (
+    PRODUCT_FEATURE_MAP,
+    DeviceFeatures,
+    RoborockDockFeatures,
+    is_valid_dock,
+    is_wash_n_fill_dock,
+)
 from roborock.devices.cache import CacheData, DeviceCache, InMemoryCache
 from roborock.devices.traits.v1.device_features import DeviceFeaturesTrait
 from roborock.roborock_typing import RoborockCommand
@@ -137,6 +143,37 @@ def test_new_feature_str_missing():
     assert not device_features.is_show_clean_finish_reason_supported
 
 
+@pytest.mark.parametrize("product_nickname", list(RoborockProductNickname), ids=lambda product: product.name)
+def test_product_feature_map(product_nickname: RoborockProductNickname, snapshot: SnapshotAssertion) -> None:
+    """Snapshot the product features of every nickname so changes show up per product."""
+    assert PRODUCT_FEATURE_MAP[product_nickname] == snapshot
+
+
+@pytest.mark.parametrize(
+    ("roller_mop_bit", "expected_mop_support"),
+    [
+        (0, False),
+        (1 << 128, True),
+    ],
+)
+def test_roller_mop_product_features(roller_mop_bit: int, expected_mop_support: bool) -> None:
+    """Test a roller-mop model without a mop module gets its mop support from the roller-mop bit."""
+    device_features = DeviceFeatures.from_feature_flags(
+        new_feature_info=0,
+        new_feature_info_str=f"{roller_mop_bit:X}",
+        feature_info=[],
+        product_nickname=RoborockProductNickname.BERYLS,
+    )
+
+    assert device_features.is_max_plus_mode_supported
+    assert device_features.is_ai_recognition_setting_supported
+    assert device_features.is_pure_clean_mop_supported
+    assert not device_features.is_new_remote_view_supported
+    assert device_features.is_support_water_mode is expected_mop_support
+    assert device_features.is_customized_clean_supported is expected_mop_support
+    assert device_features.is_clean_route_setting_supported is expected_mop_support
+
+
 def test_clean_route_setting_support_from_shake_mop_flag() -> None:
     """Test clean-route capability includes the runtime shake-mop flag."""
     device_features = DeviceFeatures.from_feature_flags(
@@ -172,8 +209,8 @@ def test_clean_route_setting_support_from_spin_mop_model() -> None:
         (129, False),
     ],
 )
-def test_clean_route_setting_support_from_roller_mop_bit(feature_bit: int, expected: bool) -> None:
-    """Test only the RR_API roller-mop bit adds roller route support."""
+def test_mop_support_from_roller_mop_bit(feature_bit: int, expected: bool) -> None:
+    """Test only the RR_API roller-mop bit adds mop support to models without a mop module."""
     device_features = DeviceFeatures.from_feature_flags(
         new_feature_info=0,
         new_feature_info_str=f"{1 << feature_bit:X}",
@@ -183,6 +220,8 @@ def test_clean_route_setting_support_from_roller_mop_bit(feature_bit: int, expec
 
     assert device_features.is_roller_mop_supported is expected
     assert device_features.is_clean_route_setting_supported is expected
+    assert device_features.is_support_water_mode is expected
+    assert device_features.is_customized_clean_supported is expected
 
 
 @pytest.mark.parametrize(

@@ -48,6 +48,8 @@
         'wifiName': 'wifi-network-name',
       }),
     }),
+    'room_cleaning': dict({
+    }),
     'status': dict({
       'addCleanState': False,
       'areaUnit': 'square_meter',
@@ -206,7 +208,10 @@
           'id': 120,
           'mode': 'ro',
           'name': '错误代码',
-          'property': '{"range": []}',
+          'property': dict({
+            'range': list([
+            ]),
+          }),
           'type': 'ENUM',
         }),
         dict({
@@ -222,7 +227,10 @@
           'id': 122,
           'mode': 'ro',
           'name': '设备电量',
-          'property': '{"range": []}',
+          'property': dict({
+            'range': list([
+            ]),
+          }),
           'type': 'ENUM',
         }),
         dict({
@@ -230,7 +238,10 @@
           'id': 123,
           'mode': 'rw',
           'name': '吸力档位',
-          'property': '{"range": []}',
+          'property': dict({
+            'range': list([
+            ]),
+          }),
           'type': 'ENUM',
         }),
         dict({
@@ -246,7 +257,10 @@
           'id': 125,
           'mode': 'ro',
           'name': '主刷寿命',
-          'property': '{"range": []}',
+          'property': dict({
+            'range': list([
+            ]),
+          }),
           'type': 'ENUM',
         }),
         dict({
@@ -254,7 +268,10 @@
           'id': 126,
           'mode': 'ro',
           'name': '边刷寿命',
-          'property': '{"range": []}',
+          'property': dict({
+            'range': list([
+            ]),
+          }),
           'type': 'ENUM',
         }),
         dict({
@@ -262,7 +279,10 @@
           'id': 127,
           'mode': 'ro',
           'name': '滤网寿命',
-          'property': '{"range": []}',
+          'property': dict({
+            'range': list([
+            ]),
+          }),
           'type': 'ENUM',
         }),
         dict({
@@ -270,7 +290,10 @@
           'id': 135,
           'mode': 'ro',
           'name': '离线原因',
-          'property': '{"range": []}',
+          'property': dict({
+            'range': list([
+            ]),
+          }),
           'type': 'ENUM',
         }),
         dict({
@@ -278,7 +301,10 @@
           'id': 136,
           'mode': 'rw',
           'name': '清洁次数',
-          'property': '{"range": []}',
+          'property': dict({
+            'range': list([
+            ]),
+          }),
           'type': 'ENUM',
         }),
         dict({
@@ -286,7 +312,10 @@
           'id': 137,
           'mode': 'rw',
           'name': '扫拖模式',
-          'property': '{"range": []}',
+          'property': dict({
+            'range': list([
+            ]),
+          }),
           'type': 'ENUM',
         }),
         dict({
@@ -294,7 +323,10 @@
           'id': 138,
           'mode': 'ro',
           'name': '清洁任务类型',
-          'property': '{"range": []}',
+          'property': dict({
+            'range': list([
+            ]),
+          }),
           'type': 'ENUM',
         }),
         dict({
@@ -302,7 +334,10 @@
           'id': 139,
           'mode': 'ro',
           'name': '返回基站类型',
-          'property': '{"range": []}',
+          'property': dict({
+            'range': list([
+            ]),
+          }),
           'type': 'ENUM',
         }),
         dict({
@@ -310,7 +345,10 @@
           'id': 140,
           'mode': 'ro',
           'name': '基站任务类型',
-          'property': '{"range": []}',
+          'property': dict({
+            'range': list([
+            ]),
+          }),
           'type': 'ENUM',
         }),
         dict({
@@ -318,7 +356,10 @@
           'id': 141,
           'mode': 'ro',
           'name': '清洁进度',
-          'property': '{"range": []}',
+          'property': dict({
+            'range': list([
+            ]),
+          }),
           'type': 'ENUM',
         }),
         dict({
@@ -334,7 +375,10 @@
           'id': 201,
           'mode': 'wo',
           'name': '启动清洁任务',
-          'property': '{"range": []}',
+          'property': dict({
+            'range': list([
+            ]),
+          }),
           'type': 'ENUM',
         }),
         dict({
@@ -342,7 +386,10 @@
           'id': 202,
           'mode': 'wo',
           'name': '返回基站任务',
-          'property': '{"range": []}',
+          'property': dict({
+            'range': list([
+            ]),
+          }),
           'type': 'ENUM',
         }),
         dict({
@@ -350,7 +397,10 @@
           'id': 203,
           'mode': 'wo',
           'name': '启动基站任务',
-          'property': '{"range": []}',
+          'property': dict({
+            'range': list([
+            ]),
+          }),
           'type': 'ENUM',
         }),
         dict({
@@ -382,7 +432,11 @@
           'id': 207,
           'mode': 'rw',
           'name': '用户改善计划',
-          'property': '{"range": ["0,1"]}',
+          'property': dict({
+            'range': list([
+              '0,1',
+            ]),
+          }),
           'type': 'ENUM',
         }),
       ]),
@@ -434,6 +488,8 @@
           'signal': -50,
           'wifiName': '**REDACTED**',
         }),
+      }),
+      'room_cleaning': dict({
       }),
       'status': dict({
         'addCleanState': False,
@@ -511,6 +567,8 @@
     'maps': dict({
     }),
     'network_info': dict({
+    }),
+    'room_cleaning': dict({
     }),
     'status': dict({
     }),

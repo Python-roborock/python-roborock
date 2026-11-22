@@ -129,7 +129,7 @@ class RoborockBase:
         return cls(**result)
 
     @staticmethod
-    def convert_dict(types_map: dict[Any, type], data: dict[Any, Any]) -> dict[Any, Any]:
+    def convert_dict(types_map: dict[Any, Any], data: dict[Any, Any]) -> dict[Any, Any]:
         """Generic helper to convert a dictionary of values based on a schema map of types.
 
         This is meant to be used by traits that use dataclass reflection similar to

@@ -76,12 +76,14 @@ MQTT connection and message waits have shorter timeouts.
 
 ## Pull Requests
 
+0.  **Check for duplicates**. Check whether someone else has already opened a PR for the same fix or feature. If so, consider reviewing or building on their PR instead of opening a duplicate.
 1.  **Create a branch** for your changes.
 2.  **Make your changes**. Keep your changes focused and atomic.
 3.  **Commit your changes**.
     *   **Important**: We use [Conventional Commits](https://www.conventionalcommits.org/). Please format your commit messages accordingly (e.g., `feat: add new vacuum model`, `fix: handle connection timeout`). This is required for our automated release process.
     *   Allowed types: `chore`, `docs`, `feat`, `fix`, `refactor`.
 4.  **Push to your fork** and submit a **Pull Request**.
+5.  **Test 1–2 other PRs (if you have the bandwidth)**. We are receiving a large number of contributions. Testing other people's PRs against your real devices saves review time and iterations, which helps everyone's PRs, including yours, get reviewed faster.
 
 ## Adding New Devices or Features
 

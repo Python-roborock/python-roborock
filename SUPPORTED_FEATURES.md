@@ -1,6 +1,6 @@
 | Feature | roborock.vacuum.a10 | roborock.vacuum.a117 | roborock.vacuum.a123 | roborock.vacuum.a125 | roborock.vacuum.a144 | roborock.vacuum.a147 | roborock.vacuum.a15 | roborock.vacuum.a187 | roborock.vacuum.a27 | roborock.vacuum.a288 | roborock.vacuum.a294 | roborock.vacuum.a306 | roborock.vacuum.a326 | roborock.vacuum.a75 | roborock.vacuum.a87 | roborock.vacuum.s5e | roborock.vacuum.sc01 | roborock.vacuum.sc05 | roborock.vacuum.ss07 | roborock.wm.a102 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| product_nickname | TANOSV | PEARLPLUSS | PEARLSLITE | ULTRONSE | CORALPRO | VERDELITE | TANOSS | Unknown | TOPAZSV | Unknown | Unknown | Unknown | Unknown | PEARL | PEARLPLUS | RUBYSLITE | Unknown | Unknown | Unknown | Unknown |
+| product_nickname | TANOSV | PEARLPLUSS | PEARLSLITE | ULTRONSE | CORALPRO | VERDELITE | TANOSS | VIVIANC | TOPAZSV | CORALPROSAW | QUINN | BERYLS | PEARLEH | PEARL | PEARLPLUS | RUBYSLITE | Unknown | Unknown | Unknown | Unknown |
 | protocol_version | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 | B01 | B01 | B01 | A01 |
 | new_feature_info | 10738169343 | 4499197267967999 | 0 | 2097860516935167 | 4499197267967999 | 4499195120484351 | 636084721975295 | 2247397454282751 | False | 4499197267967999 | 2247397454282751 | 4499197267967999 | 2247397454282751 | 2238601361260543 | 4499197267967999 | 633887780925447 | 0 |  |  | 0 |
 | new_feature_info_str |  | 000000000000000BC2FF8F7F7EFEFFFF | 42BA8D587EDAFFFE | 00000040385AFFF6 | 0005075028ED3EDDCFFF8F7F7EFEFFFF | 0000000008EFBCDDDFFFAE7E7EFEFFFF | 0000000000002000 | 00040040282834C9C2FA8F5C7EDEFFFE |  | 0000000000099518CCFF7EFDA8E93EDDDBFF8F7F7EFEFFFF | 0000009021D0B410C0C47EFDA82934C952BA8F507EDEFFFE | 000002637C3FBF1DCEDD7FFDA8E8B6FD5BBFAF7F7EFEFFFF | 00040050282834C952BA8E587EDEFFFE | 100A80505EDEFFFE | 508A977F7EFEFFFF | 0000000000002000 | 0 |  |  | 40 |
@@ -20,8 +20,8 @@
 | `124` |  | X |  |  | X |  | X |  |  | X | X |  | X |  | X | X |  |  |  |  |
 | `125` |  | X |  |  | X |  | X |  |  | X | X |  | X |  | X | X |  |  |  |  |
 | `is_activate_video_charging_and_standby_supported` |  |  |  |  | X |  |  |  |  | X |  | X |  |  |  |  |  |  |  |  |
-| `is_ai_recognition_obstacle_supported` | X | X | X |  | X | X |  | X | X | X | X | X | X | X | X |  | X | X | X | X |
-| `is_ai_recognition_setting_supported` | X | X | X |  | X | X |  | X | X | X | X | X | X | X | X |  | X | X | X | X |
+| `is_ai_recognition_obstacle_supported` | X | X | X |  | X | X |  | X | X | X | X | X | X | X | X |  |  |  |  |  |
+| `is_ai_recognition_setting_supported` | X | X | X |  | X | X |  | X | X | X | X | X | X | X | X |  |  |  |  |  |
 | `is_analysis_supported` |  | X |  |  | X |  | X |  |  | X | X |  | X |  | X | X |  |  |  |  |
 | `is_any_state_transit_goto_supported` | X | X |  | X | X | X | X | X |  | X | X | X | X | X | X |  |  |  |  |  |
 | `is_auto_collection_2_supported` |  | X | X |  | X | X |  | X |  | X | X | X | X |  |  |  |  |  |  |  |
@@ -48,19 +48,19 @@
 | `is_clean_history_time_line_supported` |  |  |  |  | X | X |  | X |  | X | X | X | X |  |  |  |  |  |  |  |
 | `is_clean_route_deep_slow_plus_supported` |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `is_clean_route_fast_mode_supported` |  | X | X | X | X | X |  | X |  | X | X | X | X | X | X |  |  |  |  |  |
-| `is_clean_route_setting_supported` |  | X | X | X | X | X | X | X | X | X | X | X | X | X | X |  | X | X | X | X |
+| `is_clean_route_setting_supported` |  | X | X | X | X | X | X | X | X | X | X | X | X | X | X |  |  |  |  |  |
 | `is_clean_then_mop_mode_supported` |  |  |  |  | X |  |  | X |  | X | X | X | X |  |  |  |  |  |  |  |
 | `is_clean_time_line_supported` |  |  |  |  | X | X |  | X |  | X | X | X | X |  |  |  |  |  |  |  |
 | `is_collect_dust_count_show_supported` |  |  |  |  | X |  |  |  |  | X | X | X | X |  |  |  |  |  |  |  |
-| `is_collect_dust_mode_supported` | X | X | X | X | X | X | X | X | X | X | X | X | X |  | X | X | X | X | X | X |
+| `is_collect_dust_mode_supported` | X | X | X | X | X | X | X | X | X | X | X | X | X |  | X | X |  |  |  |  |
 | `is_corner_clean_mode_supported` |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `is_corner_mop_stretch_supported` |  | X | X |  | X |  |  | X |  | X | X | X |  |  | X |  |  |  |  |  |
 | `is_ctm_with_repeat_supported` |  |  |  |  | X |  |  | X |  | X | X | X | X |  |  |  |  |  |  |  |
 | `is_current_map_restore_enabled` | X | X |  | X | X | X | X | X |  | X | X | X | X | X | X | X |  |  |  |  |
 | `is_custom_clean_mode_count_supported` |  | X | X |  | X | X |  | X |  | X | X | X | X | X | X |  |  |  |  |  |
-| `is_custom_mode_supported` | X | X | X | X | X | X | X | X | X | X | X | X | X | X | X | X | X | X | X | X |
+| `is_custom_mode_supported` | X | X | X | X | X | X | X | X | X | X | X | X | X | X | X | X |  |  |  |  |
 | `is_custom_water_box_distance_supported` | X | X |  |  | X |  |  | X |  | X | X | X | X | X | X | X |  |  |  |  |
-| `is_customized_clean_supported` |  | X | X |  | X | X | X | X | X | X | X | X | X | X | X |  | X | X | X | X |
+| `is_customized_clean_supported` |  | X | X |  | X | X | X | X | X | X | X | X | X | X | X |  |  |  |  |  |
 | `is_detect_wire_carpet_supported` |  |  |  |  | X |  |  |  |  | X | X | X |  |  |  |  |  |  |  |  |
 | `is_dirty_object_detect_supported` |  |  |  |  | X | X |  |  |  | X |  | X |  |  |  |  |  |  |  |  |
 | `is_dirty_replenish_clean_supported` |  | X |  |  | X | X |  | X |  | X |  | X |  |  | X |  |  |  |  |  |
@@ -93,7 +93,7 @@
 | `is_map_carpet_add_support` |  | X |  |  | X | X |  | X |  | X | X | X | X | X | X |  |  |  |  |  |
 | `is_map_eraser_supported` |  |  |  |  | X | X |  | X |  | X | X | X | X |  |  |  |  |  |  |  |
 | `is_matter_supported` |  | X |  |  | X | X |  | X |  | X | X | X | X |  |  |  |  |  |  |  |
-| `is_max_plus_mode_supported` |  | X | X |  | X | X |  | X | X | X | X | X | X | X | X |  | X | X | X | X |
+| `is_max_plus_mode_supported` |  | X | X |  | X | X |  | X | X | X | X | X | X | X | X |  |  |  |  |  |
 | `is_max_zone_opened_supported` |  |  |  |  | X | X |  | X |  | X | X | X | X |  |  |  |  |  |  |  |
 | `is_mechanical_arm_mode_supported` |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `is_midway_back_to_dock_supported` |  |  |  |  | X | X |  | X |  | X | X | X | X |  |  |  |  |  |  |  |
@@ -108,7 +108,7 @@
 | `is_new_data_for_clean_history` |  | X |  | X | X | X | X | X |  | X | X | X | X | X | X |  |  |  |  |  |
 | `is_new_data_for_clean_history_detail` |  | X |  | X | X | X | X | X |  | X | X | X | X | X | X |  |  |  |  |  |
 | `is_new_endpoint_supported` |  | X | X | X | X | X |  | X |  | X | X | X | X | X | X |  |  |  |  |  |
-| `is_new_remote_view_supported` | X | X |  |  | X | X | X | X | X | X | X | X | X |  | X |  | X | X | X | X |
+| `is_new_remote_view_supported` | X | X |  |  | X | X | X |  | X |  |  |  |  |  | X |  |  |  |  |  |
 | `is_no_need_carpet_press_set_supported` |  | X | X |  | X | X |  | X |  | X | X | X | X |  |  |  |  |  |  |  |
 | `is_none_pure_clean_mop_with_max_plus` |  |  |  | X |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `is_object_detect_check_supported` |  | X |  |  | X | X |  | X |  | X | X | X | X |  |  |  |  |  |  |  |
@@ -120,7 +120,7 @@
 | `is_pet_supplies_deep_clean_supported` |  | X | X |  | X | X |  | X |  | X | X | X | X |  |  |  |  |  |  |  |
 | `is_program_mode_supported` |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `is_pumping_water_supported` |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| `is_pure_clean_mop_supported` |  | X | X | X | X | X | X | X | X | X | X | X | X | X | X |  | X | X | X | X |
+| `is_pure_clean_mop_supported` |  | X | X | X | X | X | X | X | X | X | X | X | X | X | X |  |  |  |  |  |
 | `is_re_segment_supported` | X | X |  | X | X | X | X | X |  | X | X | X | X | X | X | X |  |  |  |  |
 | `is_record_allowed` | X | X |  | X | X | X | X | X |  | X | X | X | X | X | X |  |  |  |  |  |
 | `is_remote_supported` |  | X |  |  | X |  | X |  |  | X | X |  | X |  | X | X |  |  |  |  |
@@ -170,7 +170,7 @@
 | `is_support_smart_scene` | X | X |  | X | X | X |  | X |  | X | X | X | X | X | X |  |  |  |  |  |
 | `is_support_stuck_zone` |  | X | X | X | X | X |  | X |  | X | X | X | X | X | X |  |  |  |  |  |
 | `is_support_voice_control_debug` |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| `is_support_water_mode` | X | X | X | X | X | X | X | X | X | X | X | X | X | X | X | X | X | X | X | X |
+| `is_support_water_mode` | X | X | X | X | X | X | X | X | X | X | X | X | X | X | X | X |  |  |  |  |
 | `is_supported_download_test_voice` |  | X |  | X | X | X |  | X |  | X | X | X | X | X | X |  |  |  |  |  |
 | `is_supported_drying` |  | X |  |  | X | X |  | X |  | X | X | X | X | X | X |  |  |  |  |  |
 | `is_supported_valley_electricity` |  | X |  | X | X | X |  | X |  | X | X | X | X | X | X |  |  |  |  |  |

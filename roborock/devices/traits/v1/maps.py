@@ -28,6 +28,8 @@ class MultiMapsListConverter(common.V1TraitDataConverter):
         """
         if not isinstance(response, list):
             raise ValueError(f"Unexpected MapsTrait response format: {response!r}")
+        if not response:
+            raise ValueError("Empty MapsTrait response")
         response = response[0]
         if not isinstance(response, dict):
             raise ValueError(f"Unexpected MapsTrait response format: {response!r}")

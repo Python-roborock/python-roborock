@@ -17,10 +17,11 @@ This document serves as the authoritative, single source of truth for engineerin
 # Environment setup
 uv venv && uv sync
 
-# Run tests
+# Run tests (benchmarks are disabled by default; pass --benchmark-enable to run them)
 uv run pytest
 uv run pytest tests/devices/traits/v1/test_status.py
 uv run pytest tests/protocols/test_v1_protocol.py
+uv run pytest tests/map/test_benchmarks.py --benchmark-enable
 
 # Lint and typecheck
 uv run pre-commit run --all-files
@@ -28,6 +29,8 @@ uv run pre-commit run --all-files
 uv run ruff check roborock tests
 uv run mypy roborock tests
 ```
+
+- **Isolated Virtualenv in Shared / Worktree Containers**: If `VIRTUAL_ENV` or `UV_PROJECT_ENVIRONMENT` in your shell points to an external environment (such as a Home Assistant venv), override it (`UV_PROJECT_ENVIRONMENT=.venv VIRTUAL_ENV= uv run ...` or point `UV_PROJECT_ENVIRONMENT` at the main checkout's `.venv`) so `uv sync` and `pre-commit` never mutate external environments or load unrelated `pytest` plugins. Prefer `git grep` over assuming `rg` is installed, and pass `-R Python-roborock/python-roborock` to `gh` commands if no default repo is configured.
 
 ---
 
@@ -67,7 +70,7 @@ Evaluate every change against the repository's three core layers in strict prior
 
 ### 3. Trait Design & Client Integration
 - **Compound Capability & Feature Gating**: Capability and trait availability MUST be gated by protocol version (`device.pv == "1.0"` or `DeviceVersion.V1`), appropriate category (`RoborockCategory.VACUUM`, `WET_DRY_VAC`, or `WASHING_MACHINE`), and device feature flags (`device.features`).
-- **Linear State Flow**: Methods that parse responses or transform telemetry must return values to make state assignments explicit at the call site. Avoid multi-layered helper cascades.
+- **Linear State & Write-Then-Refresh Flow**: Methods that parse responses or transform telemetry must return values to make state assignments explicit at the call site. Avoid multi-layered helper cascades. In trait setters, match sibling trait RPC conventions: lazily initialize cached state only when `None`, send the `SET` command, and `await self.refresh()` (or update optimistically where standard) **after** writing rather than issuing redundant pre- and post-write `GET` round-trips. Build wire payload dicts declaratively (e.g., filtering `None` values via dict comprehension) rather than long imperative `if x is not None:` chains.
 - **Consumer Agnosticism**: Design traits around cohesive, general-purpose consumer concepts (`CleanHistoryTrait`, `DockTrait`, `ConsumableTrait`), not low-level firmware registers or raw Tuya DPS numbers.
 - **Diagnostic Safety & Privacy**: Exclude sensitive user information (Wi-Fi SSIDs, passwords, cloud tokens, encryption keys) from device diagnostics and logs.
 
@@ -80,11 +83,13 @@ Evaluate every change against the repository's three core layers in strict prior
 ### 5. Test Patterns & Fixtures
 - **Test Mirroring & Colocation**: Place and maintain unit tests in the matching mirror path under `tests/` (e.g. `tests/devices/traits/v1/test_status.py` for `roborock/devices/traits/v1/status.py`; `tests/map/test_b01_q10_map_parser.py` for `roborock/map/b01_q10_map_parser.py`).
 - **Avoid One-Off Test Files**: Do not create fragmented, single-bug test files (such as `tests/test_battery_low_voltage_fix.py`). Integrate test cases into the module's corresponding test suite.
-- **Fixture Reuse & Parametrization**: Reuse shared fixtures (`fake_channel`, `message_builder`, `device_fixture`) in `tests/` and use table-driven `@pytest.mark.parametrize`.
+- **Reproduce-First Bugfixes**: When fixing a bug or addressing post-merge review findings, add a failing test reproducing the issue against the baseline behavior first before applying the implementation fix.
+- **Simulators & Fixture Reuse**: Reuse shared module fixtures (`mock_rpc_channel` and `device_fixture` in `tests/devices/traits/v1/fixtures.py`; `fake_channel` and `message_builder` in B01/RPC suites), stateful firmware simulators in `roborock.testing` (`V1VacuumSimulator`, `Q10VacuumSimulator`, `DyadSimulator`, `ZeoSimulator`, `FakeChannel`, `FakeRoborockCloud`), and table-driven `@pytest.mark.parametrize` rather than ad-hoc inline command-dict fakes. When adding new RPC commands, consider extending the corresponding `roborock.testing` simulator.
 - **Behavior-Driven Assertions**: Assert on public trait methods, return values, and emitted channel commands—never on private object attributes (`_state`).
 
 ### 6. PR Hygiene & Sizing
 - **Scoping & Sizing**: Keep pull requests focused on a single logical change or subsystem where possible (e.g. parser module with tests in one PR, traits consuming it in a follow-up PR). Large PRs (>500–1,000 LOC) take longer to review and block releases.
+- **Minimal Diffs & Concise Comments**: Preserve existing method and class ordering when editing files to minimize diff noise. Keep docstrings and inline comments concise—distill non-obvious protocol quirks into 1–2 high-signal lines rather than essay-length comment blocks, without stripping useful domain context.
 - **CI Requirements**: PRs must pass automated CI (`.github/workflows/ci.yml`):
   - **Commitlint**: Commit messages and PR titles MUST follow Conventional Commits (`feat:`, `fix:`, `refactor:`, `chore:`, `docs:`).
   - **Pre-commit**: Ruff, Mypy (`check_untyped_defs = true`), and Codespell must pass (`uv run pre-commit run --all-files`).

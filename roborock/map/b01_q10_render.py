@@ -17,6 +17,7 @@ import io
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass
+from functools import lru_cache
 
 from PIL import Image
 from vacuum_map_parser_base.config.color import ColorsPalette, SupportedColor
@@ -480,9 +481,8 @@ def _render_base_grid(packet: Q10MapPacket, *, config: MapParserConfig) -> Image
         show_walls=config.show_walls,
         show_rooms=config.show_rooms,
     )
-    flat_palette = [channel for color in palette for channel in color]
     p_img = Image.frombytes("P", (packet.width, packet.height), packet.grid)
-    p_img.putpalette(flat_palette, rawmode="RGBA")
+    p_img.putpalette(palette, rawmode="RGBA")
     img = p_img.convert("RGBA")
     # The ss07 grid is stored top-down (row 0 = top of the home), so it is
     # rendered as-is -- unlike the V1/Q7 convention, no vertical flip.
@@ -499,13 +499,14 @@ def _opaque(color: tuple[int, ...]) -> tuple[int, int, int, int]:
     return (color[0], color[1], color[2], color[3] if len(color) == 4 else 255)
 
 
+@lru_cache(maxsize=16)
 def _build_palette(
     grid: bytes,
     width: int,
     *,
     show_walls: bool = True,
     show_rooms: bool = True,
-) -> list[tuple[int, int, int, int]]:
+) -> bytes:
     """Map Q10 cells onto the same colors used by the V1 map renderer."""
 
     def room_id(value: int) -> int | None:
@@ -529,4 +530,4 @@ def _build_palette(
         for value in range(Q10_WALL_THRESHOLD, 256):
             if value not in (Q10_UNSEGMENTED_FLOOR_VALUE, Q10_BACKGROUND_VALUE):
                 palette[value] = wall
-    return palette
+    return bytes(channel for color in palette for channel in color)

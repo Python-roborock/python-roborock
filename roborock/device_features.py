@@ -153,6 +153,8 @@ ULTRON_FEATURES = NEW_DEFAULT_FEATURES + DUAL_LINE_CAMERA_FEATURES + [ProductFea
 ULTRONSV_FEATURES = NEW_DEFAULT_FEATURES + RGB_CAMERA_FEATURES + [ProductFeatures.MOP_SHAKE_MODULE]
 TANOSS_FEATURES = [ProductFeatures.REMOTE_BACK, ProductFeatures.MOP_SHAKE_MODULE]
 TOPAZSPOWER_FEATURES = [ProductFeatures.CLEANMODE_MAXPLUS, ProductFeatures.MOP_SHAKE_MODULE]
+BERYL_FEATURES = [ProductFeatures.CLEANMODE_MAXPLUS] + RGB_CAMERA_FEATURES
+VIVIANSPROC_FEATURES = BERYL_FEATURES + [ProductFeatures.MOP_SPIN_MODULE]
 
 PRODUCTS_WITHOUT_CUSTOM_CLEAN: set[RoborockProductNickname] = {
     RoborockProductNickname.TANOS,
@@ -234,6 +236,35 @@ _BASE_PRODUCT_FEATURE_MAP: dict[RoborockProductNickname, list[ProductFeatures]] 
     RoborockProductNickname.RUBYSC: [],
     RoborockProductNickname.RUBYSE: [],
     RoborockProductNickname.RUBYSLITE: [ProductFeatures.MOP_ELECTRONIC_MODULE],
+    RoborockProductNickname.PEARLCLITE: PEARL_FEATURES,
+    RoborockProductNickname.PEARLEH: PEARL_FEATURES,
+    RoborockProductNickname.QUINN: PEARL_FEATURES,
+    RoborockProductNickname.QUINNE: PEARL_FEATURES,
+    RoborockProductNickname.QUINNS: PEARL_FEATURES,
+    RoborockProductNickname.VIVIANSPROE: PEARL_FEATURES,
+    RoborockProductNickname.VIVIANF: PEARL_PLUS_FEATURES,
+    RoborockProductNickname.VIVIANS: PEARL_PLUS_FEATURES,
+    RoborockProductNickname.VIVIANSC: PEARL_PLUS_FEATURES,
+    RoborockProductNickname.VIVIANSPRO: PEARL_PLUS_FEATURES,
+    RoborockProductNickname.HERA: PEARL_PLUS_FEATURES,
+    RoborockProductNickname.PANDORA: PEARL_PLUS_FEATURES,
+    RoborockProductNickname.PEARLFPRO: PEARL_PLUS_FEATURES,
+    RoborockProductNickname.CORALPROS: PEARL_PLUS_FEATURES,
+    RoborockProductNickname.R50: PEARL_PLUS_FEATURES,
+    RoborockProductNickname.VIVIANSPROC: VIVIANSPROC_FEATURES,
+    RoborockProductNickname.VIDA: VIVIANSPROC_FEATURES,
+    RoborockProductNickname.VIDAS: VIVIANSPROC_FEATURES,
+    RoborockProductNickname.CORALPROSAW: VIVIANSPROC_FEATURES,
+    RoborockProductNickname.BERYLLITE: BERYL_FEATURES,
+    RoborockProductNickname.BERYL: BERYL_FEATURES,
+    RoborockProductNickname.BERYLS: BERYL_FEATURES,
+    RoborockProductNickname.BERYLE: BERYL_FEATURES,
+    RoborockProductNickname.BERYLC: BERYL_FEATURES,
+    RoborockProductNickname.CRAG: BERYL_FEATURES,
+    RoborockProductNickname.BERYLCE: [ProductFeatures.CLEANMODE_MAXPLUS, ProductFeatures.AIRECOGNITION_PET]
+    + SINGLE_LINE_CAMERA_FEATURES,
+    RoborockProductNickname.VERDELITES: BERYL_FEATURES + [ProductFeatures.MOP_SHAKE_MODULE],
+    RoborockProductNickname.TALCSC: [ProductFeatures.MOP_ELECTRONIC_MODULE],
 }
 
 PRODUCT_FEATURE_MAP: dict[RoborockProductNickname, list[ProductFeatures]] = {
@@ -651,6 +682,10 @@ class DeviceFeatures(RoborockBase):
         kwargs["is_clean_route_setting_supported"] |= (
             kwargs["is_shake_mop_set_supported"] or kwargs["is_roller_mop_supported"]
         )
+        # Roller-mop models have no mop module product feature; the app treats the
+        # roller mop like one for water modes and customized cleaning.
+        kwargs["is_support_water_mode"] |= kwargs["is_roller_mop_supported"]
+        kwargs["is_customized_clean_supported"] |= kwargs["is_roller_mop_supported"]
 
         return cls(**kwargs)
 

@@ -179,25 +179,59 @@ ProductInfo = namedtuple("ProductInfo", ["nickname", "short_models"])
 
 
 class RoborockProductNickname(Enum):
+    # Beryl Series
+    BERYL = ProductInfo(nickname="Beryl", short_models=("a120", "a121"))
+    BERYLC = ProductInfo(nickname="BerylC", short_models=("a327", "a328"))
+    BERYLCE = ProductInfo(nickname="BerylCE", short_models=("a388", "a389"))
+    BERYLE = ProductInfo(nickname="BerylE", short_models=("a311", "a312"))
+    BERYLLITE = ProductInfo(nickname="BerylLite", short_models=("a244", "a245"))
+    BERYLS = ProductInfo(nickname="BerylS", short_models=("a306", "a307"))
+
     # Coral Series
     CORAL = ProductInfo(nickname="Coral", short_models=("a20", "a21"))
-    CORALPRO = ProductInfo(nickname="CoralPro", short_models=("a143", "a144"))
+    CORALPRO = ProductInfo(nickname="CoralPro", short_models=("a143", "a144", "a231", "a232", "a236", "a308"))
+    CORALPROS = ProductInfo(nickname="CoralProS", short_models=("a219", "a220"))
+    CORALPROSAW = ProductInfo(nickname="CoralProSAw", short_models=("a287", "a288"))
+
+    # Crag Series
+    CRAG = ProductInfo(nickname="Crag", short_models=("a390", "a391"))
+
+    # Hera Series
+    HERA = ProductInfo(nickname="Hera", short_models=("a224", "a249"))
+
+    # Pandora Series
+    PANDORA = ProductInfo(nickname="Pandora", short_models=("a243", "a250"))
 
     # Pearl Series
     PEARL = ProductInfo(nickname="Pearl", short_models=("a74", "a75"))
     PEARLC = ProductInfo(nickname="PearlC", short_models=("a103", "a104"))
+    PEARLCLITE = ProductInfo(nickname="PearlCLite", short_models=("a198", "a199", "a205"))
     PEARLE = ProductInfo(nickname="PearlE", short_models=("a167", "a168"))
+    PEARLEH = ProductInfo(nickname="PearlEH", short_models=("a325", "a326"))
+    # Newer app versions call this product PearlEPro.
     PEARLELITE = ProductInfo(nickname="PearlELite", short_models=("a169", "a170"))
+    PEARLFPRO = ProductInfo(nickname="PearlFPro", short_models=("a216", "a217"))
     PEARLPLUS = ProductInfo(nickname="PearlPlus", short_models=("a86", "a87"))
     PEARLPLUSS = ProductInfo(nickname="PearlPlusS", short_models=("a116", "a117", "a136"))
     PEARLS = ProductInfo(nickname="PearlS", short_models=("a100", "a101"))
     PEARLSLITE = ProductInfo(nickname="PearlSLite", short_models=("a122", "a123"))
+
+    # Quinn Series
+    QUINN = ProductInfo(nickname="Quinn", short_models=("a293", "a294"))
+    QUINNE = ProductInfo(nickname="QuinnE", short_models=("a358", "a359"))
+    QUINNS = ProductInfo(nickname="QuinnS", short_models=("a404", "a405"))
+
+    # R Series
+    R50 = ProductInfo(nickname="R50", short_models=("a157", "a179"))
 
     # Ruby Series
     RUBYPLUS = ProductInfo(nickname="RubyPlus", short_models=("t4", "s4"))
     RUBYSC = ProductInfo(nickname="RubySC", short_models=("p5", "a08"))
     RUBYSE = ProductInfo(nickname="RubySE", short_models=("a19",))
     RUBYSLITE = ProductInfo(nickname="RubySLite", short_models=("p6", "s5e", "a05"))
+
+    # Talc Series
+    TALCSC = ProductInfo(nickname="TalcSC", short_models=("a360", "a361"))
 
     # Tanos Series
     TANOS = ProductInfo(nickname="Tanos", short_models=("t6", "s6"))
@@ -228,10 +262,21 @@ class RoborockProductNickname(Enum):
 
     # Verdelite Series
     VERDELITE = ProductInfo(nickname="Verdelite", short_models=("a146", "a147"))
+    VERDELITES = ProductInfo(nickname="VerdeliteS", short_models=("a278", "a279"))
+
+    # Vida Series
+    VIDA = ProductInfo(nickname="Vida", short_models=("a295", "a296"))
+    VIDAS = ProductInfo(nickname="VidaS", short_models=("a373", "a376"))
 
     # Vivian Series
     VIVIAN = ProductInfo(nickname="Vivian", short_models=("a134", "a135", "a155", "a156"))
-    VIVIANC = ProductInfo(nickname="VivianC", short_models=("a158", "a159"))
+    VIVIANC = ProductInfo(nickname="VivianC", short_models=("a158", "a159", "a186", "a187", "a209", "a210", "a246"))
+    VIVIANF = ProductInfo(nickname="VivianF", short_models=("a182",))
+    VIVIANS = ProductInfo(nickname="VivianS", short_models=("a184", "a185"))
+    VIVIANSC = ProductInfo(nickname="VivianSC", short_models=("a196", "a197"))
+    VIVIANSPRO = ProductInfo(nickname="VivianSPro", short_models=("a225", "a226"))
+    VIVIANSPROC = ProductInfo(nickname="VivianSProC", short_models=("a297", "a298"))
+    VIVIANSPROE = ProductInfo(nickname="VivianSProE", short_models=("a374", "a375"))
 
 
 SHORT_MODEL_TO_ENUM = {model: product for product in RoborockProductNickname for model in product.value.short_models}
