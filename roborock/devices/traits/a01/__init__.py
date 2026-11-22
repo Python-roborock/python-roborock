@@ -31,7 +31,14 @@ from collections.abc import Callable
 from datetime import UTC, datetime, time
 from typing import Any, Generic, TypeVar
 
-from roborock.data import DyadProductInfo, DyadScheduleTask, DyadSndState, HomeDataProduct, RoborockCategory
+from roborock.data import (
+    DyadProductInfo,
+    DyadScheduleTask,
+    DyadSndState,
+    HomeDataProduct,
+    RoborockBase,
+    RoborockCategory,
+)
 from roborock.data.dyad.dyad_code_mappings import (
     DyadBrushSpeed,
     DyadCleanAssistPower,
@@ -72,7 +79,7 @@ from roborock.devices.traits.a01.device_feature import (
 from roborock.devices.traits.common import TraitUpdateListener
 from roborock.devices.transport.mqtt_channel import MqttChannel
 from roborock.exceptions import RoborockException
-from roborock.protocols.a01_protocol import decode_rpc_response
+from roborock.protocols.a01_protocol import decode_datapoint_value, decode_rpc_response
 from roborock.roborock_message import (
     RoborockDyadDataProtocol,
     RoborockMessage,
@@ -89,11 +96,13 @@ __all__ = [
 ]
 
 
-def _decode_dyad_schedule(value: str) -> list[DyadScheduleTask]:
-    """Decode the schedule data point, which is a JSON list or an empty string."""
+def _decode_dyad_schedule(value: Any) -> list[DyadScheduleTask]:
+    """Decode the schedule data point, a list of tasks or an empty string when there are none."""
     if not value:
         return []
-    return [DyadScheduleTask.from_dict(task) for task in json.loads(value)]
+    if not isinstance(value, list):
+        raise ValueError(f"Unexpected schedule value: {value!r}")
+    return [DyadScheduleTask.from_dict(task) for task in value]
 
 
 DYAD_PROTOCOL_ENTRIES: dict[RoborockDyadDataProtocol, Callable] = {
@@ -191,6 +200,17 @@ def convert_zeo_value(protocol_value: RoborockZeoProtocol, value: Any) -> Any:
     return None
 
 
+def _diagnostic_value(value: Any) -> Any:
+    """Convert a decoded value to plain data for diagnostics."""
+    if isinstance(value, RoborockBase):
+        return value.as_dict()
+    if isinstance(value, list):
+        return [_diagnostic_value(item) for item in value]
+    if isinstance(value, time):
+        return value.isoformat()
+    return value
+
+
 _DYAD_PROTOCOL_VALUES = frozenset(protocol.value for protocol in RoborockDyadDataProtocol)
 _ZEO_PROTOCOL_VALUES = frozenset(protocol.value for protocol in RoborockZeoProtocol)
 
@@ -224,6 +244,10 @@ class A01Api(Trait, TraitUpdateListener, Generic[_P]):
         reported yet is absent from the dictionary.
         """
         return dict(self._values)
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return the latest known state as plain data for diagnostics."""
+        return {protocol.name: _diagnostic_value(value) for protocol, value in self._values.items()}
 
     @property
     def last_message_time(self) -> datetime | None:
@@ -459,11 +483,11 @@ class ZeoApi(A01Api[RoborockZeoProtocol]):
 
 
 def _parse_device_status(device_status: dict | None) -> dict[int, Any] | None:
-    """Normalize the cloud home data status snapshot to integer datapoint codes."""
+    """Normalize the cloud home data status snapshot to integer datapoint codes and decoded values."""
     if not device_status:
         return None
     try:
-        return {int(code): value for code, value in device_status.items()}
+        return {int(code): decode_datapoint_value(value) for code, value in device_status.items()}
     except (TypeError, ValueError):
         _LOGGER.debug("Ignoring malformed device status snapshot: %s", device_status)
         return None

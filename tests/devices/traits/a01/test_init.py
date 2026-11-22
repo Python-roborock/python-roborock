@@ -80,6 +80,7 @@ async def test_dyad_api_query_values(dyad_api: DyadApi, fake_channel: FakeChanne
     message = fake_channel.published_messages[0]
     assert message.protocol == RoborockMessageProtocol.RPC_REQUEST
     assert message.version == b"A01"
+    assert message.payload is not None
     payload_data = json.loads(unpad(message.payload, AES.block_size))
     assert payload_data["dps"] == {"10000": "[209, 201, 207, 214, 215, 227, 229, 230, 222, 224]"}
     assert "t" in payload_data
@@ -324,6 +325,95 @@ async def test_create_seeds_values_from_device_status(fake_channel: FakeChannel)
     }
 
 
+PRODUCT_INFO_JSON = json.dumps(
+    {
+        "sn": "TESTSERIAL",
+        "ssid": "test-network",
+        "timezone": "Europe/Warsaw",
+        "posix_timezone": "CET-1CEST,M3.5.0/2,M10.5.0/3",
+        "ip": "192.0.2.1",
+        "mac": "00:00:5e:00:53:01",
+        "rssi": -53,
+        "oba": {"bom": "A.01"},
+    }
+)
+
+
+SND_STATE_JSON = '{"sid_in_use":21,"sid_version":3,"location":"de","bom":"A.01","language":"en"}'
+
+
+def assert_json_string_data_points_decoded(values: dict[RoborockDyadDataProtocol, Any]) -> None:
+    assert values[RoborockDyadDataProtocol.SND_STATE].sid_in_use == 21
+    product_info = values[RoborockDyadDataProtocol.PRODUCT_INFO]
+    assert product_info.sn == "TESTSERIAL"
+    assert product_info.posix_timezone == "CET-1CEST,M3.5.0/2,M10.5.0/3"
+    assert product_info.oba == {"bom": "A.01"}
+
+
+async def test_dyad_decodes_json_string_data_points_from_status_snapshot(fake_channel: FakeChannel):
+    """The cloud status snapshot holds product info and voice pack state as JSON strings."""
+    api = create(
+        DEFAULT_DYAD_PRODUCT,
+        fake_channel,  # type: ignore[arg-type]
+        device_status={"10004": SND_STATE_JSON, "10005": PRODUCT_INFO_JSON},
+    )
+
+    assert_json_string_data_points_decoded(api.values)  # type: ignore[arg-type]
+
+
+async def test_dyad_decodes_json_string_data_points_from_push(dyad_api: DyadApi, fake_channel: FakeChannel):
+    """The device pushes product info and voice pack state as JSON strings over MQTT."""
+    await dyad_api.start()
+    fake_channel.notify_subscribers(build_a01_message({10004: SND_STATE_JSON, 10005: PRODUCT_INFO_JSON}))
+
+    assert_json_string_data_points_decoded(dyad_api.values)
+
+
+async def test_dyad_decodes_json_string_data_points_from_query(dyad_api: DyadApi, fake_channel: FakeChannel):
+    """Query responses over MQTT hold product info and voice pack state as JSON strings."""
+    fake_channel.response_queue.append(build_a01_message({10004: SND_STATE_JSON, 10005: PRODUCT_INFO_JSON}))
+
+    result = await dyad_api.query_values([RoborockDyadDataProtocol.SND_STATE, RoborockDyadDataProtocol.PRODUCT_INFO])
+
+    assert_json_string_data_points_decoded(result)
+
+
+@pytest.mark.parametrize("value", ["", "not json", None])
+async def test_dyad_invalid_json_string_data_point(fake_channel: FakeChannel, value: str | None):
+    """A malformed JSON data point leaves the value unset."""
+    api = create(DEFAULT_DYAD_PRODUCT, fake_channel, device_status={"10005": value})  # type: ignore[arg-type]
+
+    assert api.values == {}
+
+
+async def test_dyad_as_dict_is_plain_data(fake_channel: FakeChannel):
+    """Decoded values are converted to JSON serializable data for diagnostics."""
+    api = create(
+        DEFAULT_DYAD_PRODUCT,
+        fake_channel,  # type: ignore[arg-type]
+        device_status={
+            "201": 3,
+            "227": 1320,
+            "10002": '[{"id":1,"on":false,"cron":"15 14 31 10 *","dpAction":{"200":1}}]',
+            "10005": PRODUCT_INFO_JSON,
+        },
+    )
+
+    data = api.as_dict()
+
+    assert data["status"] == "charging"
+    assert data["silent_mode_start_time"] == "22:00:00"
+    assert data["schedule_task"][0]["cron"] == "15 14 31 10 *"
+    assert data["product_info"]["timezone"] == "Europe/Warsaw"
+
+
+async def test_zeo_as_dict(fake_channel: FakeChannel):
+    """Zeo state is keyed by data point name for diagnostics."""
+    api = ZeoApi(fake_channel, initial_status={RoborockZeoProtocol.COUNTDOWN.value: 5})  # type: ignore[arg-type]
+
+    assert api.as_dict() == {RoborockZeoProtocol.COUNTDOWN.name: 5}
+
+
 async def test_dyad_close_stops_tracking(dyad_api: DyadApi, fake_channel: FakeChannel):
     """After close(), pushes no longer update `values`."""
     await dyad_api.start()
@@ -408,6 +498,7 @@ async def test_zeo_api_query_values(zeo_api: ZeoApi, fake_channel: FakeChannel):
     message = fake_channel.published_messages[0]
     assert message.protocol == RoborockMessageProtocol.RPC_REQUEST
     assert message.version == b"A01"
+    assert message.payload is not None
     payload_data = json.loads(unpad(message.payload, AES.block_size))
     assert payload_data["dps"] == {"10000": "[203, 207, 226, 227, 224, 218]"}
     assert "t" in payload_data
@@ -479,6 +570,7 @@ async def test_dyad_api_set_value(dyad_api: DyadApi, fake_channel: FakeChannel):
     assert message.version == b"A01"
 
     # decode the payload to verify contents
+    assert message.payload is not None
     payload_data = json.loads(unpad(message.payload, AES.block_size))
     # A01 protocol expects values to be strings in the dps dict
     assert payload_data["dps"] == {"209": 1}
@@ -534,6 +626,7 @@ async def test_dyad_action_commands(
     await getattr(dyad_api, method)()
 
     assert len(fake_channel.published_messages) == 1
+    assert fake_channel.published_messages[0].payload is not None
     payload_data = json.loads(unpad(fake_channel.published_messages[0].payload, AES.block_size))
     assert payload_data["dps"] == expected_dps
 
@@ -549,6 +642,7 @@ async def test_zeo_api_set_value(zeo_api: ZeoApi, fake_channel: FakeChannel):
     assert message.version == b"A01"
 
     # decode the payload to verify contents
+    assert message.payload is not None
     payload_data = json.loads(unpad(message.payload, AES.block_size))
     # A01 protocol expects values to be strings in the dps dict
     assert payload_data["dps"] == {"204": "standard"}

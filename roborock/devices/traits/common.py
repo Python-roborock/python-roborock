@@ -77,7 +77,7 @@ class DpsDataConverter(Generic[TDps]):
     to optimize repeated updates from device streams.
     """
 
-    def __init__(self, dps_type_map: dict[TDps, type], dps_field_map: dict[TDps, str]):
+    def __init__(self, dps_type_map: dict[TDps, Any], dps_field_map: dict[TDps, str]):
         """Initialize the converter for a specific RoborockBase-derived class."""
         self._dps_type_map = dps_type_map
         self._dps_field_map = dps_field_map
@@ -85,7 +85,7 @@ class DpsDataConverter(Generic[TDps]):
     @classmethod
     def from_dataclass(cls, dataclass_type: type[RoborockBase]):
         """Initialize the converter for a specific RoborockBase-derived class."""
-        dps_type_map: dict[TDps, type] = {}
+        dps_type_map: dict[TDps, Any] = {}
         dps_field_map: dict[TDps, str] = {}
         for field_obj in dataclasses.fields(dataclass_type):
             if field_obj.metadata and "dps" in field_obj.metadata:

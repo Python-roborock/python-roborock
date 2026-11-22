@@ -214,9 +214,44 @@ async def test_resolve_error_defaults_to_robot_error(status_trait: StatusTrait, 
     ]
 
 
-async def test_resolve_error_no_error(status_trait: StatusTrait, mock_rpc_channel: AsyncMock) -> None:
-    """Test that nothing is sent when there is no error to resolve."""
-    mock_rpc_channel.send_command.return_value = STATUS
+async def test_resolve_error_skips_unknown_dock_error(status_trait: StatusTrait, mock_rpc_channel: AsyncMock) -> None:
+    """Test that an unrecognized dock error falls through to the robot error."""
+    mock_rpc_channel.send_command.side_effect = [
+        {**STATUS, "dock_error_status": 9, "error_code": RoborockErrorCode.bumper_stuck.value},
+        "ok",
+        STATUS,
+    ]
+    await status_trait.refresh()
+
+    await status_trait.resolve_error()
+
+    assert mock_rpc_channel.send_command.mock_calls[1:] == [
+        call(RoborockCommand.RESOLVE_ERROR, params={"error_code": RoborockErrorCode.bumper_stuck.value}),
+        call(RoborockCommand.GET_STATUS),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("dock_error_status", "error_code"),
+    [
+        (RoborockDockErrorCode.ok.value, RoborockErrorCode.none.value),
+        (9, RoborockErrorCode.none.value),
+        (RoborockDockErrorCode.ok.value, 57),
+    ],
+    ids=["no-error", "unknown-dock-error", "unknown-robot-error"],
+)
+async def test_resolve_error_no_known_error(
+    status_trait: StatusTrait,
+    mock_rpc_channel: AsyncMock,
+    dock_error_status: int,
+    error_code: int,
+) -> None:
+    """Test that nothing is sent when there is no known error to resolve."""
+    mock_rpc_channel.send_command.return_value = {
+        **STATUS,
+        "dock_error_status": dock_error_status,
+        "error_code": error_code,
+    }
     await status_trait.refresh()
 
     await status_trait.resolve_error()

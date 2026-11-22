@@ -486,3 +486,25 @@ def test_resolve_current_room_valid_header_avoids_grid_decomposition(monkeypatch
 
     monkeypatch.setattr("roborock.map.b01_q10_map_parser.decompose_grid", fail_decomposition)
     assert resolve_q10_current_room(packet, trace) == packet.rooms[1]
+
+
+def test_render_memoizes_palette_across_trace_updates(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Repeated renders on the same map grid reuse the computed room-color palette."""
+    from roborock.map.b01_q10_render import _build_palette
+    from roborock.map.room_colors import adjacency_aware_room_colors
+
+    _build_palette.cache_clear()
+    calls = 0
+
+    def counting_room_colors(*args: object, **kwargs: object) -> dict[int, tuple[int, ...]]:
+        nonlocal calls
+        calls += 1
+        return adjacency_aware_room_colors(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr("roborock.map.b01_q10_render.adjacency_aware_room_colors", counting_room_colors)
+
+    packet, trace1 = _calibrated_inputs(heading=0)
+    _, trace2 = _calibrated_inputs(heading=90)
+    _render(packet, trace=trace1)
+    _render(packet, trace=trace2)
+    assert calls == 1

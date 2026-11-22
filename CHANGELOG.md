@@ -2,6 +2,95 @@
 
 <!-- version list -->
 
+## v7.26.1 (2026-11-22)
+
+### Bug Fixes
+
+- Wait for device readiness in reconnect test
+  ([#1071](https://github.com/Python-roborock/python-roborock/pull/1071),
+  [`223d18f`](https://github.com/Python-roborock/python-roborock/commit/223d18fff0478ca3f67c564421a6812902970417))
+
+- **v1**: Aggregate multi-phase cleaning records
+  ([#1058](https://github.com/Python-roborock/python-roborock/pull/1058),
+  [`4f8ca86`](https://github.com/Python-roborock/python-roborock/commit/4f8ca86839fe09a78421750db742378190f406df))
+
+- **v1**: Decode unrecognized error and status codes as unknown
+  ([#1057](https://github.com/Python-roborock/python-roborock/pull/1057),
+  [`2527d9a`](https://github.com/Python-roborock/python-roborock/commit/2527d9a979876f0474c65d062a6046f02b064c25))
+
+- **v1**: Report empty trait list replies as parsing errors
+  ([#1056](https://github.com/Python-roborock/python-roborock/pull/1056),
+  [`85d7514`](https://github.com/Python-roborock/python-roborock/commit/85d75144ec225f1284b408be44827c4e23b54c9d))
+
+- **v1**: Serialize the last clean record of the clean summary
+  ([#1059](https://github.com/Python-roborock/python-roborock/pull/1059),
+  [`bf5b6f2`](https://github.com/Python-roborock/python-roborock/commit/bf5b6f28e31a6d1234f29831fd12fb9e7a775ead))
+
+- **v1**: Update wash towel mode after setting it
+  ([#1060](https://github.com/Python-roborock/python-roborock/pull/1060),
+  [`e1220ee`](https://github.com/Python-roborock/python-roborock/commit/e1220eec4e38ed28c6ed3c893f9a5065af21e1ed))
+
+
+## v7.26.0 (2026-11-22)
+
+### Bug Fixes
+
+- Redact private data in device diagnostics
+  ([#1026](https://github.com/Python-roborock/python-roborock/pull/1026),
+  [`02b84cf`](https://github.com/Python-roborock/python-roborock/commit/02b84cf65a491e6036ab4dea7db2583692ccaf3b))
+
+- Simplify Q10 room cleaning state and commands
+  ([#935](https://github.com/Python-roborock/python-roborock/pull/935),
+  [`135b43a`](https://github.com/Python-roborock/python-roborock/commit/135b43a5e7e09c515e63ca440f108a9f52b7d51e))
+
+- Use DPS conversion for Q10 room settings
+  ([#935](https://github.com/Python-roborock/python-roborock/pull/935),
+  [`135b43a`](https://github.com/Python-roborock/python-roborock/commit/135b43a5e7e09c515e63ca440f108a9f52b7d51e))
+
+### Chores
+
+- Add Qrevo S Pro device data
+  ([#1052](https://github.com/Python-roborock/python-roborock/pull/1052),
+  [`71fde3b`](https://github.com/Python-roborock/python-roborock/commit/71fde3bc2983ad1722deb671162a35866c407074))
+
+### Features
+
+- Add Q10 customized cleaning controls
+  ([#935](https://github.com/Python-roborock/python-roborock/pull/935),
+  [`135b43a`](https://github.com/Python-roborock/python-roborock/commit/135b43a5e7e09c515e63ca440f108a9f52b7d51e))
+
+### Refactoring
+
+- Decode A01 JSON data point values when they arrive
+  ([#1026](https://github.com/Python-roborock/python-roborock/pull/1026),
+  [`02b84cf`](https://github.com/Python-roborock/python-roborock/commit/02b84cf65a491e6036ab4dea7db2583692ccaf3b))
+
+- Decode JSON strings before redacting diagnostics
+  ([#1026](https://github.com/Python-roborock/python-roborock/pull/1026),
+  [`02b84cf`](https://github.com/Python-roborock/python-roborock/commit/02b84cf65a491e6036ab4dea7db2583692ccaf3b))
+
+- Tidy A01 decoding follow-ups
+  ([#1026](https://github.com/Python-roborock/python-roborock/pull/1026),
+  [`02b84cf`](https://github.com/Python-roborock/python-roborock/commit/02b84cf65a491e6036ab4dea7db2583692ccaf3b))
+
+
+## v7.25.0 (2026-11-21)
+
+### Features
+
+- Add Q7 zone cleaning ([#1038](https://github.com/Python-roborock/python-roborock/pull/1038),
+  [`e9d8b34`](https://github.com/Python-roborock/python-roborock/commit/e9d8b34f9d754420695c0432f1c5bb444319d0d3))
+
+
+## v7.24.0 (2026-11-21)
+
+### Features
+
+- **map**: Plan V1 dynamic element page updates
+  ([#1010](https://github.com/Python-roborock/python-roborock/pull/1010),
+  [`769f35f`](https://github.com/Python-roborock/python-roborock/commit/769f35f60bb6bc2b4746cf46efd29994acfdcb29))
+
+
 ## v7.23.2 (2026-11-16)
 
 ### Bug Fixes

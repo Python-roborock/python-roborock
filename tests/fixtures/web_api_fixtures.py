@@ -29,7 +29,7 @@ def home_data_fixture() -> dict[str, Any]:
 
 
 @pytest.fixture(name="mock_rest")
-def mock_rest_fixture(skip_rate_limit: Any, home_data: dict[str, Any]) -> aioresponses:
+def mock_rest_fixture(skip_rate_limit: Any, home_data: dict[str, Any]) -> Generator[aioresponses, None, None]:
     """Mock all rest endpoints so they won't hit real endpoints"""
     with aioresponses() as mocked:
         # Match the base URL and allow any query params

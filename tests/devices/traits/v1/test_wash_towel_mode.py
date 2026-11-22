@@ -89,6 +89,7 @@ async def test_set_wash_towel_mode(
     mock_rpc_channel.send_command.assert_called_with(
         RoborockCommand.SET_WASH_TOWEL_MODE, params={"wash_mode": wash_mode.code}
     )
+    assert wash_towel_mode.wash_mode == wash_mode
 
 
 @pytest.mark.parametrize(
