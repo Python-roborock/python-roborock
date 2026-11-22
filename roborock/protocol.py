@@ -325,9 +325,10 @@ class OptionalChecksum(Checksum):
         hash1 = self.checksumfield.parse_stream(stream, **context)
         hash2 = self.hashfunc(self.bytesfunc(context))
         if hash1 != hash2:
+            read_hex = binascii.hexlify(hash1).decode() if isinstance(hash1, bytestringtype) else hash1
+            computed_hex = binascii.hexlify(hash2).decode() if isinstance(hash2, bytestringtype) else hash2
             raise ChecksumError(
-                f"wrong checksum, read {hash1 if not isinstance(hash1, bytestringtype) else binascii.hexlify(hash1)}, "
-                f"computed {hash2 if not isinstance(hash2, bytestringtype) else binascii.hexlify(hash2)}",
+                f"wrong checksum, read {read_hex}, computed {computed_hex}",
                 path=path,
             )
         return hash1

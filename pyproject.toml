@@ -59,6 +59,9 @@ dev = [
     "pytest",
     "pre-commit>=3.5,<5.0",
     "mypy",
+    "types-PyYAML",
+    "types-paho-mqtt",
+    "types-protobuf",
     "ruff==0.14.11",
     "codespell",
     "aioresponses>=0.7.7,<0.8",
@@ -143,8 +146,15 @@ extend-exclude = ["roborock/map/proto/*_pb2.py"]
 "roborock/map/proto/*_pb2.py" = ["E501", "I001", "UP009"]
 "tests/*" = ["B010"]
 
+[tool.mypy]
+check_untyped_defs = true
+
 [[tool.mypy.overrides]]
-module = ["roborock.map.proto.*"]
+module = ["construct"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["roborock.cli", "roborock.map.proto.*"]
 ignore_errors = true
 
 [tool.pytest.ini_options]

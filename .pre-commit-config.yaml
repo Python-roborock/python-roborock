@@ -42,11 +42,11 @@ repos:
                 args:
                     - --fix
     -   repo: https://github.com/pre-commit/mirrors-mypy
-        rev: v1.7.1
+        rev: v1.19.1
         hooks:
             -   id: mypy
-                exclude: cli.py
-                additional_dependencies: [ "types-paho-mqtt", "types-protobuf" ]
+                exclude: ^roborock/cli\.py$
+                additional_dependencies: [ "types-PyYAML", "types-paho-mqtt", "types-protobuf" ]
     -   repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
         rev: v9.23.0
         hooks:

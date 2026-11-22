@@ -61,6 +61,7 @@ def test_value_encoder():
     result = encode_mqtt_payload(data, value_encoder=json.dumps)
 
     # Decode manually to check the raw JSON structure
+    assert result.payload is not None
     decoded_json = json.loads(unpad(result.payload, AES.block_size).decode())
 
     # ID_QUERY (10000) should be a string "[101, 102]", not a list [101, 102]
