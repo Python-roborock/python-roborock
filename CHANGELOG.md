@@ -2,6 +2,49 @@
 
 <!-- version list -->
 
+## v7.26.0 (2026-11-22)
+
+### Bug Fixes
+
+- Redact private data in device diagnostics
+  ([#1026](https://github.com/Python-roborock/python-roborock/pull/1026),
+  [`02b84cf`](https://github.com/Python-roborock/python-roborock/commit/02b84cf65a491e6036ab4dea7db2583692ccaf3b))
+
+- Simplify Q10 room cleaning state and commands
+  ([#935](https://github.com/Python-roborock/python-roborock/pull/935),
+  [`135b43a`](https://github.com/Python-roborock/python-roborock/commit/135b43a5e7e09c515e63ca440f108a9f52b7d51e))
+
+- Use DPS conversion for Q10 room settings
+  ([#935](https://github.com/Python-roborock/python-roborock/pull/935),
+  [`135b43a`](https://github.com/Python-roborock/python-roborock/commit/135b43a5e7e09c515e63ca440f108a9f52b7d51e))
+
+### Chores
+
+- Add Qrevo S Pro device data
+  ([#1052](https://github.com/Python-roborock/python-roborock/pull/1052),
+  [`71fde3b`](https://github.com/Python-roborock/python-roborock/commit/71fde3bc2983ad1722deb671162a35866c407074))
+
+### Features
+
+- Add Q10 customized cleaning controls
+  ([#935](https://github.com/Python-roborock/python-roborock/pull/935),
+  [`135b43a`](https://github.com/Python-roborock/python-roborock/commit/135b43a5e7e09c515e63ca440f108a9f52b7d51e))
+
+### Refactoring
+
+- Decode A01 JSON data point values when they arrive
+  ([#1026](https://github.com/Python-roborock/python-roborock/pull/1026),
+  [`02b84cf`](https://github.com/Python-roborock/python-roborock/commit/02b84cf65a491e6036ab4dea7db2583692ccaf3b))
+
+- Decode JSON strings before redacting diagnostics
+  ([#1026](https://github.com/Python-roborock/python-roborock/pull/1026),
+  [`02b84cf`](https://github.com/Python-roborock/python-roborock/commit/02b84cf65a491e6036ab4dea7db2583692ccaf3b))
+
+- Tidy A01 decoding follow-ups
+  ([#1026](https://github.com/Python-roborock/python-roborock/pull/1026),
+  [`02b84cf`](https://github.com/Python-roborock/python-roborock/commit/02b84cf65a491e6036ab4dea7db2583692ccaf3b))
+
+
 ## v7.25.0 (2026-11-21)
 
 ### Features
