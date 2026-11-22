@@ -66,6 +66,11 @@ def test_b01props_fault_codes_sharing_a_name(code: int, expected: B01Fault, disp
     assert deserialized.fault is expected
     assert deserialized.fault.code == code
     assert deserialized.fault.display_name == display_name
+    assert deserialized.fault_name == display_name
+    keys = B01Fault.keys()
+    assert keys.count(display_name) == 1
+    if expected.value != display_name:
+        assert expected.value not in keys
 
 
 def test_b01props_deserialization():

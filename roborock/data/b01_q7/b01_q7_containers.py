@@ -270,7 +270,7 @@ class B01Props(RoborockBase):
     @property
     def fault_name(self) -> str | None:
         """Returns the name of the current fault."""
-        return self.fault.value if self.fault is not None else None
+        return self.fault.display_name if self.fault is not None else None
 
     @property
     def wind_name(self) -> str | None:
