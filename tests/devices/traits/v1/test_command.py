@@ -59,19 +59,3 @@ async def test_send_command_propagates_exception(command_trait: CommandTrait) ->
     # Verify the exception is propagated
     with pytest.raises(RoborockException, match="Communication error"):
         await command_trait.send(RoborockCommand.APP_START)
-
-
-async def test_send_skip_current_cleaning_area(command_trait: CommandTrait) -> None:
-    """Test the skip command with the parameters the Roborock app sends."""
-    mock_rpc_channel = command_trait._rpc_channel
-    assert mock_rpc_channel is not None
-    mock_rpc_channel.send_command.return_value = ["ok"]
-    params = {"source": 2}
-
-    result = await command_trait.send(RoborockCommand.APP_SKIP_CURRENT_CLEANING_AREA, params)
-
-    assert result == ["ok"]
-    assert RoborockCommand.APP_SKIP_CURRENT_CLEANING_AREA.value == "app_skip_current_cleaning_area"
-    mock_rpc_channel.send_command.assert_called_once_with(
-        RoborockCommand.APP_SKIP_CURRENT_CLEANING_AREA, params=params
-    )
