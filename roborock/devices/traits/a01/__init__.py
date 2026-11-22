@@ -67,6 +67,7 @@ from roborock.devices.traits import Trait
 from roborock.devices.traits.a01.device_feature import (
     build_feature_dp_list,
     build_force_load_dp_list,
+    supports_dp,
     supports_uv_light,
 )
 from roborock.devices.traits.common import TraitUpdateListener
@@ -442,13 +443,23 @@ class ZeoApi(A01Api[RoborockZeoProtocol]):
         return bool(self._feature_bits & (1 << feature.value))
 
     async def query_values(self, protocols: list[RoborockZeoProtocol]) -> dict[RoborockZeoProtocol, Any]:
-        """Query the device for the values of the given protocols."""
-        response = await send_decoded_command(
-            self._channel,
-            {RoborockZeoProtocol.ID_QUERY: protocols},
-            value_encoder=json.dumps,
-        )
-        values = {protocol: convert_zeo_value(protocol, response.get(protocol)) for protocol in protocols}
+        """Query the device for the values of the given protocols.
+
+        Protocols the device model is known not to support are not sent to the
+        device, since it would never answer them, and are returned as None.
+        """
+        supported = [protocol for protocol in protocols if supports_dp(self._model, protocol)]
+        response: dict[RoborockZeoProtocol, Any] = {}
+        if supported:
+            response = await send_decoded_command(
+                self._channel,
+                {RoborockZeoProtocol.ID_QUERY: supported},
+                value_encoder=json.dumps,
+            )
+        values = {
+            protocol: convert_zeo_value(protocol, response[protocol]) if protocol in response else None
+            for protocol in protocols
+        }
         self._merge_query_response(values)
         return values
 

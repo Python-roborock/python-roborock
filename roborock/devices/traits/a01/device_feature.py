@@ -223,6 +223,14 @@ _FORCE_LOAD_BASE_DRYER: list[RoborockZeoProtocol] = [
     RoborockZeoProtocol.F_C,  # 10001
 ]
 
+# DPs only answered by models with a softener compartment.
+_SOFTENER_DPS: list[RoborockZeoProtocol] = [
+    RoborockZeoProtocol.SOFTENER_SET,  # 212
+    RoborockZeoProtocol.SOFTENER_TYPE,  # 214
+    RoborockZeoProtocol.DEFAULT_SETTING,  # 225
+    RoborockZeoProtocol.SOFTENER_EMPTY,  # 227
+]
+
 
 # ── Public helpers ──────────────────────────────────────────────────────
 
@@ -259,6 +267,21 @@ def supports_default_setting(model: str | None) -> bool:
     return model not in _UNSUPPORTED_DEFAULT_SETTING
 
 
+def supports_dp(model: str | None, dp: RoborockZeoProtocol) -> bool:
+    """Return False if *model* is known to never answer a query for *dp*.
+
+    A query only completes once every requested DP is answered, so asking a
+    device for a DP it lacks makes the whole query time out.
+    """
+    if dp == RoborockZeoProtocol.FEATURE_BITS:
+        return supports_feature_bits(model)
+    if dp == RoborockZeoProtocol.DEFAULT_SETTING and not supports_default_setting(model):
+        return False
+    if dp in _SOFTENER_DPS:
+        return has_softener_compartment(model)
+    return True
+
+
 def supports_remote_control(model: str | None) -> bool:
     """Remote control (DP 232) is supported on all overseas models."""
     if model is None:
@@ -291,14 +314,7 @@ def build_force_load_dp_list(model: str | None) -> list[RoborockZeoProtocol]:
 
     # ── Softener block (212, 214, 225, 227) ──
     if has_softener_compartment(model):
-        base.extend(
-            [
-                RoborockZeoProtocol.SOFTENER_SET,  # 212
-                RoborockZeoProtocol.SOFTENER_TYPE,  # 214
-                RoborockZeoProtocol.DEFAULT_SETTING,  # 225
-                RoborockZeoProtocol.SOFTENER_EMPTY,  # 227
-            ]
-        )
+        base.extend(_SOFTENER_DPS)
 
     # ── Smart-hosting DPs (always queried when FEATURE_BITS is supported) ──
     if supports_feature_bits(model):
