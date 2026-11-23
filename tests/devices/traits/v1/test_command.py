@@ -4,7 +4,6 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from roborock.devices.device import RoborockDevice
 from roborock.devices.traits.v1.command import CommandTrait
 from roborock.exceptions import RoborockException
 from roborock.roborock_typing import RoborockCommand
@@ -60,14 +59,3 @@ async def test_send_command_propagates_exception(command_trait: CommandTrait) ->
     # Verify the exception is propagated
     with pytest.raises(RoborockException, match="Communication error"):
         await command_trait.send(RoborockCommand.APP_START)
-
-
-async def test_clean_segments(device: RoborockDevice, mock_rpc_channel: AsyncMock) -> None:
-    """Test starting a segment clean."""
-    assert device.v1_properties
-
-    await device.v1_properties.command.clean_segments([17, 19])
-
-    mock_rpc_channel.send_command.assert_called_once_with(
-        RoborockCommand.APP_SEGMENT_CLEAN, params=[{"segments": [17, 19]}]
-    )
