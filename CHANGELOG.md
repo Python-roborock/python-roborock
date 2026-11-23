@@ -2,6 +2,93 @@
 
 <!-- version list -->
 
+## v7.30.1 (2026-11-23)
+
+### Bug Fixes
+
+- **q7**: Return display_name from fault_name
+  ([#1074](https://github.com/Python-roborock/python-roborock/pull/1074),
+  [`dd74fa1`](https://github.com/Python-roborock/python-roborock/commit/dd74fa116cd2ab37eefe146be4c7262742ca36d8))
+
+- **q7**: Stop B01Fault codes collapsing into aliases
+  ([#1074](https://github.com/Python-roborock/python-roborock/pull/1074),
+  [`dd74fa1`](https://github.com/Python-roborock/python-roborock/commit/dd74fa116cd2ab37eefe146be4c7262742ca36d8))
+
+
+## v7.30.0 (2026-11-23)
+
+### Features
+
+- Add Q7 remote control trait
+  ([#1039](https://github.com/Python-roborock/python-roborock/pull/1039),
+  [`42976c0`](https://github.com/Python-roborock/python-roborock/commit/42976c05254f7e86b930c8fb17db9b68b90f71b9))
+
+- Add Q7 zone cleaning ([#1039](https://github.com/Python-roborock/python-roborock/pull/1039),
+  [`42976c0`](https://github.com/Python-roborock/python-roborock/commit/42976c05254f7e86b930c8fb17db9b68b90f71b9))
+
+
+## v7.29.1 (2026-11-23)
+
+### Bug Fixes
+
+- Align feature docs with runtime family fallback
+  ([#1033](https://github.com/Python-roborock/python-roborock/pull/1033),
+  [`3077c7f`](https://github.com/Python-roborock/python-roborock/commit/3077c7f81510b757af3e873d57e90847b82fe3aa))
+
+- Decode product families when generating feature docs
+  ([#1033](https://github.com/Python-roborock/python-roborock/pull/1033),
+  [`3077c7f`](https://github.com/Python-roborock/python-roborock/commit/3077c7f81510b757af3e873d57e90847b82fe3aa))
+
+- Pass an explicit TLS version to the MQTT client
+  ([#1078](https://github.com/Python-roborock/python-roborock/pull/1078),
+  [`6188f86`](https://github.com/Python-roborock/python-roborock/commit/6188f86ae5f5fcff544df16e0226dad5b4084476))
+
+- Time out local connection attempts to unreachable devices
+  ([#1077](https://github.com/Python-roborock/python-roborock/pull/1077),
+  [`be3a835`](https://github.com/Python-roborock/python-roborock/commit/be3a835f34604a34e6649dcc51febd1b3ec20336))
+
+- **v1**: Ignore water codes pushed to water-slide devices that the slider cannot name
+  ([#1067](https://github.com/Python-roborock/python-roborock/pull/1067),
+  [`f72b355`](https://github.com/Python-roborock/python-roborock/commit/f72b35541abac9881f675863d4db2315c17f3978))
+
+- **v1**: Read back status after fan or water pushes
+  ([#1067](https://github.com/Python-roborock/python-roborock/pull/1067),
+  [`f72b355`](https://github.com/Python-roborock/python-roborock/commit/f72b35541abac9881f675863d4db2315c17f3978))
+
+- **v1**: Refresh status after fan or water pushes
+  ([#1067](https://github.com/Python-roborock/python-roborock/pull/1067),
+  [`f72b355`](https://github.com/Python-roborock/python-roborock/commit/f72b35541abac9881f675863d4db2315c17f3978))
+
+- **v1**: Skip multi-map rooms without a cloud room id
+  ([#1079](https://github.com/Python-roborock/python-roborock/pull/1079),
+  [`64a7d4f`](https://github.com/Python-roborock/python-roborock/commit/64a7d4f698657c834b75dc2b0e88cb8c0ed7de92))
+
+### Documentation
+
+- **v1**: Describe pushed status updates and the status read-back
+  ([#1067](https://github.com/Python-roborock/python-roborock/pull/1067),
+  [`f72b355`](https://github.com/Python-roborock/python-roborock/commit/f72b35541abac9881f675863d4db2315c17f3978))
+
+
+## v7.29.0 (2026-11-23)
+
+### Features
+
+- Add new V1 dock types and align dock capabilities with the app
+  ([#1047](https://github.com/Python-roborock/python-roborock/pull/1047),
+  [`2304dd6`](https://github.com/Python-roborock/python-roborock/commit/2304dd6ce3f0fa207a3f43406fbdd124c47d8ade))
+
+- Add V1 dock types 48 and 50 and fix F2R, K1S and Hera dock capabilities
+  ([#1047](https://github.com/Python-roborock/python-roborock/pull/1047),
+  [`2304dd6`](https://github.com/Python-roborock/python-roborock/commit/2304dd6ce3f0fa207a3f43406fbdd124c47d8ade))
+
+### Refactoring
+
+- Drop the separate Shell E hot wash dock flag
+  ([#1047](https://github.com/Python-roborock/python-roborock/pull/1047),
+  [`2304dd6`](https://github.com/Python-roborock/python-roborock/commit/2304dd6ce3f0fa207a3f43406fbdd124c47d8ade))
+
+
 ## v7.28.0 (2026-11-22)
 
 ### Bug Fixes

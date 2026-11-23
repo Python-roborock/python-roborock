@@ -1,6 +1,6 @@
 [project]
 name = "python-roborock"
-version = "7.28.0"
+version = "7.30.1"
 description = "A package to control Roborock vacuums."
 authors = [{ name = "humbertogontijo", email = "humbertogontijo@users.noreply.github.com" }, {name="Lash-L"}, {name="allenporter"}]
 requires-python = ">=3.11, <4"
@@ -70,6 +70,7 @@ dev = [
     "syrupy>=4.9.1,<6",
     "pdoc>=15.0.4,<17",
     "pytest-cov>=7.0.0",
+    "pytest-xdist>=3.8.0",
     "zmqtt>=0.2.0,<0.3.0",
     "pytest-benchmark>=5.1.0",
 ]
@@ -87,7 +88,7 @@ build-backend = "hatchling.build"
 [tool.semantic_release]
 branch = "main"
 version_toml = ["pyproject.toml:project.version"]
-build_command = "pip install uv && uv lock --upgrade-package python-roborock && git add uv.lock && uv build"
+build_command = "(command -v uv >/dev/null || pip install uv) && uv lock --upgrade-package python-roborock && git add uv.lock && uv build"
 changelog_file = 'CHANGELOG.md'
 commit = true
 

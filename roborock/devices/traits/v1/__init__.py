@@ -265,6 +265,7 @@ class PropertiesApi(Trait):
         if self._unsub:
             self._unsub()
             self._unsub = None
+        self.status.close()
 
     def _on_dps_update(self, dps: dict[RoborockDataProtocol, Any]) -> None:
         """Handle incoming messages from the device.

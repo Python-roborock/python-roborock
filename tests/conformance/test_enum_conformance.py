@@ -131,9 +131,7 @@ def test_roborock_mode_enum_handles_unknown_code(mode_enum_cls: type[RoborockMod
 
 # Legacy RoborockModeEnum classes whose members still share value strings.
 # As these enums are remediated, remove them from this baseline.
-KNOWN_MODE_ENUMS_WITH_VALUE_ALIASES = {
-    "roborock.data.b01_q7.b01_q7_code_mappings.B01Fault",
-}
+KNOWN_MODE_ENUMS_WITH_VALUE_ALIASES: set[str] = set()
 
 _VALUE_ALIAS_XFAIL_MARKS = {
     fqn: pytest.mark.xfail(reason=f"{fqn} has members aliased by value", strict=True)

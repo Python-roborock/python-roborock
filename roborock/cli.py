@@ -32,7 +32,7 @@ import logging
 import sys
 import threading
 from collections.abc import Callable
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any, TextIO, cast
 
@@ -57,11 +57,11 @@ from roborock.data.b01_q10.b01_q10_code_mappings import (
     YXDeviceDustCollectionFrequency,
     YXFanLevel,
 )
-from roborock.data.code_mappings import SHORT_MODEL_TO_ENUM
+from roborock.data.code_mappings import SHORT_MODEL_TO_ENUM, RoborockProductNickname
 from roborock.device_features import DeviceFeatures
 from roborock.devices.cache import Cache, CacheData
 from roborock.devices.device import RoborockDevice
-from roborock.devices.device_manager import DeviceManager, UserParams, create_device_manager
+from roborock.devices.device_manager import DeviceManager, DeviceVersion, UserParams, create_device_manager
 from roborock.devices.traits import Trait
 from roborock.devices.traits.b01.q10 import Q10PropertiesApi
 from roborock.devices.traits.b01.q10.vacuum import VacuumTrait
@@ -1312,18 +1312,17 @@ def update_docs(data_file: str, output_file: str):
 
     product_features_map = {}
     all_feature_names = set()
+    v1_feature_names = {feature.name for feature in fields(DeviceFeatures) if feature.type is bool}
 
     # Process the combined data to build the feature map
     for model, data in combined_product_data.items():
-        # Reconstruct the DeviceFeatures object from the raw data in the YAML file
-        device_features = DeviceFeatures.from_feature_flags(
-            new_feature_info=data.get("new_feature_info", 0),
-            new_feature_info_str=data.get("new_feature_info_str", ""),
-            feature_info=data.get("feature_info", []),
-            product_nickname=data.get("product_nickname", ""),
-        )
-        features_dict = asdict(device_features)
-
+        nickname_name = data.get("product_nickname")
+        product_nickname = SHORT_MODEL_TO_ENUM.get(model.split(".")[-1], RoborockProductNickname.PEARLPLUS)
+        if nickname_name not in (None, "", "Unknown"):
+            try:
+                product_nickname = RoborockProductNickname[nickname_name]
+            except KeyError as err:
+                raise click.ClickException(f"Unknown product nickname {nickname_name!r} for {model}") from err
         # This dictionary will hold the final data for the markdown table row
         current_product_data = {
             "product_nickname": data.get("product_nickname", ""),
@@ -1332,11 +1331,18 @@ def update_docs(data_file: str, output_file: str):
             "new_feature_info_str": data.get("new_feature_info_str", ""),
         }
 
-        # Populate features from the calculated DeviceFeatures object
-        for feature, is_supported in features_dict.items():
-            all_feature_names.add(feature)
-            if is_supported:
-                current_product_data[feature] = "X"
+        # Treat older catalogue entries without a protocol as V1.
+        if data.get("protocol_version") in (None, "", DeviceVersion.V1):
+            device_features = DeviceFeatures.from_feature_flags(
+                new_feature_info=data.get("new_feature_info", 0),
+                new_feature_info_str=data.get("new_feature_info_str", ""),
+                feature_info=data.get("feature_info", []),
+                product_nickname=product_nickname,
+            )
+            all_feature_names.update(v1_feature_names)
+            for feature in v1_feature_names:
+                if getattr(device_features, feature):
+                    current_product_data[feature] = "X"
 
         supported_codes = data.get("feature_info", [])
         if isinstance(supported_codes, list):
