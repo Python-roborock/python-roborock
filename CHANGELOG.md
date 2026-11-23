@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v7.30.1 (2026-11-23)
+
+### Bug Fixes
+
+- **q7**: Return display_name from fault_name
+  ([#1074](https://github.com/Python-roborock/python-roborock/pull/1074),
+  [`dd74fa1`](https://github.com/Python-roborock/python-roborock/commit/dd74fa116cd2ab37eefe146be4c7262742ca36d8))
+
+- **q7**: Stop B01Fault codes collapsing into aliases
+  ([#1074](https://github.com/Python-roborock/python-roborock/pull/1074),
+  [`dd74fa1`](https://github.com/Python-roborock/python-roborock/commit/dd74fa116cd2ab37eefe146be4c7262742ca36d8))
+
+
 ## v7.30.0 (2026-11-23)
 
 ### Features
