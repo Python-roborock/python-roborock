@@ -187,7 +187,8 @@ class LocalChannel(Channel):
         loop = get_running_loop()
         protocol = _LocalProtocol(self._data_received, self._connection_lost)
         try:
-            self._transport, self._protocol = await loop.create_connection(lambda: protocol, self._host, _PORT)
+            async with asyncio.timeout(_TIMEOUT):
+                self._transport, self._protocol = await loop.create_connection(lambda: protocol, self._host, _PORT)
             self._is_connected = True
         except OSError as e:
             raise RoborockConnectionException(f"Failed to connect to {self._host}:{_PORT}") from e

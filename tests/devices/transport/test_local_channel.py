@@ -107,6 +107,23 @@ async def test_connection_failure(local_channel: LocalChannel, mock_loop: Mock) 
     assert local_channel._is_connected is False
 
 
+async def test_connection_timeout(local_channel: LocalChannel, mock_loop: Mock) -> None:
+    """Test that a connection attempt to an unreachable host times out."""
+
+    async def never_connect(*args: object) -> None:
+        await asyncio.Event().wait()
+
+    mock_loop.create_connection.side_effect = never_connect
+
+    with (
+        patch("roborock.devices.transport.local_channel._TIMEOUT", 0.01),
+        pytest.raises(RoborockConnectionException, match="Failed to connect to 192.168.1.100:58867"),
+    ):
+        await local_channel.connect()
+
+    assert not local_channel.is_connected
+
+
 async def test_close_connection(local_channel: LocalChannel, mock_loop: Mock, mock_transport: Mock) -> None:
     """Test closing the connection."""
     await local_channel.connect()
