@@ -15,8 +15,6 @@ env:
   DEFAULT_PYTHON_VERSION: "3.11"
   # Matrix Python version that collects branch coverage and uploads to Codecov
   COVERAGE_PYTHON_VERSION: "3.14"
-  # Keep in sync with python-semantic-release action version in the release job
-  SEMANTIC_RELEASE_VERSION: "10.5.3"
 
 jobs:
   # Make sure commit messages follow the conventional commits convention:
@@ -144,8 +142,9 @@ jobs:
       - name: Test Semantic Release (Dry Run)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Keep version in sync with python-semantic-release action in the release job
         run: >-
-          uv tool run --from python-semantic-release==${{ env.SEMANTIC_RELEASE_VERSION }}
+          uv tool run --from python-semantic-release==10.5.3
           semantic-release version --changelog --no-commit --no-tag --no-push --no-vcs-release
   release:
     runs-on: ubuntu-latest
