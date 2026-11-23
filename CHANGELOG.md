@@ -2,6 +2,43 @@
 
 <!-- version list -->
 
+## v7.31.0 (2026-11-23)
+
+### Chores
+
+- **ci**: Centralize CI version variables with comments
+  ([#1083](https://github.com/Python-roborock/python-roborock/pull/1083),
+  [`93f0d98`](https://github.com/Python-roborock/python-roborock/commit/93f0d987c64e7eeff809efb7e89c05e1fd62254c))
+
+- **ci**: Drop unused SEMANTIC_RELEASE_VERSION env var
+  ([#1083](https://github.com/Python-roborock/python-roborock/pull/1083),
+  [`93f0d98`](https://github.com/Python-roborock/python-roborock/commit/93f0d987c64e7eeff809efb7e89c05e1fd62254c))
+
+- **ci**: Parallelize tests, cache uv, and run semantic-release via uvx
+  ([#1083](https://github.com/Python-roborock/python-roborock/pull/1083),
+  [`93f0d98`](https://github.com/Python-roborock/python-roborock/commit/93f0d987c64e7eeff809efb7e89c05e1fd62254c))
+
+- **ci**: Speed up CI with uvx semantic-release, xdist, and uv caching
+  ([#1083](https://github.com/Python-roborock/python-roborock/pull/1083),
+  [`93f0d98`](https://github.com/Python-roborock/python-roborock/commit/93f0d987c64e7eeff809efb7e89c05e1fd62254c))
+
+### Features
+
+- **v1**: Add clean_segments helper to CommandTrait
+  ([#1081](https://github.com/Python-roborock/python-roborock/pull/1081),
+  [`390afc8`](https://github.com/Python-roborock/python-roborock/commit/390afc8080fb41a1650d30c5de8c92fd2e4e278b))
+
+- **v1**: Add clean_segments helper to RoomsTrait
+  ([#1081](https://github.com/Python-roborock/python-roborock/pull/1081),
+  [`390afc8`](https://github.com/Python-roborock/python-roborock/commit/390afc8080fb41a1650d30c5de8c92fd2e4e278b))
+
+### Refactoring
+
+- Move clean_segments to RoomsTrait
+  ([#1081](https://github.com/Python-roborock/python-roborock/pull/1081),
+  [`390afc8`](https://github.com/Python-roborock/python-roborock/commit/390afc8080fb41a1650d30c5de8c92fd2e4e278b))
+
+
 ## v7.30.1 (2026-11-23)
 
 ### Bug Fixes
