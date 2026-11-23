@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v7.29.0 (2026-11-23)
+
+### Features
+
+- Add new V1 dock types and align dock capabilities with the app
+  ([#1047](https://github.com/Python-roborock/python-roborock/pull/1047),
+  [`2304dd6`](https://github.com/Python-roborock/python-roborock/commit/2304dd6ce3f0fa207a3f43406fbdd124c47d8ade))
+
+- Add V1 dock types 48 and 50 and fix F2R, K1S and Hera dock capabilities
+  ([#1047](https://github.com/Python-roborock/python-roborock/pull/1047),
+  [`2304dd6`](https://github.com/Python-roborock/python-roborock/commit/2304dd6ce3f0fa207a3f43406fbdd124c47d8ade))
+
+### Refactoring
+
+- Drop the separate Shell E hot wash dock flag
+  ([#1047](https://github.com/Python-roborock/python-roborock/pull/1047),
+  [`2304dd6`](https://github.com/Python-roborock/python-roborock/commit/2304dd6ce3f0fa207a3f43406fbdd124c47d8ade))
+
+
 ## v7.28.0 (2026-11-22)
 
 ### Bug Fixes
