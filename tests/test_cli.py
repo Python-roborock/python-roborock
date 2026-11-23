@@ -366,8 +366,49 @@ def test_q7_raw_command(
     result = CliRunner().invoke(cli, ["command", "--device_id", "abc123", "--cmd", "service.find_device"])
 
     assert result.exit_code == 0, result.output
-    assert q7_fake_channel.published_commands == [(RoborockB01Q7Methods.FIND_DEVICE, None)]
+    assert q7_fake_channel.published_commands == [(RoborockB01Q7Methods.FIND_DEVICE, {})]
     assert '"result": "ok"' in result.output
+
+
+def test_q7_raw_command_explicit_empty_list_params(
+    monkeypatch: pytest.MonkeyPatch,
+    q7_api: Q7PropertiesApi,
+    q7_fake_channel: FakeQ7Channel,
+) -> None:
+    """An explicit --params '[]' still sends an empty list, not the {} default."""
+    q7_fake_channel.response_queue.append({"result": "ok"})
+    _mock_device(monkeypatch, q7_api)
+
+    result = CliRunner().invoke(
+        cli, ["command", "--device_id", "abc123", "--cmd", "service.find_device", "--params", "[]"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert q7_fake_channel.published_commands == [(RoborockB01Q7Methods.FIND_DEVICE, [])]
+
+
+def test_q7_raw_command_explicit_params(
+    monkeypatch: pytest.MonkeyPatch,
+    q7_api: Q7PropertiesApi,
+    q7_fake_channel: FakeQ7Channel,
+) -> None:
+    """An explicit --params value is parsed as JSON and sent as-is."""
+    q7_fake_channel.response_queue.append({"result": "ok"})
+    _mock_device(monkeypatch, q7_api)
+
+    result = CliRunner().invoke(
+        cli, ["command", "--device_id", "abc123", "--cmd", "service.find_device", "--params", '{"mode": 1}']
+    )
+
+    assert result.exit_code == 0, result.output
+    assert q7_fake_channel.published_commands == [(RoborockB01Q7Methods.FIND_DEVICE, {"mode": 1})]
+
+
+def test_q7_clean_segments_help_does_not_reference_rooms() -> None:
+    """The Q7 segment help does not point at the rooms command, which has no Q7 branch."""
+    segments_option = next(p for p in q7_clean_segments.params if p.name == "segments")
+    assert "`rooms`" not in (segments_option.help or "")
+    assert "`rooms`" not in (q7_clean_segments.callback.__doc__ or "")
 
 
 def test_q7_raw_command_invalid(

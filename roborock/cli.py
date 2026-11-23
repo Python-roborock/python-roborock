@@ -1051,7 +1051,7 @@ async def command(ctx, cmd, device_id, params):
         except ValueError as err:
             raise RoborockException(f"Invalid command {cmd} for B01_Q7 device") from err
         properties = device.b01_q7_properties
-        result = await properties.send(method, json.loads(params) if params is not None else None)
+        result = await properties.send(method, json.loads(params) if params is not None else {})
         if result:
             click.echo(dump_json(result))
         else:
@@ -1861,14 +1861,14 @@ async def q7_vacuum_dock(ctx: click.Context, device_id: str) -> None:
 @click.option(
     "--segments",
     required=True,
-    help="Comma-separated room/segment ids to clean (see the `rooms` command), e.g. 9,2",
+    help="Comma-separated room/segment ids to clean, e.g. 9,2",
 )
 @click.pass_context
 @async_command
 async def q7_clean_segments(ctx: click.Context, device_id: str, segments: str) -> None:
     """Start a room / segment clean on a Q7 device.
 
-    Room ids come from the `rooms` command (the device's map rooms).
+    Room ids are the segment ids from the device's map rooms.
     """
     context: RoborockContext = ctx.obj
     try:
