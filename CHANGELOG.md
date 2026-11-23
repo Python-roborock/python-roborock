@@ -2,6 +2,49 @@
 
 <!-- version list -->
 
+## v7.29.1 (2026-11-23)
+
+### Bug Fixes
+
+- Align feature docs with runtime family fallback
+  ([#1033](https://github.com/Python-roborock/python-roborock/pull/1033),
+  [`3077c7f`](https://github.com/Python-roborock/python-roborock/commit/3077c7f81510b757af3e873d57e90847b82fe3aa))
+
+- Decode product families when generating feature docs
+  ([#1033](https://github.com/Python-roborock/python-roborock/pull/1033),
+  [`3077c7f`](https://github.com/Python-roborock/python-roborock/commit/3077c7f81510b757af3e873d57e90847b82fe3aa))
+
+- Pass an explicit TLS version to the MQTT client
+  ([#1078](https://github.com/Python-roborock/python-roborock/pull/1078),
+  [`6188f86`](https://github.com/Python-roborock/python-roborock/commit/6188f86ae5f5fcff544df16e0226dad5b4084476))
+
+- Time out local connection attempts to unreachable devices
+  ([#1077](https://github.com/Python-roborock/python-roborock/pull/1077),
+  [`be3a835`](https://github.com/Python-roborock/python-roborock/commit/be3a835f34604a34e6649dcc51febd1b3ec20336))
+
+- **v1**: Ignore water codes pushed to water-slide devices that the slider cannot name
+  ([#1067](https://github.com/Python-roborock/python-roborock/pull/1067),
+  [`f72b355`](https://github.com/Python-roborock/python-roborock/commit/f72b35541abac9881f675863d4db2315c17f3978))
+
+- **v1**: Read back status after fan or water pushes
+  ([#1067](https://github.com/Python-roborock/python-roborock/pull/1067),
+  [`f72b355`](https://github.com/Python-roborock/python-roborock/commit/f72b35541abac9881f675863d4db2315c17f3978))
+
+- **v1**: Refresh status after fan or water pushes
+  ([#1067](https://github.com/Python-roborock/python-roborock/pull/1067),
+  [`f72b355`](https://github.com/Python-roborock/python-roborock/commit/f72b35541abac9881f675863d4db2315c17f3978))
+
+- **v1**: Skip multi-map rooms without a cloud room id
+  ([#1079](https://github.com/Python-roborock/python-roborock/pull/1079),
+  [`64a7d4f`](https://github.com/Python-roborock/python-roborock/commit/64a7d4f698657c834b75dc2b0e88cb8c0ed7de92))
+
+### Documentation
+
+- **v1**: Describe pushed status updates and the status read-back
+  ([#1067](https://github.com/Python-roborock/python-roborock/pull/1067),
+  [`f72b355`](https://github.com/Python-roborock/python-roborock/commit/f72b35541abac9881f675863d4db2315c17f3978))
+
+
 ## v7.29.0 (2026-11-23)
 
 ### Features
