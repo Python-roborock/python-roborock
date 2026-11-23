@@ -3,12 +3,14 @@
 import asyncio
 import copy
 import datetime
+import ssl
 from collections.abc import Callable, Generator
 from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
 import aiomqtt
 import pytest
+from aiomqtt import TLSParameters
 
 from roborock.diagnostics import Diagnostics
 from roborock.mqtt.roborock_session import RoborockMqttSession, create_mqtt_session
@@ -559,3 +561,22 @@ async def test_session_defers_reconnect_when_idle(
         assert params.diagnostics.as_dict().get("reconnect_deferred", 0) >= 1
     finally:
         await session.close()
+
+
+@pytest.mark.parametrize(("verify_tls", "cert_reqs"), [(True, ssl.CERT_REQUIRED), (False, ssl.CERT_NONE)])
+async def test_tls_parameters(mock_aenter_client: AsyncMock, verify_tls: bool, cert_reqs: ssl.VerifyMode) -> None:
+    """TLS uses an explicit protocol, so paho-mqtt never reads ssl.PROTOCOL_TLSv1_2."""
+    client_factory = Mock()
+    client_factory.return_value.__aenter__ = mock_aenter_client
+    client_factory.return_value.__aexit__ = AsyncMock()
+    params = copy.deepcopy(FAKE_PARAMS)
+    params.tls = True
+    params.verify_tls = verify_tls
+
+    with patch("roborock.mqtt.roborock_session.aiomqtt.Client", client_factory):
+        session = await create_mqtt_session(params)
+        await session.close()
+
+    assert client_factory.call_args.kwargs["tls_params"] == TLSParameters(
+        cert_reqs=cert_reqs, tls_version=ssl.PROTOCOL_TLS_CLIENT
+    )

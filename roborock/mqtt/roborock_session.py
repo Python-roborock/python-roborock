@@ -254,7 +254,12 @@ class RoborockMqttSession(MqttSession):
         _LOGGER.debug("Connecting to %s:%s for %s", params.host, params.port, params.username)
         tls_params = None
         if params.tls:
-            tls_params = TLSParameters(cert_reqs=ssl.CERT_REQUIRED if params.verify_tls else ssl.CERT_NONE)
+            # An explicit version avoids paho-mqtt < 2.2 reading ssl.PROTOCOL_TLSv1_2,
+            # which some Python builds do not define.
+            tls_params = TLSParameters(
+                cert_reqs=ssl.CERT_REQUIRED if params.verify_tls else ssl.CERT_NONE,
+                tls_version=ssl.PROTOCOL_TLS_CLIENT,
+            )
         try:
             async with aiomqtt.Client(
                 hostname=params.host,
