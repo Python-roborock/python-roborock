@@ -497,7 +497,10 @@ def fetch_github_data(
         "-f",
         f"query={GRAPHQL_QUERY}",
     ]
-    proc = subprocess.run(cmd, check=True, capture_output=True, text=True)
+    proc = subprocess.run(cmd, check=False, capture_output=True, text=True)
+    if proc.returncode != 0:
+        detail = proc.stderr.strip() or proc.stdout.strip() or f"exit code {proc.returncode}"
+        raise RuntimeError(f"gh api graphql failed: {detail}")
     payload: dict[str, Any] = json.loads(proc.stdout)
     if payload.get("errors"):
         raise RuntimeError(f"GraphQL errors: {payload['errors']}")
