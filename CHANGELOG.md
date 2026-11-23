@@ -2,6 +2,18 @@
 
 <!-- version list -->
 
+## v7.30.0 (2026-11-23)
+
+### Features
+
+- Add Q7 remote control trait
+  ([#1039](https://github.com/Python-roborock/python-roborock/pull/1039),
+  [`42976c0`](https://github.com/Python-roborock/python-roborock/commit/42976c05254f7e86b930c8fb17db9b68b90f71b9))
+
+- Add Q7 zone cleaning ([#1039](https://github.com/Python-roborock/python-roborock/pull/1039),
+  [`42976c0`](https://github.com/Python-roborock/python-roborock/commit/42976c05254f7e86b930c8fb17db9b68b90f71b9))
+
+
 ## v7.29.1 (2026-11-23)
 
 ### Bug Fixes
