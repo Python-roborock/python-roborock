@@ -11,6 +11,8 @@ Cloud and Network.
 *   **Control**:
     *   **Vacuums (V1)**: Use `device.v1_properties` to access traits like `status` or `consumables`.
         *   Call `await trait.refresh()` to update state.
+        *   The `status` trait also updates from values the robot pushes on its own (fan power, water, state, battery). Register `device.v1_properties.status.add_update_listener(cb)` to be notified. After a pushed fan power or water change the library reads the full status back once, because water on water-slider models is pushed as a legacy level code and the mop route is never pushed.
+        *   A change of only the mop route made in the Roborock app is not pushed, so it shows up with the next `await device.v1_properties.status.refresh()`.
         *   Use `device.v1_properties.command.send()` for raw commands (start/stop).
     *   **Washers (A01)**: Use `device.dyad` or `device.zeo` for Dyad/Zeo devices.
         *   Read `api.values` for the latest known state, merged from query responses and unsolicited pushes.

@@ -1,6 +1,7 @@
 """Tests for the command line interface."""
 
 import json
+from dataclasses import fields
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, Mock
@@ -11,12 +12,127 @@ from click.testing import CliRunner
 
 from roborock.cli import ConnectionCache, DeviceConnectionManager, RoborockContext, cli
 from roborock.data import HomeDataProduct, HomeDataSchedule, RoborockCategory, UserData
+from roborock.data.code_mappings import RoborockProductNickname
+from roborock.device_features import DeviceFeatures
 from roborock.devices.device import RoborockDevice
 from roborock.devices.device_manager import DeviceManager
 from roborock.exceptions import RoborockException
 from roborock.roborock_typing import RoborockCommand
 from roborock.web_api import RoborockApiClient
 from tests.mock_data import USER_DATA, USER_EMAIL
+
+
+@pytest.mark.parametrize(
+    ("nickname_name", "short_model", "nickname_override"),
+    [
+        ("PEARLPLUS", "a87", None),
+        ("TANOS", "s6", None),
+        ("ULTRONLITE", "a73", None),
+        ("Unknown", "test", None),
+        ("", "test", None),
+        (None, "test", None),
+        ("Unknown", "s6", None),
+        ("", "s6", None),
+        (None, "s6", None),
+        ("TANOS", "test", RoborockProductNickname.TANOS),
+    ],
+)
+def test_update_docs_nickname(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    nickname_name: str | None,
+    short_model: str,
+    nickname_override: RoborockProductNickname | None,
+) -> None:
+    """Decode explicit families and use the runtime family lookup as a fallback."""
+    monkeypatch.chdir(tmp_path)
+    model = f"roborock.vacuum.{short_model}"
+    product = HomeDataProduct.from_dict(
+        {"id": "test", "name": "Test", "model": model, "category": "robot.vacuum.cleaner"}
+    )
+    data_file = tmp_path / "devices.yaml"
+    output_file = tmp_path / "features.md"
+    data_file.write_text(
+        yaml.safe_dump(
+            {
+                model: {
+                    "product_nickname": nickname_name,
+                    "new_feature_info": 16,
+                    "new_feature_info_str": "0",
+                    "feature_info": [119],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = CliRunner().invoke(cli, ["update-docs", "--data-file", str(data_file), "--output-file", str(output_file)])
+
+    assert result.exit_code == 0, result.output
+    rows = {
+        cells[0].strip("`"): cells[1]
+        for line in output_file.read_text(encoding="utf-8").splitlines()[2:]
+        if (cells := [cell.strip() for cell in line.strip("|").split("|")])
+    }
+    features = DeviceFeatures.from_feature_flags(16, "0", [119], nickname_override or product.product_nickname)
+    expected = {field.name: getattr(features, field.name) for field in fields(DeviceFeatures) if field.type is bool}
+    assert {name: rows[name] == "X" for name in expected} == expected
+    assert rows["119"] == "X"
+    assert rows["new_feature_info"] == "16"
+    assert rows["is_any_state_transit_goto_supported"] == "X"
+    assert rows["new_feature_info_str"] == "0"
+    assert "feature_info" not in rows
+
+
+def test_update_docs_protocols(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Only V1 and legacy entries without a protocol receive V1 feature flags."""
+    monkeypatch.chdir(tmp_path)
+    products = {
+        "roborock.vacuum.a87": "1.0",
+        "roborock.vacuum.legacy": "",
+        "roborock.vacuum.sc05": "B01",
+        "roborock.wm.a102": "A01",
+    }
+    data_file = tmp_path / "devices.yaml"
+    output_file = tmp_path / "features.md"
+    data_file.write_text(
+        yaml.safe_dump(
+            {model: {"protocol_version": protocol, "new_feature_info": 16} for model, protocol in products.items()}
+        ),
+        encoding="utf-8",
+    )
+
+    result = CliRunner().invoke(cli, ["update-docs", "--data-file", str(data_file), "--output-file", str(output_file)])
+
+    assert result.exit_code == 0, result.output
+    header, _, *table_rows = output_file.read_text(encoding="utf-8").splitlines()
+    assert [cell.strip() for cell in header.strip("|").split("|")] == ["Feature", *products]
+    rows = {
+        cells[0].strip("`"): cells[1:]
+        for line in table_rows
+        if (cells := [cell.strip() for cell in line.strip("|").split("|")])
+    }
+    assert rows["protocol_version"] == list(products.values())
+    assert rows["new_feature_info"] == ["16"] * len(products)
+    assert rows["is_any_state_transit_goto_supported"] == ["X", "X", "", ""]
+
+
+def test_update_docs_invalid_nickname(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A misspelled family is reported rather than silently losing capabilities."""
+    monkeypatch.chdir(tmp_path)
+    data_file = tmp_path / "devices.yaml"
+    output_file = tmp_path / "features.md"
+    data_file.write_text(
+        yaml.safe_dump({"roborock.vacuum.test": {"product_nickname": "PEARLPLUSS_TYPO"}}),
+        encoding="utf-8",
+    )
+
+    result = CliRunner().invoke(cli, ["update-docs", "--data-file", str(data_file), "--output-file", str(output_file)])
+
+    assert result.exit_code != 0
+    assert "PEARLPLUSS_TYPO" in result.output
+    assert "roborock.vacuum.test" in result.output
+    assert not output_file.exists()
 
 
 @pytest.fixture(autouse=True)
