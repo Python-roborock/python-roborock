@@ -2,6 +2,21 @@
 
 <!-- version list -->
 
+## v7.31.1 (2026-11-24)
+
+### Bug Fixes
+
+- Surface gh stderr on GraphQL failure in pr-triage CLI
+  ([#1082](https://github.com/Python-roborock/python-roborock/pull/1082),
+  [`005152d`](https://github.com/Python-roborock/python-roborock/commit/005152d3e2b7df696eac2167855a5a84d2d6b2bd))
+
+### Documentation
+
+- Document map-edit, customised clean, timer and retry commands
+  ([#1035](https://github.com/Python-roborock/python-roborock/pull/1035),
+  [`6111aed`](https://github.com/Python-roborock/python-roborock/commit/6111aed243862753352d0b3e82a30d09b0a5fb44))
+
+
 ## v7.31.0 (2026-11-23)
 
 ### Chores
