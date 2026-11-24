@@ -1,0 +1,57 @@
+V1:
+  - changed-files:
+      - any-glob-to-any-file:
+          - roborock/**/v1/**
+          - roborock/**/v1_*.py
+          - tests/**/v1/**
+          - tests/**/test_v1_*.py
+
+Q10:
+  - changed-files:
+      - any-glob-to-any-file:
+          - roborock/**/*q10*/**
+          - roborock/**/*q10*
+          - tests/**/*q10*/**
+          - tests/**/*q10*
+
+Q7:
+  - changed-files:
+      - any-glob-to-any-file:
+          - roborock/**/*q7*/**
+          - roborock/**/*q7*
+          - roborock/map/b01_map_parser.py
+          - roborock/map/proto/b01_scmap*
+          - tests/**/*q7*/**
+          - tests/**/*q7*
+
+A01:
+  - changed-files:
+      - any-glob-to-any-file:
+          - roborock/**/{a01,dyad,zeo}/**
+          - roborock/**/*{a01,dyad,zeo}*
+          - tests/**/{a01,dyad,zeo}/**
+          - tests/**/*{a01,dyad,zeo}*
+
+Mower:
+  - changed-files:
+      - any-glob-to-any-file:
+          - roborock/**/mower/**
+          - roborock/**/*mower*
+          - tests/**/mower/**
+          - tests/**/*mower*
+
+Data model changes:
+  - changed-files:
+      - any-glob-to-any-file:
+          - roborock/data/**
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - docs/**
+          - "**/*.md"
+
+github_actions:
+  - changed-files:
+      - any-glob-to-any-file:
+          - .github/**
