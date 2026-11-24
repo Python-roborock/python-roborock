@@ -2,63 +2,13 @@ name: PR Labeler
 
 on:
   pull_request_target:
-    types: [opened, synchronize, reopened, edited]
-
-permissions:
-  contents: read
-  pull-requests: write
-
-concurrency:
-  group: labeler-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+    types: [opened, synchronize, reopened]
 
 jobs:
-  label:
-    name: Label PR
+  labeler:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
-      - name: Apply path-based labels
-        uses: actions/labeler@v7
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Apply size and conventional commit labels
-        uses: actions/github-script@v9
-        with:
-          script: |
-            const pr = context.payload.pull_request;
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
-            const issue_number = pr.number;
-
-            const existing = new Set((pr.labels || []).map((l) => l.name));
-            const toAdd = [];
-
-            const totalChanges = (pr.additions || 0) + (pr.deletions || 0);
-            const isSmall = totalChanges < 200;
-            if (isSmall && !existing.has("Small PR")) {
-              toAdd.push("Small PR");
-            } else if (!isSmall && existing.has("Small PR")) {
-              await github.rest.issues.removeLabel({
-                owner,
-                repo,
-                issue_number,
-                name: "Small PR",
-              });
-            }
-
-            const title = pr.title || "";
-            if (/^feat(\(.+\))?!?:/i.test(title) && !existing.has("Feature")) {
-              toAdd.push("Feature");
-            } else if (/^fix(\(.+\))?!?:/i.test(title) && !existing.has("bug")) {
-              toAdd.push("bug");
-            }
-
-            if (toAdd.length > 0) {
-              await github.rest.issues.addLabels({
-                owner,
-                repo,
-                issue_number,
-                labels: toAdd,
-              });
-            }
+      - uses: actions/labeler@bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13 # v7.0.0
