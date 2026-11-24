@@ -374,9 +374,9 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
         return "ok"
 
     def _handle_set_carpet_clean_mode(self, params: Any) -> str:
-        self.carpet_clean_mode = params[0]
-        # The robot drops cross-carpet when the clean mode is set to avoid
-        if self.carpet_clean_mode == 0:
+        self.carpet_clean_mode = params["carpet_clean_mode"]
+        # The robot drops cross-carpet on avoid and vac & mop (Saros 10R)
+        if self.carpet_clean_mode in (0, 2):
             self.switch_status &= ~_SWITCH_CROSS_CARPET
         return "ok"
 

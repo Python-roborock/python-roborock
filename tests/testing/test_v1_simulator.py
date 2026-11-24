@@ -466,15 +466,15 @@ async def test_simulator_carpet_commands() -> None:
 
     assert await send("get_carpet_clean_mode") == [{"carpet_clean_mode": 0}]
 
-    await send("set_carpet_clean_mode", [3])
+    await send("set_carpet_clean_mode", {"carpet_clean_mode": 3})
     await send("app_set_cross_carpet_cleaning_status", {"status": 1})
     assert await send("get_carpet_clean_mode") == [{"carpet_clean_mode": 3}]
     assert (await send("get_prop", ["get_status"]))[0]["switch_status"] == 0x20
 
-    # Like the robot, choosing the avoid mode drops the cross flag
-    await send("set_carpet_clean_mode", [0])
+    # Like the robot, choosing the avoid or vac & mop mode drops the cross flag
+    await send("set_carpet_clean_mode", {"carpet_clean_mode": 0})
     assert sim.switch_status == 0
 
     await send("app_set_cross_carpet_cleaning_status", {"status": 1})
-    await send("app_set_cross_carpet_cleaning_status", {"status": 0})
+    await send("set_carpet_clean_mode", {"carpet_clean_mode": 2})
     assert sim.switch_status == 0

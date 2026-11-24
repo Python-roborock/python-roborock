@@ -7,7 +7,7 @@ from roborock.data import RoborockBase
 from roborock.data.v1 import CarpetCleanMode, CarpetMode, SwitchStatus
 from roborock.devices.traits.v1 import common
 from roborock.devices.traits.v1.device_features import DeviceFeaturesTrait
-from roborock.exceptions import RoborockException, RoborockParsingException
+from roborock.exceptions import RoborockException, RoborockParsingException, RoborockUnsupportedFeature
 from roborock.roborock_typing import RoborockCommand
 
 _LOGGER = logging.getLogger(__name__)
@@ -23,7 +23,7 @@ class CarpetCleanModeState(RoborockBase):
 
 
 class CarpetCleanModeTrait(CarpetCleanModeState, common.V1TraitMixin):
-    """Trait for reading how the robot treats carpets."""
+    """Trait for reading and setting the carpet clean mode."""
 
     command = RoborockCommand.GET_CARPET_CLEAN_MODE
     requires_feature = "is_carpet_clean_mode_supported"
@@ -79,3 +79,39 @@ class CarpetCleanModeTrait(CarpetCleanModeState, common.V1TraitMixin):
             return
         self.carpet_first = switch_status.carpet_first
         self.cross_carpet = switch_status.cross_carpet
+
+    async def set_mode(self, mode: CarpetMode) -> None:
+        """Set the carpet mode and refresh the state.
+
+        Only the mode and the cross flag are written; carpet boost and deep clean are left as they are.
+        Raises RoborockUnsupportedFeature if the robot does not offer the mode.
+        """
+        if mode not in self.options:
+            raise RoborockUnsupportedFeature(f"Carpet mode {mode} is not supported by this device")
+        features = self._device_features
+        if mode is CarpetMode.CROSS:
+            await self._set_cross(True)
+        elif mode is CarpetMode.VACUUM_ONLY:
+            adaption = (
+                CarpetCleanMode.dynamic_adaption
+                if features.is_dynamic_adaption_carpet_supported
+                else CarpetCleanMode.self_adaption
+            )
+            await self._set_clean_mode(adaption)
+            # Mode 3 leaves cross on (Saros 10R), so clear it.
+            if features.is_carpet_custom_clean_supported:
+                await self._set_cross(False)
+        else:
+            clean_mode = CarpetCleanMode.avoid if mode is CarpetMode.AVOID else CarpetCleanMode.vac_and_mop
+            await self._set_clean_mode(clean_mode)
+        await self.refresh()
+
+    async def _set_clean_mode(self, clean_mode: CarpetCleanMode) -> None:
+        await self.rpc_channel.send_command(
+            RoborockCommand.SET_CARPET_CLEAN_MODE, params={"carpet_clean_mode": clean_mode.value}
+        )
+
+    async def _set_cross(self, enabled: bool) -> None:
+        await self.rpc_channel.send_command(
+            RoborockCommand.APP_SET_CROSS_CARPET_CLEANING_STATUS, params={"status": int(enabled)}
+        )
