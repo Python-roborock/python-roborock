@@ -75,8 +75,18 @@ def test_update_docs_nickname(
         if (cells := [cell.strip() for cell in line.strip("|").split("|")])
     }
     features = DeviceFeatures.from_feature_flags(16, "0", [119], nickname_override or product.product_nickname)
-    expected = {field.name: getattr(features, field.name) for field in fields(DeviceFeatures) if field.type is bool}
+    region_derived = {
+        "is_self_adaption_carpet_supported",
+        "is_dynamic_adaption_carpet_supported",
+        "is_carpet_clean_mode_supported",
+    }
+    expected = {
+        field.name: getattr(features, field.name)
+        for field in fields(DeviceFeatures)
+        if field.type is bool and field.name not in region_derived
+    }
     assert {name: rows[name] == "X" for name in expected} == expected
+    assert region_derived.isdisjoint(rows)
     assert rows["119"] == "X"
     assert rows["new_feature_info"] == "16"
     assert rows["is_any_state_transit_goto_supported"] == "X"

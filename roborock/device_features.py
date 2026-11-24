@@ -5,7 +5,7 @@ from typing import Any, Self
 
 from roborock.data.code_mappings import RoborockProductNickname
 from roborock.data.containers import RoborockBase, _decamelize
-from roborock.data.v1 import RoborockDockTypeCode
+from roborock.data.v1 import RoborockDockTypeCode, carpet_adaption_support, carpet_clean_mode_support
 
 
 class NewFeatureStrBit(IntEnum):
@@ -592,6 +592,11 @@ class DeviceFeatures(RoborockBase):
         metadata={"product_features": [ProductFeatures.MOP_SHAKE_MODULE, ProductFeatures.MOP_SPIN_MODULE]}
     )
 
+    # Derived from the region, model and carpet support bits
+    is_self_adaption_carpet_supported: bool
+    is_dynamic_adaption_carpet_supported: bool
+    is_carpet_clean_mode_supported: bool
+
     # Raw feature info values from get_init_status for diagnostics
     new_feature_info: int = field(default=0, repr=False)
     new_feature_info_str: str = field(default="", repr=False)
@@ -604,12 +609,14 @@ class DeviceFeatures(RoborockBase):
         new_feature_info_str: str,
         feature_info: list[int],
         product_nickname: RoborockProductNickname | None,
+        location: str | None = None,
     ) -> Self:
         """Creates a DeviceFeatures instance from raw feature flags.
         :param new_feature_info: A int from get_init_status (sometimes can be found in homedata, but it is not always)
         :param new_feature_info_str: A hex string from get_init_status or home_data.
         :param feature_info: A list of ints from get_init_status
-        :param product_nickname: The product nickname of the device."""
+        :param product_nickname: The product nickname of the device.
+        :param location: The region code from get_init_status local_info (for example "us" or "de")."""
         # For any future reverse engineerining:
         # RobotNewFeatures = new_feature_info
         # newFeatureInfoStr = new_feature_info_str
@@ -686,6 +693,13 @@ class DeviceFeatures(RoborockBase):
         # roller mop like one for water modes and customized cleaning.
         kwargs["is_support_water_mode"] |= kwargs["is_roller_mop_supported"]
         kwargs["is_customized_clean_supported"] |= kwargs["is_roller_mop_supported"]
+
+        kwargs["is_self_adaption_carpet_supported"], kwargs["is_dynamic_adaption_carpet_supported"] = (
+            carpet_adaption_support(location, product_nickname, kwargs["is_carpet_deep_clean_supported"])
+        )
+        kwargs["is_carpet_clean_mode_supported"] = carpet_clean_mode_support(
+            location, product_nickname, kwargs["is_carpet_supported"]
+        )
 
         return cls(**kwargs)
 

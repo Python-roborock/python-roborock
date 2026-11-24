@@ -535,3 +535,39 @@ def test_device_features_from_home_data(
     )
     feature_dict = {k: v for k, v in asdict(device_features).items() if isinstance(v, bool)}
     assert feature_dict == snapshot
+
+
+@pytest.mark.parametrize(
+    ("location", "expected"),
+    [("de", (False, True)), (None, (True, False))],
+)
+def test_carpet_adaption_features_from_feature_flags(location: str | None, expected: tuple[bool, bool]) -> None:
+    """The Saros 10R in the CE region has dynamic but no self carpet adaption."""
+    device, product = mock_data.DEVICE_PRODUCT_PAIRS["home_data_device_saros_10r.json"]
+    device_features = DeviceFeatures.from_feature_flags(
+        new_feature_info=int(device.feature_set or "0"),
+        new_feature_info_str=device.new_feature_set or "",
+        feature_info=[],
+        product_nickname=product.product_nickname,
+        location=location,
+    )
+
+    assert (
+        device_features.is_self_adaption_carpet_supported,
+        device_features.is_dynamic_adaption_carpet_supported,
+    ) == expected
+
+
+@pytest.mark.parametrize(("location", "expected"), [("us", False), ("de", True), (None, True)])
+def test_carpet_clean_mode_feature_from_feature_flags(location: str | None, expected: bool) -> None:
+    """The TanosSLite in the US has carpet support but no carpet settings."""
+    device_features = DeviceFeatures.from_feature_flags(
+        new_feature_info=512,
+        new_feature_info_str="",
+        feature_info=[],
+        product_nickname=RoborockProductNickname.TANOSSLITE,
+        location=location,
+    )
+
+    assert device_features.is_carpet_supported
+    assert device_features.is_carpet_clean_mode_supported is expected

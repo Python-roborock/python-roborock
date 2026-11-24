@@ -48,6 +48,7 @@ class DeviceTraitsConverter(common.V1TraitDataConverter):
             new_feature_info_str=app_status.new_feature_info_str,
             feature_info=app_status.feature_info,
             product_nickname=self._product.product_nickname,
+            location=app_status.local_info.location,
         )
 
 
