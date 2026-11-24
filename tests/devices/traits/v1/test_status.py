@@ -1207,6 +1207,18 @@ async def test_close_cancels_pending_read_back(status_trait: StatusTrait, read_b
     status_trait.refresh_and_notify.assert_not_awaited()  # type: ignore[attr-defined]
 
 
+async def test_properties_api_close_cancels_pending_read_back(
+    device: RoborockDevice, status_trait: StatusTrait, read_back: asyncio.Event
+) -> None:
+    """Closing the properties API stops a read-back that a push scheduled."""
+    assert device.v1_properties
+    status_trait.update_from_dps({RoborockDataProtocol.FAN_POWER: 101})
+    device.v1_properties.close()
+
+    await asyncio.sleep(READ_BACK_SETTLE)
+    status_trait.refresh_and_notify.assert_not_awaited()  # type: ignore[attr-defined]
+
+
 async def test_close_cancels_in_flight_read_back(status_trait: StatusTrait, read_back: asyncio.Event) -> None:
     """Closing while a read-back is running cancels it."""
     started = asyncio.Event()
