@@ -1482,6 +1482,11 @@ Other capabilities depend only on the code:
 **Docks:** Pearl, Couple, Hera, Shell (except Shell 4R), K1 and F-series docks; none of the O-series docks.
 **Description:** The dock has a carousel (wash tray strainer) that the app shows as a consumable.
 
+### is_strainer_supported
+**Also enabled by:** `is_clean_carousel_supported`, `is_only_x_series`
+**Docks:** Carousel docks and O-series docks; not Shell 4R.
+**Description:** The dock has a wash tray strainer. It gates `Consumable.strainer_work_times`.
+
 ### is_special_support_wash_temp
 **Docks:** Shell 2E Lite
 **Description:** Dock part of the app's check of the same name. The app also checks the product: it is true for every

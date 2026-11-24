@@ -45,8 +45,8 @@ class ConsumableAttribute(StrEnum):
 class ConsumableTrait(Consumable, common.V1TraitMixin, TraitUpdateListener):
     """Trait for managing consumable attributes on Roborock devices.
 
-    After the first refresh, you can tell what consumables are supported by
-    checking which attributes are not None.
+    Use `DeviceFeaturesTrait.is_field_supported` to check whether the device
+    supports a consumable listed in `ConsumableField`.
     """
 
     command = RoborockCommand.GET_CONSUMABLE

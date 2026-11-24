@@ -1020,6 +1020,11 @@ class RoborockDockFeatures:
         return self.is_only_x_series
 
     @property
+    def is_strainer_supported(self) -> bool:
+        """Whether the dock has a wash tray strainer: a carousel dock or an O-series dock."""
+        return self.is_clean_carousel_supported or self.is_only_x_series
+
+    @property
     def is_clean_fluid_auto_delivery_supported(self) -> bool:
         return self.dock_type in _CLEAN_FLUID_AUTO_DELIVERY_DOCK_TYPES or self._matches_am_variant(
             _CLEAN_FLUID_AUTO_DELIVERY_AM_DOCK_TYPES
