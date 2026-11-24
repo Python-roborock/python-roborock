@@ -2,6 +2,21 @@
 
 <!-- version list -->
 
+## v7.32.0 (2026-11-24)
+
+### Chores
+
+- **v1**: Drop the duplicate status read-back close test
+  ([#1085](https://github.com/Python-roborock/python-roborock/pull/1085),
+  [`2e1cf1f`](https://github.com/Python-roborock/python-roborock/commit/2e1cf1fa9a2c007fe76e1f1b87dfc8c17c790061))
+
+### Features
+
+- **v1**: Add dock strainer and cleaning brush consumable fields
+  ([#1088](https://github.com/Python-roborock/python-roborock/pull/1088),
+  [`ab8f122`](https://github.com/Python-roborock/python-roborock/commit/ab8f122c5a750e247e679b69eab99ef3873d7cdb))
+
+
 ## v7.31.1 (2026-11-24)
 
 ### Bug Fixes
