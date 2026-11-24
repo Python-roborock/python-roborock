@@ -50,6 +50,8 @@ from roborock.util import get_next_int
 
 _LOGGER = logging.getLogger(__name__)
 
+_SWITCH_CROSS_CARPET = 0x20
+
 
 def _serialize_dataclass(obj: Any) -> dict[str, Any]:
     """Helper to convert dataclass instances to dictionaries with serialized enums and filtered Nones."""
@@ -236,6 +238,8 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
         self.last_clean_record = last_clean_record or replace(DEFAULT_LAST_CLEAN_RECORD)
         self.custom_handlers = custom_handlers or {}
         self.dust_collection_mode = RoborockDockDustCollectionModeCode.balanced
+        self.carpet_clean_mode = 0
+        self.switch_status = 0
 
         # Set up default handlers dictionary
         self.default_handlers: dict[str, Callable[[Any], Any]] = {
@@ -248,6 +252,10 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
             "app_stop": self._handle_app_stop,
             "app_charge": self._handle_app_charge,
             "set_custom_mode": self._handle_set_custom_mode,
+            "get_carpet_clean_mode": lambda params: [{"carpet_clean_mode": self.carpet_clean_mode}],
+            "get_prop": lambda params: [{**self.get_status_dict(), "switch_status": self.switch_status}],
+            "set_carpet_clean_mode": self._handle_set_carpet_clean_mode,
+            "app_set_cross_carpet_cleaning_status": self._handle_set_cross_carpet,
             "set_mop_mode": self._handle_set_mop_mode,
             "set_water_box_custom_mode": self._handle_set_water_box_custom_mode,
             "reset_consumable": self._handle_reset_consumable,
@@ -363,6 +371,20 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
 
     def _handle_app_stop_collect_dust(self, params: Any) -> str:
         self.status.state = RoborockStateCode.charging
+        return "ok"
+
+    def _handle_set_carpet_clean_mode(self, params: Any) -> str:
+        self.carpet_clean_mode = params[0]
+        # The robot drops cross-carpet when the clean mode is set to avoid
+        if self.carpet_clean_mode == 0:
+            self.switch_status &= ~_SWITCH_CROSS_CARPET
+        return "ok"
+
+    def _handle_set_cross_carpet(self, params: Any) -> str:
+        if params["status"]:
+            self.switch_status |= _SWITCH_CROSS_CARPET
+        else:
+            self.switch_status &= ~_SWITCH_CROSS_CARPET
         return "ok"
 
     def _handle_reset_consumable(self, params: Any) -> str:

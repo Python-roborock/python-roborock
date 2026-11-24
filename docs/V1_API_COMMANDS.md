@@ -707,13 +707,15 @@ Parameters:
 
 ### get_carpet_clean_mode
 
-Description: Get carpet clean mode.
+Description: Get carpet clean mode. The carpet first (0x08) and cross carpet (0x20) bits are not here, they are in
+`switch_status` of [get_prop](#get_prop).
 
 Parameters:
 
 Returns:
 
-    carpet_clean_mode: Enumeration for carpet clean mode.
+    carpet_clean_mode: 0 avoid, 1 self adaption, 2 vacuum and mop, 3 dynamic adaption (1 and 3 are
+        "vacuum only" in the app).
 
 Return example:
 
@@ -1637,6 +1639,9 @@ Example:
 
 
 Comment : This example returns the same as get_status. Initial testing has shown that not all get commands are supported by this method
+
+With `["get_status"]` it returns the status plus `switch_status`, which plain `get_status` lacks. Bit 0x08 is
+carpet first and 0x20 is cross carpet.
 
 
 ### get_turn_server

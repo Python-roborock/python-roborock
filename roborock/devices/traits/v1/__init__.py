@@ -76,6 +76,7 @@ from roborock.web_api import UserWebApiClient
 
 from . import (
     camera,
+    carpet_clean_mode,
     child_lock,
     clean_summary,
     collision_avoidance,
@@ -104,6 +105,7 @@ from . import (
     wash_towel_mode,
 )
 from .camera import CameraTrait
+from .carpet_clean_mode import CarpetCleanModeTrait
 from .child_lock import ChildLockTrait
 from .clean_summary import CleanSummaryTrait
 from .collision_avoidance import CollisionAvoidanceModeTrait, CollisionAvoidanceTrait
@@ -136,6 +138,7 @@ _LOGGER = logging.getLogger(__name__)
 __all__ = [
     "PropertiesApi",
     "camera",
+    "carpet_clean_mode",
     "child_lock",
     "clean_summary",
     "collision_avoidance",
@@ -202,6 +205,7 @@ class PropertiesApi(Trait):
     obstacle_photos: ObstaclePhotoTrait | None = None
     mop_dryer: MopDryerTrait | None = None
     customize_clean_mode: CustomizeCleanModeTrait | None = None
+    carpet_clean_mode: CarpetCleanModeTrait | None = None
 
     def __init__(
         self,
@@ -335,6 +339,13 @@ class PropertiesApi(Trait):
             collision_avoidance = CollisionAvoidanceTrait()
             collision_avoidance._rpc_channel = self._get_rpc_channel(collision_avoidance)
             self.collision_avoidance = collision_avoidance
+
+        if self.carpet_clean_mode is None and self._is_supported(
+            CarpetCleanModeTrait, "carpet_clean_mode", dock_features
+        ):
+            carpet_clean_mode = CarpetCleanModeTrait(self.device_features)
+            carpet_clean_mode._rpc_channel = self._get_rpc_channel(carpet_clean_mode)  # type: ignore[assignment]
+            self.carpet_clean_mode = carpet_clean_mode
 
         if self.obstacle_photos is None and self._is_supported(ObstaclePhotoTrait, "obstacle_photos", dock_features):
             obstacle_photos = ObstaclePhotoTrait(self._rpc_channel)
