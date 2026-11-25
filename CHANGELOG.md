@@ -2,6 +2,29 @@
 
 <!-- version list -->
 
+## v7.34.0 (2026-11-25)
+
+### Chores
+
+- Add automated PR labeling workflow
+  ([#1091](https://github.com/Python-roborock/python-roborock/pull/1091),
+  [`dfb8159`](https://github.com/Python-roborock/python-roborock/commit/dfb8159c5310a1d317c512b381f2ef097a287896))
+
+- Simplify labeler workflow to actions/labeler only
+  ([#1091](https://github.com/Python-roborock/python-roborock/pull/1091),
+  [`dfb8159`](https://github.com/Python-roborock/python-roborock/commit/dfb8159c5310a1d317c512b381f2ef097a287896))
+
+- Use major version tag for actions/labeler
+  ([#1091](https://github.com/Python-roborock/python-roborock/pull/1091),
+  [`dfb8159`](https://github.com/Python-roborock/python-roborock/commit/dfb8159c5310a1d317c512b381f2ef097a287896))
+
+### Features
+
+- **v1**: Generalize segment clean mode updates and preserve existing settings
+  ([#1050](https://github.com/Python-roborock/python-roborock/pull/1050),
+  [`2a051f2`](https://github.com/Python-roborock/python-roborock/commit/2a051f230faaefbf1c36e338ec0ba29de614b48d))
+
+
 ## v7.33.0 (2026-11-25)
 
 ### Features
