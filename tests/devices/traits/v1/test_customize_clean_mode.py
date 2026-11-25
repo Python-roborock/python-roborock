@@ -230,6 +230,36 @@ async def test_set_clean_then_mop_accepts_typed_modes(
 
 
 @pytest.mark.parametrize("device_info", [SAROS_10R])
+async def test_set_clean_then_mop_sends_wire_code_for_off(
+    customize_clean_mode_trait: CustomizeCleanModeTrait | None,
+    mock_rpc_channel: AsyncMock,
+    device_info: HomeDataDevice,
+) -> None:
+    """VacuumModes.OFF must send the shared wire code 105, not its enum code."""
+    assert customize_clean_mode_trait is not None
+    mock_rpc_channel.send_command.side_effect = [CUSTOMIZE_CLEAN_MODE_DATA, "ok", CUSTOMIZE_CLEAN_MODE_DATA]
+
+    await customize_clean_mode_trait.set_clean_then_mop(
+        7,
+        True,
+        fan_power=VacuumModes.OFF,
+        water_box_mode=WaterModes.HIGH,
+        mop_mode=CleanRoutes.DEEP,
+    )
+    sent_params = mock_rpc_channel.send_command.mock_calls[1].kwargs["params"]
+    segment_7 = next(entry for entry in sent_params if entry["segment"] == 7)
+    assert segment_7 == {
+        "segment": 7,
+        # 105 is the wire code shared by VacuumModes.OFF and VacuumModes.GENTLE.
+        "fan_power": 105,
+        "water_box_mode": WaterModes.HIGH.code,
+        "mop_mode": CleanRoutes.DEEP.code,
+        "repeat": 1,
+        "seq_type": 1,
+    }
+
+
+@pytest.mark.parametrize("device_info", [SAROS_10R])
 async def test_set_clean_then_mop_preserves_other_rooms(
     customize_clean_mode_trait: CustomizeCleanModeTrait | None,
     mock_rpc_channel: AsyncMock,

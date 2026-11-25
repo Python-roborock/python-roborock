@@ -22,6 +22,7 @@ from roborock import (
     get_water_modes,
     get_water_slide_mode_name,
     resolve_cleaning_mode,
+    vacuum_mode_wire_code,
 )
 from roborock.devices.traits.common import DpsDataConverter, TraitUpdateListener
 from roborock.exceptions import RoborockException
@@ -135,7 +136,9 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
 
     @cached_property
     def fan_speed_mapping(self) -> dict[int, str]:
-        return {fan.code: fan.value for fan in self.fan_speed_options}
+        # Keyed by wire code: OFF shares its wire code (105) with GENTLE,
+        # so the mapping must use the code the device actually reports.
+        return {vacuum_mode_wire_code(fan): fan.value for fan in self.fan_speed_options}
 
     @cached_property
     def water_mode_options(self) -> list[WaterModes]:
