@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from functools import cached_property
 from typing import Any
@@ -23,6 +24,7 @@ from roborock import (
     resolve_cleaning_mode,
 )
 from roborock.devices.traits.common import DpsDataConverter, TraitUpdateListener
+from roborock.exceptions import RoborockException
 from roborock.roborock_message import RoborockDataProtocol
 from roborock.roborock_typing import RoborockCommand
 
@@ -32,6 +34,36 @@ from .device_features import DeviceFeaturesTrait
 _LOGGER = logging.getLogger(__name__)
 
 _DPS_CONVERTER = DpsDataConverter.from_dataclass(StatusV2)
+
+# Delay before reading status back after a fan power or water mode push. The
+# robot never pushes the mop mode, so a read-back is needed to get it right.
+_STATUS_REFRESH_DELAY = 1.0
+
+# Non-slider codes that water-slide devices report as valid (custom and smart mode).
+_WATER_MODE_CODES_KEPT = frozenset({WaterModes.CUSTOMIZED.code, WaterModes.SMART_MODE.code})
+
+
+def _drop_unresolvable_water_level(decoded_dps: dict[RoborockDataProtocol, Any]) -> dict[RoborockDataProtocol, Any]:
+    """Return the pushed data without a water code a water-slide device cannot name.
+
+    Water-slide devices push legacy codes (201-203, 208) that get_status never
+    returns. Only slider codes, off, smart water, smart mode and custom are kept.
+    """
+    if RoborockDataProtocol.WATER_BOX_MODE not in decoded_dps:
+        return decoded_dps
+    # The pushed value is raw JSON, so narrow it to an integer before resolving it.
+    raw = decoded_dps[RoborockDataProtocol.WATER_BOX_MODE]
+    code: int | None = None
+    if isinstance(raw, int) and not isinstance(raw, bool):
+        code = raw
+    elif isinstance(raw, str):
+        try:
+            code = int(raw)
+        except ValueError:
+            code = None
+    if code is not None and (code in _WATER_MODE_CODES_KEPT or get_water_slide_mode_name(code) is not None):
+        return decoded_dps
+    return {key: value for key, value in decoded_dps.items() if key != RoborockDataProtocol.WATER_BOX_MODE}
 
 
 class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
@@ -69,6 +101,18 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
         TraitUpdateListener.__init__(self, logger=_LOGGER)
         self._device_features_trait = device_feature_trait
         self._region = region
+        # A single task serializes the status read-backs after pushes; the flag
+        # records that a push still needs one. The task reference is kept so it
+        # is not garbage collected and can be cancelled in close().
+        self._status_refresh_needed = False
+        self._status_refresh_task: asyncio.Task[None] | None = None
+
+    def close(self) -> None:
+        """Cancel any pending or running status read-back."""
+        self._status_refresh_needed = False
+        if self._status_refresh_task:
+            self._status_refresh_task.cancel()
+            self._status_refresh_task = None
 
     @property
     def dock_state(self) -> RoborockDockState:
@@ -178,6 +222,48 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
 
         This handles unsolicited status updates pushed by the device
         via RoborockDataProtocol codes (e.g. STATE=121, BATTERY=122).
+
+        A push of the fan power or water mode also schedules a debounced status
+        read-back, since the device never pushes the mop mode. This needs a
+        running event loop.
         """
+        # Decide on the raw push, before the water code filter below rebinds it.
+        needs_read_back = (
+            RoborockDataProtocol.FAN_POWER in decoded_dps or RoborockDataProtocol.WATER_BOX_MODE in decoded_dps
+        )
+        # Water-slide devices push legacy codes (e.g. 201-203, 208) while get_status
+        # returns slider codes, so a pushed legacy code would overwrite the real value.
+        if self._device_features_trait.is_water_slide_mode_supported:
+            decoded_dps = _drop_unresolvable_water_level(decoded_dps)
         if _DPS_CONVERTER.update_from_dps(self, decoded_dps):
+            self._notify_update()
+        if needs_read_back:
+            self._schedule_status_refresh()
+
+    def _schedule_status_refresh(self) -> None:
+        """Request a debounced status read-back, starting the worker if it is idle."""
+        self._status_refresh_needed = True
+        # At most one read-back per delay window, and never two at once.
+        if self._status_refresh_task and not self._status_refresh_task.done():
+            return
+        # Look up the loop first so a missing loop raises before a coroutine is created.
+        loop = asyncio.get_running_loop()
+        self._status_refresh_task = loop.create_task(self._refresh_status_after_push())
+
+    async def _refresh_status_after_push(self) -> None:
+        """Read status back after a short delay to pick up values that are not pushed."""
+        while self._status_refresh_needed:
+            await asyncio.sleep(_STATUS_REFRESH_DELAY)
+            # Clear before reading so a push during the read-back requests another one.
+            self._status_refresh_needed = False
+            try:
+                await self.refresh_and_notify()
+            except RoborockException as err:
+                _LOGGER.warning("Failed to refresh status after a push: %s", err)
+
+    async def refresh_and_notify(self) -> None:
+        """Refresh the status and notify update listeners if any value changed."""
+        before = self.as_dict()
+        await self.refresh()
+        if self.as_dict() != before:
             self._notify_update()

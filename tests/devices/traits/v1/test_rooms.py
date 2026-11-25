@@ -234,3 +234,12 @@ async def test_refresh_shared_room_names_use_shared_device_rooms(
     ]
     web_api_client.get_shared_device_rooms.assert_called_once_with(rooms_trait._device_uid)
     web_api_client.get_rooms.assert_not_called()
+
+
+async def test_clean_segments(rooms_trait: RoomsTrait, mock_rpc_channel: AsyncMock) -> None:
+    """Test starting a segment clean."""
+    await rooms_trait.clean_segments([17, 19])
+
+    mock_rpc_channel.send_command.assert_called_once_with(
+        RoborockCommand.APP_SEGMENT_CLEAN, params=[{"segments": [17, 19]}]
+    )

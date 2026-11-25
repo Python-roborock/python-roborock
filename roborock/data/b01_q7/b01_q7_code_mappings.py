@@ -77,6 +77,21 @@ class SCDeviceCleanParam(RoborockModeEnum):
     PAUSE = ("pause", 2)
 
 
+class Q7RemoteDirection(RoborockModeEnum):
+    """Direction codes for ``service.set_direction`` (remote / manual control).
+
+    Verified live on a Q7 (sc05): the robot must first be in manual mode
+    (``prop.set sweep_type=5`` -> ``work_mode`` 2). Each command moves the robot
+    for a short burst, so callers repeat it while a direction is held. Code 0
+    leaves manual mode.
+    """
+
+    EXIT = ("exit", 0)
+    FORWARD = ("forward", 1)
+    LEFT = ("left", 2)
+    RIGHT = ("right", 3)
+
+
 class WorkModeMapping(RoborockModeEnum):
     """Maps the detailed work modes of the robot."""
 
@@ -205,8 +220,9 @@ class B01Fault(RoborockModeEnum):
     )  # Docking error. Put the robot on the dock. Clear obstacles around the dock, clean charging contacts, and put
     # the robot on the dock.
     F_512 = (
-        "docking_error",
+        "docking_error_512",
         512,
+        "docking_error",
     )  # Docking error. Put the robot on the dock. Clear obstacles around the dock, clean charging contacts, and put
     # the robot on the dock.
     F_513 = (
@@ -214,14 +230,16 @@ class B01Fault(RoborockModeEnum):
         513,
     )  # Robot trapped. Move the robot away and restart. Clear obstacles around robot or move robot away and restart.
     F_514 = (
-        "robot_trapped",
+        "robot_trapped_514",
         514,
+        "robot_trapped",
     )  # Robot trapped. Move the robot away and restart. Clear obstacles around robot or move robot away and restart.
     F_515 = ("fault_515", 515)
     F_517 = ("fault_517", 517)
     F_518 = (
-        "low_battery",
+        "low_battery_518",
         518,
+        "low_battery",
     )  # Low battery. Recharge now. Battery low. Put the robot on the dock to charge it to 20% before starting.
     F_519 = ("fault_519", 519)
     F_520 = ("fault_520", 520)
@@ -258,10 +276,18 @@ class B01Fault(RoborockModeEnum):
     F_566 = ("fault_566", 566)
     F_567 = ("fault_567", 567)
     F_568 = ("main_wheels_entangled", 568)  # Clean main wheels, move the robot away and restart.
-    F_569 = ("main_wheels_entangled", 569)  # Clean main wheels, move the robot away and restart.
+    F_569 = (
+        "main_wheels_entangled_569",
+        569,
+        "main_wheels_entangled",
+    )  # Clean main wheels, move the robot away and restart.
     F_570 = ("main_brush_entangled", 570)  # Main brush entangled. Remove and clean it and its bearing.
     F_571 = ("fault_571", 571)
-    F_572 = ("main_brush_entangled", 572)  # Main brush entangled. Remove and clean it and its bearing.
+    F_572 = (
+        "main_brush_entangled_572",
+        572,
+        "main_brush_entangled",
+    )  # Main brush entangled. Remove and clean it and its bearing.
     F_573 = ("fault_573", 573)
     F_574 = ("fault_574", 574)
     F_580 = ("fault_580", 580)
@@ -305,8 +331,9 @@ class B01Fault(RoborockModeEnum):
         2007,
     )  # Unable to reach the target. Cleaning ended. Ensure the door to the target area is open or unobstructed.
     F_2012 = (
-        "cannot_reach_target",
+        "cannot_reach_target_2012",
         2012,
+        "cannot_reach_target",
     )  # Unable to reach the target. Cleaning ended. Ensure the door to the target area is open or unobstructed.
     F_2013 = ("fault_2013", 2013)
     F_2015 = ("fault_2015", 2015)

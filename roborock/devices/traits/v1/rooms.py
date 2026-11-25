@@ -135,6 +135,13 @@ class RoomsTrait(Rooms, common.V1TraitMixin):
         rooms = rooms.with_room_names(self._room_name_map)
         common.merge_trait_values(self, rooms)
 
+    async def clean_segments(self, segment_ids: list[int]) -> None:
+        """Start cleaning the given segments (rooms) of the current map.
+
+        Segment ids are the `segment_id` values in `rooms`.
+        """
+        await self.rpc_channel.send_command(RoborockCommand.APP_SEGMENT_CLEAN, params=[{"segments": segment_ids}])
+
     async def _refresh_rooms(self) -> list[HomeDataRoom]:
         """Fetch the latest rooms from the web API."""
         try:
