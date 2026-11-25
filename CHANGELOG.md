@@ -2,6 +2,23 @@
 
 <!-- version list -->
 
+## v7.35.0 (2026-11-25)
+
+### Features
+
+- Add V1 dock dust collection mode, auto-empty frequency and start/stop
+  ([#1036](https://github.com/Python-roborock/python-roborock/pull/1036),
+  [`9f9a65e`](https://github.com/Python-roborock/python-roborock/commit/9f9a65ed015f5665fe76fed4a2dea43395e93f16))
+
+- Add V1 dock dust collection trait
+  ([#1036](https://github.com/Python-roborock/python-roborock/pull/1036),
+  [`9f9a65e`](https://github.com/Python-roborock/python-roborock/commit/9f9a65ed015f5665fe76fed4a2dea43395e93f16))
+
+- Add V1 dust collection mode setter
+  ([#1036](https://github.com/Python-roborock/python-roborock/pull/1036),
+  [`9f9a65e`](https://github.com/Python-roborock/python-roborock/commit/9f9a65ed015f5665fe76fed4a2dea43395e93f16))
+
+
 ## v7.34.0 (2026-11-25)
 
 ### Chores
