@@ -100,11 +100,16 @@ class DeviceFeaturesTrait(DeviceFeatures, common.V1TraitMixin):
 
         This will use cached device features if available since they do not
         change often and this avoids unnecessary RPC calls. This would only
-        ever change with a firmware update, so caching is appropriate.
+        ever change with a firmware update, so caching is appropriate. Cached
+        features written by an older version of the library are read again.
         """
         cache_data = await self._device_cache.get()
-        if cache_data.device_features is not None:
-            common.merge_trait_values(self, cache_data.device_features)
+        cached = cache_data.device_features
+        # A pickled cache bypasses from_dict, so it can lack newer fields.
+        if cached is not None and all(
+            getattr(cached, field.name, None) is not None for field in fields(DeviceFeatures) if field.type is bool
+        ):
+            common.merge_trait_values(self, cached)
             return
         # Save cached device features
         await super().refresh()

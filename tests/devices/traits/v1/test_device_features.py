@@ -1,5 +1,6 @@
 """Tests for the DeviceFeaturesTrait related functionality."""
 
+import pickle
 from unittest.mock import AsyncMock
 
 import pytest
@@ -7,11 +8,13 @@ from syrupy import SnapshotAssertion
 
 from roborock.data import HomeDataDevice, RoborockDockTypeCode
 from roborock.data.v1.v1_containers import ConsumableField, StatusField
+from roborock.device_features import DeviceFeatures
 from roborock.devices.cache import DeviceCache
 from roborock.devices.device import RoborockDevice
 from roborock.devices.traits.v1.consumeable import ConsumableTrait
 from roborock.devices.traits.v1.status import StatusTrait
 from roborock.exceptions import RoborockParsingException
+from roborock.roborock_typing import RoborockCommand
 from tests import mock_data
 
 V1_DEVICES = {
@@ -110,3 +113,27 @@ async def test_refresh_unexpected_list_keeps_state(
         await device_features_trait.refresh()
 
     assert device_features_trait.as_dict() == previous
+
+
+async def test_discover_features_rereads_stale_cached_features(
+    device: RoborockDevice,
+    device_cache: DeviceCache,
+    mock_rpc_channel: AsyncMock,
+) -> None:
+    """Pickled features from an older version lack newer fields, so they are read from the robot again."""
+    assert device.v1_properties is not None
+    stale = DeviceFeatures.from_feature_flags(0, "", [], None)
+    del stale.is_set_child_supported
+    cache_data = await device_cache.get()
+    cache_data.device_features = pickle.loads(pickle.dumps(stale))
+    await device_cache.set(cache_data)
+    # Make discovery check the feature again.
+    device.v1_properties.child_lock = None
+    mock_rpc_channel.send_command.side_effect = [[mock_data.APP_GET_INIT_STATUS], mock_data.STATUS]
+
+    await device.v1_properties.discover_features()
+
+    mock_rpc_channel.send_command.assert_any_call(RoborockCommand.APP_GET_INIT_STATUS)
+    cached_features = (await device_cache.get()).device_features
+    assert cached_features is not None
+    assert isinstance(cached_features.is_set_child_supported, bool)
