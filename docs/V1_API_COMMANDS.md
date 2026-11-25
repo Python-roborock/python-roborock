@@ -36,6 +36,7 @@ Commands can have multiple parameters that can change from one model to another.
 * [get_customize_clean_mode](#get_customize_clean_mode)
 * [get_dnd_timer](#get_dnd_timer)
 * [get_dust_collection_mode](#get_dust_collection_mode)
+* [get_dust_collection_switch_status](#get_dust_collection_switch_status)
 * [get_clean_follow_ground_material_status](#get_clean_follow_ground_material_status)
 * [get_identify_furniture_status](#get_identify_furniture_status)
 * [get_identify_ground_material_status](#get_identify_ground_material_status)
@@ -71,6 +72,7 @@ Commands can have multiple parameters that can change from one model to another.
 * [set_customize_clean_mode](#set_customize_clean_mode)
 * [set_dnd_timer](#set_dnd_timer)
 * [set_dust_collection_mode](#set_dust_collection_mode)
+* [set_dust_collection_switch_status](#set_dust_collection_switch_status)
 * [set_fds_endpoint](#set_fds_endpoint)
 * [set_identify_furniture_status](#set_identify_furniture_status)
 * [set_identify_ground_material_status](#set_identify_ground_material_status)
@@ -239,6 +241,7 @@ Parameters: None
 **Supported devices:**
 
 * Roborock S8 Pro Ultra: ✅
+* Roborock Saros 10R: ✅ (the robot state changes to emptying the bin)
 
 ### app_stop_collect_dust
 
@@ -249,6 +252,7 @@ Parameters: None
 **Supported devices:**
 
 * Roborock S8 Pro Ultra: ✅
+* Roborock Saros 10R: ✅ (the running emptying stops)
 
 ### app_start_wash
 
@@ -1402,6 +1406,48 @@ Example:
 
 ```json
     {'mode': 4}
+```
+
+Source: Roborock Saros 10R
+
+**Supported devices:**
+
+* Roborock Saros 10R: ✅
+
+### get_dust_collection_switch_status
+
+Description: Get how often the dock empties the dustbin automatically (app: auto-empty frequency).
+
+Parameters: None
+
+Returns:
+
+    status: 0 off, 1 balanced, 2 high. Devices without new feature string bit 53 only use 0 (off) and 1 (on). Mirrors `auto_dust_collection` in `get_status`.
+
+Return example:
+
+```json
+    {'status': 2}
+```
+
+Source: Roborock Saros 10R
+
+**Supported devices:**
+
+* Roborock Saros 10R: ✅
+
+### set_dust_collection_switch_status
+
+Description: Set how often the dock empties the dustbin automatically.
+
+Parameters:
+
+    status: 0 off, 1 balanced, 2 high. Devices without new feature string bit 53 only use 0 (off) and 1 (on).
+
+Example:
+
+```json
+    {'status': 2}
 ```
 
 Source: Roborock Saros 10R

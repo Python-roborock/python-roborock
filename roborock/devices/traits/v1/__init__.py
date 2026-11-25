@@ -85,6 +85,7 @@ from . import (
     customize_clean_mode,
     device_features,
     do_not_disturb,
+    dust_collection,
     dust_collection_mode,
     flow_led_status,
     home,
@@ -112,6 +113,7 @@ from .consumeable import ConsumableTrait
 from .customize_clean_mode import CustomizeCleanModeTrait
 from .device_features import DeviceFeaturesTrait
 from .do_not_disturb import DoNotDisturbTrait
+from .dust_collection import DustCollectionTrait
 from .dust_collection_mode import DustCollectionModeTrait, supports_dust_collection_mode
 from .flow_led_status import FlowLedStatusTrait
 from .home import HomeTrait
@@ -143,6 +145,7 @@ __all__ = [
     "customize_clean_mode",
     "device_features",
     "do_not_disturb",
+    "dust_collection",
     "dust_collection_mode",
     "flow_led_status",
     "home",
@@ -193,6 +196,7 @@ class PropertiesApi(Trait):
     flow_led_status: FlowLedStatusTrait | None = None
     valley_electricity_timer: ValleyElectricityTimerTrait | None = None
     dust_collection_mode: DustCollectionModeTrait | None = None
+    dust_collection: DustCollectionTrait | None = None
     wash_towel_mode: WashTowelModeTrait | None = None
     smart_wash_params: SmartWashParamsTrait | None = None
     obstacle_photos: ObstaclePhotoTrait | None = None
@@ -309,6 +313,11 @@ class PropertiesApi(Trait):
             dust_collection_mode = DustCollectionModeTrait()
             dust_collection_mode._rpc_channel = self._get_rpc_channel(dust_collection_mode)
             self.dust_collection_mode = dust_collection_mode
+
+        if self.dust_collection is None and self._is_supported(DustCollectionTrait, "dust_collection", dock_features):
+            dust_collection = DustCollectionTrait(self.device_features)
+            dust_collection._rpc_channel = self._get_rpc_channel(dust_collection)  # type: ignore[assignment]
+            self.dust_collection = dust_collection
 
         if self.customize_clean_mode is None and self._is_supported(
             CustomizeCleanModeTrait, "customize_clean_mode", dock_features

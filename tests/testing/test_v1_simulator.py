@@ -5,7 +5,7 @@ from dataclasses import replace
 import pytest
 from vacuum_map_parser_base.config.drawable import Drawable
 
-from roborock.data import RoborockDockDustCollectionModeCode, UserData
+from roborock.data import RoborockDockDustCollectionFrequencyCode, RoborockDockDustCollectionModeCode, UserData
 from roborock.data.v1 import RoborockStateCode
 from roborock.data.v1.v1_code_mappings import RoborockChargeStatus, RoborockDockTypeCode, RoborockInCleaning
 from roborock.devices.cache import InMemoryCache
@@ -434,3 +434,24 @@ async def test_trait_dust_collection_mode() -> None:
     trait.mode = None
     await trait.refresh()
     assert trait.mode == RoborockDockDustCollectionModeCode.max
+
+
+async def test_trait_dust_collection() -> None:
+    """Auto-empty and manual dust collection round-trip through the simulator."""
+    fake_device = V1VacuumSimulator(duid="s7_dust")
+    device = await _create_connected_device(FakeRoborockCloud(), fake_device)
+    trait = device.v1_properties.dust_collection
+    assert trait is not None
+
+    await trait.set_frequency(RoborockDockDustCollectionFrequencyCode.off)
+    assert fake_device.status.auto_dust_collection == RoborockDockDustCollectionFrequencyCode.off
+
+    trait.status = None
+    await trait.refresh()
+    assert trait.status == RoborockDockDustCollectionFrequencyCode.off
+
+    await trait.start_dust_collection()
+    assert fake_device.status.state == RoborockStateCode.emptying_the_bin
+
+    await trait.stop_dust_collection()
+    assert fake_device.status.state == RoborockStateCode.charging

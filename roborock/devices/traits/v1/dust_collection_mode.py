@@ -32,7 +32,8 @@ class DustCollectionModeTrait(DustCollectionMode, common.V1TraitMixin):
     """Trait for the dock dust collection mode.
 
     ``set_dust_collection_mode`` changes how strongly the dock empties the
-    dustbin.
+    dustbin. Manual dust collection is on ``DustCollectionTrait``, which
+    every collecting dock has.
 
     Created by ``PropertiesApi`` when ``supports_dust_collection_mode`` is true.
     """
