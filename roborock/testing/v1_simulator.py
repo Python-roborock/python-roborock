@@ -21,6 +21,7 @@ from roborock.data.v1 import RoborockStateCode
 from roborock.data.v1.v1_code_mappings import (
     RoborockChargeStatus,
     RoborockCleanType,
+    RoborockDockDustCollectionModeCode,
     RoborockDockErrorCode,
     RoborockDockTypeCode,
     RoborockErrorCode,
@@ -234,6 +235,7 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
         self.clean_summary = clean_summary or replace(DEFAULT_CLEAN_SUMMARY)
         self.last_clean_record = last_clean_record or replace(DEFAULT_LAST_CLEAN_RECORD)
         self.custom_handlers = custom_handlers or {}
+        self.dust_collection_mode = RoborockDockDustCollectionModeCode.balanced
 
         # Set up default handlers dictionary
         self.default_handlers: dict[str, Callable[[Any], Any]] = {
@@ -252,6 +254,8 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
             "app_get_init_status": self._handle_app_get_init_status,
             "get_network_info": self._handle_get_network_info,
             "get_map_v1": lambda params: self.build_map_bytes(),
+            "get_dust_collection_mode": lambda params: {"mode": self.dust_collection_mode.value},
+            "set_dust_collection_mode": self._handle_set_dust_collection_mode,
         }
 
         # The simulated robot's own view of its map. Tests extend the path
@@ -339,6 +343,10 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
     def _handle_set_water_box_custom_mode(self, params: Any) -> str:
         if isinstance(params, list) and len(params) > 0:
             self.status.water_box_mode = params[0]
+        return "ok"
+
+    def _handle_set_dust_collection_mode(self, params: Any) -> str:
+        self.dust_collection_mode = RoborockDockDustCollectionModeCode(params["mode"])
         return "ok"
 
     def _handle_reset_consumable(self, params: Any) -> str:

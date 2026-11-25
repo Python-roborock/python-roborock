@@ -201,8 +201,8 @@ An array of integer feature IDs. Feature is supported if ID is present in the ar
 ### is_dust_collection_setting_supported
 **Bit Mask:** `33554432` (bit 25)
 **Feature:** Dust Collection Settings
-**Description:** Options for auto-empty dock dust collection frequency and duration.
-**Impact:** Configure when and how aggressively the dock empties the dustbin.
+**Description:** The app loads and shows the dock's dust collection mode (`get_dust_collection_mode`) only with this feature.
+**Impact:** Gates `DustCollectionModeTrait`, together with `is_collect_dust_mode_supported` and a collecting dock.
 
 ---
 
@@ -1363,8 +1363,8 @@ These features are enabled/disabled based on specific device model whitelists or
 ### is_collect_dust_mode_supported
 **Model Blacklist:** PEARL (all except PEARL)
 **Feature:** Dust Collection Mode
-**Description:** Auto-empty dock dust collection.
-**Impact:** Automatic dustbin emptying at dock.
+**Description:** Auto-empty dock dust collection mode. The app shows the dock's dust collection mode page only with this feature and a collecting dock.
+**Impact:** Gates `DustCollectionModeTrait`, together with `is_dust_collection_setting_supported` and a collecting dock.
 
 ---
 
