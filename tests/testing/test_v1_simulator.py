@@ -5,7 +5,7 @@ from dataclasses import replace
 import pytest
 from vacuum_map_parser_base.config.drawable import Drawable
 
-from roborock.data import UserData
+from roborock.data import RoborockDockDustCollectionFrequencyCode, RoborockDockDustCollectionModeCode, UserData
 from roborock.data.v1 import RoborockStateCode
 from roborock.data.v1.v1_code_mappings import RoborockChargeStatus, RoborockDockTypeCode, RoborockInCleaning
 from roborock.devices.cache import InMemoryCache
@@ -15,6 +15,7 @@ from roborock.exceptions import RoborockException
 from roborock.map.map_parser import MapParser, MapParserConfig
 from roborock.roborock_message import RoborockMessage, RoborockMessageProtocol
 from roborock.testing import (
+    DEFAULT_APP_INIT,
     DEFAULT_NETWORK_INFO,
     DEFAULT_STATUS,
     FakeRoborockCloud,
@@ -417,3 +418,40 @@ async def test_map_custom_handler_error() -> None:
     simulator = V1VacuumSimulator(custom_handlers={"get_map_v1": get_map})
     with pytest.raises(RoborockException, match="map unavailable"):
         await simulator.v1_channel.mqtt_rpc_channel.send_command("get_map_v1")
+
+
+async def test_trait_dust_collection_mode() -> None:
+    """The dust collection mode round-trips through the simulator."""
+    app_init = replace(DEFAULT_APP_INIT, new_feature_info=DEFAULT_APP_INIT.new_feature_info | 33554432)
+    fake_device = V1VacuumSimulator(duid="s7_dust_mode", app_init=app_init)
+    device = await _create_connected_device(FakeRoborockCloud(), fake_device)
+    trait = device.v1_properties.dust_collection_mode
+    assert trait is not None
+
+    await trait.set_dust_collection_mode(RoborockDockDustCollectionModeCode.max)
+    assert fake_device.dust_collection_mode == RoborockDockDustCollectionModeCode.max
+
+    trait.mode = None
+    await trait.refresh()
+    assert trait.mode == RoborockDockDustCollectionModeCode.max
+
+
+async def test_trait_dust_collection() -> None:
+    """Auto-empty and manual dust collection round-trip through the simulator."""
+    fake_device = V1VacuumSimulator(duid="s7_dust")
+    device = await _create_connected_device(FakeRoborockCloud(), fake_device)
+    trait = device.v1_properties.dust_collection
+    assert trait is not None
+
+    await trait.set_frequency(RoborockDockDustCollectionFrequencyCode.off)
+    assert fake_device.status.auto_dust_collection == RoborockDockDustCollectionFrequencyCode.off
+
+    trait.status = None
+    await trait.refresh()
+    assert trait.status == RoborockDockDustCollectionFrequencyCode.off
+
+    await trait.start_dust_collection()
+    assert fake_device.status.state == RoborockStateCode.emptying_the_bin
+
+    await trait.stop_dust_collection()
+    assert fake_device.status.state == RoborockStateCode.charging
