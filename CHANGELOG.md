@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v7.33.0 (2026-11-25)
+
+### Features
+
+- **v1**: Add collision avoidance traits
+  ([#1089](https://github.com/Python-roborock/python-roborock/pull/1089),
+  [`b436fcf`](https://github.com/Python-roborock/python-roborock/commit/b436fcf9aa2c7b4c6ce0fafd0521717aa8b4310d))
+
+
 ## v7.32.0 (2026-11-24)
 
 ### Chores
