@@ -110,7 +110,7 @@ class RoborockDyadDataProtocol(RoborockEnum):
     SILENT_MODE_END_TIME = 228
     RECENT_RUN_TIME = 229
     TOTAL_RUN_TIME = 230
-    FEATURE_INFO = 235
+    FEATURE_INFO = 235  # bit mask of supported features
     RECOVER_SETTINGS = 236
     DRY_COUNTDOWN = 237
     SET_CLEANSER_AMOUNT = 238  # detergent dosing level
@@ -118,17 +118,23 @@ class RoborockDyadDataProtocol(RoborockEnum):
     LIGHT_SET = 240  # brush head light
     CLEAN_ASSIST_POWER_SET = 241  # wheel assist power
     SELF_CLEAN_WATER_TEMP_LEVEL_SET = 242  # self-clean water temperature setting
-    DOCK_TYPE = 243
+    DOCK_TYPE = 243  # 0 unknown, 1 normal, 2 turbo; unconfirmed on the F25 Ultra
     WATER_MODE_SUCTION = 244  # suction in sponge (water pickup) mode
     WATER_MODE_BRUSH_SPEED = 245  # brush speed in sponge (water pickup) mode
     CHARGE_ERROR_STATUS = 246  # F25 Ultra: 1 while not charging (off the dock, self-clean, drying)
     DRYING_RATE = 247  # percent
-    FLAT_STATUS = 248  # 1 while the vacuum is lying flat
+    FLAT_STATUS = 248  # vacuum position for remote control
     POWERWHEEL_DIRECTION = 249  # remote control drive direction
     POWERWHEEL_SPEED = 250  # remote control drive speed
+    SELF_CLEAN_PROGRESS = 251  # percent
+    SPRAY_MODE = 256
     SELF_CLEAN_CUR_MODE = 270  # intensity of the current or last self-clean run
     SELF_CLEAN_CUR_TEMP = 271  # water temperature of the current or last self-clean run
     DRY_CUR_MODE = 272  # DyadDryingMode on the F25 Ultra, follows SILENT_DRY_DURATION
+    MECHANICAL_ARM = 273
+    TRIGGER_MODE = 274
+    SELF_CLEAN_REMINDER = 275
+    BATTERY_THRESHOLD = 276  # bit flags, enough battery to: 1 self-clean, 2 dry
     ID_QUERY = 10000
     F_C = 10001
     SCHEDULE_TASK = 10002
@@ -137,6 +143,7 @@ class RoborockDyadDataProtocol(RoborockEnum):
     PRODUCT_INFO = 10005
     PRIVACY_INFO = 10006
     OTA_NFO = 10007
+    HISTORY = 10008
     RPC_REQUEST = 10101
     RPC_RESPONSE = 10102
 
