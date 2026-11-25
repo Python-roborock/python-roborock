@@ -354,6 +354,7 @@
             'isRpcRetrySupported': False,
             'isRubberBrushCarpetSupported': False,
             'isSetChildSupported': False,
+            'isSetCleanMotorModeSupported': True,
             'isSettingCarpetFirstSupported': False,
             'isShakeMopSetSupported': False,
             'isShouldShowArmOverLoadSupported': False,

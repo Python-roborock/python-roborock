@@ -1363,6 +1363,18 @@ Description:
 
 Parameters:
 
+`StatusTrait.is_fan_speed_adjustable`, `is_water_mode_adjustable` and `is_mop_route_adjustable` tell whether a setting can be changed in the current cleaning mode, and `fan_speed_display_options`, `water_mode_display_options` and `mop_route_display_options` list the values to show for it (`fan_speed_options`, `water_mode_options` and `mop_route_options` stay the model's full lists).
+
+The lists depend on the cleaning mode, following the mode tabs of the robot settings:
+
+| Setting | Offered values |
+|---|---|
+| Fan speed | Not offered in mop-only mode (mop-only mode always sends fan code `105`). Max+ (`108`) only in vacuum-only mode with `is_max_plus_mode_supported`, never in vacuum and mop. On devices without mode tabs (`is_pure_clean_mop_supported` false) Max+ is offered in every mode with `is_none_pure_clean_mop_with_max_plus`. |
+| Water mode | The model's list in every mode where it is offered, without `off` (`200`) when the device has a mop-only tab (`is_pure_clean_mop_supported`). Devices without a mop-only tab have one general tab: the water mode is adjustable in every regular mode, so a water-off state (classified as vacuum) can still turn the water on. |
+| Mop route | Needs `is_shake_mop_set_supported`, and outside mop-only mode also `is_clean_route_fast_mode_supported` and `is_clean_route_setting_supported`. In vacuum and mop and in vacuum only only fast (`304`) and standard (`300`); in mop-only mode, and on devices without mode tabs, the model's full list. With `is_clean_efficiency_supported` the full list (which never contains deep, `301`) in every mode, with `is_none_pure_clean_mop_with_max_plus` fast and standard in every mode. |
+
+The robot rejects deep (`301`) in vacuum and mop with error `-10005`. A setting the device does not have (for example the mop route without route setting) always lists nothing, even in SmartPlan or custom mode; the same holds for the mop route without the shake module. In SmartPlan and custom mode only the SmartPlan or custom value is listed.
+
 ### get_dust_collection_mode
 
 Description:

@@ -1552,6 +1552,13 @@ These features are checked by verifying if the feature ID exists in the `feature
 
 ---
 
+### is_set_clean_motor_mode_supported
+**Feature ID:** 118
+**Feature:** Set Clean Motor Mode
+**Description:** Models with this flag accept `fan_power` and `water_box_mode` together in `set_clean_motor_mode`.
+
+---
+
 ### is_led_status_switch_supported
 **Feature ID:** 119
 **Feature:** LED Status Switch
