@@ -1,7 +1,10 @@
 """Tests for the pure V1 cleaning mode helpers."""
 
+import itertools
+
 import pytest
 
+from roborock.data.code_mappings import RoborockModeEnum
 from roborock.data.v1.v1_clean_modes import (
     CleaningMode,
     CleaningSetting,
@@ -13,9 +16,12 @@ from roborock.data.v1.v1_clean_modes import (
     get_clean_modes,
     get_clean_routes,
     get_cleaning_mode_codes,
+    get_cleaning_mode_options,
     get_display_options,
     get_motor_mode_commands,
+    get_reported_special_mode,
     get_setting_change_codes,
+    get_supported_settings,
     get_water_modes,
 )
 from roborock.device_features import DeviceFeatures
@@ -109,18 +115,18 @@ def test_get_adjustable_settings_without_mode_tabs(
         (CleaningMode.SMART_MODE, [VacuumModes.SMART_MODE]),
         (CleaningMode.CUSTOM, [VacuumModes.CUSTOMIZED]),
         (CleaningMode.VACUUM, [VacuumModes.QUIET, VacuumModes.BALANCED]),
-        (CleaningMode.MOP, []),
+        (CleaningMode.MOP, [VacuumModes.BALANCED]),
     ],
 )
 def test_get_display_options_kinds(mode: CleaningMode, expected: list[VacuumModes]) -> None:
     options = [VacuumModes.QUIET, VacuumModes.BALANCED]
-    assert get_display_options(CleaningSetting.FAN_SPEED, mode, _features(), options) == expected
+    assert get_display_options(CleaningSetting.FAN_SPEED, mode, _features(), options, 102) == expected
 
 
 @pytest.mark.parametrize("mode", [CleaningMode.SMART_MODE, CleaningMode.CUSTOM, CleaningMode.VACUUM, None])
 def test_get_display_options_empty_options_show_nothing(mode: CleaningMode | None) -> None:
     """A setting the device does not have shows nothing, even in SmartPlan or custom mode."""
-    assert get_display_options(CleaningSetting.MOP_ROUTE, mode, _features(), []) == []
+    assert get_display_options(CleaningSetting.MOP_ROUTE, mode, _features(), [], 300) == []
 
 
 @pytest.mark.parametrize(
@@ -348,15 +354,15 @@ _ROUTES_EFFICIENCY = {CleanRoutes.STANDARD, CleanRoutes.DEEP_PLUS, CleanRoutes.F
 
 
 def _mode_display_options(
-    setting: CleaningSetting, mode: CleaningMode, overrides: dict[str, bool]
+    setting: CleaningSetting, mode: CleaningMode, overrides: dict[str, bool], code: int | None = None
 ) -> list[VacuumModes] | list[WaterModes] | list[CleanRoutes]:
     """The display options of a setting for a device with the Saros 10R flags changed by overrides."""
     features = _features(**{**_SAROS_10R, **overrides})
     if setting == CleaningSetting.FAN_SPEED:
-        return get_display_options(setting, mode, features, get_clean_modes(features))
+        return get_display_options(setting, mode, features, get_clean_modes(features), code)
     if setting == CleaningSetting.WATER_MODE:
-        return get_display_options(setting, mode, features, get_water_modes(features))
-    return get_display_options(setting, mode, features, get_clean_routes(features, "us"))
+        return get_display_options(setting, mode, features, get_water_modes(features), code)
+    return get_display_options(setting, mode, features, get_clean_routes(features, "us"), code)
 
 
 @pytest.mark.parametrize(
@@ -518,8 +524,42 @@ def test_get_display_options_route_special_values_need_shake(mode: CleaningMode,
     features = _features(is_shake_mop_set_supported=shake)
     options = get_clean_routes(features, "us")
     assert options
-    shown = get_display_options(CleaningSetting.MOP_ROUTE, mode, features, options)
+    shown = get_display_options(CleaningSetting.MOP_ROUTE, mode, features, options, 300)
     assert bool(shown) is shake
+
+
+@pytest.mark.parametrize("mode", [CleaningMode.SMART_MODE, CleaningMode.CUSTOM])
+@pytest.mark.parametrize(
+    ("setting", "overrides", "expect_shown"),
+    [
+        (CleaningSetting.WATER_MODE, {"is_support_water_mode": False}, False),
+        (CleaningSetting.MOP_ROUTE, {"is_support_water_mode": False}, False),
+        (CleaningSetting.MOP_ROUTE, {"is_shake_mop_set_supported": False}, False),
+        (
+            CleaningSetting.MOP_ROUTE,
+            {"is_pure_clean_mop_supported": False, "is_clean_route_fast_mode_supported": False},
+            False,
+        ),
+        (CleaningSetting.WATER_MODE, {}, True),
+        (CleaningSetting.MOP_ROUTE, {}, True),
+    ],
+)
+def test_get_display_options_special_values_need_a_supported_setting(
+    mode: CleaningMode, setting: CleaningSetting, overrides: dict[str, bool], expect_shown: bool
+) -> None:
+    """Direct callers get no SmartPlan or custom value for a setting the model lacks."""
+    features = _features(**overrides)
+    # The model list must be non-empty, so that the supported-settings guard is what hides the value.
+    if setting == CleaningSetting.WATER_MODE:
+        water_options = get_water_modes(features)
+        assert water_options
+        shown = bool(get_display_options(setting, mode, features, water_options, 300))
+    else:
+        route_options = get_clean_routes(features, "us")
+        assert route_options
+        shown = bool(get_display_options(setting, mode, features, route_options, 300))
+    assert (setting in get_supported_settings(features)) is expect_shown
+    assert shown is expect_shown
 
 
 def test_water_mode_display_options_include_off_when_turning_water_on_without_mode_tabs() -> None:
@@ -549,4 +589,247 @@ def test_fan_speed_display_options_keep_full_list_without_a_mop() -> None:
     features = _features(is_support_water_mode=False, is_max_plus_mode_supported=True)
     options = get_clean_modes(features)
     assert VacuumModes.MAX_PLUS in options
-    assert get_display_options(CleaningSetting.FAN_SPEED, None, features, options) == options
+    assert get_display_options(CleaningSetting.FAN_SPEED, None, features, options, 102) == options
+
+
+_FAN = CleaningSetting.FAN_SPEED
+_WATER = CleaningSetting.WATER_MODE
+_ROUTE = CleaningSetting.MOP_ROUTE
+
+
+@pytest.mark.parametrize(
+    ("overrides", "expected"),
+    [
+        # Vacuum-only: no mop module, so only the fan speed.
+        ({"is_support_water_mode": False}, frozenset({_FAN})),
+        # Saros-like: shake module with fast route, mop-only tab and water slide.
+        (
+            {"is_pure_clean_mop_supported": True, "is_water_slide_mode_supported": True},
+            frozenset({_FAN, _WATER, _ROUTE}),
+        ),
+        # Shake module without fast route but with a mop-only tab: the route exists in mop mode.
+        (
+            {"is_pure_clean_mop_supported": True, "is_clean_route_fast_mode_supported": False},
+            frozenset({_FAN, _WATER, _ROUTE}),
+        ),
+        # Shake module without mop-only tab and without fast route: the route is never adjustable.
+        (
+            {"is_pure_clean_mop_supported": False, "is_clean_route_fast_mode_supported": False},
+            frozenset({_FAN, _WATER}),
+        ),
+        # Spin or roller mop: route setting without the shake module.
+        ({"is_shake_mop_set_supported": False, "is_pure_clean_mop_supported": True}, frozenset({_FAN, _WATER})),
+        ({"is_shake_mop_set_supported": False}, frozenset({_FAN, _WATER})),
+        # Clean efficiency only changes the route values.
+        (
+            {"is_pure_clean_mop_supported": True, "is_clean_efficiency_supported": True},
+            frozenset({_FAN, _WATER, _ROUTE}),
+        ),
+        # Max+ without a mop-only tab only changes the route values.
+        ({"is_none_pure_clean_mop_with_max_plus": True}, frozenset({_FAN, _WATER, _ROUTE})),
+    ],
+)
+def test_get_supported_settings(overrides: dict[str, bool], expected: frozenset[CleaningSetting]) -> None:
+    assert get_supported_settings(_features(**overrides)) == expected
+
+
+_GRID_FLAGS = (
+    "is_shake_mop_set_supported",
+    "is_clean_route_fast_mode_supported",
+    "is_pure_clean_mop_supported",
+    "is_support_water_mode",
+    "is_clean_route_setting_supported",
+    "is_clean_efficiency_supported",
+    "is_none_pure_clean_mop_with_max_plus",
+)
+
+
+@pytest.mark.parametrize("values", list(itertools.product((False, True), repeat=len(_GRID_FLAGS))))
+def test_supported_settings_match_adjustable_settings(values: tuple[bool, ...]) -> None:
+    """A setting is supported exactly when it can be adjusted in at least one reachable cleaning mode."""
+    features = _features(**dict(zip(_GRID_FLAGS, values, strict=True)))
+    reachable: list[CleaningMode | None] = [
+        mode
+        for mode in get_cleaning_mode_options(features)
+        if mode not in (CleaningMode.SMART_MODE, CleaningMode.CUSTOM)
+    ] or [None]
+    adjustable_somewhere: set[CleaningSetting] = set()
+    for mode in reachable:
+        adjustable_somewhere |= get_adjustable_settings(mode, features)
+    assert get_supported_settings(features) == adjustable_somewhere
+
+
+@pytest.mark.parametrize(
+    ("fan", "water", "route", "expected"),
+    [
+        # Custom wins over SmartPlan when both are reported.
+        (106, 202, 300, CleaningMode.CUSTOM),
+        (102, 204, 300, CleaningMode.CUSTOM),
+        (102, 202, 302, CleaningMode.CUSTOM),
+        (106, 209, 300, CleaningMode.CUSTOM),
+        (110, 202, 300, CleaningMode.SMART_MODE),
+        (102, 209, 300, CleaningMode.SMART_MODE),
+        (102, 202, 306, CleaningMode.SMART_MODE),
+        # Regular codes, including a water slide position and the fast route, are not special.
+        (102, 202, 300, None),
+        (102, 235, 304, None),
+    ],
+)
+def test_get_reported_special_mode(fan: int, water: int, route: int, expected: CleaningMode | None) -> None:
+    features = _features(is_pure_clean_mop_supported=True)
+    assert get_reported_special_mode(fan, water, route, features) == expected
+
+
+@pytest.mark.parametrize(
+    ("fan", "water", "route", "expected"),
+    [
+        # Without a mop only the fan power is read, so water and route codes do not count.
+        (102, 204, 300, None),
+        (102, 209, 306, None),
+        (110, 204, 302, CleaningMode.SMART_MODE),
+        (106, 209, 306, CleaningMode.CUSTOM),
+    ],
+)
+def test_get_reported_special_mode_ignores_water_and_route_without_mop(
+    fan: int, water: int, route: int, expected: CleaningMode | None
+) -> None:
+    features = _features(is_support_water_mode=False)
+    assert get_reported_special_mode(fan, water, route, features) == expected
+
+
+_FAN_ALL = [*_FAN_BASE, VacuumModes.MAX_PLUS]
+_WATER_SLIDE_ON = [
+    WaterModes.PURE_WATER_FLOW_START,
+    WaterModes.PURE_WATER_FLOW_SMALL,
+    WaterModes.PURE_WATER_FLOW_GENTLE,
+    WaterModes.PURE_WATER_FLOW_MIDDLE,
+    WaterModes.PURE_WATER_FLOW_LARGE,
+    WaterModes.PURE_WATER_SUPER_BEGIN,
+    WaterModes.PURE_WATER_FLOW_END,
+]
+
+
+@pytest.mark.parametrize(
+    ("mode", "codes", "expected_fan", "expected_water", "expected_route"),
+    [
+        # Regular modes: a setting the mode sets shows only its current value.
+        (CleaningMode.VACUUM, (102, 200, 300), _FAN_ALL, [WaterModes.OFF], _ROUTES_SHORT),
+        (CleaningMode.VACUUM, (104, 200, 304), _FAN_ALL, [WaterModes.OFF], _ROUTES_SHORT),
+        (CleaningMode.VAC_AND_MOP, (102, 235, 300), _FAN_BASE, _WATER_SLIDE_ON, _ROUTES_SHORT),
+        (CleaningMode.MOP, (105, 235, 301), [VacuumModes.OFF], _WATER_SLIDE_ON, _ROUTES_FULL),
+        (CleaningMode.MOP, (105, 222, 300), [VacuumModes.OFF], _WATER_SLIDE_ON, _ROUTES_FULL),
+        # SmartPlan and custom keep showing their own value.
+        (
+            CleaningMode.SMART_MODE,
+            (110, 209, 306),
+            [VacuumModes.SMART_MODE],
+            [WaterModes.SMART_MODE],
+            {CleanRoutes.SMART_MODE},
+        ),
+        (
+            CleaningMode.CUSTOM,
+            (106, 204, 302),
+            [VacuumModes.CUSTOMIZED],
+            [WaterModes.CUSTOMIZED],
+            {CleanRoutes.CUSTOMIZED},
+        ),
+    ],
+)
+def test_display_options_show_the_current_value_when_the_mode_sets_it(
+    mode: CleaningMode,
+    codes: tuple[int, int, int],
+    expected_fan: list[VacuumModes],
+    expected_water: list[WaterModes],
+    expected_route: set[CleanRoutes],
+) -> None:
+    fan = _mode_display_options(CleaningSetting.FAN_SPEED, mode, {}, codes[0])
+    water = _mode_display_options(CleaningSetting.WATER_MODE, mode, {}, codes[1])
+    route = _mode_display_options(CleaningSetting.MOP_ROUTE, mode, {}, codes[2])
+    assert fan == expected_fan
+    assert water == expected_water
+    assert set(route) == expected_route
+
+
+@pytest.mark.parametrize(
+    ("mode", "setting", "code", "expected"),
+    [
+        (CleaningMode.MOP, CleaningSetting.FAN_SPEED, 105, [VacuumModes.OFF]),
+        (CleaningMode.VACUUM, CleaningSetting.WATER_MODE, 200, [WaterModes.OFF]),
+        # An unknown or missing code cannot be named, so nothing is shown.
+        (CleaningMode.MOP, CleaningSetting.FAN_SPEED, 999, []),
+        (CleaningMode.MOP, CleaningSetting.FAN_SPEED, None, []),
+        (CleaningMode.VACUUM, CleaningSetting.WATER_MODE, 999, []),
+        (CleaningMode.VACUUM, CleaningSetting.WATER_MODE, None, []),
+        # Without a fast route the route is only adjustable while mopping only.
+        (CleaningMode.VAC_AND_MOP, CleaningSetting.MOP_ROUTE, 300, [CleanRoutes.STANDARD]),
+        (CleaningMode.VAC_AND_MOP, CleaningSetting.MOP_ROUTE, 999, []),
+        (CleaningMode.VAC_AND_MOP, CleaningSetting.MOP_ROUTE, None, []),
+    ],
+)
+def test_display_options_current_value_without_fast_route(
+    mode: CleaningMode, setting: CleaningSetting, code: int | None, expected: list[RoborockModeEnum]
+) -> None:
+    """A shake model without the fast route (route only adjustable in mop-only) and unnameable codes."""
+    shown = _mode_display_options(setting, mode, {"is_clean_route_fast_mode_supported": False}, code)
+    assert shown == expected
+
+
+def test_display_options_mop_route_list_without_fast_route() -> None:
+    """Mopping only still lets the route be chosen, without the fast route."""
+    shown = _mode_display_options(
+        CleaningSetting.MOP_ROUTE, CleaningMode.MOP, {"is_clean_route_fast_mode_supported": False}, 301
+    )
+    assert set(shown) == _ROUTES_FULL - {CleanRoutes.FAST}
+
+
+def test_display_options_unknown_mode_shows_the_current_value() -> None:
+    features = _features(**_SAROS_10R)
+    assert get_display_options(CleaningSetting.WATER_MODE, None, features, get_water_modes(features), 200) == [
+        WaterModes.OFF
+    ]
+    assert get_display_options(CleaningSetting.WATER_MODE, None, features, get_water_modes(features), None) == []
+
+
+def test_display_options_stay_empty_for_settings_the_model_lacks() -> None:
+    """The route needs the mop-only tab or fast mode: without both the model has no route setting."""
+    features = _features(
+        **{**_SAROS_10R, "is_pure_clean_mop_supported": False, "is_clean_route_fast_mode_supported": False}
+    )
+    assert CleaningSetting.MOP_ROUTE not in get_supported_settings(features)
+    routes = get_clean_routes(features, "us")
+    assert routes
+    assert get_display_options(CleaningSetting.MOP_ROUTE, CleaningMode.VACUUM, features, routes, 300) == []
+
+
+@pytest.mark.parametrize(
+    ("mode", "setting", "code"),
+    [
+        (CleaningMode.VACUUM, CleaningSetting.FAN_SPEED, 102),
+        (CleaningMode.VAC_AND_MOP, CleaningSetting.FAN_SPEED, 102),
+        (CleaningMode.VAC_AND_MOP, CleaningSetting.WATER_MODE, 235),
+        (CleaningMode.MOP, CleaningSetting.WATER_MODE, 235),
+        (CleaningMode.VAC_AND_MOP, CleaningSetting.MOP_ROUTE, 300),
+        (CleaningMode.MOP, CleaningSetting.MOP_ROUTE, 300),
+    ],
+)
+@pytest.mark.parametrize("slide", [True, False])
+def test_off_is_not_choosable_with_mode_tabs(
+    mode: CleaningMode, setting: CleaningSetting, code: int, slide: bool
+) -> None:
+    """With a mop-only tab, off is never in a list that can be changed."""
+    overrides = {"is_water_slide_mode_supported": slide}
+    features = _features(**{**_SAROS_10R, **overrides})
+    assert setting in get_adjustable_settings(mode, features)
+    shown = _mode_display_options(setting, mode, overrides, code)
+    assert shown
+    assert VacuumModes.OFF not in shown
+    assert WaterModes.OFF not in shown
+
+
+@pytest.mark.parametrize(("mode", "code"), [(CleaningMode.VACUUM, 200), (CleaningMode.VAC_AND_MOP, 202)])
+def test_off_is_choosable_in_the_water_list_without_mode_tabs(mode: CleaningMode, code: int) -> None:
+    overrides = {"is_pure_clean_mop_supported": False}
+    features = _features(**{**_SAROS_10R, **overrides})
+    assert CleaningSetting.WATER_MODE in get_adjustable_settings(mode, features)
+    shown = _mode_display_options(CleaningSetting.WATER_MODE, mode, overrides, code)
+    assert WaterModes.OFF in shown

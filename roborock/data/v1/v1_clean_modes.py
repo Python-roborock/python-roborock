@@ -226,6 +226,26 @@ def get_adjustable_settings(mode: CleaningMode | None, features: DeviceFeatures)
     return frozenset(settings)
 
 
+def get_supported_settings(features: DeviceFeatures) -> frozenset[CleaningSetting]:
+    """Return the cleaning settings the model has at all, whatever the current cleaning mode.
+
+    This is the set of settings that can be adjusted in at least one regular cleaning
+    mode. The fan speed is on every model. The water mode needs a mop module. The mop
+    route needs water mode, the shake module, and either the mop-only tab or fast mode
+    with the route setting.
+    """
+    settings = {CleaningSetting.FAN_SPEED}
+    if not features.is_support_water_mode:
+        return frozenset(settings)
+    settings.add(CleaningSetting.WATER_MODE)
+    if features.is_shake_mop_set_supported and (
+        features.is_pure_clean_mop_supported
+        or (features.is_clean_route_fast_mode_supported and features.is_clean_route_setting_supported)
+    ):
+        settings.add(CleaningSetting.MOP_ROUTE)
+    return frozenset(settings)
+
+
 def get_mode_options(
     setting: CleaningSetting,
     mode: CleaningMode | None,
@@ -277,25 +297,53 @@ def get_display_options(
     mode: CleaningMode | None,
     features: DeviceFeatures,
     options: list[ModeEnumT],
+    current_code: int | None,
 ) -> list[ModeEnumT]:
     """Return the values of a setting to show for the current cleaning mode.
 
     In SmartPlan only its SmartPlan value is shown and in custom mode only its custom value.
-    A setting that can be changed shows the values of the mode (see get_mode_options)
-    and any other setting shows nothing.
-    A setting the device does not have (no options) always shows nothing, and so does the
-    mop route without the shake module, SmartPlan and custom values included.
+    A setting that can be changed shows the values of the mode (see get_mode_options).
+    A setting the model has but the current mode sets itself (for example the fan speed
+    while mopping only, or the water mode while vacuuming only) shows exactly one value,
+    the current one (current_code), so that consumers can show it read-only. The value is
+    resolved like get_fan_speed_name, get_water_mode_name and get_mop_route_name name it;
+    when the code is None or cannot be named, nothing is shown.
+    A setting the model does not have (no options, or not in get_supported_settings) always
+    shows nothing, SmartPlan and custom values included.
     """
-    if not options:
-        return []
-    if setting == CleaningSetting.MOP_ROUTE and not features.is_shake_mop_set_supported:
+    if not options or setting not in get_supported_settings(features):
         return []
     smart_value, custom_value = _SMART_AND_CUSTOM_VALUES[setting]
     if mode == CleaningMode.SMART_MODE:
         return [cast(ModeEnumT, smart_value)]
     if mode == CleaningMode.CUSTOM:
         return [cast(ModeEnumT, custom_value)]
-    return get_mode_options(setting, mode, features, options)
+    if setting in get_adjustable_settings(mode, features):
+        return get_mode_options(setting, mode, features, options)
+    if current_code is None:
+        return []
+    current = _resolve_current_option(setting, current_code, features, options)
+    return [cast(ModeEnumT, current)] if current is not None else []
+
+
+def _resolve_current_option(
+    setting: CleaningSetting, code: int, features: DeviceFeatures, options: list[ModeEnumT]
+) -> RoborockModeEnum | None:
+    """Resolve a reported code to the enum member that the name helpers name, or None if they cannot."""
+    if setting == CleaningSetting.WATER_MODE and features.is_water_slide_mode_supported:
+        if (slide_mode := _resolve_water_slide_mode(code)) is not None:
+            return slide_mode
+    else:
+        for option in options:
+            if option.code == code:
+                return option
+    for special in _SMART_AND_CUSTOM_VALUES[setting]:
+        if special.code == code:
+            return special
+    if setting == CleaningSetting.FAN_SPEED and code == VacuumModes.GENTLE.code:
+        # 105 is the mop-only code on pure-mop devices and "gentle" elsewhere.
+        return VacuumModes.OFF if features.is_pure_clean_mop_supported else VacuumModes.GENTLE
+    return None
 
 
 def get_fan_speed_name(code: int, features: DeviceFeatures) -> str | None:
@@ -672,6 +720,32 @@ def _classify_cleaning_mode(
     if water_mode == WaterModes.OFF:
         return CleaningMode.VACUUM
     return CleaningMode.VAC_AND_MOP
+
+
+def get_reported_special_mode(
+    clean_mode: int | VacuumModes | None,
+    water_mode: int | WaterModes | None,
+    mop_mode: int | CleanRoutes | None,
+    features: DeviceFeatures,
+) -> CleaningMode | None:
+    """Return CUSTOM or SMART_MODE when the reported codes say the robot is in that mode.
+
+    The codes decide, whatever the model's support flags say: a robot that reports
+    custom or SmartPlan values is in that mode, even if get_current_cleaning_mode
+    returns None because the mode is not in get_cleaning_mode_options. Custom is
+    checked before SmartPlan. Devices without a mop only report the fan power.
+    """
+    clean_enum = _resolve_clean_mode(clean_mode, features)
+    if not features.is_support_water_mode:
+        water_enum, mop_enum = None, None
+    else:
+        water_enum = _resolve_water_mode(water_mode, features)
+        mop_enum = _resolve_mode_code(mop_mode, CleanRoutes)
+    if is_mode_customized(clean_enum, water_enum, mop_enum):
+        return CleaningMode.CUSTOM
+    if is_smart_mode_set(water_enum, clean_enum, mop_enum):
+        return CleaningMode.SMART_MODE
+    return None
 
 
 def is_mode_customized(
