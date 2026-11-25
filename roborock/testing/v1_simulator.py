@@ -250,6 +250,7 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
             "set_custom_mode": self._handle_set_custom_mode,
             "set_mop_mode": self._handle_set_mop_mode,
             "set_water_box_custom_mode": self._handle_set_water_box_custom_mode,
+            "set_clean_motor_mode": self._handle_set_clean_motor_mode,
             "reset_consumable": self._handle_reset_consumable,
             "app_get_init_status": self._handle_app_get_init_status,
             "get_network_info": self._handle_get_network_info,
@@ -347,6 +348,13 @@ class V1VacuumSimulator(RoborockDeviceSimulator):
     def _handle_set_water_box_custom_mode(self, params: Any) -> str:
         if isinstance(params, list) and len(params) > 0:
             self.status.water_box_mode = params[0]
+        return "ok"
+
+    def _handle_set_clean_motor_mode(self, params: Any) -> str:
+        if isinstance(params, list) and len(params) > 0 and isinstance(params[0], dict):
+            self.status.fan_power = params[0]["fan_power"]
+            self.status.water_box_mode = params[0]["water_box_mode"]
+            self.status.mop_mode = params[0].get("mop_mode", self.status.mop_mode)
         return "ok"
 
     def _handle_set_dust_collection_mode(self, params: Any) -> str:

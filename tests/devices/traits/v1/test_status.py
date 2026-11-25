@@ -3,6 +3,7 @@
 import asyncio
 import warnings
 from collections.abc import Iterator
+from dataclasses import replace
 from typing import cast
 from unittest.mock import AsyncMock, Mock, call
 
@@ -19,7 +20,7 @@ from roborock import (
     get_water_slide_mode_name,
     resolve_cleaning_mode,
 )
-from roborock.data import SHORT_MODEL_TO_ENUM, HomeDataDevice, RoborockProductNickname
+from roborock.data import SHORT_MODEL_TO_ENUM, HomeDataDevice, HomeDataProduct, RoborockProductNickname
 from roborock.data.v1 import (
     RoborockChargeStatus,
     RoborockDockErrorCode,
@@ -36,6 +37,7 @@ from roborock.devices.traits.v1.status import StatusTrait
 from roborock.exceptions import RoborockException, RoborockParsingException, RoborockUnsupportedFeature
 from roborock.roborock_message import RoborockDataProtocol
 from roborock.roborock_typing import RoborockCommand
+from roborock.testing import DEFAULT_STATUS, V1VacuumSimulator
 from tests import mock_data
 from tests.mock_data import STATUS
 
@@ -2316,3 +2318,82 @@ def test_display_value_matches_name_when_not_adjustable(model: str, codes: tuple
     assert len(shown) == 1
     name = shown[0].value if setting == "fan_speed" else shown[0].display_name
     assert name == getattr(trait, f"{setting}_name")
+
+
+# Seeded codes: fan 102 (balanced), water 202, route 300 (standard), vacuum and mop.
+@pytest.fixture(name="simulator")
+def simulator_fixture(device_info: HomeDataDevice, products: list[HomeDataProduct]) -> V1VacuumSimulator:
+    """Create a connected V1VacuumSimulator holding a shake-module mop in VAC_AND_MOP."""
+    product = next(p for p in products if p.id == device_info.product_id)
+    sim = V1VacuumSimulator(
+        duid=device_info.duid,
+        device_info=device_info,
+        product=product,
+        status=replace(DEFAULT_STATUS, fan_power=102, water_box_mode=202, mop_mode=300),
+    )
+    sim.connect()
+    return sim
+
+
+@pytest.fixture(name="simulated_trait")
+async def simulated_trait_fixture(simulator: V1VacuumSimulator) -> StatusTrait:
+    """Return a shake-module StatusTrait that talks to the simulator and has read its status."""
+    trait = _create_cleaning_mode_status_trait()
+    trait._rpc_channel = simulator.v1_channel.rpc_channel
+    await trait.refresh()
+    return trait
+
+
+@pytest.mark.parametrize(
+    ("call_name", "arg", "expected"),
+    [
+        ("set_fan_speed", VacuumModes.MAX, (104, 202, 300)),
+        ("set_water_mode", WaterModes.HIGH, (102, 203, 300)),
+        # DEEP (301) is not allowed in the seeded vacuum and mop mode, FAST (304) is.
+        ("set_mop_route", CleanRoutes.FAST, (102, 202, 304)),
+    ],
+)
+async def test_simulator_setter_changes_only_its_field(
+    simulator: V1VacuumSimulator,
+    simulated_trait: StatusTrait,
+    call_name: str,
+    arg: VacuumModes | WaterModes | CleanRoutes,
+    expected: tuple[int, int, int],
+) -> None:
+    await getattr(simulated_trait, call_name)(arg)
+
+    assert (simulator.status.fan_power, simulator.status.water_box_mode, simulator.status.mop_mode) == expected
+    await simulated_trait.refresh()
+    assert (simulated_trait.fan_power, simulated_trait.water_box_mode, simulated_trait.mop_mode) == expected
+
+
+async def test_simulator_set_cleaning_mode_mop_sets_fan_105(
+    simulator: V1VacuumSimulator, simulated_trait: StatusTrait
+) -> None:
+    await simulated_trait.set_cleaning_mode(CleaningMode.MOP)
+
+    assert simulator.status.fan_power == 105
+    await simulated_trait.refresh()
+    assert simulated_trait.fan_power == 105
+    assert simulated_trait.current_cleaning_mode == CleaningMode.MOP
+
+
+@pytest.mark.parametrize(
+    ("call_name", "arg"),
+    [("set_fan_speed", VacuumModes.MAX), ("set_water_mode", WaterModes.HIGH), ("set_mop_route", CleanRoutes.DEEP)],
+)
+async def test_simulator_setters_refused_in_smartplan_leave_state_unchanged(
+    simulator: V1VacuumSimulator, call_name: str, arg: VacuumModes | WaterModes | CleanRoutes
+) -> None:
+    simulator.status.fan_power, simulator.status.water_box_mode, simulator.status.mop_mode = 110, 209, 306
+    trait = _create_cleaning_mode_status_trait(is_smart_clean_mode_set_supported=True)
+    send_command = AsyncMock(wraps=simulator.v1_channel.rpc_channel.send_command)
+    trait._rpc_channel = Mock(send_command=send_command)
+    await trait.refresh()
+    send_command.reset_mock()
+
+    with pytest.raises(RoborockUnsupportedFeature):
+        await getattr(trait, call_name)(arg)
+
+    send_command.assert_not_called()
+    assert (simulator.status.fan_power, simulator.status.water_box_mode, simulator.status.mop_mode) == (110, 209, 306)
