@@ -551,6 +551,23 @@ def test_dock_features(dock_type: RoborockDockTypeCode, is_collectable: bool, is
     assert is_wash_n_fill_dock(dock_type) is dock_features.is_washable
 
 
+def test_dock_drying_depends_on_device_feature() -> None:
+    """Drying can come from an optional module rather than the dock family.
+
+    The o3 Empty Wash Fill dock does not dry by itself, but it supports the
+    separately sold dryer module (e.g. HADM02RR). The device advertises that
+    capability through the ``is_supported_drying`` device feature, so the dock
+    type alone must not decide.
+    """
+    assert RoborockDockFeatures.from_dock_type(RoborockDockTypeCode.o3_dock).is_dryable is False
+    assert (
+        RoborockDockFeatures.from_dock_type(RoborockDockTypeCode.o3_dock, supports_drying=False).is_dryable is False
+    )
+    assert RoborockDockFeatures.from_dock_type(RoborockDockTypeCode.o3_dock, supports_drying=True).is_dryable is True
+    # Dock families that dry on their own are unaffected by the flag.
+    assert RoborockDockFeatures.from_dock_type(RoborockDockTypeCode.o4_dock, supports_drying=False).is_dryable is True
+
+
 def test_all_rr_api_dock_types_are_mapped() -> None:
     """Keep the enum synchronized with the RR_API DockConfigs snapshot."""
     mapped_docks = {

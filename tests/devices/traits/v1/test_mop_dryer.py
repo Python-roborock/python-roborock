@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, call
 import pytest
 
 from roborock.data import RoborockDockTypeCode
+from roborock.device_features import RoborockDockFeatures
 from roborock.devices.device import RoborockDevice
 from roborock.devices.traits.v1.mop_dryer import MopDryerTrait
 from roborock.roborock_typing import RoborockCommand
@@ -164,3 +165,26 @@ async def test_dry_cycle(
     mock_rpc_channel.send_command.assert_called_with(
         RoborockCommand.APP_SET_DRYER_STATUS, params={"status": expected_status}
     )
+
+
+@pytest.mark.parametrize(
+    ("supports_drying", "expected"),
+    [
+        pytest.param(None, False, id="feature_not_reported"),
+        pytest.param(False, False, id="feature_absent"),
+        pytest.param(True, True, id="optional_dryer_module"),
+    ],
+)
+def test_trait_gate_with_optional_dryer_module(supports_drying: bool | None, expected: bool) -> None:
+    """The o3 dock is dryable when the device advertises drying support.
+
+    The o3 Empty Wash Fill dock is collect+wash only, so drying requires the
+    optional dryer module (e.g. HADM02RR). The device reports that through the
+    ``is_supported_drying`` device feature instead of the dock type.
+    """
+    dock_features = RoborockDockFeatures.from_dock_type(
+        RoborockDockTypeCode.o3_dock,
+        supports_drying=supports_drying,
+    )
+
+    assert MopDryerTrait.requires_dock_features(dock_features) is expected

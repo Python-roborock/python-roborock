@@ -299,7 +299,11 @@ class PropertiesApi(Trait):
         await self.device_features.refresh()
         # Dock type also acts like a device feature for some traits.
         dock_type = await self._dock_type()
-        dock_features = RoborockDockFeatures.from_dock_type(dock_type, has_am=self.status.has_am)
+        dock_features = RoborockDockFeatures.from_dock_type(
+            dock_type,
+            has_am=self.status.has_am,
+            supports_drying=self.device_features.is_supported_drying,
+        )
         self.device_features.dock_features = dock_features
 
         # Initialize traits with special arguments before the generic loop
