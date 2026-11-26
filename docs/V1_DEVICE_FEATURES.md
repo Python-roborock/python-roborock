@@ -1552,6 +1552,14 @@ These features are checked by verifying if the feature ID exists in the `feature
 
 ---
 
+### is_set_clean_motor_mode_supported
+**Feature ID:** 118
+**Feature:** Set Clean Motor Mode
+**Description:** Models with this flag accept `fan_power` and `water_box_mode` together in `set_clean_motor_mode`; the route goes in `set_mop_mode`. Models with `is_shake_mop_set_supported` send all three in `set_clean_motor_mode`. Other models use `set_custom_mode`, `set_water_box_custom_mode` and `set_mop_mode`.
+**Impact:** Decides which commands are used to change the fan speed, water mode and cleaning mode.
+
+---
+
 ### is_led_status_switch_supported
 **Feature ID:** 119
 **Feature:** LED Status Switch
@@ -1621,7 +1629,8 @@ These features are enabled/disabled based on specific device model whitelists or
 ---
 
 ### is_soft_clean_mode_supported
-**Model Whitelist:** TANOSV, TANOSE, TANOS
+**Model Whitelist:** TANOSV, TANOSE, TANOS, RUBYSC, RUBYSLITE, RUBYSE
+**Source:** Roborock app `isSoftCleanModeSupportedInMain`
 **Feature:** Soft Clean Mode
 **Description:** Gentle cleaning mode for delicate floors.
 **Impact:** Reduced suction and brush speed for sensitive surfaces.
@@ -1629,7 +1638,8 @@ These features are enabled/disabled based on specific device model whitelists or
 ---
 
 ### is_custom_mode_supported
-**Model Blacklist:** TANOS (all except TANOS)
+**Model Blacklist:** TANOS, RUBYPLUS, RUBYSC, RUBYSE (all except these)
+**Source:** Roborock app `isCustomModeSupported`
 **Feature:** Custom Cleaning Mode
 **Description:** User-defined custom cleaning modes.
 **Impact:** Create personalized cleaning modes with specific parameters.

@@ -111,6 +111,27 @@ async def test_trait_fan_speed_change():
     assert device.v1_properties.status.fan_power == 105
 
 
+@pytest.mark.parametrize(
+    ("params", "expected"),
+    [
+        ({"fan_power": 104, "water_box_mode": 203, "mop_mode": 301}, (104, 203, 301)),
+        ({"fan_power": 104, "water_box_mode": 203}, (104, 203, 300)),
+    ],
+)
+async def test_trait_set_clean_motor_mode(params, expected):
+    """Verify set_clean_motor_mode updates the fan, water and, when given, mop route."""
+    cloud = FakeRoborockCloud()
+    fake_device = V1VacuumSimulator(
+        duid="s7_motor_mode", status=replace(DEFAULT_STATUS, fan_power=102, water_box_mode=202, mop_mode=300)
+    )
+    device = await _create_connected_device(cloud, fake_device)
+
+    await device.v1_properties.command.send("set_clean_motor_mode", [params])
+
+    status = fake_device.status
+    assert (status.fan_power, status.water_box_mode, status.mop_mode) == expected
+
+
 async def test_trait_clean_summary_refresh():
     """Verify that the clean summary trait can be refreshed from the simulator."""
     cloud = FakeRoborockCloud()

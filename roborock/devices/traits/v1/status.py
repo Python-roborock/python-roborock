@@ -5,6 +5,7 @@ from typing import Any
 
 from roborock import (
     CleaningMode,
+    CleaningSetting,
     CleanRoutes,
     RoborockDockErrorCode,
     RoborockDockState,
@@ -12,13 +13,22 @@ from roborock import (
     StatusV2,
     VacuumModes,
     WaterModes,
+    get_adjustable_settings,
     get_clean_modes,
     get_clean_routes,
+    get_cleaning_mode_codes,
     get_cleaning_mode_options,
-    get_cleaning_mode_parameters,
     get_current_cleaning_mode,
+    get_display_options,
     get_dock_state,
+    get_fan_speed_name,
+    get_mop_route_name,
+    get_motor_mode_commands,
+    get_reported_special_mode,
+    get_setting_change_codes,
+    get_supported_settings,
     get_water_mode_mapping,
+    get_water_mode_name,
     get_water_modes,
     get_water_slide_mode_name,
     resolve_cleaning_mode,
@@ -84,11 +94,12 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
     - Water Mode
     - Mop Route
 
-    You should use the _options version of the attribute to know which are
-    supported for your device (i.e. fan_speed_options)
-    Then you can use the _mapping to convert an int value to the actual Enum.
-    (i.e. fan_speed_mapping)
-    You can use the _name property to get the str value of the enum. (i.e. fan_speed_name)
+    The _options and _mapping versions of the attribute (i.e. fan_speed_options,
+    fan_speed_mapping) hold only the user-selectable values, i.e. what you can
+    write to the device. They do not include SmartPlan or custom codes.
+    Use the _name property (i.e. fan_speed_name), or get_fan_speed_name,
+    get_water_mode_name and get_mop_route_name, to name the current value,
+    including SmartPlan and custom codes.
 
     """
 
@@ -137,16 +148,37 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
     def fan_speed_mapping(self) -> dict[int, str]:
         return {fan.code: fan.value for fan in self.fan_speed_options}
 
+    @property
+    def supported_cleaning_settings(self) -> list[CleaningSetting]:
+        """The cleaning settings this model has at all, independent of the current cleaning mode.
+
+        Use it to decide which settings to offer. Whether a setting can be changed right
+        now is is_fan_speed_adjustable, is_water_mode_adjustable and is_mop_route_adjustable.
+        The options and mapping of a setting the model does not have are empty. The cleaning
+        mode has no entry here: it exists exactly when cleaning_mode_options is not empty,
+        which is the case for models with a mop (is_support_water_mode).
+
+        The list is in the definition order of CleaningSetting, so it is stable across runs.
+        """
+        supported = get_supported_settings(self._device_features_trait)
+        return [setting for setting in CleaningSetting if setting in supported]
+
     @cached_property
     def water_mode_options(self) -> list[WaterModes]:
+        if CleaningSetting.WATER_MODE not in self.supported_cleaning_settings:
+            return []
         return get_water_modes(self._device_features_trait)
 
     @cached_property
     def water_mode_mapping(self) -> dict[int, str]:
+        if CleaningSetting.WATER_MODE not in self.supported_cleaning_settings:
+            return {}
         return get_water_mode_mapping(self._device_features_trait)
 
     @cached_property
     def mop_route_options(self) -> list[CleanRoutes]:
+        if CleaningSetting.MOP_ROUTE not in self.supported_cleaning_settings:
+            return []
         return get_clean_routes(self._device_features_trait, self._region or "us")
 
     @cached_property
@@ -161,21 +193,19 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
     def fan_speed_name(self) -> str | None:
         if self.fan_power is None:
             return None
-        return self.fan_speed_mapping.get(self.fan_power)
+        return get_fan_speed_name(self.fan_power, self._device_features_trait)
 
     @property
     def water_mode_name(self) -> str | None:
         if self.water_box_mode is None:
             return None
-        if self._device_features_trait.is_water_slide_mode_supported:
-            return get_water_slide_mode_name(self.water_box_mode)
-        return self.water_mode_mapping.get(self.water_box_mode)
+        return get_water_mode_name(self.water_box_mode, self._device_features_trait)
 
     @property
     def mop_route_name(self) -> str | None:
         if self.mop_mode is None:
             return None
-        return self.mop_route_mapping.get(self.mop_mode)
+        return get_mop_route_name(self.mop_mode, self._device_features_trait, self._region or "us")
 
     @property
     def current_cleaning_mode(self) -> CleaningMode | None:
@@ -192,12 +222,120 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
             return None
         return cleaning_mode.value
 
+    @property
+    def _rules_mode(self) -> CleaningMode | None:
+        """The mode the adjustable, display and setter rules use.
+
+        A reported SmartPlan or custom state counts even when the model lacks the support
+        flags that would make current_cleaning_mode report it.
+        """
+        special = get_reported_special_mode(
+            self.fan_power, self.water_box_mode, self.mop_mode, self._device_features_trait
+        )
+        return special or self.current_cleaning_mode
+
+    @property
+    def is_fan_speed_adjustable(self) -> bool:
+        """Whether the fan speed can be changed in the current cleaning mode."""
+        adjustable = get_adjustable_settings(self._rules_mode, self._device_features_trait)
+        return CleaningSetting.FAN_SPEED in adjustable
+
+    @property
+    def is_water_mode_adjustable(self) -> bool:
+        """Whether the water mode can be changed in the current cleaning mode."""
+        adjustable = get_adjustable_settings(self._rules_mode, self._device_features_trait)
+        return CleaningSetting.WATER_MODE in adjustable
+
+    @property
+    def is_mop_route_adjustable(self) -> bool:
+        """Whether the mop route can be changed in the current cleaning mode."""
+        adjustable = get_adjustable_settings(self._rules_mode, self._device_features_trait)
+        return CleaningSetting.MOP_ROUTE in adjustable
+
+    @property
+    def fan_speed_display_options(self) -> list[VacuumModes]:
+        """Fan speeds to show for the current cleaning mode, or only the current value when the mode sets it."""
+        return get_display_options(
+            CleaningSetting.FAN_SPEED,
+            self._rules_mode,
+            self._device_features_trait,
+            self.fan_speed_options,
+            self.fan_power,
+        )
+
+    @property
+    def water_mode_display_options(self) -> list[WaterModes]:
+        """Water modes to show for the current cleaning mode, or only the current value when the mode sets it."""
+        return get_display_options(
+            CleaningSetting.WATER_MODE,
+            self._rules_mode,
+            self._device_features_trait,
+            self.water_mode_options,
+            self.water_box_mode,
+        )
+
+    @property
+    def mop_route_display_options(self) -> list[CleanRoutes]:
+        """Mop routes to show for the current cleaning mode, or only the current value when the mode sets it."""
+        return get_display_options(
+            CleaningSetting.MOP_ROUTE,
+            self._rules_mode,
+            self._device_features_trait,
+            self.mop_route_options,
+            self.mop_mode,
+        )
+
     async def set_cleaning_mode(self, cleaning_mode: str | CleaningMode) -> None:
         """Set the preferred high-level cleaning mode for the device."""
-        await self.rpc_channel.send_command(
-            RoborockCommand.SET_CLEAN_MOTOR_MODE,
-            params=get_cleaning_mode_parameters(resolve_cleaning_mode(cleaning_mode), self._device_features_trait),
+        fan_power, water_box_mode, mop_mode = get_cleaning_mode_codes(
+            resolve_cleaning_mode(cleaning_mode), self._device_features_trait, self.mop_mode
         )
+        await self._apply_motor_mode(fan_power, water_box_mode, mop_mode)
+
+    async def set_fan_speed(self, mode: VacuumModes) -> None:
+        """Set the fan speed while keeping the water mode and mop route."""
+        await self._set_cleaning_setting(CleaningSetting.FAN_SPEED, mode.code)
+
+    async def set_water_mode(self, mode: WaterModes) -> None:
+        """Set the water mode while keeping the fan speed and mop route."""
+        await self._set_cleaning_setting(CleaningSetting.WATER_MODE, mode.code)
+
+    async def set_mop_route(self, route: CleanRoutes) -> None:
+        """Set the mop route while keeping the fan speed and water mode."""
+        await self._set_cleaning_setting(CleaningSetting.MOP_ROUTE, route.code)
+
+    async def _set_cleaning_setting(self, setting: CleaningSetting, code: int) -> None:
+        features = self._device_features_trait
+        # A device without a mop has no water mode, so only the fan power has to be loaded.
+        if self.fan_power is None or (features.is_support_water_mode and self.water_box_mode is None):
+            raise RoborockException("Status is not loaded, call refresh() first")
+        fan_power, water_box_mode, mop_mode = get_setting_change_codes(
+            setting,
+            code,
+            self._rules_mode,
+            features,
+            self._region or "us",
+            fan_power=self.fan_power,
+            water_box_mode=self.water_box_mode,
+            mop_mode=self.mop_mode,
+        )
+        await self._apply_motor_mode(fan_power, water_box_mode, mop_mode)
+
+    async def _apply_motor_mode(self, fan_power: int, water_box_mode: int | None, mop_mode: int | None) -> None:
+        """Send the codes in the order the model needs, then update the cached status.
+
+        The cached fields are updated and listeners are notified once, only after all
+        commands have succeeded. A None water mode or mop route leaves that field as it is.
+        """
+        commands = get_motor_mode_commands(fan_power, water_box_mode, mop_mode, self._device_features_trait)
+        for command, params in commands:
+            await self.rpc_channel.send_command(command, params=params)
+        self.fan_power = fan_power
+        if water_box_mode is not None:
+            self.water_box_mode = water_box_mode
+        if mop_mode is not None:
+            self.mop_mode = mop_mode
+        self._notify_update()
 
     async def resolve_error(self, error_code: int | None = None) -> None:
         """Resolve an error, like tapping "Resolved" in the Roborock app.
