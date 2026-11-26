@@ -77,6 +77,7 @@ from roborock.web_api import UserWebApiClient
 from . import (
     camera,
     child_lock,
+    clean_sequence,
     clean_summary,
     collision_avoidance,
     command,
@@ -105,6 +106,7 @@ from . import (
 )
 from .camera import CameraTrait
 from .child_lock import ChildLockTrait
+from .clean_sequence import CleanSequenceTrait
 from .clean_summary import CleanSummaryTrait
 from .collision_avoidance import CollisionAvoidanceModeTrait, CollisionAvoidanceTrait
 from .command import CommandTrait
@@ -137,6 +139,7 @@ __all__ = [
     "PropertiesApi",
     "camera",
     "child_lock",
+    "clean_sequence",
     "clean_summary",
     "collision_avoidance",
     "command",
@@ -202,6 +205,7 @@ class PropertiesApi(Trait):
     obstacle_photos: ObstaclePhotoTrait | None = None
     mop_dryer: MopDryerTrait | None = None
     customize_clean_mode: CustomizeCleanModeTrait | None = None
+    clean_sequence: CleanSequenceTrait | None = None
 
     def __init__(
         self,
