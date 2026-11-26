@@ -2,6 +2,33 @@
 
 <!-- version list -->
 
+## v7.37.0 (2026-11-26)
+
+### Bug Fixes
+
+- Correct smart water and map segment rules, drop photo upload flag
+  ([#1054](https://github.com/Python-roborock/python-roborock/pull/1054),
+  [`1fe37e4`](https://github.com/Python-roborock/python-roborock/commit/1fe37e4896502588514f54c0d87db46af928e286))
+
+- **mower**: Complete FSM state mappings and continuation parsing
+  ([#1022](https://github.com/Python-roborock/python-roborock/pull/1022),
+  [`5c13379`](https://github.com/Python-roborock/python-roborock/commit/5c13379a7068cbf29ae602da39b4109f466a38be))
+
+### Features
+
+- Add V1 feature flag bits from the Roborock app
+  ([#1054](https://github.com/Python-roborock/python-roborock/pull/1054),
+  [`1fe37e4`](https://github.com/Python-roborock/python-roborock/commit/1fe37e4896502588514f54c0d87db46af928e286))
+
+- Add V1 feature flag bits needed to gate dock and cleaning options
+  ([#1054](https://github.com/Python-roborock/python-roborock/pull/1054),
+  [`1fe37e4`](https://github.com/Python-roborock/python-roborock/commit/1fe37e4896502588514f54c0d87db46af928e286))
+
+- **mower**: Add structured command and reply models
+  ([#1022](https://github.com/Python-roborock/python-roborock/pull/1022),
+  [`5c13379`](https://github.com/Python-roborock/python-roborock/commit/5c13379a7068cbf29ae602da39b4109f466a38be))
+
+
 ## v7.36.1 (2026-11-26)
 
 ### Bug Fixes
