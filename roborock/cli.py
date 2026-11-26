@@ -1788,9 +1788,9 @@ async def q10_set_fan_level(ctx: click.Context, device_id: str, level: str) -> N
 #
 # The Q7 API exposes its cleaning commands directly on Q7PropertiesApi
 # (there is no separate vacuum trait as on the Q10), so these commands call
-# the API methods. There is intentionally no resume or spot command: the Q7
-# firmware has no resume control value (SCDeviceCleanParam only defines
-# start, pause and stop) and no spot clean task type, so a paused clean is
+# the API methods. There is intentionally no resume or spot command: the
+# library does not map a resume value yet (the app defines an unconfirmed
+# puaseFalse = 3) and no spot clean task type, so a paused clean is
 # restarted with q7-vacuum-start.
 
 
