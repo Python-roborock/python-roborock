@@ -658,6 +658,41 @@ async def test_dyad_action_commands(
     assert payload_data["dps"] == expected_dps
 
 
+async def test_zeo_api_query_values_skips_unsupported_dps(fake_channel: FakeChannel):
+    """Zeo Mini (a93) has no softener compartment and never answers the softener DPs."""
+    zeo_api = ZeoApi(fake_channel, model="roborock.wm.a93")  # type: ignore[arg-type]
+    fake_channel.response_queue.append(build_a01_message({203: 4, 226: 1}))
+
+    result = await zeo_api.query_values(
+        [
+            RoborockZeoProtocol.STATE,
+            RoborockZeoProtocol.DETERGENT_EMPTY,
+            RoborockZeoProtocol.SOFTENER_TYPE,
+            RoborockZeoProtocol.SOFTENER_EMPTY,
+        ]
+    )
+
+    assert result == {
+        RoborockZeoProtocol.STATE: "washing",
+        RoborockZeoProtocol.DETERGENT_EMPTY: True,
+        RoborockZeoProtocol.SOFTENER_TYPE: None,
+        RoborockZeoProtocol.SOFTENER_EMPTY: None,
+    }
+    assert len(fake_channel.published_messages) == 1
+    payload_data = json.loads(unpad(fake_channel.published_messages[0].payload, AES.block_size))
+    assert payload_data["dps"] == {"10000": "[203, 226]"}
+
+
+async def test_zeo_api_query_values_only_unsupported_dps(fake_channel: FakeChannel):
+    """Nothing is sent when the device supports none of the requested DPs."""
+    zeo_api = ZeoApi(fake_channel, model="roborock.wm.a93")  # type: ignore[arg-type]
+
+    result = await zeo_api.query_values([RoborockZeoProtocol.SOFTENER_EMPTY])
+
+    assert result == {RoborockZeoProtocol.SOFTENER_EMPTY: None}
+    assert not fake_channel.published_messages
+
+
 async def test_zeo_api_set_value(zeo_api: ZeoApi, fake_channel: FakeChannel):
     """Test ZeoApi set_value sends correct command."""
     await zeo_api.set_value(RoborockZeoProtocol.MODE, "standard")
