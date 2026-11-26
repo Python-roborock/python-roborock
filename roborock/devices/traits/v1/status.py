@@ -18,7 +18,10 @@ from roborock import (
     get_cleaning_mode_parameters,
     get_current_cleaning_mode,
     get_dock_state,
+    get_fan_speed_name,
+    get_mop_route_name,
     get_water_mode_mapping,
+    get_water_mode_name,
     get_water_modes,
     get_water_slide_mode_name,
     resolve_cleaning_mode,
@@ -84,11 +87,12 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
     - Water Mode
     - Mop Route
 
-    You should use the _options version of the attribute to know which are
-    supported for your device (i.e. fan_speed_options)
-    Then you can use the _mapping to convert an int value to the actual Enum.
-    (i.e. fan_speed_mapping)
-    You can use the _name property to get the str value of the enum. (i.e. fan_speed_name)
+    The _options and _mapping versions of the attribute (i.e. fan_speed_options,
+    fan_speed_mapping) hold only the user-selectable values, i.e. what you can
+    write to the device. They do not include SmartPlan or custom codes.
+    Use the _name property (i.e. fan_speed_name), or get_fan_speed_name,
+    get_water_mode_name and get_mop_route_name, to name the current value,
+    including SmartPlan and custom codes.
 
     """
 
@@ -161,21 +165,19 @@ class StatusTrait(StatusV2, common.V1TraitMixin, TraitUpdateListener):
     def fan_speed_name(self) -> str | None:
         if self.fan_power is None:
             return None
-        return self.fan_speed_mapping.get(self.fan_power)
+        return get_fan_speed_name(self.fan_power, self._device_features_trait)
 
     @property
     def water_mode_name(self) -> str | None:
         if self.water_box_mode is None:
             return None
-        if self._device_features_trait.is_water_slide_mode_supported:
-            return get_water_slide_mode_name(self.water_box_mode)
-        return self.water_mode_mapping.get(self.water_box_mode)
+        return get_water_mode_name(self.water_box_mode, self._device_features_trait)
 
     @property
     def mop_route_name(self) -> str | None:
         if self.mop_mode is None:
             return None
-        return self.mop_route_mapping.get(self.mop_mode)
+        return get_mop_route_name(self.mop_mode, self._device_features_trait, self._region or "us")
 
     @property
     def current_cleaning_mode(self) -> CleaningMode | None:

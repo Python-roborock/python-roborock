@@ -633,7 +633,7 @@ def test_get_cleaning_mode_parameters_qrevo_edge_2() -> None:
             "mop_mode": CleanRoutes.STANDARD.code,
         }
     ]
-    assert VacuumModes.OFF in status_trait.fan_speed_options
+    assert 105 not in {mode.code for mode in status_trait.fan_speed_options}
     assert VacuumModes.OFF_RAISE_MAIN_BRUSH not in status_trait.fan_speed_options
 
 
@@ -726,7 +726,9 @@ def test_current_cleaning_mode_water_slide_legacy_codes(
     water_box_mode: int | None, expected_mode: CleaningMode | None
 ) -> None:
     """Keep legacy and unknown status decoding on water-slide devices."""
-    status_trait = _create_cleaning_mode_status_trait(is_water_slide_mode_supported=True)
+    status_trait = _create_cleaning_mode_status_trait(
+        is_water_slide_mode_supported=True, is_smart_clean_mode_set_supported=True
+    )
     status_trait.fan_power = 102
     status_trait.water_box_mode = water_box_mode
     status_trait.mop_mode = 300
@@ -825,19 +827,134 @@ async def test_set_cleaning_mode_water_slide_wire_payload(
     mock_rpc_channel.send_command.assert_called_once_with(RoborockCommand.SET_CLEAN_MOTOR_MODE, params=[expected])
 
 
-def test_cleaning_mode_options_water_slide_device() -> None:
-    """Water-slide devices should not expose unsupported custom or smart water modes."""
+@pytest.mark.parametrize("water_slide", [False, True])
+@pytest.mark.parametrize(
+    ("custom", "smart", "extra"),
+    [
+        (True, True, [CleaningMode.CUSTOM, CleaningMode.SMART_MODE]),
+        (False, True, [CleaningMode.SMART_MODE]),
+        (True, False, [CleaningMode.CUSTOM]),
+        (False, False, []),
+    ],
+)
+def test_cleaning_mode_options_follow_app_flags(
+    water_slide: bool, custom: bool, smart: bool, extra: list[CleaningMode]
+) -> None:
+    """Custom and SmartPlan options depend only on their feature flags, also on water-slide devices."""
     status_trait = _create_cleaning_mode_status_trait(
-        is_water_slide_mode_supported=True,
-        is_customized_clean_supported=True,
-        is_smart_clean_mode_set_supported=True,
+        is_water_slide_mode_supported=water_slide,
+        is_custom_mode_supported=custom,
+        is_smart_clean_mode_set_supported=smart,
     )
 
     assert status_trait.cleaning_mode_options == [
         CleaningMode.VACUUM,
         CleaningMode.VAC_AND_MOP,
         CleaningMode.MOP,
+        *extra,
     ]
+
+
+@pytest.mark.parametrize(
+    ("fan_power", "water_box_mode", "mop_mode", "expected_mode"),
+    [
+        # Readback from a Qrevo Edge 3 Pro (a296) after writing each mode.
+        (106, 204, 300, CleaningMode.CUSTOM),
+        (110, 209, 306, CleaningMode.SMART_MODE),
+        # Qrevo Edge 2 Flow (a328) in custom mode, from #977.
+        (106, 204, 302, CleaningMode.CUSTOM),
+    ],
+)
+def test_current_cleaning_mode_water_slide_special_modes(
+    fan_power: int,
+    water_box_mode: int,
+    mop_mode: int,
+    expected_mode: CleaningMode,
+) -> None:
+    """The current custom/SmartPlan mode on a water-slide device is one of its options."""
+    status_trait = _create_cleaning_mode_status_trait(
+        is_water_slide_mode_supported=True,
+        is_customized_clean_supported=True,
+        is_smart_clean_mode_set_supported=True,
+    )
+    status_trait.fan_power = fan_power
+    status_trait.water_box_mode = water_box_mode
+    status_trait.mop_mode = mop_mode
+
+    assert status_trait.current_cleaning_mode == expected_mode
+    assert status_trait.current_cleaning_mode in status_trait.cleaning_mode_options
+
+
+@pytest.mark.parametrize(
+    ("cleaning_mode", "expected_params"),
+    [
+        (CleaningMode.CUSTOM, {"fan_power": 106, "water_box_mode": 204, "mop_mode": 302}),
+        (CleaningMode.SMART_MODE, {"fan_power": 110, "water_box_mode": 209, "mop_mode": 306}),
+    ],
+)
+async def test_set_cleaning_mode_water_slide_special_modes(
+    mock_rpc_channel: AsyncMock,
+    cleaning_mode: CleaningMode,
+    expected_params: dict[str, int],
+) -> None:
+    """Custom and SmartPlan use the same special codes on water-slide devices."""
+    status_trait = _create_cleaning_mode_status_trait(
+        is_water_slide_mode_supported=True,
+        is_customized_clean_supported=True,
+        is_smart_clean_mode_set_supported=True,
+    )
+    status_trait._rpc_channel = mock_rpc_channel  # type: ignore[assignment]
+
+    await status_trait.set_cleaning_mode(cleaning_mode)
+
+    mock_rpc_channel.send_command.assert_called_once_with(
+        RoborockCommand.SET_CLEAN_MOTOR_MODE, params=[expected_params]
+    )
+
+
+def test_custom_mode_does_not_need_customized_clean() -> None:
+    """Custom is offered and recognized on models without a shake or spin mop module."""
+    status_trait = _create_cleaning_mode_status_trait(is_customized_clean_supported=False)
+    status_trait.fan_power, status_trait.water_box_mode, status_trait.mop_mode = 106, 204, 302
+
+    assert CleaningMode.CUSTOM in status_trait.cleaning_mode_options
+    assert status_trait.current_cleaning_mode == CleaningMode.CUSTOM
+
+
+def test_mixed_custom_and_smart_codes_are_custom() -> None:
+    """Custom wins over SmartPlan when the codes mix both."""
+    trait = _create_cleaning_mode_status_trait(is_custom_mode_supported=True, is_smart_clean_mode_set_supported=True)
+    trait.fan_power, trait.water_box_mode, trait.mop_mode = 106, 209, 300
+
+    assert trait.current_cleaning_mode == CleaningMode.CUSTOM
+
+
+@pytest.mark.parametrize(
+    ("features", "codes"),
+    [
+        ({"is_custom_mode_supported": False}, (106, 204, 302)),
+        ({"is_smart_clean_mode_set_supported": False}, (110, 209, 306)),
+    ],
+)
+def test_current_mode_outside_options_is_none(features: dict[str, bool], codes: tuple[int, int, int]) -> None:
+    """A mode that the device does not offer is not reported as the current mode."""
+    trait = _create_cleaning_mode_status_trait(**features)
+    trait.fan_power, trait.water_box_mode, trait.mop_mode = codes
+
+    assert trait.current_cleaning_mode is None
+
+
+def test_saros_10r_smartplan_is_listed() -> None:
+    """The Saros 10R SmartPlan codes classify as SmartPlan, which is among the options."""
+    trait = _create_cleaning_mode_status_trait(
+        is_water_slide_mode_supported=True,
+        is_custom_mode_supported=True,
+        is_smart_clean_mode_set_supported=True,
+    )
+    trait.fan_power, trait.water_box_mode, trait.mop_mode = 110, 209, 306
+
+    assert trait.current_cleaning_mode == CleaningMode.SMART_MODE
+    assert trait.current_cleaning_mode in trait.cleaning_mode_options
 
 
 def test_current_cleaning_mode_gentle_not_mop_without_pure_mop() -> None:
@@ -920,6 +1037,66 @@ def test_water_slide_mode_name_covers_slider_positions(water_box_mode: int, expe
     status_trait.water_box_mode = water_box_mode
 
     assert status_trait.water_mode_name == expected_name
+
+
+def test_option_lists_exclude_special_codes() -> None:
+    """SmartPlan and custom codes are never offered as fan, water or mop route choices."""
+    trait = _create_cleaning_mode_status_trait(is_smart_clean_mode_set_supported=True)
+    special = {106, 110, 204, 209, 302, 306}
+    assert special.isdisjoint(m.code for m in trait.fan_speed_options)
+    assert special.isdisjoint(m.code for m in trait.water_mode_options)
+    assert special.isdisjoint(m.code for m in trait.mop_route_options)
+    assert special.isdisjoint(trait.fan_speed_mapping)
+    assert special.isdisjoint(trait.water_mode_mapping)
+    assert special.isdisjoint(trait.mop_route_mapping)
+
+
+@pytest.mark.parametrize("water_slide", [False, True])
+@pytest.mark.parametrize(
+    ("fan", "water", "mop", "names"),
+    [
+        (110, 209, 306, ("smart_mode", "smart_mode", "smart_mode")),
+        (106, 204, 302, ("custom", "custom", "custom")),
+    ],
+)
+def test_special_code_names(water_slide: bool, fan: int, water: int, mop: int, names: tuple[str, str, str]) -> None:
+    """Special codes are still named even though they are not selectable."""
+    trait = _create_cleaning_mode_status_trait(
+        is_smart_clean_mode_set_supported=True, is_water_slide_mode_supported=water_slide
+    )
+    trait.fan_power, trait.water_box_mode, trait.mop_mode = fan, water, mop
+    assert (trait.fan_speed_name, trait.water_mode_name, trait.mop_route_name) == names
+
+
+def test_water_slide_raw_position_name_unchanged() -> None:
+    """Raw slider positions keep resolving to their app range name."""
+    trait = _create_cleaning_mode_status_trait(is_water_slide_mode_supported=True)
+    trait.water_box_mode = 227
+    assert trait.water_mode_name == "low"
+
+
+@pytest.mark.parametrize(
+    ("soft", "pure_mop", "in_list", "name"),
+    [
+        (True, False, True, "gentle"),
+        (True, True, True, "gentle"),
+        (False, True, False, "off"),
+        (False, False, False, "gentle"),
+    ],
+)
+def test_fan_code_105(soft: bool, pure_mop: bool, in_list: bool, name: str) -> None:
+    """Code 105 is only selectable as gentle on soft-clean devices but is always named."""
+    trait = _create_cleaning_mode_status_trait(is_soft_clean_mode_supported=soft, is_pure_clean_mop_supported=pure_mop)
+    trait.fan_power = 105
+    assert (105 in {m.code for m in trait.fan_speed_options}) is in_list
+    assert trait.fan_speed_name == name
+
+
+def test_unknown_codes_have_no_name() -> None:
+    """Codes that are neither selectable nor special have no name."""
+    trait = _create_cleaning_mode_status_trait()
+    trait.fan_power, trait.water_box_mode, trait.mop_mode = 999, 999, 999
+    assert (trait.fan_speed_name, trait.water_mode_name, trait.mop_route_name) == (None, None, None)
 
 
 async def test_update_from_dps(status_trait: StatusTrait) -> None:

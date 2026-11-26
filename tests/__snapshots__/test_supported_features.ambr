@@ -1717,7 +1717,7 @@
     'is_smart_clean_mode_set_supported': False,
     'is_smart_water_supported': False,
     'is_soak_and_wash_supported': False,
-    'is_soft_clean_mode_supported': False,
+    'is_soft_clean_mode_supported': True,
     'is_sound_record_supported': False,
     'is_sr_map_supported': False,
     'is_stair_door_sill_supported': False,
