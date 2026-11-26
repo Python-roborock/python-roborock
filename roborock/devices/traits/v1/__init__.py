@@ -78,6 +78,7 @@ from . import (
     camera,
     child_lock,
     clean_summary,
+    cleaning_fluid,
     collision_avoidance,
     command,
     common,
@@ -102,10 +103,12 @@ from . import (
     valley_electricity_timer,
     volume,
     wash_towel_mode,
+    wash_water_temperature,
 )
 from .camera import CameraTrait
 from .child_lock import ChildLockTrait
 from .clean_summary import CleanSummaryTrait
+from .cleaning_fluid import CleaningFluidTrait, supports_cleaning_fluid
 from .collision_avoidance import CollisionAvoidanceModeTrait, CollisionAvoidanceTrait
 from .command import CommandTrait
 from .common import V1TraitMixin
@@ -130,6 +133,7 @@ from .status import StatusTrait
 from .valley_electricity_timer import ValleyElectricityTimerTrait
 from .volume import SoundVolumeTrait
 from .wash_towel_mode import WashTowelModeTrait
+from .wash_water_temperature import WashWaterTemperatureTrait, is_wash_water_temperature_offered
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -138,6 +142,7 @@ __all__ = [
     "camera",
     "child_lock",
     "clean_summary",
+    "cleaning_fluid",
     "collision_avoidance",
     "command",
     "common",
@@ -162,6 +167,7 @@ __all__ = [
     "valley_electricity_timer",
     "volume",
     "wash_towel_mode",
+    "wash_water_temperature",
 ]
 
 
@@ -199,6 +205,8 @@ class PropertiesApi(Trait):
     dust_collection: DustCollectionTrait | None = None
     wash_towel_mode: WashTowelModeTrait | None = None
     smart_wash_params: SmartWashParamsTrait | None = None
+    wash_water_temperature: WashWaterTemperatureTrait | None = None
+    cleaning_fluid: CleaningFluidTrait | None = None
     obstacle_photos: ObstaclePhotoTrait | None = None
     mop_dryer: MopDryerTrait | None = None
     customize_clean_mode: CustomizeCleanModeTrait | None = None
@@ -220,6 +228,7 @@ class PropertiesApi(Trait):
     ) -> None:
         """Initialize the V1TraitProps."""
         self._device_uid = device_uid
+        self._product = product
         self._rpc_channel = rpc_channel
         self._mqtt_rpc_channel = mqtt_rpc_channel
         self._map_rpc_channel = map_rpc_channel
@@ -308,6 +317,36 @@ class PropertiesApi(Trait):
             wash_towel_mode._rpc_channel = self._get_rpc_channel(wash_towel_mode)  # type: ignore[assignment]
             self.wash_towel_mode = wash_towel_mode
 
+        if self.smart_wash_params is None and self._is_supported(
+            SmartWashParamsTrait, "smart_wash_params", dock_features
+        ):
+            smart_wash_params = SmartWashParamsTrait(self.device_features, self._product.product_nickname)
+            smart_wash_params._rpc_channel = self._get_rpc_channel(smart_wash_params)  # type: ignore[assignment]
+            self.smart_wash_params = smart_wash_params
+
+        # The wash water temperature needs a washing dock, a device that can heat wash water,
+        # and a product and dock for which the app shows it.
+        if (
+            self.wash_water_temperature is None
+            and self.device_features.is_hot_wash_towel_supported
+            and is_wash_water_temperature_offered(self._product.product_nickname, dock_features)
+            and self._is_supported(WashWaterTemperatureTrait, "wash_water_temperature", dock_features)
+        ):
+            wash_water_temperature = WashWaterTemperatureTrait(self.device_features)
+            wash_water_temperature._rpc_channel = self._get_rpc_channel(wash_water_temperature)  # type: ignore[assignment]
+            self.wash_water_temperature = wash_water_temperature
+
+        # The cleaning fluid needs the robot's fluid container status as well as device and dock features.
+        # Discovery does not repeat on status updates: no container now means no trait until the next device setup.
+        if self.cleaning_fluid is None and supports_cleaning_fluid(
+            fluid_delivery_supported=self.device_features.is_clean_fluid_delivery_supported,
+            dock_features=dock_features,
+            fluid_status=self.status.clean_fluid_status,
+        ):
+            cleaning_fluid = CleaningFluidTrait(self.device_features)
+            cleaning_fluid._rpc_channel = self._get_rpc_channel(cleaning_fluid)  # type: ignore[assignment]
+            self.cleaning_fluid = cleaning_fluid
+
         # The dust collection mode needs both device and dock features
         if self.dust_collection_mode is None and supports_dust_collection_mode(self.device_features, dock_features):
             dust_collection_mode = DustCollectionModeTrait()
@@ -353,7 +392,13 @@ class PropertiesApi(Trait):
             # Union args may not be in declared order
             item_type = union_args[0] if union_args[1] is type(None) else union_args[1]
             # Created above with constructor arguments or extra gating
-            if item_type in (ObstaclePhotoTrait, CollisionAvoidanceTrait, DustCollectionModeTrait):
+            if item_type in (
+                ObstaclePhotoTrait,
+                CollisionAvoidanceTrait,
+                DustCollectionModeTrait,
+                WashWaterTemperatureTrait,
+                CleaningFluidTrait,
+            ):
                 continue
             if not self._is_supported(item_type, item.name, dock_features):
                 _LOGGER.debug("Trait '%s' not supported, skipping", item.name)

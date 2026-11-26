@@ -1,6 +1,8 @@
 """Fixtures for V1 trait tests."""
 
 from copy import deepcopy
+from dataclasses import replace
+from typing import Any
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -76,10 +78,25 @@ def device_info_fixture(trait_home_data: HomeData) -> HomeDataDevice:
     return trait_home_data.get_all_devices()[0]
 
 
+@pytest.fixture(name="product_model")
+def product_model_fixture() -> str | None:
+    """Model of the test device's product, e.g. "roborock.vacuum.a144".
+
+    None keeps the fixture's model: the S7 MaxV (a27, TopazSV), which the app treats as an older product.
+    """
+    return None
+
+
 @pytest.fixture(name="products")
-def products_fixture() -> list[HomeDataProduct]:
+def products_fixture(device_info: HomeDataDevice, product_model: str | None) -> list[HomeDataProduct]:
     """Fixture to provide a Product instance for tests."""
-    return [HomeDataProduct.from_dict(product) for product in mock_data.PRODUCTS.values()]
+    products = [HomeDataProduct.from_dict(product) for product in mock_data.PRODUCTS.values()]
+    if product_model is None:
+        return products
+    return [
+        replace(product, model=product_model) if product.id == device_info.product_id else product
+        for product in products
+    ]
 
 
 @pytest.fixture(autouse=True, name="device")
@@ -123,12 +140,19 @@ def dock_type_code_fixture(device_info: HomeDataDevice) -> RoborockDockTypeCode 
     return mock_data.PRODUCT_DOCK_TYPE_MAP.get(device_info.product_id, RoborockDockTypeCode.o3_plus_dock)
 
 
+@pytest.fixture(name="status_overrides")
+def status_overrides_fixture() -> dict[str, Any]:
+    """Status fields replacing the defaults in the status the device returns during discovery."""
+    return {}
+
+
 @pytest.fixture(autouse=True)
 async def discover_features_fixture(
     device: RoborockDevice,
     mock_rpc_channel: AsyncMock,
     dock_type_code: RoborockDockTypeCode | None,
     device_info: HomeDataDevice,
+    status_overrides: dict[str, Any],
 ) -> None:
     """Fixture to handle device feature discovery."""
     assert device.v1_properties
@@ -148,6 +172,7 @@ async def discover_features_fixture(
         {
             **mock_data.STATUS,
             "dock_type": dock_type_code,
+            **status_overrides,
         },
     ]
     # Connecting triggers device discovery

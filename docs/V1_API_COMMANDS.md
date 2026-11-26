@@ -6,6 +6,7 @@ Commands do not immediately make it to this page. You can find more commands [he
 
 Commands can have multiple parameters that can change from one model to another.
 
+* [app_amethyst_self_check](#app_amethyst_self_check)
 * [app_charge](#app_charge)
 * [app_get_dryer_setting](#app_get_dryer_setting)
 * [app_get_init_status](#app_get_init_status)
@@ -30,6 +31,7 @@ Commands can have multiple parameters that can change from one model to another.
 * [del_server_timer](#del_server_timer)
 * [del_timer](#del_timer)
 * [dnld_install_sound](#dnld_install_sound)
+* [get_auto_delivery_cleaning_fluid](#get_auto_delivery_cleaning_fluid)
 * [get_clean_sequence](#get_clean_sequence)
 * [get_consumable](#get_consumable)
 * [get_custom_mode](#get_custom_mode)
@@ -56,6 +58,7 @@ Commands can have multiple parameters that can change from one model to another.
 * [get_turn_server](#get_turn_server)
 * [get_valley_electricity_timer](#get_valley_electricity_timer)
 * [get_wash_towel_mode](#get_wash_towel_mode)
+* [get_wash_water_temperature](#get_wash_water_temperature)
 * [load_multi_map](#load_multi_map)
 * [manual_bak_map](#manual_bak_map)
 * [name_segment](#name_segment)
@@ -67,6 +70,7 @@ Commands can have multiple parameters that can change from one model to another.
 * [save_map](#save_map)
 * [send_ice_to_robot](#send_ice_to_robot)
 * [send_sdp_to_robot](#send_sdp_to_robot)
+* [set_auto_delivery_cleaning_fluid](#set_auto_delivery_cleaning_fluid)
 * [set_server_timer](#set_server_timer)
 * [set_clean_motor_mode](#set_clean_motor_mode)
 * [set_customize_clean_mode](#set_customize_clean_mode)
@@ -88,6 +92,7 @@ Commands can have multiple parameters that can change from one model to another.
 * [set_timezone](#set_timezone)
 * [set_valley_electricity_timer](#set_valley_electricity_timer)
 * [set_wash_towel_mode](#set_wash_towel_mode)
+* [set_wash_water_temperature](#set_wash_water_temperature)
 * [set_water_box_custom_mode](#set_water_box_custom_mode)
 * [start_camera_preview](#start_camera_preview)
 * [start_edit_map](#start_edit_map)
@@ -267,13 +272,15 @@ Parameters: None
 
 ### app_stop_wash
 
-Description: This stops washing the mop whiloe docked
+Description: This stops washing the mop whiloe docked. It also stops a running wash tray self-clean
+([app_amethyst_self_check](#app_amethyst_self_check)).
 
 Parameters: None
 
 **Supported devices:**
 
 * Roborock S8 Pro Ultra: ✅
+* Roborock Saros 10R: ✅
 
 ### app_goto_target
 
@@ -767,48 +774,48 @@ Parameters:
 
 ### get_smart_wash_params
 
-Description: Returns the smartwash parameters
+Description: Returns when the dock washes the mop during a clean (app: mop wash frequency)
 
 Parameters: None
 
-<!--
-    Not clear what this does
--->
-
 Returns:
 
-        smart_wash: 0 is off, 1 is on
+        smart_wash: 0 by time, 1 by room, 2 new smart (only on devices with is_back_wash_new_smart_supported)
 
-        wash_interval: The interval in seconds between washes
+        wash_interval: The interval in seconds between washes when washing by time (app offers 600, 900, 1200, 1500; 600 to 3000 in steps of 300 on TopazS, TopazSV, TopazSPlus, TopazSC, TopazSPower and UltronSPlus)
 
 Example:
 
 ```json
-{'smart_wash': 0, 'wash_interval': 1200}
+{'smart_wash': 1, 'wash_interval': 1200}
 ```
 
+Source: Roborock Saros 10R
 
 **Supported devices:**
 
 * Roborock S8 Pro Ultra: ✅
+* Roborock Saros 10R: ✅
 
 ### set_smart_wash_params
 
-Description: Sets the smartwash parameters
+Description: Sets when the dock washes the mop during a clean
 
 Parameters:
 
-        smart_wash: 0 is off, 1 is on
+        smart_wash: 0 by time, 1 by room, 2 new smart (only on devices with is_back_wash_new_smart_supported)
 
-        wash_interval: The interval in seconds between washes
+        wash_interval: The interval in seconds between washes when washing by time: 600, 900, 1200 or 1500; 600 to 3000 in steps of 300 on TopazS, TopazSV, TopazSPlus, TopazSC, TopazSPower and UltronSPlus
 
 
-`{'smart_wash': 0, 'wash_interval': 1200}`
+`{'smart_wash': 1, 'wash_interval': 1200}`
 
+Source: Roborock Saros 10R, Roborock app plugin
 
 **Supported devices:**
 
 * Roborock S8 Pro Ultra: ✅
+* Roborock Saros 10R: ✅
 
 ## Cleaning history
 
@@ -1464,7 +1471,7 @@ Parameters: None
 
 Returns:
 
-    wash_mode:
+    wash_mode: 0 light, 1 balanced, 2 deep, 8 super deep, 10 smart
 
 Return example:
 
@@ -1472,22 +1479,14 @@ Return example:
     {'wash_mode': 1}
 ```
 
-Source: Roborock S7 MaxV Ultra
-
-
-    unknown = -9999
-
-    light = 0
-
-    balanced = 1
-
-    deep = 2
+Source: Roborock S7 MaxV Ultra; smart (10) seen on the Roborock Saros 10R
 
 
 **Supported devices:**
 
 * Roborock S7 MaxV Ultra: ✅
 * Roborock S8 Pro Ultra: ✅
+* Roborock Saros 10R: ✅
 
 
 ### set_wash_towel_mode
@@ -1495,6 +1494,9 @@ Source: Roborock S7 MaxV Ultra
 Description: Sets the wash wash_towel_mode
 
 Parameters: {'wash_mode': 2}
+
+    wash_mode: 0 light, 1 balanced, 2 deep, 8 super deep, 10 smart. Super deep and smart are offered only on
+    devices that support them.
 
 Returns: ok or error
 
@@ -1504,6 +1506,119 @@ Source: S8 Pro Ultra
 
 * Roborock S7 MaxV Ultra: ✅
 * Roborock S8 Pro Ultra: ✅
+* Roborock Saros 10R: ✅ (light, balanced and deep set and confirmed in the app)
+
+### app_amethyst_self_check
+
+Description: Start the self-clean of the dock's mop wash tray (app: tray self-cleaning). Offered on docks with a
+self-cleaning wash carousel, such as the Saros 10R dock (dock type 16).
+
+Parameters: None
+
+Returns: ok or error
+
+While it runs, `get_status` reports `state` 23 (washing the mop) and `wash_phase` 11, the same as when the
+self-clean is started from the app. The dock needs clean water (`dock_error_status` 38, water empty, otherwise).
+It ends by itself after about a minute; `app_stop_wash` stops it early, like the stop button in the app.
+
+Source: Roborock Saros 10R, Roborock app plugin
+
+**Supported devices:**
+
+* Roborock Saros 10R: ✅
+
+### get_wash_water_temperature
+
+Description: Get the water temperature the dock uses to wash the mop (app: water temperature). Available on
+washing docks of devices with the hot wash towel feature (`is_hot_wash_towel_supported`). Not available on a
+Shell E dock (dock type 21, also Shell EA), which cannot heat wash water, nor on the PearlE Pro (a169/a170) unless
+the dock is a Shell2E Lite.
+
+Parameters: None
+
+Returns:
+
+    wash_water_temperature: 0 room temperature, 1 warm, 2 hot, 3 steam, 4 pet steam.
+    Docks offer 0 and 2; 1 only on docks with neither high temperature water nor steam; 3 only on steam docks.
+
+Return example:
+
+```json
+    {'wash_water_temperature': 2}
+```
+
+Source: Roborock Saros 10R
+
+**Supported devices:**
+
+* Roborock Saros 10R: ✅
+
+### set_wash_water_temperature
+
+Description: Set the water temperature the dock uses to wash the mop.
+
+Parameters:
+
+    values: 0 room temperature, 1 warm, 2 hot, 3 steam, 4 pet steam.
+    The key differs from the one `get_wash_water_temperature` returns; `{'wash_water_temperature': 2}` is
+    rejected with -10007 invalid params.
+
+Example:
+
+```json
+    {'values': 2}
+```
+
+Source: Roborock Saros 10R
+
+**Supported devices:**
+
+* Roborock Saros 10R: ✅
+
+### get_auto_delivery_cleaning_fluid
+
+Description: Get how much cleaning fluid the dock adds automatically (app: cleaning fluid auto-delivery). Available when
+the robot reports a cleaning fluid container (`dss` bits 10-11 not 0) and either the robot supports cleaning fluid
+delivery (`is_clean_fluid_delivery_supported`) or the dock does auto-delivery. Not available on Shell 4S docks.
+
+Parameters: None
+
+Returns:
+
+    status: 0 off, 1 standard, 3 large. Code 2 is not used. Robots without `is_clean_fluid_delivery_supported`
+    only switch it on (1) or off (0); such a robot reads 3 back as 1.
+
+Return example:
+
+```json
+    {'status': 1}
+```
+
+Source: Roborock Saros 10R, Roborock app plugin
+
+**Supported devices:**
+
+* Roborock Saros 10R: ✅
+
+### set_auto_delivery_cleaning_fluid
+
+Description: Set how much cleaning fluid the dock adds automatically.
+
+Parameters:
+
+    status: 0 off, 1 standard, 3 large (3 only on robots with `is_clean_fluid_delivery_supported`; others accept 0 and 1).
+
+Example:
+
+```json
+    {'status': 1}
+```
+
+Source: Roborock Saros 10R, Roborock app plugin
+
+**Supported devices:**
+
+* Roborock Saros 10R: ✅
 
 ### get_collision_avoid_status
 

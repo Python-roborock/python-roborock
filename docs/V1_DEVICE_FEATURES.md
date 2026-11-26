@@ -684,7 +684,7 @@ These features are encoded as individual bits in the `new_feature_info_str` hex 
 **Bit Index:** 41
 **Feature:** Hot Water Mop Washing
 **Description:** Dock uses hot water to wash mop pads. The robot firmware reports this, so it does not account for the dock: a Shell E dock cannot wash with hot water.
-**Impact:** Better mop cleaning and sanitization.
+**Impact:** Better mop cleaning and sanitization. Required for `WashWaterTemperatureTrait`.
 
 ---
 
@@ -1132,7 +1132,7 @@ These features are encoded as individual bits in the `new_feature_info_str` hex 
 **Bit Index:** 109
 **Feature:** Smart Back Wash
 **Description:** Intelligent mop back-washing with dirt detection.
-**Impact:** Wash mop more when it's dirtier, less when cleaner.
+**Impact:** Wash mop more when it's dirtier, less when cleaner. Adds the `new_smart` mode to `SmartWashParamsTrait`.
 
 ---
 
@@ -1156,7 +1156,7 @@ These features are encoded as individual bits in the `new_feature_info_str` hex 
 **Bit Index:** 112
 **Feature:** Cleaning Fluid Delivery
 **Description:** Automatic delivery of cleaning solution/detergent.
-**Impact:** Enhanced mopping with cleaning agents.
+**Impact:** Enhanced mopping with cleaning agents. Enables `CleaningFluidTrait` on a robot reporting a fluid container, and adds its `large` amount.
 
 ---
 
