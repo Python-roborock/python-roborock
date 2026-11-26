@@ -2,6 +2,21 @@
 
 <!-- version list -->
 
+## v7.36.0 (2026-11-26)
+
+### Chores
+
+- **test**: Remove redundant mock test for skip current cleaning area
+  ([#1061](https://github.com/Python-roborock/python-roborock/pull/1061),
+  [`c893483`](https://github.com/Python-roborock/python-roborock/commit/c893483d79772348e66956b635ef5b6f3b897db8))
+
+### Features
+
+- Add APP_SKIP_CURRENT_CLEANING_AREA command
+  ([#1061](https://github.com/Python-roborock/python-roborock/pull/1061),
+  [`c893483`](https://github.com/Python-roborock/python-roborock/commit/c893483d79772348e66956b635ef5b6f3b897db8))
+
+
 ## v7.35.0 (2026-11-25)
 
 ### Features
