@@ -79,10 +79,11 @@ class RoborockMqttSession(MqttSession):
         self._client_lock = asyncio.Lock()
         self._listeners: CallbackMap[str, bytes] = CallbackMap(_LOGGER)
         self._connection_task: asyncio.Task[None] | None = None
+        self._restart_requested = False
         self._topic_idle_timeout = topic_idle_timeout
         self._idle_timers: dict[str, asyncio.Task[None]] = {}
         self._diagnostics = params.diagnostics
-        self._health_manager = HealthManager(self.restart)
+        self._health_manager = HealthManager(self.restart, is_connected=lambda: self._healthy)
         self._unauthorized_hook = params.unauthorized_hook
 
     @property
@@ -145,12 +146,15 @@ class RoborockMqttSession(MqttSession):
     async def restart(self) -> None:
         """Force the session to disconnect and reconnect.
 
-        The active connection task will be cancelled and restarted in the background, retried by
-        the reconnect loop. This is a no-op if there is no active connection.
+        The active connection task will be cancelled and restarted in the background by the
+        reconnect loop. The broker was reachable, so the first reconnect attempt is made right
+        away instead of after the backoff interval. This is a no-op if there is no active
+        connection.
         """
         _LOGGER.info("Forcing MQTT session restart")
         self._diagnostics.increment("restart")
-        if self._connection_task:
+        if self._connection_task and not self._connection_task.done():
+            self._restart_requested = True
             self._connection_task.cancel()
         else:
             _LOGGER.debug("No message loop task to cancel")
@@ -175,6 +179,7 @@ class RoborockMqttSession(MqttSession):
 
             self._healthy = False
             start_future = None
+            restart_requested, self._restart_requested = self._restart_requested, False
             if self._stop:
                 _LOGGER.debug("MQTT session closed, stopping retry loop")
                 return
@@ -187,6 +192,10 @@ class RoborockMqttSession(MqttSession):
                     _LOGGER.debug("MQTT session closed while waiting for active subscriptions")
                     return
                 self._backoff = MIN_BACKOFF_INTERVAL
+                continue
+            if restart_requested:
+                _LOGGER.info("MQTT session disconnected for a restart, reconnecting now")
+                self._diagnostics.increment("reconnect_restart")
                 continue
             _LOGGER.info("MQTT session disconnected, retrying in %s seconds", self._backoff.total_seconds())
             self._diagnostics.increment("reconnect_wait")
@@ -205,6 +214,7 @@ class RoborockMqttSession(MqttSession):
                 async with self._mqtt_client(self._params) as client:
                     self._backoff = MIN_BACKOFF_INTERVAL
                     self._healthy = True
+                    self._health_manager.on_connected()
                     _LOGGER.info("MQTT Session connected.")
                     if start_future and not start_future.done():
                         start_future.set_result(None)
