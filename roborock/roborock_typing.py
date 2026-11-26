@@ -29,6 +29,7 @@ class RoborockCommand(str, Enum):
     APP_RESUME_BUILD_MAP = "app_resume_build_map"
     APP_RESUME_PATROL = "app_resume_patrol"
     APP_SEGMENT_CLEAN = "app_segment_clean"
+    APP_SKIP_CURRENT_CLEANING_AREA = "app_skip_current_cleaning_area"
     APP_SET_AMETHYST_STATUS = "app_set_amethyst_status"
     APP_SET_CARPET_DEEP_CLEAN_STATUS = "app_set_carpet_deep_clean_status"
     APP_SET_CROSS_CARPET_CLEANING_STATUS = "app_set_cross_carpet_cleaning_status"
