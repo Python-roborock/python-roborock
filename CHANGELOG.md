@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v7.36.1 (2026-11-26)
+
+### Bug Fixes
+
+- **dyad**: Correct data point mappings and decode new data points
+  ([#1021](https://github.com/Python-roborock/python-roborock/pull/1021),
+  [`23f4cef`](https://github.com/Python-roborock/python-roborock/commit/23f4cef3e0979c4acf094cea650e2d89df10ce37))
+
+
 ## v7.36.0 (2026-11-26)
 
 ### Chores
