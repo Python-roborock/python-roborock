@@ -9,7 +9,7 @@ class RoborockDyadStateCode(RoborockEnum):
     washing = 1
     ready = 2
     charging = 3
-    mop_washing = 4
+    mop_washing = 4  # self-clean started
     self_clean_cleaning = 5
     self_clean_deep_cleaning = 6
     self_clean_rinsing = 7
@@ -18,7 +18,8 @@ class RoborockDyadStateCode(RoborockEnum):
     ventilating = 10  # drying
     reserving = 12
     mop_washing_paused = 13
-    dusting_mode = 14
+    dusting_mode = 14  # also reported while a component is removed
+    combination = 15
 
 
 class DyadSelfCleanMode(RoborockEnum):
@@ -106,6 +107,8 @@ class DyadSelfCleanWaterTemp(RoborockEnum):
     """Water temperature used for self-cleaning (DP 242, reported back on DP 271)."""
 
     unknown = -1
+    low = 1
+    mid = 2
     high = 3
     steam = 4
 
@@ -129,9 +132,39 @@ class DyadPowerwheelDirection(RoborockEnum):
     stop = 0
     forward = 1
     backward = 2
-    left = 5
-    right = 6
+    left = 3
+    right = 4
+    forward_left = 5
+    forward_right = 6
+    backward_left = 7
+    backward_right = 8
     exit = 9  # sent when remote control ends
+
+
+class DyadFlatStatus(RoborockEnum):
+    """Position of the vacuum, which decides whether it can be remote controlled (DP 248)."""
+
+    unknown = -1
+    standing = 0
+    flat = 1
+    error = 2
+
+
+class DyadSprayMode(RoborockEnum):
+    """When water is sprayed (DP 256)."""
+
+    unknown = -1
+    only_hot_water = 0
+    all_modes = 1
+    off = 2
+
+
+class DyadTriggerMode(RoborockEnum):
+    """How the trigger starts boost (DP 274)."""
+
+    unknown = -1
+    hold_to_boost = 0
+    press_two_seconds_to_boost = 1
 
 
 class DyadDryingMode(RoborockEnum):
@@ -143,6 +176,7 @@ class DyadDryingMode(RoborockEnum):
 
 
 class DyadError(RoborockEnum):
+    unknown = -1
     none = 0
     dirty_tank_full = 20000  # Dirty tank full. Empty it
     water_level_sensor_stuck = 20001  # Water level sensor is stuck. Clean it.
@@ -160,6 +194,8 @@ class DyadError(RoborockEnum):
     )
     battery_temperature_protection_2 = (20008, "battery_temperature_protection")
     power_adapter_error = 20009  # Check if the power adapter is working properly.
+    dirty_tank_or_filter_not_installed = 20010  # Check the dirty water tank and HEPA filter are seated.
+    squeegee_out_of_position = 20011  # Dynamic squeegee out of position.
     dirty_charging_contacts = 10007  # Disconnection between the device and dock. Wipe charging contacts.
     low_battery = 20017  # Low battery level. Charge before starting self-cleaning.
     battery_under_10 = 20018  # Charge until the battery level exceeds 10% before manually starting self-cleaning.
