@@ -9,6 +9,7 @@ from roborock.data.v1 import RoborockDockTypeCode
 
 
 class NewFeatureStrBit(IntEnum):
+    SUPPORT_SILENT_OTA = 6
     TWO_KEY_REAL_TIME_VIDEO = 32
     TWO_KEY_RTV_IN_CHARGING = 33
     DIRTY_REPLENISH_CLEAN = 34
@@ -87,7 +88,47 @@ class NewFeatureStrBit(IntEnum):
     TWO_GEARS_NO_COLLISION = 118
     CARPET_SHAPE_TYPE = 119
     SR_MAP = 120
+    PRODUCT_EXPERIENCE_IMPROVEMENT = 121
+    FLOOR_PLAN_MAP = 122
+    INVASION_DETECTION = 125
     ROLLER_MOP = 128
+    CHANGE_MOP = 129
+    FORBID_PURE_MOP = 130
+    DYNAMIC_OBSTACLE_SUPPLEMENTARY_CLEAN = 131
+    ZONE_REPLENISH_CLEAN = 132
+    EXHIBITION_FOR_DANCE_AND_PICK = 133
+    DOCK_INDEPENDENT_MOP_WASH = 134
+    INTELLIGENT_OBJECT_SEARCH = 135
+    STAIR_DOOR_SILL = 136
+    NO_MOP_AVOID_STROLL = 137
+    CURTAIN = 138
+    SUPPORT_RETRACTABLE_MOP = 139
+    SUPPORT_MULTIPLE_DND_TIME_PERIODS = 140
+    IOT_BASE_MSG = 141
+    VIBRATE_MOP = 142
+    CANCEL_ONE_TIME_SWEEP_THEN_MOP = 143
+    SUPPORT_AI_WASH_TOWEL = 144
+    SHOW_SEWAGE_BOX_CLEAN_STATE = 145
+    SUPPORT_BAIDU_VOICE_CONTROL = 146
+    CARPET_STAIR_CLEAN = 147
+    SUPPORT_WASH_PHASE_PUMPING = 148
+    SUPPORT_DOWNLOAD_VOICE_OTA_URL = 149
+    SUPPORT_ONLY_SMART_WASH_TOWEL = 150
+    SUPPORT_APP_BACKUP_AND_RESTORE = 151
+    PATROL_PHOTO_STORAGE_OPTIMIZATION = 152
+    SUPPORT_CLEAN_BEFORE_DUST_COLLECTION = 153
+    ZONE_REPLENISH_CLEAN_SWITCH = 154
+    PET_ALBUM = 155
+    DOOR_SILL_MAT = 156
+    TIMER_INTERVAL_DAYS_AND_TEMP_OFF = 158
+    NO_ARM_RIGHT_BRUSH_STRETCH = 160
+    MULTI_SKIP_CLEAN = 161
+    REPLENISH_ZONE_EDIT = 164
+    TIMER_SEGMENT_ZONE_HYBRID = 165
+    SMART_WATER = 166
+    FIRMWARE_CLOUD_BACKUP_PRIVACY = 167
+    SOUND_RECORD = 168
+    SWING_ARM_WHEEL_CONTROL = 169
 
 
 class ProductFeatures(StrEnum):
@@ -277,6 +318,18 @@ PRODUCT_FEATURE_MAP: dict[RoborockProductNickname, list[ProductFeatures]] = {
     for product, features in _BASE_PRODUCT_FEATURE_MAP.items()
 }
 
+# Older products that support map segments only when they report robotFeatures 116.
+_MAP_SEGMENT_FEATURE_REQUIRED_MODELS = {
+    RoborockProductNickname.RUBYSC,
+    RoborockProductNickname.RUBYPLUS,
+}
+
+# Products the app treats as wash-phase-pumping capable without NewFeatureStr bit 148.
+_WASH_PHASE_PUMPING_MODELS = {
+    RoborockProductNickname.BERYLLITE,
+    RoborockProductNickname.CORALPROSAW,
+}
+
 
 @dataclass
 class DeviceFeatures(RoborockBase):
@@ -358,6 +411,7 @@ class DeviceFeatures(RoborockBase):
     is_corner_clean_mode_supported: bool = field(metadata={"new_feature_str_mask": (2147483648, 8)})
 
     # Features from new_feature_info_str (by bit index)
+    is_support_silent_ota_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.SUPPORT_SILENT_OTA})
     is_two_key_real_time_video_supported: bool = field(
         metadata={"new_feature_str_bit": NewFeatureStrBit.TWO_KEY_REAL_TIME_VIDEO}
     )
@@ -506,9 +560,111 @@ class DeviceFeatures(RoborockBase):
     )
     is_carpet_shape_type_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.CARPET_SHAPE_TYPE})
     is_sr_map_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.SR_MAP})
+    is_product_experience_improvement_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.PRODUCT_EXPERIENCE_IMPROVEMENT}
+    )
+    is_floor_plan_map_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.FLOOR_PLAN_MAP})
+    is_invasion_detection_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.INVASION_DETECTION})
     is_roller_mop_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.ROLLER_MOP})
+    # Matches the app's isChangeMopMachine; its isSupportChangeMop also needs a Shell4S or Shell4SA dock.
+    is_change_mop_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.CHANGE_MOP})
+    is_forbid_pure_mop_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.FORBID_PURE_MOP})
+    is_dynamic_obstacle_supplementary_clean_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.DYNAMIC_OBSTACLE_SUPPLEMENTARY_CLEAN}
+    )
+    # The app also checks the account region before it offers zone replenish cleaning.
+    is_zone_replenish_clean_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.ZONE_REPLENISH_CLEAN}
+    )
+    is_exhibition_for_dance_and_pick_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.EXHIBITION_FOR_DANCE_AND_PICK}
+    )
+    is_dock_independent_mop_wash_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.DOCK_INDEPENDENT_MOP_WASH}
+    )
+    is_intelligent_object_search_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.INTELLIGENT_OBJECT_SEARCH}
+    )
+    is_stair_door_sill_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.STAIR_DOOR_SILL})
+    is_no_mop_avoid_stroll_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.NO_MOP_AVOID_STROLL}
+    )
+    is_curtain_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.CURTAIN})
+    is_support_retractable_mop_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.SUPPORT_RETRACTABLE_MOP}
+    )
+    is_support_multiple_dnd_time_periods_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.SUPPORT_MULTIPLE_DND_TIME_PERIODS}
+    )
+    is_iot_base_msg_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.IOT_BASE_MSG})
+    is_vibrate_mop_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.VIBRATE_MOP})
+    is_cancel_one_time_sweep_then_mop_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.CANCEL_ONE_TIME_SWEEP_THEN_MOP}
+    )
+    is_support_ai_wash_towel_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.SUPPORT_AI_WASH_TOWEL}
+    )
+    is_show_sewage_box_clean_state_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.SHOW_SEWAGE_BOX_CLEAN_STATE}
+    )
+    is_support_baidu_voice_control_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.SUPPORT_BAIDU_VOICE_CONTROL}
+    )
+    is_carpet_stair_clean_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.CARPET_STAIR_CLEAN})
+    # Also true for BerylLite and CoralProSAw; see from_feature_flags.
+    is_support_wash_phase_pumping_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.SUPPORT_WASH_PHASE_PUMPING}
+    )
+    is_support_download_voice_ota_url_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.SUPPORT_DOWNLOAD_VOICE_OTA_URL}
+    )
+    is_support_only_smart_wash_towel_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.SUPPORT_ONLY_SMART_WASH_TOWEL}
+    )
+    is_support_app_backup_and_restore_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.SUPPORT_APP_BACKUP_AND_RESTORE}
+    )
+    is_patrol_photo_storage_optimization_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.PATROL_PHOTO_STORAGE_OPTIMIZATION}
+    )
+    is_support_clean_before_dust_collection_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.SUPPORT_CLEAN_BEFORE_DUST_COLLECTION}
+    )
+    # The app also checks the account region before it offers the zone replenish switch.
+    is_zone_replenish_clean_switch_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.ZONE_REPLENISH_CLEAN_SWITCH}
+    )
+    is_pet_album_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.PET_ALBUM})
+    is_door_sill_mat_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.DOOR_SILL_MAT})
+    is_timer_interval_days_and_temp_off_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.TIMER_INTERVAL_DAYS_AND_TEMP_OFF}
+    )
+    is_no_arm_right_brush_stretch_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.NO_ARM_RIGHT_BRUSH_STRETCH}
+    )
+    is_multi_skip_clean_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.MULTI_SKIP_CLEAN})
+    is_replenish_zone_edit_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.REPLENISH_ZONE_EDIT}
+    )
+    is_timer_segment_zone_hybrid_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.TIMER_SEGMENT_ZONE_HYBRID}
+    )
+    # Only true together with a roller mop; see from_feature_flags.
+    is_smart_water_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.SMART_WATER})
+    is_firmware_cloud_backup_privacy_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.FIRMWARE_CLOUD_BACKUP_PRIVACY}
+    )
+    is_sound_record_supported: bool = field(metadata={"new_feature_str_bit": NewFeatureStrBit.SOUND_RECORD})
+    is_swing_arm_wheel_control_supported: bool = field(
+        metadata={"new_feature_str_bit": NewFeatureStrBit.SWING_ARM_WHEEL_CONTROL}
+    )
 
     # Features from feature_info list
+    is_fds_endpoint_supported: bool = field(metadata={"robot_features": 111})
+    is_auto_split_segments_supported: bool = field(metadata={"robot_features": 112})
+    is_order_segment_clean_supported: bool = field(metadata={"robot_features": 114})
+    # True for every model except RubySC and RubyPlus, which need this id; see from_feature_flags.
+    is_map_segment_supported: bool = field(metadata={"robot_features": 116})
     is_led_status_switch_supported: bool = field(metadata={"robot_features": 119})
     is_multi_floor_supported: bool = field(metadata={"robot_features": 120})
     is_support_fetch_timer_summary: bool = field(metadata={"robot_features": 122})
@@ -686,6 +842,12 @@ class DeviceFeatures(RoborockBase):
         # roller mop like one for water modes and customized cleaning.
         kwargs["is_support_water_mode"] |= kwargs["is_roller_mop_supported"]
         kwargs["is_customized_clean_supported"] |= kwargs["is_roller_mop_supported"]
+        # Only RubySC and RubyPlus need robotFeatures 116 for map segments; all other
+        # models, including unknown ones, support them without it.
+        kwargs["is_map_segment_supported"] |= product_nickname not in _MAP_SEGMENT_FEATURE_REQUIRED_MODELS
+        kwargs["is_support_wash_phase_pumping_supported"] |= product_nickname in _WASH_PHASE_PUMPING_MODELS
+        # Smart mop water is a roller-mop option, so it needs both the smart-water bit and a roller mop.
+        kwargs["is_smart_water_supported"] &= kwargs["is_roller_mop_supported"]
 
         return cls(**kwargs)
 
