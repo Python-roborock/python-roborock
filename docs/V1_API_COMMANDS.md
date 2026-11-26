@@ -707,13 +707,15 @@ Parameters:
 
 ### get_carpet_clean_mode
 
-Description: Get carpet clean mode.
+Description: Get carpet clean mode. The carpet first (0x08) and cross carpet (0x20) bits are not here, they are in
+`switch_status` of [get_prop](#get_prop).
 
 Parameters:
 
 Returns:
 
-    carpet_clean_mode: Enumeration for carpet clean mode.
+    carpet_clean_mode: 0 avoid, 1 self adaption, 2 vacuum and mop, 3 dynamic adaption (1 and 3 are
+        "vacuum only" in the app).
 
 Return example:
 
@@ -723,12 +725,53 @@ Return example:
 
 Source: Roborock S7 MaxV Ultra
 
+**Supported devices:**
+
+* Roborock Saros 10R: ✅
 
 ### set_carpet_clean_mode
 
-Description:
+Description: Set carpet clean mode. The app sends it as an object, not a list.
 
 Parameters:
+
+    carpet_clean_mode: 0 avoid, 1 self adaption, 2 vacuum and mop, 3 dynamic adaption. The app writes 3 for
+        "vacuum only" when the robot supports dynamic adaption, else 1.
+
+Cross carpet is a separate flag, set with [app_set_cross_carpet_cleaning_status](#app_set_cross_carpet_cleaning_status).
+Write test on Roborock Saros 10R (2026-11-24): setting 0 (avoid) or 2 (vacuum and mop) clears the cross flag by
+itself. Setting 3 does not clear it, so cross stays on and must be turned off with
+`app_set_cross_carpet_cleaning_status` status 0 (only on robots that support custom carpet clean). Setting 0 left
+carpet boost and carpet deep clean unchanged.
+
+Parameter example:
+
+```json
+    {"carpet_clean_mode": 3}
+```
+
+**Supported devices:**
+
+* Roborock Saros 10R: ✅
+
+### app_set_cross_carpet_cleaning_status
+
+Description: Turn the cross carpet mode on or off. It is read back from the 0x20 bit of `switch_status` in
+[get_prop](#get_prop).
+
+Parameters:
+
+    status: 1 on, 0 off.
+
+Parameter example:
+
+```json
+    {"status": 1}
+```
+
+**Supported devices:**
+
+* Roborock Saros 10R: ✅
 
 ### get_carpet_mode
 
@@ -1637,6 +1680,9 @@ Example:
 
 
 Comment : This example returns the same as get_status. Initial testing has shown that not all get commands are supported by this method
+
+With `["get_status"]` it returns the status plus `switch_status`, which plain `get_status` lacks. Bit 0x08 is
+carpet first and 0x20 is cross carpet. Also seen on Roborock Saros 10R.
 
 
 ### get_turn_server

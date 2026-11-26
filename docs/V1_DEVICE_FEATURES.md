@@ -1439,6 +1439,30 @@ These features are determined by hardware capabilities and product variant.
 
 ---
 
+### is_self_adaption_carpet_supported
+**Derived from:** region (`local_info.location`), product model and `is_carpet_deep_clean_supported`
+**Feature:** Self-Adaption Carpet Mode
+**Description:** The vacuum detects carpet on its own. In the US region (FCC) this is every model without dynamic adaption; in the EU region (CE) only a fixed set of models (TanosS, TanosSPlus, TopazS, TopazSPlus, TopazSPower, TopazSV). Any other or unknown region assumes it.
+**Impact:** Carpet mode is offered as a self-adaption setting.
+
+---
+
+### is_dynamic_adaption_carpet_supported
+**Derived from:** region (`local_info.location`), product model and `is_carpet_deep_clean_supported`
+**Feature:** Dynamic-Adaption Carpet Mode
+**Description:** The vacuum adapts to carpet dynamically while cleaning. In the US region (FCC) only TopazSV, TopazSC, Ultron, UltronSPlus and Pearl; in the EU region (CE) every model without self-adaption that supports carpet deep clean (for example the Saros 10R). Never in other or unknown regions.
+**Impact:** Carpet mode is offered as a dynamic-adaption setting.
+
+---
+
+### is_carpet_clean_mode_supported
+**Derived from:** region (`local_info.location`), product model and `is_carpet_supported`
+**Feature:** Carpet Settings
+**Description:** The carpet settings are offered on every model with carpet support, except TanosSLite in the US region (compared with the app plugin). An unknown region does not count as US.
+**Impact:** Carpet mode settings are available.
+
+---
+
 ## Dock Features
 
 Dock capabilities are not part of `DeviceFeatures`. `RoborockDockFeatures.from_dock_type(dock_type, has_am)` derives

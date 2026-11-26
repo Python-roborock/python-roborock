@@ -1312,7 +1312,17 @@ def update_docs(data_file: str, output_file: str):
 
     product_features_map = {}
     all_feature_names = set()
-    v1_feature_names = {feature.name for feature in fields(DeviceFeatures) if feature.type is bool}
+    # These carpet features depend on the region, which the catalogue does not record.
+    region_derived = {
+        "is_self_adaption_carpet_supported",
+        "is_dynamic_adaption_carpet_supported",
+        "is_carpet_clean_mode_supported",
+    }
+    v1_feature_names = {
+        feature.name
+        for feature in fields(DeviceFeatures)
+        if feature.type is bool and feature.name not in region_derived
+    }
 
     # Process the combined data to build the feature map
     for model, data in combined_product_data.items():

@@ -455,3 +455,26 @@ async def test_trait_dust_collection() -> None:
 
     await trait.stop_dust_collection()
     assert fake_device.status.state == RoborockStateCode.charging
+
+
+async def test_simulator_carpet_commands() -> None:
+    """Carpet commands sent over RPC read and write the simulated clean mode and cross flag."""
+    cloud = FakeRoborockCloud()
+    sim = V1VacuumSimulator(duid="s7_carpet")
+    device = await _create_connected_device(cloud, sim)
+    send = device.v1_properties.command.send
+
+    assert await send("get_carpet_clean_mode") == [{"carpet_clean_mode": 0}]
+
+    await send("set_carpet_clean_mode", {"carpet_clean_mode": 3})
+    await send("app_set_cross_carpet_cleaning_status", {"status": 1})
+    assert await send("get_carpet_clean_mode") == [{"carpet_clean_mode": 3}]
+    assert (await send("get_prop", ["get_status"]))[0]["switch_status"] == 0x20
+
+    # Like the robot, choosing the avoid or vac & mop mode drops the cross flag
+    await send("set_carpet_clean_mode", {"carpet_clean_mode": 0})
+    assert sim.switch_status == 0
+
+    await send("app_set_cross_carpet_cleaning_status", {"status": 1})
+    await send("set_carpet_clean_mode", {"carpet_clean_mode": 2})
+    assert sim.switch_status == 0
