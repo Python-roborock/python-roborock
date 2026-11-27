@@ -416,3 +416,30 @@ def test_device_features_from_home_data(
     )
     feature_dict = {k: v for k, v in asdict(device_features).items() if isinstance(v, bool)}
     assert feature_dict == snapshot
+
+
+@pytest.mark.parametrize(
+    ("feature_info", "product", "location", "expected"),
+    [
+        ([123], RoborockProductNickname.RUBYSLITE, "us", True),
+        ([123], RoborockProductNickname.TANOSV, "us", True),
+        ([123], RoborockProductNickname.PEARL, "us", False),
+        ([123], RoborockProductNickname.PEARL, "US", False),
+        ([123], RoborockProductNickname.PEARL, "eu", True),
+        ([123], RoborockProductNickname.PEARL, "", False),
+        ([123], RoborockProductNickname.PEARL, None, True),
+        ([], RoborockProductNickname.RUBYSLITE, "eu", False),
+    ],
+)
+def test_order_clean_follows_app_model_and_region_rule(
+    feature_info: list[int], product: RoborockProductNickname, location: str | None, expected: bool
+) -> None:
+    """Room order needs feature 123 and the app's isModelOrderSupported(): US units only on Ruby/Tanos products."""
+    features = DeviceFeatures.from_feature_flags(
+        new_feature_info=0,
+        new_feature_info_str="",
+        feature_info=feature_info,
+        product_nickname=product,
+        location=location,
+    )
+    assert features.is_order_clean_supported is expected

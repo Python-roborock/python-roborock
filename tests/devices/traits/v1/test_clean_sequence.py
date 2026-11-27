@@ -80,16 +80,56 @@ async def test_set_order(
 
 
 @pytest.mark.parametrize("device_info", [S5E])
-@pytest.mark.parametrize("rooms", [[], [7, 7]])
-async def test_set_order_rejects_bad_input(
+async def test_set_order_rejects_repeated_room(
     clean_sequence_trait: CleanSequenceTrait | None,
     mock_rpc_channel: AsyncMock,
     device_info: HomeDataDevice,
-    rooms: list[int],
 ) -> None:
-    """An empty list or a repeated room is refused before anything is sent."""
+    """A repeated room is refused before anything is sent."""
     assert clean_sequence_trait is not None
 
     with pytest.raises(ValueError):
-        await clean_sequence_trait.set_order(rooms)
+        await clean_sequence_trait.set_order([7, 7])
     mock_rpc_channel.send_command.assert_not_called()
+
+
+@pytest.mark.parametrize("device_info", [S5E])
+async def test_refresh_empty(
+    clean_sequence_trait: CleanSequenceTrait | None,
+    mock_rpc_channel: AsyncMock,
+    device_info: HomeDataDevice,
+) -> None:
+    """A device with no custom order answers an empty list."""
+    assert clean_sequence_trait is not None
+    mock_rpc_channel.send_command.side_effect = [[]]
+
+    await clean_sequence_trait.refresh()
+
+    assert clean_sequence_trait.rooms == []
+
+
+@pytest.mark.parametrize("device_info", [S5E])
+@pytest.mark.parametrize("use_reset", [True, False])
+async def test_reset_order(
+    clean_sequence_trait: CleanSequenceTrait | None,
+    mock_rpc_channel: AsyncMock,
+    device_info: HomeDataDevice,
+    use_reset: bool,
+) -> None:
+    """reset_order() and set_order([]) send an empty list, which restores the automatic order."""
+    assert clean_sequence_trait is not None
+    clean_sequence_trait.rooms = [8, 3, 7]
+    mock_rpc_channel.send_command.side_effect = [["ok"]]
+
+    if use_reset:
+        await clean_sequence_trait.reset_order()
+    else:
+        await clean_sequence_trait.set_order([])
+
+    mock_rpc_channel.send_command.assert_called_once_with(RoborockCommand.SET_CLEAN_SEQUENCE, params=[])
+    assert clean_sequence_trait.rooms == []
+
+
+async def test_unsupported_clean_sequence(clean_sequence_trait: CleanSequenceTrait | None) -> None:
+    """The trait is not created on a device without order cleaning (the default S7 MaxV fixture)."""
+    assert clean_sequence_trait is None

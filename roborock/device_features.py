@@ -169,6 +169,36 @@ PRODUCTS_WITHOUT_DEFAULT_3D_MAP: set[RoborockProductNickname] = {
     RoborockProductNickname.RUBYSC,
     RoborockProductNickname.RUBYSE,
 }
+# The app shows room order on these products in every region (isModelOrderSupported).
+PRODUCTS_WITH_ORDER_CLEAN_IN_ALL_REGIONS: set[RoborockProductNickname] = {
+    RoborockProductNickname.RUBYPLUS,
+    RoborockProductNickname.RUBYSC,
+    RoborockProductNickname.RUBYSLITE,
+    RoborockProductNickname.TANOS,
+    RoborockProductNickname.TANOSE,
+    RoborockProductNickname.TANOSV,
+}
+
+
+def _is_model_order_supported(product_nickname: RoborockProductNickname | None, location: str | None) -> bool:
+    """Mirror the app's isModelOrderSupported() for room cleaning order.
+
+    The app requires robot feature 123 and this check: no device location means
+    no support; the products above are supported everywhere; any other product
+    is supported only outside the US (FCC) region. ``location`` is
+    ``local_info.location`` from ``app_get_init_status``. ``None`` means the
+    caller has no init status (for example offline tooling), so the rule is not
+    applied.
+    """
+    if location is None:
+        return True
+    if not location:
+        return False
+    if product_nickname in PRODUCTS_WITH_ORDER_CLEAN_IN_ALL_REGIONS:
+        return True
+    return location.lower() != "us"
+
+
 PRODUCTS_WITHOUT_PURE_CLEAN_MOP: set[RoborockProductNickname] = {
     RoborockProductNickname.TANOS,
     RoborockProductNickname.TANOSE,
@@ -573,12 +603,14 @@ class DeviceFeatures(RoborockBase):
         new_feature_info_str: str,
         feature_info: list[int],
         product_nickname: RoborockProductNickname | None,
+        location: str | None = None,
     ) -> Self:
         """Creates a DeviceFeatures instance from raw feature flags.
         :param new_feature_info: A int from get_init_status (sometimes can be found in homedata, but it is not always)
         :param new_feature_info_str: A hex string from get_init_status or home_data.
         :param feature_info: A list of ints from get_init_status
-        :param product_nickname: The product nickname of the device."""
+        :param product_nickname: The product nickname of the device.
+        :param location: ``local_info.location`` from get_init_status; gates room order like the app."""
         # For any future reverse engineerining:
         # RobotNewFeatures = new_feature_info
         # newFeatureInfoStr = new_feature_info_str
@@ -651,6 +683,10 @@ class DeviceFeatures(RoborockBase):
         kwargs["is_clean_route_setting_supported"] |= (
             kwargs["is_shake_mop_set_supported"] or kwargs["is_roller_mop_supported"]
         )
+
+        # The app shows room order only when feature 123 is set and the model and
+        # region allow it (isOrderCleanSupported = feature 123 && isModelOrderSupported).
+        kwargs["is_order_clean_supported"] &= _is_model_order_supported(product_nickname, location)
 
         return cls(**kwargs)
 

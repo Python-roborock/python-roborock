@@ -278,7 +278,7 @@
             'isObjectDetectCheckSupported': False,
             'isOfflineMapSupported': False,
             'isOptimizeBatterySupported': False,
-            'isOrderCleanSupported': True,
+            'isOrderCleanSupported': False,
             'isOverSeaCtmSupported': False,
             'isPetSnapshotSupported': False,
             'isPetSuppliesDeepCleanSupported': False,

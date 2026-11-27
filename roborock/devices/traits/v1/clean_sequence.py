@@ -31,11 +31,17 @@ class CleanSequenceTrait(CleanSequence, common.V1TraitMixin):
     async def set_order(self, rooms: list[int]) -> None:
         """Set the room cleaning order.
 
-        A device rejects a new order with an invalid status error while it is
-        cleaning or moving; set it while the device is idle or docked.
+        An empty list clears the custom order, and the device then chooses the
+        order itself (the app's reset). A device rejects a new order with an
+        invalid status error while it is cleaning or moving; set it while the
+        device is idle or docked.
         """
-        if not rooms or len(set(rooms)) != len(rooms):
-            raise ValueError(f"rooms must be a non-empty list of distinct segment ids: {rooms!r}")
+        if len(set(rooms)) != len(rooms):
+            raise ValueError(f"rooms must contain distinct segment ids: {rooms!r}")
         await self.rpc_channel.send_command(RoborockCommand.SET_CLEAN_SEQUENCE, params=list(rooms))
         # Optimistic update to avoid an extra refresh
         self.rooms = list(rooms)
+
+    async def reset_order(self) -> None:
+        """Clear the custom room order so the device uses its automatic order."""
+        await self.set_order([])
