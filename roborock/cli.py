@@ -63,6 +63,7 @@ from roborock.devices.cache import Cache, CacheData
 from roborock.devices.device import RoborockDevice
 from roborock.devices.device_manager import DeviceManager, DeviceVersion, UserParams, create_device_manager
 from roborock.devices.traits import Trait
+from roborock.devices.traits.b01.q7 import Q7PropertiesApi
 from roborock.devices.traits.b01.q10 import Q10PropertiesApi
 from roborock.devices.traits.b01.q10.vacuum import VacuumTrait
 from roborock.devices.traits.v1 import V1TraitMixin
@@ -70,6 +71,8 @@ from roborock.devices.traits.v1.consumeable import ConsumableAttribute
 from roborock.devices.traits.v1.map_content import MapContentTrait
 from roborock.exceptions import RoborockException, RoborockUnsupportedFeature
 from roborock.protocol import MessageParser
+from roborock.roborock_message import RoborockB01Props
+from roborock.roborock_typing import RoborockB01Q7Methods
 from roborock.web_api import RoborockApiClient
 
 _LOGGER = logging.getLogger(__name__)
@@ -494,6 +497,44 @@ async def _q10_vacuum_trait(context: RoborockContext, device_id: str) -> VacuumT
     return (await _q10_properties(context, device_id)).vacuum
 
 
+async def _q7_properties(context: RoborockContext, device_id: str) -> Q7PropertiesApi:
+    """Get the B01 Q7 properties API for a device."""
+    device_manager = await context.get_device_manager()
+    device = await device_manager.get_device(device_id)
+    if device.b01_q7_properties is None:
+        raise RoborockUnsupportedFeature("Device does not support B01 Q7 protocol. Is it a Q7?")
+    return device.b01_q7_properties
+
+
+async def _display_q7_status(context: RoborockContext, device_id: str) -> None:
+    """Query and display the current status of a B01 Q7 device.
+
+    Unlike V1 devices, the Q7 reports its state through ``prop.get``: the
+    requested properties come back in a single response, so there is no
+    push stream to wait on as with the Q10.
+    """
+    properties = await _q7_properties(context, device_id)
+    props = await properties.query_values(
+        [
+            RoborockB01Props.STATUS,
+            RoborockB01Props.FAULT,
+            RoborockB01Props.QUANTITY,
+            RoborockB01Props.WORK_MODE,
+            RoborockB01Props.STATION_ACT,
+            RoborockB01Props.CHARGE_STATE,
+            RoborockB01Props.CLEANING_TIME,
+            RoborockB01Props.CLEANING_AREA,
+            RoborockB01Props.WIND,
+            RoborockB01Props.WATER,
+            RoborockB01Props.MODE,
+        ]
+    )
+    if props is None:
+        click.echo("Feature not supported by device")
+        return
+    click.echo(dump_json(props.as_dict()))
+
+
 async def _display_q10_status(context: RoborockContext, device_id: str) -> None:
     """Refresh and display the full status of a B01 Q10 device.
 
@@ -556,6 +597,8 @@ async def status(ctx, device_id: str):
         await _display_v1_trait(context, device_id, lambda v1: v1.status)
     elif device.b01_q10_properties is not None:
         await _display_q10_status(context, device_id)
+    elif device.b01_q7_properties is not None:
+        await _display_q7_status(context, device_id)
     else:
         click.echo("Feature not supported by device")
 
@@ -1002,6 +1045,17 @@ async def command(ctx, cmd, device_id, params):
         click.echo("Command sent successfully; Enable debug logging (-d) to see responses.")
         # Q10 commands don't have a specific time to respond, so wait a bit and log
         await asyncio.sleep(5)
+    elif device.b01_q7_properties is not None:
+        try:
+            method = RoborockB01Q7Methods(cmd)
+        except ValueError as err:
+            raise RoborockException(f"Invalid command {cmd} for B01_Q7 device") from err
+        properties = device.b01_q7_properties
+        result = await properties.send(method, json.loads(params) if params is not None else {})
+        if result:
+            click.echo(dump_json(result))
+        else:
+            click.echo("Command sent successfully; Enable debug logging (-d) to see responses.")
 
 
 @click.command()
@@ -1726,6 +1780,117 @@ async def q10_set_fan_level(ctx: click.Context, device_id: str, level: str) -> N
         click.echo(f"Fan level set to {fan_level.value}")
     except RoborockUnsupportedFeature:
         click.echo("Device does not support B01 Q10 protocol. Is it a Q10?")
+    except RoborockException as e:
+        click.echo(f"Error: {e}")
+
+
+# --- Q7 session commands ---
+#
+# The Q7 API exposes its cleaning commands directly on Q7PropertiesApi
+# (there is no separate vacuum trait as on the Q10), so these commands call
+# the API methods. There is intentionally no resume or spot command: the
+# library does not map a resume value yet (the app defines an unconfirmed
+# puaseFalse = 3) and no spot clean task type, so a paused clean is
+# restarted with q7-vacuum-start.
+
+
+@session.command()
+@click.option("--device_id", required=True, help="Device ID")
+@click.pass_context
+@async_command
+async def q7_vacuum_start(ctx: click.Context, device_id: str) -> None:
+    """Start vacuum cleaning on Q7 device."""
+    context: RoborockContext = ctx.obj
+    try:
+        properties = await _q7_properties(context, device_id)
+        await properties.start_clean()
+        click.echo("Starting vacuum cleaning...")
+    except RoborockUnsupportedFeature:
+        click.echo("Device does not support B01 Q7 protocol. Is it a Q7?")
+    except RoborockException as e:
+        click.echo(f"Error: {e}")
+
+
+@session.command()
+@click.option("--device_id", required=True, help="Device ID")
+@click.pass_context
+@async_command
+async def q7_vacuum_pause(ctx: click.Context, device_id: str) -> None:
+    """Pause vacuum cleaning on Q7 device."""
+    context: RoborockContext = ctx.obj
+    try:
+        properties = await _q7_properties(context, device_id)
+        await properties.pause_clean()
+        click.echo("Pausing vacuum cleaning...")
+    except RoborockUnsupportedFeature:
+        click.echo("Device does not support B01 Q7 protocol. Is it a Q7?")
+    except RoborockException as e:
+        click.echo(f"Error: {e}")
+
+
+@session.command()
+@click.option("--device_id", required=True, help="Device ID")
+@click.pass_context
+@async_command
+async def q7_vacuum_stop(ctx: click.Context, device_id: str) -> None:
+    """Stop vacuum cleaning on Q7 device."""
+    context: RoborockContext = ctx.obj
+    try:
+        properties = await _q7_properties(context, device_id)
+        await properties.stop_clean()
+        click.echo("Stopping vacuum cleaning...")
+    except RoborockUnsupportedFeature:
+        click.echo("Device does not support B01 Q7 protocol. Is it a Q7?")
+    except RoborockException as e:
+        click.echo(f"Error: {e}")
+
+
+@session.command()
+@click.option("--device_id", required=True, help="Device ID")
+@click.pass_context
+@async_command
+async def q7_vacuum_dock(ctx: click.Context, device_id: str) -> None:
+    """Return vacuum to dock on Q7 device."""
+    context: RoborockContext = ctx.obj
+    try:
+        properties = await _q7_properties(context, device_id)
+        await properties.return_to_dock()
+        click.echo("Returning vacuum to dock...")
+    except RoborockUnsupportedFeature:
+        click.echo("Device does not support B01 Q7 protocol. Is it a Q7?")
+    except RoborockException as e:
+        click.echo(f"Error: {e}")
+
+
+@session.command()
+@click.option("--device_id", required=True, help="Device ID")
+@click.option(
+    "--segments",
+    required=True,
+    help="Comma-separated room/segment ids to clean, e.g. 9,2",
+)
+@click.pass_context
+@async_command
+async def q7_clean_segments(ctx: click.Context, device_id: str, segments: str) -> None:
+    """Start a room / segment clean on a Q7 device.
+
+    Room ids are the segment ids from the device's map rooms.
+    """
+    context: RoborockContext = ctx.obj
+    try:
+        segment_ids = [int(s) for s in segments.split(",") if s.strip()]
+    except ValueError:
+        click.echo("--segments must be comma-separated integers, e.g. 9,2")
+        return
+    if not segment_ids:
+        click.echo("No segment ids provided")
+        return
+    try:
+        properties = await _q7_properties(context, device_id)
+        await properties.clean_segments(segment_ids)
+        click.echo(f"Starting room clean of segments {segment_ids}...")
+    except RoborockUnsupportedFeature:
+        click.echo("Device does not support B01 Q7 protocol. Is it a Q7?")
     except RoborockException as e:
         click.echo(f"Error: {e}")
 
